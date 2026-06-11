@@ -5,6 +5,22 @@
  */
 import { formatInTimeZone, toDate } from 'date-fns-tz';
 
+/**
+ * Returns a valid IANA timezone string. Falls back to 'UTC' if the supplied
+ * value is empty, undefined, or not recognised by the Intl API.
+ * This prevents an invalid x-user-timezone header from causing HTTP 500.
+ */
+function safeTimeZone(timeZone: string): string {
+    if (!timeZone) return 'UTC';
+    try {
+        // Intl.DateTimeFormat throws a RangeError for unknown timezone identifiers.
+        Intl.DateTimeFormat(undefined, { timeZone });
+        return timeZone;
+    } catch (_e) {
+        return 'UTC';
+    }
+}
+
 // Helper to construct an absolute Date object for a generic Timezone wall-clock
 function createZonedDate(year: number, month: number, day: number, h: number, mn: number, s: number, ms: number, timeZone: string): Date {
     // Utilize Date.UTC for pure mathematical overflow/underflow normalization without local TZ corruption
@@ -24,8 +40,7 @@ function createZonedDate(year: number, month: number, day: number, h: number, mn
 }
 
 function getZonedParts(date: Date, timeZone: string) {
-    try {
-        const str = formatInTimeZone(date, timeZone, 'yyyy-MM-dd-HH-mm-ss-SSS-i');
+    const parseStr = (str: string) => {
         const [y, m, d, h, mn, s, ms, isoWeekday] = str.split('-');
         return {
             year: Number(y),
@@ -37,6 +52,10 @@ function getZonedParts(date: Date, timeZone: string) {
             ms: Number(ms),
             isoWeekday: Number(isoWeekday) // 1=Mon, 7=Sun
         };
+    };
+    try {
+        const str = formatInTimeZone(date, timeZone, 'yyyy-MM-dd-HH-mm-ss-SSS-i');
+        return parseStr(str);
     } catch (e) {
         console.error(`Invalid time value in getZonedParts. date: ${date}, type: ${typeof date}, value: ${date?.getTime?.()}`);
         console.trace('Stack trace for Invalid Date:');
@@ -51,6 +70,7 @@ function getZonedParts(date: Date, timeZone: string) {
  * @returns Number of business days
  */
 export function countBusinessDaysInMonth(date: Date, timeZone: string = 'UTC'): number {
+    timeZone = safeTimeZone(timeZone);
     const parts = getZonedParts(date, timeZone);
     const currentMonth = parts.month;
     let count = 0;
@@ -69,6 +89,7 @@ export function countBusinessDaysInMonth(date: Date, timeZone: string = 'UTC'): 
  * Calculates the start date for a rolling window of months (TZ safe).
  */
 export function getStartDateForMonthsWindow(now: Date, months: number, timeZone: string = 'UTC'): Date {
+    timeZone = safeTimeZone(timeZone);
     const parts = getZonedParts(now, timeZone);
     let targetMonth = parts.month - (months - 1);
     let targetYear = parts.year;
@@ -100,6 +121,7 @@ export function daysBetween(date1: Date, date2: Date): number {
 export type PeriodType = 'day' | 'week' | 'month' | 'quarter' | 'year';
 
 export function getZonedPeriodKey(date: Date, period: PeriodType, timeZone: string = 'UTC'): string {
+    timeZone = safeTimeZone(timeZone);
     const parts = getZonedParts(date, timeZone);
     const y = parts.year;
     const mStr = parts.month.toString().padStart(2, '0');
@@ -135,6 +157,7 @@ export interface PeriodBoundaries {
 }
 
 export function getPeriodBoundaries(preset: DatePreset | string, baseDate: Date = new Date(), timeZone: string = 'UTC'): PeriodBoundaries {
+    timeZone = safeTimeZone(timeZone);
     const parts = getZonedParts(baseDate, timeZone);
     
     let curStartDay = parts.day;
