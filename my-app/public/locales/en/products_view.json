@@ -1,0 +1,7 @@
+{
+    "filters": {
+        "all_types": "All Types",
+        "sale": "Sale",
+        "internal_use": "Internal Use"
+    }
+}

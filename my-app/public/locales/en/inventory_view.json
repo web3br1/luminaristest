@@ -1,0 +1,101 @@
+{
+    "title": "Inventory",
+    "tabs": {
+        "stock": "Stock",
+        "movements": "Movements"
+    },
+    "syncing_levels": "Syncing levels...",
+    "no_items_found": "No items found with current filters.",
+    "no_data_found": "No data found",
+    "check_tables": "Make sure the Products and Units tables are installed and populated.",
+    "table": {
+        "product_description": "Product / Description",
+        "location": "Location (Unit)",
+        "unit_value": "Unit Value",
+        "physical_balance": "Physical Balance",
+        "reserved": "Reserved",
+        "available": "Available"
+    },
+    "tooltips": {
+        "physical_balance": "Total quantity in physical stock, including items reserved for orders.",
+        "reserved": "Items committed to pending or processing orders.",
+        "available": "Items free for immediate sale. Calculation: Physical Balance - Reserved."
+    },
+    "status": {
+        "out_of_stock": "Out of Stock"
+    },
+    "filters": {
+        "title": "Filters",
+        "search_label": "Search product",
+        "search_placeholder": "Name or SKU...",
+        "unit": "Unit",
+        "all_units": "All",
+        "all_units_wide": "All Units",
+        "low_stock": "Low stock",
+        "low_stock_status": "Alert Status",
+        "stats": {
+            "skus": "SKUs",
+            "items": "Items",
+            "critical": "Critical"
+        }
+    },
+    "movements": {
+        "title": "Movement Filters",
+        "search_label": "Search movement",
+        "search_placeholder": "Product, reason...",
+        "type": "Flow Type",
+        "all_types": "All",
+        "in": "In",
+        "out": "Out",
+        "stats": {
+            "title": "Period Summary",
+            "incoming": "Incoming",
+            "outgoing": "Outgoing",
+            "total": "Total"
+        }
+    },
+    "history": {
+        "title": "Movement History",
+        "syncing": "Syncing audit trail...",
+        "no_movements": "No movements",
+        "no_movements_desc": "No incoming or outgoing flows have been recorded yet.",
+        "columns": {
+            "moment": "Moment",
+            "flow": "Flow",
+            "product_source": "Product / Source",
+            "qty": "Qty",
+            "reason_status": "Reason / Status"
+        },
+        "unknown": "Unknown",
+        "general_unit": "General Unit",
+        "no_margin": "N/A"
+    },
+    "modal": {
+        "title": "New Movement",
+        "unit": "Unit",
+        "flow_type": "Flow Type",
+        "reason": "Motivation",
+        "quantity": "Quantity",
+        "total_cost": "Total Cost Price",
+        "total_cost_tooltip": "Total amount paid for this purchase (quantity × unit price).",
+        "supplier": "Supplier",
+        "cancel": "Cancel",
+        "confirm": "Confirm Flow",
+        "submitting": "Submitting...",
+        "error_invalid_info": "Invalid product/unit information.",
+        "error_qty_zero": "Quantity must be greater than zero.",
+        "error_purchase_req": "Supplier and total value are required for purchases.",
+        "error_generic": "Error registering movement."
+    },
+    "reasons": {
+        "Purchase": "Purchase",
+        "Sale": "Sale",
+        "Internal Use": "Internal Use",
+        "Return": "Return",
+        "Adjustment": "Manual Adjustment"
+    },
+    "actions": {
+        "register_movement": "Register Movement",
+        "save_price": "Save (Enter)"
+    }
+}

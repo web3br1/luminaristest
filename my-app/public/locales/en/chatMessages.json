@@ -1,0 +1,42 @@
+{
+  "dto.validation.contentRequired": "Content is required.",
+  "dto.validation.roleRequired": "Role is required.",
+  "dto.validation.roleInvalid": "Role must be either USER or ASSISTANT.",
+  "dto.validation.chatInstanceIdRequired": "Chat instance ID is required.",
+  "dto.validation.chatInstanceIdInvalid": "Chat instance ID must be a valid CUID.",
+  "dto.validation.titleInvalid": "Title must be a string if provided.",
+
+  "api.chatInstance.notFound": "Chat instance not found.",
+  "api.chatInstance.forbidden": "You do not have permission to access this chat instance.",
+  "api.chatInstance.updated": "Chat instance title updated successfully.",
+  "api.chatInstance.deleted": "Chat instance deleted successfully.",
+  "api.chatInstance.error.updateFailed": "Failed to update chat instance title.",
+  "api.chatInstance.error.deleteFailed": "Failed to delete chat instance.",
+  "api.chatInstance.error.createFailed": "Failed to create or retrieve chat instance.",
+  
+  "api.chatMessage.notFound": "Chat message not found.",
+  "api.chatMessage.forbidden": "You do not have permission to access this message.",
+  "api.chatMessage.deleted": "Chat message deleted successfully.",
+  "api.chatMessage.error.deleteFailed": "Failed to delete chat message.",
+  "api.chatMessage.error.createFailed": "Failed to create chat message.",
+
+  "chatInstance.error.notFound": "Chat instance not found. Please check the ID and try again.",
+  "chatInstance.error.genericCreateError": "Could not create or retrieve the chat instance. Please try again later.",
+  "chatInstance.error.genericFetchError": "Could not retrieve chat instances. Please try again later.",
+  "chatInstance.error.genericUpdateError": "Could not update chat instance. Please try again later.",
+  "chatInstance.error.genericDeleteError": "Could not delete chat instance. Please try again later.",
+
+  "chatMessage.error.notFound": "Chat message not found.",
+  "chatMessage.error.unexpectedError": "An unexpected error occurred with the chat message.",
+  "chatMessage.error.deleteFailed": "Failed to delete the chat message.",
+  "chatMessage.error.genericCreateError": "Could not create the chat message. Please try again later.",
+  "chatMessage.error.genericFetchError": "Could not retrieve chat messages. Please try again later.",
+  
+  "chatMessage.error.aiNoResponse": "The AI assistant did not provide a response. Please try sending your message again.",
+  "chatMessage.error.aiApiKeyMissing": "The AI service is not configured. Please contact support.",
+  "chatMessage.error.aiProcessingError": "There was an error communicating with the AI assistant. Please try again shortly.",
+
+  "common.error.unauthorized": "Unauthorized. Please log in.",
+  "common.error.forbidden": "Forbidden. You do not have permission to perform this action.",
+  "common.error.invalidId": "The provided ID is invalid."
+} 

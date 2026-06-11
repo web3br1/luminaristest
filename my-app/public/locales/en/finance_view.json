@@ -1,0 +1,145 @@
+{
+    "title": "Finance",
+    "analytics": {
+        "spreadsheets": "Spreadsheets",
+        "dashboard": "Dashboard",
+        "title": "Analytics Dashboard",
+        "subtitle": "Hover over any area and click ✏️ to change the KPI",
+        "select_kpi": "Click ✏️ to select"
+    },
+    "tabs": {
+        "analytics": "Analytics",
+        "sales": "Sales",
+        "expenses": "Expenses"
+    },
+    "expenses": {
+        "title": "Expenses",
+        "new_expense": "New Expense",
+        "no_filtered_results": "No expenses found with the applied filters.",
+        "no_records": "No expenses registered yet.",
+        "table": {
+            "description": "Description",
+            "amount": "Amount",
+            "date": "Date",
+            "category": "Category",
+            "planned": "Planned"
+        },
+        "filters": {
+            "search_label": "Search",
+            "search_placeholder": "Description, amount...",
+            "period": "Period",
+            "category": "Category",
+            "all_categories": "All",
+            "stats_records": "Records",
+            "stats_total": "Total"
+        }
+    },
+    "sales": {
+        "title": "Sales",
+        "subtitle": "Analysis, management, and completion of sales.",
+        "new_sale": "New Sale",
+        "update_error": "Failed to update sale",
+        "confirm_finalize": "Confirm sale completion?",
+        "confirm_cancel": "Confirm sale cancellation?",
+        "confirm_mark_paid": "Mark this sale as paid?",
+        "confirm_finalize_message": "The sale will be marked as finalized.",
+        "confirm_cancel_message": "This action cannot be undone. The sale will be marked as cancelled.",
+        "confirm_pay_message": "The payment status will be updated to Paid.",
+        "success_finalized": "Sale finalized successfully.",
+        "success_cancelled": "Sale cancelled successfully.",
+        "success_paid": "Sale marked as paid successfully.",
+        "detail_prompt": "Select a sale to view details.",
+        "labels": {
+            "date": "Date",
+            "customer": "Customer",
+            "unit": "Unit",
+            "subtotal": "Subtotal",
+            "total": "Total",
+            "details": "Details"
+        },
+        "items": {
+            "title": "Items",
+            "type": "Type",
+            "name": "Product/Service",
+            "quantity": "Qty",
+            "price": "Price",
+            "none_found": "No items."
+        },
+        "table": {
+            "list_title": "Sales list",
+            "date": "Date",
+            "customer": "Customer",
+            "status": "Status",
+            "payment": "Payment",
+            "subtotal": "Subtotal",
+            "discounts": "Discounts",
+            "total": "Total",
+            "actions": "Actions"
+        },
+        "details": {
+            "title": "Details",
+            "customer": "Customer",
+            "unit": "Unit",
+            "subtotal": "Subtotal",
+            "total": "Total",
+            "items": "Items",
+            "type": "Type",
+            "product_service": "Product/Service",
+            "qty": "Qty",
+            "price": "Price",
+            "no_items": "No items.",
+            "select_sale": "Select a sale to view details."
+        },
+        "modal": {
+            "title": "New Sale",
+            "subtitle": "Fill in information to register a sale",
+            "tab_general": "General",
+            "tab_items": "Items",
+            "tab_payment": "Payment",
+            "sale_type": "Sale Type",
+            "products": "Products",
+            "services": "Services",
+            "date": "Date",
+            "unit": "Unit",
+            "simple_customer": "One-off customer",
+            "customer_name": "Customer name...",
+            "notes": "Notes",
+            "notes_placeholder": "Observations about the sale...",
+            "payment_method": "Payment",
+            "payment_term": "Payment Term",
+            "summary": "Summary",
+            "btn_cancel": "Cancel",
+            "btn_back": "Previous",
+            "btn_next": "Next",
+            "btn_finalize": "Finalize Sale",
+            "error_fill_fields": "Fill in all mandatory fields",
+            "select_unit_first": "Select Unit before adding items.",
+            "validation": {
+                "no_items": "Add at least one item",
+                "item_select_product": "Item {{index}}: Select a product",
+                "item_select_service": "Item {{index}}: Select a service",
+                "item_price_zero": "Item {{index}}: Price must be greater than zero",
+                "item_qty_zero": "Item {{index}}: Quantity must be greater than zero"
+            },
+            "charts": {
+                "draft_vs_finalized": "Draft vs Finalized",
+                "payment_breakdown": "Paid vs Unpaid vs Cancelled",
+                "received_vs_pending": "Received vs Pending Amount",
+                "monthly_totals": "Monthly Totals (last 6 months)",
+                "pago": "Paid",
+                "pendente": "Pending",
+                "total": "Total",
+                "no_data": "No data."
+            }
+        }
+    },
+    "status": {
+        "draft": "Draft",
+        "finalized": "Finalized",
+        "cancelled": "Cancelled",
+        "returned": "Returned",
+        "pending": "Pending",
+        "paid": "Paid",
+        "partial": "Partial"
+    }
+}

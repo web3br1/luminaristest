@@ -1,0 +1,242 @@
+// Features - Repositories
+import { ChatInstanceRepository } from '../features/chatInstances/repositories/ChatInstanceRepository';
+import { ChatMessageRepository } from '../features/chatMessages/repositories/ChatMessageRepository';
+import { ChunkRepository } from '../features/documents/repositories/ChunkRepository';
+import { DashboardLayoutRepository } from '../features/dashboardLayout/repositories/DashboardLayoutRepository';
+import { DocumentRepository } from '../features/documents/repositories/DocumentRepository';
+import { StructuredDataRepository } from '../features/structuredData/repositories/StructuredDataRepository';
+import { UserRepository } from '../features/users/repositories/UserRepository';
+import { VectorRepository } from '../features/documents/repositories/VectorRepository';
+import { DynamicTableRepository } from '../features/dynamicTables/repositories/DynamicTableRepository';
+import { ActionProposalRepository } from '../features/chat/repositories/ActionProposalRepository';
+import { KnowledgeGraphRepository } from '../features/chat/repositories/KnowledgeGraphRepository';
+
+// Features - Policies
+import { ChatInstancePolicy } from '../features/chatInstances/policies/ChatInstancePolicy';
+import { ChatMessagePolicy } from '../features/chatMessages/policies/ChatMessagePolicy';
+import { DashboardLayoutPolicy } from '../features/dashboardLayout/policies/DashboardLayoutPolicy';
+import { DocumentPolicy } from '../features/documents/policies/DocumentPolicy';
+import { StructuredDataPolicy } from '../features/structuredData/policies/StructuredDataPolicy';
+import { UserPolicy } from '../features/users/policies/UserPolicy';
+import { DynamicTablePolicy } from '../features/dynamicTables/policies/DynamicTablePolicy';
+
+// Features - Services
+import { ChatInstanceService } from '../features/chatInstances/services/ChatInstanceService';
+import { ChatMessageService } from '../features/chatMessages/services/ChatMessageService';
+import { ChatService } from '../features/chat/services/ChatService';
+import { DashboardLayoutService } from '../features/dashboardLayout/services/DashboardLayoutService';
+import { DocumentProcessingService } from '../features/documents/services/DocumentProcessingService';
+import { DocumentService } from '../features/documents/services/DocumentService';
+import { ReportService } from '../features/reports/services/ReportService';
+import { StructuredDataService } from '../features/structuredData/services/StructuredDataService';
+import { UserService } from '../features/users/services/UserService';
+import { DynamicTableService } from '../features/dynamicTables/services/DynamicTableService';
+import { LuminarisAgentService } from '../features/chat/services/LuminarisAgentService';
+import { KnowledgeGraphService } from '../features/chat/services/KnowledgeGraphService';
+
+// Lib - External Services
+import { OpenAIService as ChatOpenAIService } from './openai/OpenAIService';
+import { OpenAIService as EmbeddingOpenAIService } from './vector/embedding';
+
+// Interfaces
+import type { IChatInstanceRepository } from '../features/chatInstances/repositories/IChatInstanceRepository';
+import type { IChatMessageRepository } from '../features/chatMessages/repositories/IChatMessageRepository';
+import type { IDashboardLayoutRepository } from '../features/dashboardLayout/repositories/IDashboardLayoutRepository';
+import type { IDocumentRepository } from '../features/documents/repositories/IDocumentRepository';
+import type { IUserRepository } from '../features/users/repositories/IUserRepository';
+import type { IVectorRepository } from '../features/documents/repositories/IVectorRepository';
+import type { IDynamicTableRepository } from '../features/dynamicTables/repositories/IDynamicTableRepository';
+import type { IChatInstancePolicy } from '../features/chatInstances/policies/IChatInstancePolicy';
+import type { IChatMessagePolicy } from '../features/chatMessages/policies/IChatMessagePolicy';
+import type { IDashboardLayoutPolicy } from '../features/dashboardLayout/policies/IDashboardLayoutPolicy';
+import type { IDocumentPolicy } from '../features/documents/policies/IDocumentPolicy';
+import type { IUserPolicy } from '../features/users/policies/IUserPolicy';
+import type { IDynamicTablePolicy } from '../features/dynamicTables/policies/IDynamicTablePolicy';
+import type { IChatService } from '../features/chat/services/IChatService';
+import type { IReportService } from '../features/reports/services/IReportService';
+import type { IActionProposalRepository } from '../features/chat/repositories/IActionProposalRepository';
+import type { IKnowledgeGraphRepository } from '../features/chat/repositories/IKnowledgeGraphRepository';
+
+export class ApplicationFactory {
+  private static instance: ApplicationFactory;
+
+  private readonly repositories: {
+    user: IUserRepository;
+    chatMessage: IChatMessageRepository;
+    chatInstance: IChatInstanceRepository;
+    dashboardLayout: IDashboardLayoutRepository;
+    document: IDocumentRepository;
+    vector: IVectorRepository;
+    chunk: ChunkRepository;
+    structuredData: StructuredDataRepository;
+    dynamicTable: IDynamicTableRepository;
+    actionProposal: IActionProposalRepository;
+    knowledgeGraph: IKnowledgeGraphRepository;
+  };
+
+  private readonly policies: {
+    user: IUserPolicy;
+    chatMessage: IChatMessagePolicy;
+    chatInstance: IChatInstancePolicy;
+    dashboardLayout: IDashboardLayoutPolicy;
+    document: IDocumentPolicy;
+    structuredData: StructuredDataPolicy;
+    dynamicTable: IDynamicTablePolicy;
+  };
+
+  public readonly services: {
+    user: UserService;
+    chatMessage: ChatMessageService;
+    chatInstance: ChatInstanceService;
+    dashboardLayout: DashboardLayoutService;
+    document: DocumentService;
+    chat: IChatService;
+    report: IReportService;
+    structuredData: StructuredDataService;
+    dynamicTable: DynamicTableService;
+    luminarisAgent: LuminarisAgentService;
+    knowledgeGraph: KnowledgeGraphService;
+  };
+
+  private constructor() {
+    // External services (singletons)
+    const chatOpenAIService = new ChatOpenAIService();
+    const embeddingOpenAIService = new EmbeddingOpenAIService({ apiKey: process.env.OPENAI_API_KEY || '' });
+
+    // Repositories
+    this.repositories = {
+      chatInstance: new ChatInstanceRepository(),
+      chatMessage: new ChatMessageRepository(),
+      chunk: new ChunkRepository(),
+      dashboardLayout: new DashboardLayoutRepository(),
+      document: new DocumentRepository(),
+      structuredData: new StructuredDataRepository(),
+      user: new UserRepository(),
+      vector: new VectorRepository(),
+      dynamicTable: new DynamicTableRepository(),
+      actionProposal: new ActionProposalRepository(),
+      knowledgeGraph: new KnowledgeGraphRepository(),
+    };
+
+    // Policies
+    this.policies = {
+      chatInstance: new ChatInstancePolicy(),
+      chatMessage: new ChatMessagePolicy(),
+      dashboardLayout: new DashboardLayoutPolicy(),
+      document: new DocumentPolicy(),
+      structuredData: new StructuredDataPolicy(this.repositories.document),
+      user: new UserPolicy(),
+      dynamicTable: new DynamicTablePolicy(),
+    };
+
+    // Services (handling inter-dependencies)
+    const structuredDataService = new StructuredDataService(
+      this.repositories.structuredData,
+      this.policies.structuredData,
+      chatOpenAIService
+    );
+    const knowledgeGraphService = new KnowledgeGraphService(
+      this.repositories.knowledgeGraph,
+      this.repositories.dynamicTable
+    );
+
+    const dynamicTableService = new DynamicTableService(
+      this.repositories.dynamicTable,
+      this.policies.dynamicTable,
+      knowledgeGraphService
+    );
+
+    const luminarisAgentService = new LuminarisAgentService(
+      dynamicTableService,
+      this.repositories.actionProposal
+    );
+
+    this.services = {
+      chat: new ChatService(
+        embeddingOpenAIService,
+        this.repositories.vector,
+        chatOpenAIService,
+        luminarisAgentService,
+        knowledgeGraphService
+      ),
+      chatInstance: new ChatInstanceService(this.repositories.chatInstance, this.policies.chatInstance),
+      chatMessage: new ChatMessageService(
+        this.repositories.chatMessage,
+        this.repositories.chatInstance,
+        this.policies.chatMessage
+      ),
+      dashboardLayout: new DashboardLayoutService(
+        this.repositories.dashboardLayout,
+        this.policies.dashboardLayout
+      ),
+      document: new DocumentService(
+        this.repositories.document,
+        this.repositories.chunk,
+        this.repositories.vector,
+        new DocumentProcessingService(),
+        this.policies.document,
+        chatOpenAIService,
+        structuredDataService, // Injected dependency
+        this.repositories.user
+      ),
+      report: new ReportService(embeddingOpenAIService, this.repositories.vector, chatOpenAIService),
+      structuredData: structuredDataService, // Assigned service
+      user: new UserService(this.repositories.user, this.policies.user),
+      dynamicTable: dynamicTableService,
+      luminarisAgent: luminarisAgentService,
+      knowledgeGraph: knowledgeGraphService,
+    };
+  }
+
+  public static getInstance(): ApplicationFactory {
+    if (!ApplicationFactory.instance) {
+      ApplicationFactory.instance = new ApplicationFactory();
+    }
+    return ApplicationFactory.instance;
+  }
+
+  // Service Getters
+  public getChatService = (): IChatService => this.services.chat;
+  public getChatInstanceService = (): ChatInstanceService => this.services.chatInstance;
+  public getChatMessageService = (): ChatMessageService => this.services.chatMessage;
+  public getDashboardLayoutService = (): DashboardLayoutService => this.services.dashboardLayout;
+  public getDocumentService = (): DocumentService => this.services.document;
+  public getReportService = (): IReportService => this.services.report;
+  public getStructuredDataService = (): StructuredDataService => this.services.structuredData;
+  public getUserService = (): UserService => this.services.user;
+  public getDynamicTableService = (): DynamicTableService => this.services.dynamicTable;
+  public getLuminarisAgentService = (): LuminarisAgentService => this.services.luminarisAgent;
+  public getKnowledgeGraphService = (): KnowledgeGraphService => this.services.knowledgeGraph;
+
+  // Repository Getters
+  public getChatInstanceRepository = (): IChatInstanceRepository => this.repositories.chatInstance;
+  public getChatMessageRepository = (): IChatMessageRepository => this.repositories.chatMessage;
+  public getDashboardLayoutRepository = (): IDashboardLayoutRepository => this.repositories.dashboardLayout;
+  public getDocumentRepository = (): IDocumentRepository => this.repositories.document;
+  public getUserRepository = (): IUserRepository => this.repositories.user;
+  public getVectorRepository = (): IVectorRepository => this.repositories.vector;
+  public getDynamicTableRepository = (): IDynamicTableRepository => this.repositories.dynamicTable;
+  public getKnowledgeGraphRepository = (): IKnowledgeGraphRepository => this.repositories.knowledgeGraph;
+}
+
+export function getFactory(): ApplicationFactory {
+  return ApplicationFactory.getInstance();
+}
+
+export type {
+  IUserRepository,
+  IChatMessageRepository,
+  IChatInstanceRepository,
+  IDashboardLayoutRepository,
+  IDocumentRepository,
+  IVectorRepository,
+  IUserPolicy,
+  IChatMessagePolicy,
+  IChatInstancePolicy,
+  IDashboardLayoutPolicy,
+  IDocumentPolicy,
+  IDynamicTableRepository,
+  IDynamicTablePolicy,
+  IActionProposalRepository,
+  IKnowledgeGraphRepository,
+};

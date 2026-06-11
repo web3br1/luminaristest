@@ -1,0 +1,101 @@
+{
+    "title": "Estoque",
+    "tabs": {
+        "stock": "Estoque",
+        "movements": "Movimentações"
+    },
+    "syncing_levels": "Sincronizando níveis...",
+    "no_items_found": "Nenhum item encontrado nos parâmetros atuais.",
+    "no_data_found": "Nenhum dado encontrado",
+    "check_tables": "Verifique se as tabelas de Produtos e Unidades estão instaladas e populadas.",
+    "table": {
+        "product_description": "Produto / Descrição",
+        "location": "Localização (Unidade)",
+        "unit_value": "Valor Unit.",
+        "physical_balance": "Saldo Físico",
+        "reserved": "Reserva",
+        "available": "Disponível"
+    },
+    "tooltips": {
+        "physical_balance": "Quantidade total em estoque físico, incluindo itens reservados para pedidos.",
+        "reserved": "Itens comprometidos para pedidos pendentes ou em processamento.",
+        "available": "Itens livres para venda imediata. Cálculo: Saldo Físico - Reserva."
+    },
+    "status": {
+        "out_of_stock": "Esgotado"
+    },
+    "filters": {
+        "title": "Filtros",
+        "search_label": "Buscar produto",
+        "search_placeholder": "Nome ou SKU...",
+        "unit": "Unidade",
+        "all_units": "Todas",
+        "all_units_wide": "Todas as Unidades",
+        "low_stock": "Estoque baixo",
+        "low_stock_status": "Status de Alerta",
+        "stats": {
+            "skus": "SKUs",
+            "items": "Itens",
+            "critical": "Críticos"
+        }
+    },
+    "movements": {
+        "title": "Filtros de Movimentação",
+        "search_label": "Buscar movimentação",
+        "search_placeholder": "Produto, motivo...",
+        "type": "Tipo de Fluxo",
+        "all_types": "Todos",
+        "in": "Entrada",
+        "out": "Saída",
+        "stats": {
+            "title": "Resumo do Período",
+            "incoming": "Entradas",
+            "outgoing": "Saídas",
+            "total": "Total"
+        }
+    },
+    "history": {
+        "title": "Histórico de Movimentações",
+        "syncing": "Sincronizando auditoria...",
+        "no_movements": "Sem movimentações",
+        "no_movements_desc": "Nenhum fluxo de entrada ou saída foi registrado até o momento.",
+        "columns": {
+            "moment": "Momento",
+            "flow": "Fluxo",
+            "product_source": "Produto / Origem",
+            "qty": "Qtd",
+            "reason_status": "Motivo / Status"
+        },
+        "unknown": "Desconhecido",
+        "general_unit": "Unidade Geral",
+        "no_margin": "S/M"
+    },
+    "modal": {
+        "title": "Nova Movimentação",
+        "unit": "Unidade",
+        "flow_type": "Tipo de Fluxo",
+        "reason": "Motivação",
+        "quantity": "Quantidade",
+        "total_cost": "Preço de Custo Total",
+        "total_cost_tooltip": "Valor total pago nesta compra (quantidade × preço unitário).",
+        "supplier": "Fornecedor",
+        "cancel": "Desistir",
+        "confirm": "Confirmar Fluxo",
+        "submitting": "Finalizando...",
+        "error_invalid_info": "Informações de produto/unidade inválidas.",
+        "error_qty_zero": "Quantidade deve ser maior que zero.",
+        "error_purchase_req": "Fornecedor e valor total são obrigatórios para compras.",
+        "error_generic": "Erro ao registrar movimentação."
+    },
+    "reasons": {
+        "Purchase": "Compra",
+        "Sale": "Venda",
+        "Internal Use": "Uso Interno",
+        "Return": "Devolução",
+        "Adjustment": "Ajuste Manual"
+    },
+    "actions": {
+        "register_movement": "Registrar Movimentação",
+        "save_price": "Salvar (Enter)"
+    }
+}

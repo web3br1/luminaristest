@@ -1,0 +1,126 @@
+/**
+ * Temporal Aggregation Processor
+ *
+ * Aggregates values by time period (day, week, month, quarter, year).
+ * Useful for visualizing trends over time.
+ */
+
+import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
+
+type PeriodType = 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+function formatPeriodKey(date: Date, period: PeriodType): string {
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const month = `${m}`.padStart(2, '0');
+
+  switch (period) {
+    case 'day':
+      return `${y}-${month}-${String(date.getDate()).padStart(2, '0')}`;
+    case 'week': {
+      const d = new Date(Date.UTC(y, date.getMonth(), date.getDate()));
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+      return `${y}-W${String(week).padStart(2, '0')}`;
+    }
+    case 'month':
+      return `${y}-${month}`;
+    case 'quarter':
+      return `${y}-Q${Math.floor((m - 1) / 3) + 1}`;
+    case 'year':
+      return String(y);
+    default:
+      return `${y}-${month}`;
+  }
+}
+
+function getPeriodStartDate(date: Date, period: PeriodType, limit: number): Date {
+  const start = new Date(date);
+
+  switch (period) {
+    case 'day':
+      start.setDate(start.getDate() - (limit - 1));
+      break;
+    case 'week':
+      start.setDate(start.getDate() - (limit - 1) * 7);
+      break;
+    case 'month':
+      start.setMonth(start.getMonth() - (limit - 1));
+      break;
+    case 'quarter':
+      start.setMonth(start.getMonth() - (limit - 1) * 3);
+      break;
+    case 'year':
+      start.setFullYear(start.getFullYear() - (limit - 1));
+      break;
+  }
+
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+export const temporalAggregationProcessor: AnalyticsProcessor = (context): ChartDataPoint[] => {
+  const { rows, params, table } = context;
+  const amountField = params.amountField || 'totalAmount';
+  const dateField = params.dateField || 'date';
+  const period: PeriodType = params.period || 'month';
+  const excludeStatuses = params.excludeStatuses || [];
+  const statusField = params.statusField;
+  const limit = params.limit || 12;
+
+  const now = new Date();
+  const startDate = params.startDate ? new Date(params.startDate) : getPeriodStartDate(now, period, limit);
+  const endDate = params.endDate ? new Date(params.endDate) : now;
+
+  const periodTotals = new Map<string, number>();
+  const periodRecordIds = new Map<string, string[]>();
+
+  for (const row of rows) {
+    // Check excluded statuses
+    if (statusField) {
+      const status = String(row.data?.[statusField] || '').trim();
+      if (
+        excludeStatuses.some(
+          (excluded: string) => status.toLowerCase() === String(excluded).toLowerCase()
+        )
+      ) {
+        continue;
+      }
+    }
+
+    const dateValue = row.data?.[dateField];
+    if (!dateValue) continue;
+
+    const rowDate = new Date(dateValue);
+    if (isNaN(rowDate.getTime()) || rowDate < startDate || rowDate > endDate) {
+      continue;
+    }
+
+    const periodKey = formatPeriodKey(rowDate, period);
+    const amount = Number(row.data?.[amountField] || 0);
+
+    if (Number.isFinite(amount) && amount > 0) {
+      periodTotals.set(periodKey, (periodTotals.get(periodKey) || 0) + amount);
+      if (!periodRecordIds.has(periodKey)) {
+        periodRecordIds.set(periodKey, []);
+      }
+      periodRecordIds.get(periodKey)!.push(row.id);
+    }
+  }
+
+  // Get table source - presetKey may not exist on IDynamicTable, so use type assertion
+  const mainTableSource = (table as any).presetKey || (table as any).internalName || params.tableId || 'sales';
+  
+  return Array.from(periodTotals.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-limit)
+    .map(([name, value]) => ({
+      name,
+      value,
+      recordIds: periodRecordIds.get(name),
+      tableSource: mainTableSource,
+    }));
+};
+

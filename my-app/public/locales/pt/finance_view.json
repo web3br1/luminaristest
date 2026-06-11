@@ -1,0 +1,144 @@
+{
+    "analytics": {
+        "spreadsheets": "Planilhas",
+        "dashboard": "Dashboard",
+        "title": "Analytics Dashboard",
+        "subtitle": "Passe o mouse sobre qualquer área e clique ✏️ para alterar o KPI",
+        "select_kpi": "Clique ✏️ para selecionar"
+    },
+    "tabs": {
+        "analytics": "Análises",
+        "sales": "Vendas",
+        "expenses": "Despesas"
+    },
+    "expenses": {
+        "title": "Despesas",
+        "new_expense": "Nova Despesa",
+        "no_filtered_results": "Nenhuma despesa encontrada com os filtros aplicados.",
+        "no_records": "Nenhuma despesa registrada ainda.",
+        "table": {
+            "description": "Descrição",
+            "amount": "Valor",
+            "date": "Data",
+            "category": "Categoria",
+            "planned": "Planejado"
+        },
+        "filters": {
+            "search_label": "Buscar",
+            "search_placeholder": "Descrição, valor...",
+            "period": "Período",
+            "category": "Categoria",
+            "all_categories": "Todas",
+            "stats_records": "Registros",
+            "stats_total": "Total"
+        }
+    },
+    "sales": {
+        "title": "Vendas",
+        "subtitle": "Análises, gestão e finalização de vendas.",
+        "new_sale": "Nova Venda",
+        "update_error": "Falha ao atualizar venda",
+        "confirm_finalize": "Confirmar finalização da venda?",
+        "confirm_cancel": "Confirmar cancelamento da venda?",
+        "confirm_mark_paid": "Marcar esta venda como paga?",
+        "confirm_finalize_message": "A venda será marcada como finalizada.",
+        "confirm_cancel_message": "Esta ação não pode ser desfeita. A venda será marcada como cancelada.",
+        "confirm_pay_message": "O status de pagamento será atualizado para Pago.",
+        "success_finalized": "Venda finalizada com sucesso.",
+        "success_cancelled": "Venda cancelada com sucesso.",
+        "success_paid": "Venda paga com sucesso.",
+        "detail_prompt": "Selecione uma venda para ver detalhes.",
+        "labels": {
+            "date": "Data",
+            "customer": "Cliente",
+            "unit": "Unidade",
+            "subtotal": "Subtotal",
+            "total": "Total",
+            "details": "Detalhes"
+        },
+        "items": {
+            "title": "Itens",
+            "type": "Tipo",
+            "name": "Produto/Serviço",
+            "quantity": "Qtd",
+            "price": "Preço",
+            "none_found": "Nenhum item."
+        },
+        "table": {
+            "list_title": "Lista de vendas",
+            "date": "Data",
+            "customer": "Cliente",
+            "status": "Status",
+            "payment": "Pagamento",
+            "subtotal": "Subtotal",
+            "discounts": "Descontos",
+            "total": "Total",
+            "actions": "Ações"
+        },
+        "details": {
+            "title": "Detalhes",
+            "customer": "Cliente",
+            "unit": "Unidade",
+            "subtotal": "Subtotal",
+            "total": "Total",
+            "items": "Itens",
+            "type": "Tipo",
+            "product_service": "Produto/Serviço",
+            "qty": "Qtd",
+            "price": "Preço",
+            "no_items": "Nenhum item.",
+            "select_sale": "Selecione uma venda para ver detalhes."
+        },
+        "modal": {
+            "title": "Nova Venda",
+            "subtitle": "Preencha as informações para registrar uma venda",
+            "tab_general": "Geral",
+            "tab_items": "Itens",
+            "tab_payment": "Pagamento",
+            "sale_type": "Tipo de Venda",
+            "products": "Produtos",
+            "services": "Serviços",
+            "date": "Data",
+            "unit": "Unidade",
+            "simple_customer": "Cliente avulso",
+            "customer_name": "Nome do cliente...",
+            "notes": "Notas",
+            "notes_placeholder": "Observações sobre a venda...",
+            "payment_method": "Pagamento",
+            "payment_term": "Prazo de Pagamento",
+            "summary": "Resumo",
+            "btn_cancel": "Cancelar",
+            "btn_back": "Anterior",
+            "btn_next": "Próximo",
+            "btn_finalize": "Finalizar Venda",
+            "error_fill_fields": "Preencha todos os campos obrigatórios",
+            "select_unit_first": "Selecione a Unidade antes de adicionar itens.",
+            "validation": {
+                "no_items": "Adicione ao menos um item",
+                "item_select_product": "Item {{index}}: Selecione um produto",
+                "item_select_service": "Item {{index}}: Selecione um serviço",
+                "item_price_zero": "Item {{index}}: Preço deve ser maior que zero",
+                "item_qty_zero": "Item {{index}}: Quantidade deve ser maior que zero"
+            },
+            "charts": {
+                "draft_vs_finalized": "Draft x Finalizadas",
+                "payment_breakdown": "Pagas x Não pagas x Canceladas",
+                "received_vs_pending": "Valor Recebido x Valor Pendente",
+                "monthly_totals": "Totais Mensais (últimos 6 meses)",
+                "pago": "Pago",
+                "pendente": "Pendente",
+                "total": "Total",
+                "no_data": "Sem dados."
+            }
+        }
+    },
+    "status": {
+        "draft": "Rascunho",
+        "finalized": "Finalizada",
+        "cancelled": "Cancelada",
+        "returned": "Devolvida",
+        "pending": "Pendente",
+        "paid": "Paga",
+        "partial": "Parcial"
+    }
+}

@@ -1,0 +1,237 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String?
+  username       String   @unique
+  email          String   @unique
+  password       String
+  role           Role     @default(USER)
+  locale         String   @default("en")  // 'en' | 'pt'
+  currency       String   @default("BRL") // 'BRL' | 'USD' | 'EUR'
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  dashboardLayout DashboardLayout?
+  chatInstances  ChatInstance[] // Relation to ChatInstance
+  documents      Document[]      // Relation to Document
+  dynamicTables  DynamicTable[]  // Relation to DynamicTable
+  knowledgeGraph KnowledgeGraph? // Relation to KnowledgeGraph
+  actionProposals ActionProposal[] // Relation to ActionProposal
+}
+
+model DashboardLayout {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  layoutData Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ChatInstance {
+  id              String   @id @default(cuid())
+  widgetInstanceId String   // The ID from the dashboard layout (e.g., item.i)
+  title           String?
+  type            ChatInstanceType @default(DOCUMENT) // Type of chat (DOCUMENT or GENERIC)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages        ChatMessage[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, widgetInstanceId]) // A user can't have two chat instances with the same widget ID
+  @@index([userId])
+  @@index([type]) // Index for filtering by type
+}
+
+model ChatMessage {
+  id             String      @id @default(cuid())
+  content        String
+  role           MessageRole // USER or ASSISTANT
+  chatInstanceId String
+  chatInstance   ChatInstance @relation(fields: [chatInstanceId], references: [id], onDelete: Cascade)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([chatInstanceId])
+}
+
+enum Role {
+  USER
+  ADMIN
+  // Add other roles as needed (e.g., EDITOR, MODERATOR)
+}
+
+// Enum for Chat Message Roles
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+// Enum for Chat Instance Types
+enum ChatInstanceType {
+  DOCUMENT  // Chat sobre documentos vetorizados (Qdrant)
+  GENERIC   // Chat genérico (futuro: Dynamic Tables)
+}
+
+// Enum for uploaded document file types
+enum FileType {
+  PDF
+  DOCX
+  XLSX
+}
+
+// Processing status for document parsing and AI transformation
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  ERROR
+}
+
+// Purpose of the document - affects processing flow
+enum DocumentPurpose {
+  DATA_ANALYSIS    // For spreadsheets/tables (data analysis)
+  KNOWLEDGE_BASE   // For general knowledge documents (Q&A)
+}
+
+// Document model: metadata and AI-processed JSON
+model Document {
+  id               String            @id @default(cuid())
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fileName         String
+  mimeType         String
+  fileType         FileType
+  fileSize         Int                // size in bytes
+  textContent      String             // extracted text content
+  documentPurpose  DocumentPurpose    @default(DATA_ANALYSIS)  // purpose: data analysis or knowledge base
+
+  status           ProcessingStatus  @default(PENDING)  // processing status
+  summary          String?           // optional AI-generated summary
+  contextJson      Json?             // structured JSON from AI processing
+  uploadDate       DateTime          @default(now())     // timestamp of file upload
+  processingDate   DateTime?         // timestamp when processing completed
+  processingError  String?           // error message if processing failed
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  chunks           Chunk[]           // relation to chunks
+  structuredData   StructuredData?   // relation to structured data
+  @@index([userId])
+}
+
+/// Chunks of text with embeddings stored in Qdrant
+model Chunk {
+  id          String    @id @default(cuid())
+  text        String
+  index       Int       // order of this chunk in the document
+  documentId  String
+  document    Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  @@index([documentId])
+}
+
+// Model for structured data extracted from documents
+model StructuredData {
+  id          String   @id @default(cuid())
+  
+  // One-to-one relation with Document
+  documentId  String   @unique
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  // Stores headers and their types, detected by AI
+  // Ex: [{ "name": "Produto", "type": "TEXT" }, { "name": "Valor", "type": "CURRENCY" }]
+  headers     Json
+  
+  // Stores row data, ready for Handsontable
+  // Ex: [["Notebook", 5000.00], ["Mouse", 150.00]]
+  data        Json
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Model for dynamically created tables by users
+model DynamicTable {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String   // Name of the "virtual table" (e.g., "Products", "Clients")
+  internalName  String?  // Stable internal key (e.g., "leads", "leadPipelines")
+  /// The category of the table, used for UI grouping. Must be one of the predefined values.
+  /// See: features/dynamicTables/models/TableCategories.ts
+  category   String   // Category for grouping tables (e.g., "people", "sales", "inventory")
+  schema    Json     // JSON defining the fields, types, and constraints
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation to the actual data entries
+  dataEntries DynamicTableData[]
+
+  @@index([userId])
+  @@map("dynamic_tables")
+}
+
+// Model for the data entries of a dynamic table
+model DynamicTableData {
+  id             String   @id @default(cuid())
+  dynamicTableId String
+  dynamicTable   DynamicTable @relation(fields: [dynamicTableId], references: [id], onDelete: Cascade)
+  data           Json     // The actual record, in JSON format, validated against the table's schema
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime? // Used for Soft Deletes across the ERP
+
+  @@index([dynamicTableId])
+  @@map("dynamic_table_data")
+}
+
+// Model for storing the Knowledge Graph (metadata) of a user's system
+model KnowledgeGraph {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data      Json     // The compiled graph: nodes (tables), edges (relations), and fields
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("knowledge_graphs")
+}
+
+// Model for temporary action proposals (replacing Redis)
+model ActionProposal {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action     String   // CREATE, UPDATE, DELETE
+  tableId    String
+  tableName  String
+  tableLabel String
+  data       Json     // Proposal data
+  status     String   @default("PENDING") // PENDING, EXECUTED, EXPIRED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@map("action_proposals")
+}

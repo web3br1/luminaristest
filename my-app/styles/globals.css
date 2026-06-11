@@ -1,0 +1,325 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Luminaris Theme - Clean & Professional (Blue + Charcoal) */
+:root {
+  /* Light mode base */
+  --lumi-bg-base: #FAFAFA;
+  --lumi-bg-surface: #FFFFFF;
+  --lumi-bg-elevated: #F5F5F5;
+  --lumi-text-primary: #171717;
+  --lumi-text-secondary: #525252;
+  --lumi-border: #E5E5E5;
+  --lumi-accent: #2563EB;
+  --lumi-accent-secondary: #0D9488;
+}
+
+.dark {
+  /* Dark mode - Pure Charcoal + Blue */
+  --lumi-bg-base: #0F0F0F;
+  --lumi-bg-surface: #171717;
+  --lumi-bg-elevated: #262626;
+  --lumi-text-primary: #FAFAFA;
+  --lumi-text-secondary: #A3A3A3;
+  --lumi-border: #404040;
+  --lumi-accent: #3B82F6;
+  --lumi-accent-secondary: #2DD4BF;
+}
+
+/* Custom gradient utilities for galaxy effect */
+@layer utilities {
+  .bg-gradient-radial {
+    background: radial-gradient(circle, var(--tw-gradient-stops));
+  }
+}
+
+/* Custom animations for galaxy background */
+@keyframes star-twinkle {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes star-float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.animate-star-twinkle {
+  animation: star-twinkle 4s ease-in-out infinite;
+}
+
+.animate-star-float {
+  animation: star-float 8s ease-in-out infinite;
+}
+
+
+
+@layer base {
+
+  /* Estilos para formulários para um visual moderno e compatível com dark mode */
+  input[type='text'],
+  input[type='email'],
+  input[type='password'],
+  input[type='number'],
+  input[type='search'],
+  textarea,
+  select {
+    @apply w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200;
+  }
+
+  select {
+    @apply appearance-none;
+  }
+
+  label {
+    @apply block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300;
+  }
+
+  /* Melhorias de inputs de data/hora no dark mode */
+  .dark input[type='date'],
+  .dark input[type='time'],
+  .dark input[type='datetime-local'] {
+    color: #e5e7eb;
+    /* text-gray-200 */
+  }
+
+  .dark input[type='date']::-webkit-calendar-picker-indicator,
+  .dark input[type='time']::-webkit-calendar-picker-indicator,
+  .dark input[type='datetime-local']::-webkit-calendar-picker-indicator {
+    filter: invert(0.9);
+    opacity: 0.9;
+  }
+
+  /* Remover spinners dos inputs numéricos */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+}
+
+/* SliderDiscrete custom styles */
+.slider-discrete {
+  --slider-track: rgb(229 231 235);
+  /* slate-200 */
+  height: 0.5rem;
+  border-radius: 9999px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.dark .slider-discrete {
+  --slider-track: rgb(55 65 81);
+  /* slate-700 */
+}
+
+.slider-discrete::-webkit-slider-runnable-track {
+  height: 0.5rem;
+  background: transparent;
+  border-radius: 9999px;
+}
+
+.slider-discrete::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  background: #fff;
+  border: 2px solid rgb(59 130 246);
+  border-radius: 9999px;
+  margin-top: -0.25rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  position: relative;
+  z-index: 1;
+}
+
+.dark .slider-discrete::-webkit-slider-thumb {
+  background: #0b1220;
+  border-color: rgb(59 130 246);
+}
+
+/* Firefox */
+.slider-discrete::-moz-range-track {
+  height: 0.5rem;
+  background: transparent;
+  border-radius: 9999px;
+}
+
+.slider-discrete::-moz-range-thumb {
+  width: 1rem;
+  height: 1rem;
+  background: #fff;
+  border: 2px solid rgb(59 130 246);
+  border-radius: 9999px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  position: relative;
+  z-index: 1;
+}
+
+.dark .slider-discrete::-moz-range-thumb {
+  background: #0b1220;
+  border-color: rgb(59 130 246);
+}
+
+/* Use standard Tailwind v3 directives */
+
+body {
+  /* You might add base body styles here if needed, 
+     but Tailwind applies background/color via utilities or theme */
+  font-family: Arial, Helvetica, sans-serif;
+  /* Keep existing font */
+}
+
+/* Custom Scrollbar Styles - Global */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background-color: transparent;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  /* slate-300 */
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+  /* slate-400 */
+}
+
+/* Dark theme scrollbar styles */
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #4b5563;
+  /* slate-600 */
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #6b7280;
+  /* slate-500 */
+}
+
+/* Firefox specific scrollbar styling */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+  /* thumb track */
+}
+
+.dark .custom-scrollbar {
+  scrollbar-color: #4b5563 transparent;
+  /* thumb track for dark mode */
+}
+
+/* Chat specific scrollbar - more subtle */
+.chat-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-track {
+  background-color: transparent;
+  border-radius: 2px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  /* slate-300 */
+  border-radius: 2px;
+  transition: background-color 0.2s ease;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+  /* slate-400 */
+}
+
+/* Dark theme chat scrollbar */
+.dark .chat-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #475569;
+  /* slate-600 */
+}
+
+.dark .chat-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #64748b;
+  /* slate-500 */
+}
+
+/* Firefox chat scrollbar */
+.chat-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.dark .chat-scrollbar {
+  scrollbar-color: #475569 transparent;
+}
+
+/* React Grid Layout Resize Handle Improvements */
+.react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  bottom: 0;
+  right: 0;
+  cursor: se-resize;
+  z-index: 10;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #6366f1;
+  /* indigo-500 */
+  border-bottom: 2px solid #6366f1;
+  border-radius: 1px;
+}
+
+.group:hover .react-resizable-handle {
+  opacity: 1;
+}
+
+.dark .react-resizable-handle::after {
+  border-right-color: #818cf8;
+  /* indigo-400 */
+  border-bottom-color: #818cf8;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background: rgba(99, 102, 241, 0.1) !important;
+  border-radius: 8px !important;
+  border: 2px dashed #6366f1 !important;
+  opacity: 0.5 !important;
+}
