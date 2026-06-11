@@ -86,7 +86,7 @@ try {
     'JWT_SECRET',
     'QDRANT_URL',
     'QDRANT_API_KEY',
-    'REDIS_URL',
+    // REDIS_URL removed — no Redis client in this codebase
   ];
   const presenceReport = keysToCheck.reduce<Record<string, 'set' | 'missing'>>((acc, key) => {
     acc[key] = process.env[key] ? 'set' : 'missing';
