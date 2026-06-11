@@ -5,16 +5,7 @@ import type { IDynamicTable } from '../../features/dashboard/components/shared/d
 import { useEffect, useState } from 'react';
 import { DynamicTableService } from '../../lib/services/dynamic-table.service';
 import { DashboardSidebar } from '../../features/dashboard/DashboardSidebar';
-import { PeopleView } from '../../features/dashboard/category-views/people/PeopleView';
-import PlanningView from '../../features/dashboard/category-views/planning/PlanningView';
-import KanbanView from '../../features/dashboard/category-views/kanban/KanbanView';
-import InternalProductsView from '../../features/dashboard/category-views/products/InternalProductsView';
-import ServicesView from '../../features/dashboard/category-views/services/ServicesView';
-import LeadsView from '../../features/dashboard/category-views/leads/LeadsView';
-import InventoryView from '../../features/dashboard/category-views/inventory/InventoryView';
-import FinanceView from '../../features/dashboard/category-views/finance/FinanceView';
-// Usar o novo CategoryView (Tabbed) para visualizações genéricas
-import GenericTabbedView from '../../features/dashboard/category-views/shared/GenericTabbedView';
+import dynamic from 'next/dynamic';
 import { isNavigable } from '../../features/dashboard/category-views/shared/utils/presentationUtils';
 import DashboardOverview from '../../features/dashboard/components/DashboardOverview';
 import { GetServerSideProps } from 'next';
@@ -22,6 +13,46 @@ import { runDevSeed } from '../../features/dev/seed';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { useTranslation } from 'next-i18next';
 import Head from 'next/head';
+
+const viewLoading = () => <div className="p-4 text-gray-500 dark:text-gray-400">Carregando...</div>;
+
+const PeopleView = dynamic(
+  () => import('../../features/dashboard/category-views/people/PeopleView').then(m => ({ default: m.PeopleView })),
+  { ssr: false, loading: viewLoading }
+);
+const PlanningView = dynamic(
+  () => import('../../features/dashboard/category-views/planning/PlanningView'),
+  { ssr: false, loading: viewLoading }
+);
+const KanbanView = dynamic(
+  () => import('../../features/dashboard/category-views/kanban/KanbanView'),
+  { ssr: false, loading: viewLoading }
+);
+const InternalProductsView = dynamic(
+  () => import('../../features/dashboard/category-views/products/InternalProductsView'),
+  { ssr: false, loading: viewLoading }
+);
+const ServicesView = dynamic(
+  () => import('../../features/dashboard/category-views/services/ServicesView'),
+  { ssr: false, loading: viewLoading }
+);
+const LeadsView = dynamic(
+  () => import('../../features/dashboard/category-views/leads/LeadsView'),
+  { ssr: false, loading: viewLoading }
+);
+const InventoryView = dynamic(
+  () => import('../../features/dashboard/category-views/inventory/InventoryView'),
+  { ssr: false, loading: viewLoading }
+);
+const FinanceView = dynamic(
+  () => import('../../features/dashboard/category-views/finance/FinanceView'),
+  { ssr: false, loading: viewLoading }
+);
+// Usar o novo CategoryView (Tabbed) para visualizações genéricas
+const GenericTabbedView = dynamic(
+  () => import('../../features/dashboard/category-views/shared/GenericTabbedView'),
+  { ssr: false, loading: viewLoading }
+);
 
 interface DashboardPageProps {
   allTables: IDynamicTable[];

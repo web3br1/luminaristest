@@ -1,10 +1,14 @@
 'use client';
 
 import React from 'react';
+import dynamic from 'next/dynamic';
 import { getCookie } from 'cookies-next';
 import { IDynamicTable, isTableSchema } from '../../components/shared/dynamic-tables.client';
 import LeadCreateModal from './LeadCreateModal';
-import MeetingsCalendar from './components/MeetingsCalendar';
+const MeetingsCalendar = dynamic(
+  () => import('./components/MeetingsCalendar'),
+  { ssr: false, loading: () => <div className="p-4 text-gray-500 dark:text-gray-400">Carregando...</div> }
+);
 import ManageHeader from './components/ManageHeader';
 import LeadInfoSidebar from './components/LeadInfoSidebar';
 import LeadTimeline from './components/LeadTimeline';
