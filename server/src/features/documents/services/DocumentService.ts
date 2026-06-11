@@ -171,7 +171,7 @@ export class DocumentService {
       const payload = hit.payload as any;
       const doc = await this.repository.findById(payload.documentId);
       if (!doc) continue;
-      results.push({ document: doc, chunkText: payload.text, score: hit.score });
+      results.push({ document: doc, chunkText: payload.textContent, score: hit.score });
     }
     return results;
   }
