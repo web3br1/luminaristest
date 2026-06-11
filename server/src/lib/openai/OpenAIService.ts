@@ -1,6 +1,11 @@
 import OpenAI from 'openai';
 import { logger } from '../logger';
 
+// Named constants for per-call output token ceilings (R11 cost guardrails)
+export const MAX_TOKENS_CHAT = 1024;        // RAG chat calls (gpt-3.5-turbo)
+export const MAX_TOKENS_AGENT = 2048;       // Agent / tool calls (gpt-4o)
+export const MAX_TOKENS_EXTRACTION = 4096;  // Structured-data extraction calls
+
 // Global configuration for token limits and models
 const CONFIG = {
   // Maximum tokens to process in a single request (system-wide limit)
@@ -101,6 +106,7 @@ export class OpenAIService {
             { role: "user", content: userMessage },
           ],
           model: CONFIG.MODELS.CHAT,
+          max_tokens: MAX_TOKENS_CHAT,
         });
         return completion.choices[0]?.message?.content;
       } catch (error) {
@@ -133,6 +139,7 @@ export class OpenAIService {
       const completion = await this.openai.chat.completions.create({
         messages: messages,
         model: model,
+        max_tokens: MAX_TOKENS_CHAT,
       });
       return completion.choices[0]?.message?.content;
     } catch (error) {
@@ -169,6 +176,7 @@ export class OpenAIService {
         model: model,
         tools: tools,
         tool_choice: "auto",
+        max_tokens: MAX_TOKENS_AGENT,
       });
       return completion.choices[0]?.message;
     } catch (error) {
@@ -329,7 +337,7 @@ export class OpenAIService {
         model: model,
         response_format: { type: 'json_object' },
         temperature: 0.1,
-        max_tokens: CONFIG.MAX_OUTPUT_TOKENS,
+        max_tokens: MAX_TOKENS_EXTRACTION,
       });
 
       const responseContent = completion.choices[0]?.message?.content;

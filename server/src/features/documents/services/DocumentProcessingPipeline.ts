@@ -156,39 +156,62 @@ export class DocumentProcessingPipeline {
   private async processChunks(document: IDocument, text: string, context: DocumentContext): Promise<void> {
     const chunks = this.processingService.chunkText(text);
     context.processing.totalChunks = chunks.length;
-    const vectorPoints: Array<{ id: string; payload: any; vector: number[] }> = [];
 
+    // Persist chunk records first so we have their IDs for vector point generation
+    const chunkRecords: Array<{ id: string; text: string; index: number }> = [];
     for (let i = 0; i < chunks.length; i++) {
       try {
         const chunkText = chunks[i];
         const chunk = await this.chunkRepository.create({ text: chunkText, index: i, documentId: document.id });
-        const vector = await this.processingService.generateEmbedding(chunkText);
-        vectorPoints.push({
-          id: uuidv5(chunk.id, CHUNK_ID_NAMESPACE),
-          payload: { documentId: document.id, userId: document.userId, index: i, textContent: chunkText, chunkId: chunk.id, fileName: document.fileName },
-          vector,
-        });
-        context.processing.processedChunks++;
-        if (vectorPoints.length >= 10 || i === chunks.length - 1) {
-          await this.vectorRepository.upsertChunks(vectorPoints);
-          vectorPoints.length = 0;
-          await this.documentRepository.update(document.id, {
-            contextJson: context,
-            status: DocumentStatus.PROCESSING,
-            summary: null,
-            processingDate: null,
-            processingError: null
-          });
-        }
+        chunkRecords.push({ id: chunk.id, text: chunkText, index: i });
       } catch (error) {
         context.processing.failedChunks++;
         const errorMessage = error instanceof Error ? error.message : 'Unknown chunk processing error';
-        logger.error(`Error processing chunk ${i} of document ${document.id}`, { error });
+        logger.error(`Error persisting chunk ${i} of document ${document.id}`, { error });
         context.errors = context.errors || [];
-        context.errors.push({
-          code: 'CHUNK_PROCESSING_ERROR',
-          message: errorMessage,
-          timestamp: new Date().toISOString(),
+        context.errors.push({ code: 'CHUNK_PROCESSING_ERROR', message: errorMessage, timestamp: new Date().toISOString() });
+      }
+    }
+
+    if (chunkRecords.length === 0) {
+      if (context.processing.failedChunks > 0) {
+        throw new Error(`${context.processing.failedChunks} chunks failed to process.`);
+      }
+      return;
+    }
+
+    // Batch-embed all chunk texts in a single OpenAI API call (R11: avoid N sequential calls)
+    let vectors: number[][];
+    try {
+      vectors = await this.processingService.generateEmbeddings(chunkRecords.map(c => c.text));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown embedding error';
+      logger.error(`Batch embedding failed for document ${document.id}`, { error });
+      context.processing.failedChunks += chunkRecords.length;
+      context.errors = context.errors || [];
+      context.errors.push({ code: 'CHUNK_PROCESSING_ERROR', message: errorMessage, timestamp: new Date().toISOString() });
+      throw new Error(`Batch embedding failed: ${errorMessage}`);
+    }
+
+    // Build vector points and upsert in batches of 10
+    const vectorPoints: Array<{ id: string; payload: any; vector: number[] }> = [];
+    for (let j = 0; j < chunkRecords.length; j++) {
+      const { id: chunkId, text: chunkText, index } = chunkRecords[j];
+      vectorPoints.push({
+        id: uuidv5(chunkId, CHUNK_ID_NAMESPACE),
+        payload: { documentId: document.id, userId: document.userId, index, textContent: chunkText, chunkId, fileName: document.fileName },
+        vector: vectors[j],
+      });
+      context.processing.processedChunks++;
+      if (vectorPoints.length >= 10 || j === chunkRecords.length - 1) {
+        await this.vectorRepository.upsertChunks(vectorPoints);
+        vectorPoints.length = 0;
+        await this.documentRepository.update(document.id, {
+          contextJson: context,
+          status: DocumentStatus.PROCESSING,
+          summary: null,
+          processingDate: null,
+          processingError: null
         });
       }
     }

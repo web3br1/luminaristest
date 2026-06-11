@@ -138,10 +138,17 @@ Pergunta Reformulada:
           messages.push(response as any);
 
           for (const toolCall of response.tool_calls) {
+            let toolArgs: any;
+            try {
+              toolArgs = JSON.parse(toolCall.function.arguments);
+            } catch (parseError) {
+              logger.warn({ toolName: toolCall.function.name }, 'Failed to parse tool args, skipping');
+              continue;
+            }
             const result = await this.agentService.handleToolCall(
               user,
               toolCall.function.name,
-              JSON.parse(toolCall.function.arguments)
+              toolArgs
             );
 
             // Se for uma proposta, interrompemos e retornamos para o frontend

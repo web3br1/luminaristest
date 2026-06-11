@@ -9,6 +9,14 @@ export interface IEmbeddingService {
    * @throws {Error} If embedding generation fails
    */
   embedText(text: string): Promise<number[]>;
+
+  /**
+   * Generates embedding vectors for an array of texts in a single API call.
+   * @param texts - The texts to generate embeddings for
+   * @returns Promise that resolves to an array of embedding vectors (same order as input)
+   * @throws {Error} If embedding generation fails
+   */
+  embedTexts(texts: string[]): Promise<number[][]>;
 }
 
 export interface OpenAIOptions {
@@ -105,6 +113,59 @@ export class OpenAIService implements IEmbeddingService {
       throw new Error(`Failed to generate embedding: ${errorMessage}`);
     }
   }
+
+  /**
+   * Generates embedding vectors for an array of texts in a single API call.
+   * The OpenAI embeddings endpoint accepts an array of inputs, so this issues
+   * one request for all texts instead of N sequential requests.
+   */
+  public async embedTexts(texts: string[]): Promise<number[][]> {
+    if (!texts || texts.length === 0) {
+      return [];
+    }
+
+    logger.debug('Generating batch embeddings', {
+      count: texts.length,
+      model: this.model
+    });
+
+    try {
+      const response = await this.client.embeddings.create({
+        model: this.model,
+        input: texts,
+      });
+
+      // OpenAI returns embeddings in the same order as the input array
+      const embeddings = response.data
+        .sort((a, b) => a.index - b.index)
+        .map(item => {
+          if (!item.embedding || !Array.isArray(item.embedding)) {
+            throw new Error('Invalid embedding response format');
+          }
+          if (item.embedding.length !== this.expectedDimension) {
+            throw new Error(
+              `Invalid embedding dimension: expected ${this.expectedDimension}, got ${item.embedding.length}`
+            );
+          }
+          return item.embedding;
+        });
+
+      logger.debug('Successfully generated batch embeddings', {
+        count: embeddings.length,
+        model: this.model
+      });
+
+      return embeddings;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to generate batch embeddings', {
+        error: errorMessage,
+        count: texts.length,
+        model: this.model
+      });
+      throw new Error(`Failed to generate batch embeddings: ${errorMessage}`);
+    }
+  }
 }
 
 // Singleton instance for backward compatibility
@@ -136,3 +197,6 @@ export default defaultExport;
 
 // Re-export the embedText function for backward compatibility
 export const embedText = defaultExport.embedText.bind(defaultExport);
+
+// Batch embedding helper — issues a single API call for all input texts
+export const embedTexts = defaultExport.embedTexts.bind(defaultExport);
