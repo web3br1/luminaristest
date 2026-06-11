@@ -51,13 +51,15 @@ export interface IVectorRepository {
   upsertChunks(points: VectorPoint[]): Promise<void>;
 
   /**
-   * Searches for similar vectors in Qdrant, with an optional filter by document IDs.
+   * Searches for similar vectors in Qdrant, filtered by document IDs and userId.
+   * Both conditions must match: documentId in documentIds AND userId == userId.
    * @param vector The vector to search for.
    * @param limit The maximum number of results to return.
-   * @param documentIds Optional array of document IDs to filter the search.
+   * @param documentIds Array of document IDs to filter the search.
+   * @param userId The user ID that must own the documents (required for tenant isolation).
    * @returns A promise that resolves to an array of scored points.
    */
-  search(vector: number[], limit: number, documentIds?: string[]): Promise<ScoredPoint[]>;
+  search(vector: number[], limit: number, documentIds: string[], userId: string): Promise<ScoredPoint[]>;
 
 
   /**
@@ -88,4 +90,12 @@ export interface IVectorRepository {
    * @throws {Error} Se a consulta falhar
    */
   getPointsByDocumentId(documentId: string): Promise<ScoredPoint[]>;
+
+  /**
+   * Removes all vectors belonging to a user (LGPD art.18 VI - right to erasure).
+   * Must be called before deleting the user from SQL.
+   * @param userId ID of the user whose vectors should be deleted
+   * @throws {Error} If the deletion fails
+   */
+  deleteVectorsByUserId(userId: string): Promise<void>;
 }

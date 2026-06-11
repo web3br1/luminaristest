@@ -37,7 +37,10 @@ export async function generateChartData(req: Request, res: Response) {
       sendEvent({ type: 'progress', ...update });
     };
 
-    const result = await reportService.generateReport(validation.data as any, onProgress);
+    const result = await reportService.generateReport(
+      { ...(validation.data as any), userId: ctx.id },
+      onProgress
+    );
 
     if (result.chartData && result.chartData.length > 0) {
       sendEvent({ type: 'final', ...result, documentId: (validation.data as any).documentIds?.[0] });

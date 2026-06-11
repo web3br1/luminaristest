@@ -131,16 +131,19 @@ export class VectorRepository implements IVectorRepository {
   }
 
   /**
-   * Searches for similar vectors in Qdrant, with an optional filter by document IDs.
+   * Searches for similar vectors in Qdrant, filtered by document IDs and userId.
+   * Both conditions must match: documentId in documentIds AND userId == userId.
    * @param vector The vector to search for.
    * @param limit The maximum number of results to return.
-   * @param documentIds Optional array of document IDs to filter the search.
+   * @param documentIds Array of document IDs to filter the search.
+   * @param userId The user ID that must own the documents (required for tenant isolation).
    * @returns A promise that resolves to an array of scored points.
    */
   async search(
     vector: number[],
     limit: number,
-    documentIds?: string[]
+    documentIds: string[],
+    userId: string
   ): Promise<ScoredPoint[]> {
     const startTime = Date.now();
     const endTimer = metrics.startTimer('vector_search_filtered_time');
@@ -149,23 +152,42 @@ export class VectorRepository implements IVectorRepository {
       vectorLength: vector.length,
       limit,
       documentIdsCount: documentIds?.length,
+      userId,
       collection: COLLECTION_NAME,
     });
 
     try {
-      const filter: QdrantFilter = {};
+      // Build a filter that requires BOTH userId match AND documentId membership.
+      // must[] = all conditions must hold (logical AND).
+      // For documentId membership across multiple IDs we use per-id conditions in a
+      // nested "should" filter (OR), wrapped inside a must element so the overall
+      // result is: userId == userId AND (documentId == ids[0] OR documentId == ids[1] …)
+      const mustConditions: QdrantCondition[] = [
+        { key: 'userId', match: { value: userId } },
+      ];
 
+      const qdrantFilter: QdrantFilter = { must: mustConditions };
+
+      // If specific document IDs are provided, add them as a must-nested-should
+      // so only chunks from those documents are returned.
       if (documentIds && documentIds.length > 0) {
-        filter.should = documentIds.map(id => ({
-          key: 'documentId',
-          match: { value: id },
-        }));
+        // Cast to any to allow nested filter objects that Qdrant supports but our
+        // minimal local QdrantFilter type doesn't model (must-inside-must nesting).
+        (qdrantFilter as any).must = [
+          { key: 'userId', match: { value: userId } },
+          {
+            should: documentIds.map(id => ({
+              key: 'documentId',
+              match: { value: id },
+            })),
+          },
+        ];
       }
 
       const searchParams: SearchRequest = {
         vector,
         limit,
-        filter: (filter.should && filter.should.length > 0) ? filter : undefined,
+        filter: qdrantFilter,
         with_payload: true,
         with_vector: false,
       };
@@ -174,6 +196,7 @@ export class VectorRepository implements IVectorRepository {
 
       logger.debug('Busca por vetores filtrada concluída', {
         resultsCount: response.length,
+        userId,
         collection: COLLECTION_NAME,
         duration: Date.now() - startTime,
       });
@@ -489,6 +512,39 @@ export class VectorRepository implements IVectorRepository {
     }
   }
   
+  /**
+   * Removes all vectors belonging to a user — LGPD art.18 VI (right to erasure).
+   * Uses a filter-based delete so no prior point-ID lookup is needed.
+   * Must be called BEFORE the user row is deleted from SQL so that, if Qdrant
+   * fails, the caller can abort and the user record remains intact for retry.
+   * @param userId ID of the user whose vectors should be deleted
+   * @throws {Error} If the Qdrant delete operation fails
+   */
+  async deleteVectorsByUserId(userId: string): Promise<void> {
+    if (typeof userId !== 'string' || userId.trim() === '') {
+      throw new ValidationError('ID do usuário inválido para remoção de vetores');
+    }
+
+    logger.info('Iniciando remoção de vetores do usuário (LGPD art.18 VI)', { userId, collection: COLLECTION_NAME });
+
+    try {
+      await qdrant.delete(COLLECTION_NAME, {
+        wait: true,
+        filter: {
+          must: [
+            { key: 'userId', match: { value: userId } },
+          ],
+        },
+      });
+
+      logger.info('Vetores do usuário removidos do Qdrant com sucesso', { userId, collection: COLLECTION_NAME });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      logger.error('Falha ao remover vetores do usuário do Qdrant', { error: errorMessage, userId, collection: COLLECTION_NAME });
+      throw new Error(`Falha ao remover vetores do usuário ${userId}: ${errorMessage}`);
+    }
+  }
+
   /**
    * Obtém pontos vetoriais por ID do documento
    * @param documentId ID do documento

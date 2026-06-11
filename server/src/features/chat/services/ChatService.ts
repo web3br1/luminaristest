@@ -7,6 +7,8 @@ import { LuminarisAgentService } from './LuminarisAgentService';
 import { KnowledgeGraphService } from './KnowledgeGraphService';
 import logger from '@/lib/logger';
 import { UserContext } from '@/lib/authUtils';
+import { ForbiddenError } from '@/lib/errors';
+import prisma from '@/lib/prisma';
 import OpenAI from 'openai';
 
 const RAG_SYSTEM_PROMPT = `
@@ -185,12 +187,31 @@ Pergunta Reformulada:
     }
 
     // Caso contrário (modo RAG), segue com o fluxo normal
+
+    // Security: verify that ALL requested documentIds actually belong to the
+    // requesting user before touching the vector store. This prevents a
+    // cross-tenant leak where user-B could read user-A's document content by
+    // supplying user-A's documentId.
+    const ownedDocs = await prisma.document.findMany({
+      where: { id: { in: documentIds }, userId: user.id },
+      select: { id: true },
+    });
+    if (ownedDocs.length !== documentIds.length) {
+      logger.warn('RAG ownership check failed: one or more documents do not belong to the requesting user', {
+        requestedIds: documentIds,
+        userId: user.id,
+        foundCount: ownedDocs.length,
+      });
+      throw new ForbiddenError('One or more documents do not belong to this user');
+    }
+
     let contextualQuery = query;
     if (history && history.length > 1) {
       contextualQuery = await this.rewriteQueryWithHistory(query, history);
     }
     const queryEmbedding = await this.embeddingService.embedText(contextualQuery);
-    const searchResults = await this.vectorRepository.search(queryEmbedding, 10, documentIds);
+    // Pass userId so the vector store enforces tenant isolation at the index level.
+    const searchResults = await this.vectorRepository.search(queryEmbedding, 10, documentIds, user.id);
     const context = searchResults.map(result => result.payload.textContent as string).join('\n\n---\n\n');
 
     if (searchResults.length === 0) {

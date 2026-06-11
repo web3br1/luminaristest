@@ -2,6 +2,8 @@ import { IReportService, ProgressCallback } from './IReportService';
 import { IEmbeddingService } from '@/lib/vector/embedding';
 import { IVectorRepository } from '@/features/documents/repositories/IVectorRepository';
 import { OpenAIService } from '@/lib/openai/OpenAIService';
+import { ForbiddenError } from '@/lib/errors';
+import prisma from '@/lib/prisma';
 import logger from '@/lib/logger';
 
 // Definições de tipos para o serviço
@@ -9,6 +11,8 @@ export interface GenerateReportRequest {
   query: string;
   chatInstanceId: string;
   documentIds?: string[];
+  /** ID of the authenticated user making the request (required for tenant isolation). */
+  userId: string;
 }
 
 export interface GenerateReportResponse {
@@ -64,7 +68,7 @@ export class ReportService implements IReportService {
     request: GenerateReportRequest,
     onProgress?: ProgressCallback
   ): Promise<GenerateReportResponse> {
-    const { query, documentIds } = request;
+    const { query, documentIds, userId } = request;
     onProgress?.({ status: 'started', message: 'Iniciando análise do seu pedido...' });
     logger.info('ReportService: Iniciando geração de relatório.', { query, documentIds });
 
@@ -73,6 +77,21 @@ export class ReportService implements IReportService {
 
     // Etapa 1: Verificar se o contexto do documento é necessário e executar o RAG.
     if (documentIds && documentIds.length > 0) {
+      // Security: verify ALL documentIds belong to the requesting user before
+      // touching the vector store (cross-tenant isolation, R3).
+      const ownedDocs = await prisma.document.findMany({
+        where: { id: { in: documentIds }, userId },
+        select: { id: true },
+      });
+      if (ownedDocs.length !== documentIds.length) {
+        logger.warn('ReportService: RAG ownership check failed', {
+          requestedIds: documentIds,
+          userId,
+          foundCount: ownedDocs.length,
+        });
+        throw new ForbiddenError('One or more documents do not belong to this user');
+      }
+
       onProgress?.({ status: 'rag_started', message: 'Entendido. Buscando informações nos seus documentos...' });
       logger.info('Triagem Inteligente: A consulta requer contexto. Executando RAG.', { query });
             // Etapa 2.1: Refinar a consulta para otimizar a busca vetorial.
@@ -80,7 +99,8 @@ export class ReportService implements IReportService {
       logger.info('Consulta refinada para busca RAG.', { original: query, refined: refinedQuery });
 
       const queryEmbedding = await this.embeddingService.embedText(refinedQuery);
-      const searchResults = await this.vectorRepository.search(queryEmbedding, 15, documentIds);
+      // Pass userId so the vector store enforces tenant isolation at the index level.
+      const searchResults = await this.vectorRepository.search(queryEmbedding, 15, documentIds, userId);
 
       if (searchResults.length > 0) {
         context = searchResults
