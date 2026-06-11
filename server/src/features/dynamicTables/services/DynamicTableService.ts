@@ -381,13 +381,17 @@ export class DynamicTableService {
     await this._deleteTable(tableId);
   }
 
-  async createTableData(user: UserContext, tableId: string, dataDto: CreateDynamicTableDataDtoType) {
+  async createTableData(user: UserContext, tableId: string, dataDto: CreateDynamicTableDataDtoType, options?: { isSystem?: boolean }) {
     const table = await this.getTableById(user, tableId);
     if (!this.policy.canManageData(user, table)) {
       throw new ForbiddenError('You do not have permission to add data to this table.');
     }
-    const isSystem = !!(dataDto.data as any)?.__isSystem;
-    const validatedData = this.validateDataAgainstSchema(dataDto.data, table.schema as unknown as ITableSchema);
+    // isSystem is derived from the call context only — never from the client payload.
+    // Strip __isSystem from the data before validation to ensure it is never stored.
+    const isSystem = !!(options?.isSystem);
+    const sanitizedData = { ...(dataDto.data as any) };
+    delete sanitizedData.__isSystem;
+    const validatedData = this.validateDataAgainstSchema(sanitizedData, table.schema as unknown as ITableSchema);
     await this.validateAdvancedRules(table, validatedData);
     await this.enforceNoOverlap(table, table.schema as unknown as ITableSchema, validatedData, isSystem);
     // Rules: beforeCreate
@@ -459,12 +463,17 @@ export class DynamicTableService {
     return results;
   }
 
-  async updateTableData(user: UserContext, dataId: string, dataDto: UpdateDynamicTableDataDtoType) {
+  async updateTableData(user: UserContext, dataId: string, dataDto: UpdateDynamicTableDataDtoType, options?: { isSystem?: boolean }) {
     const table = await this.findTableForData(user, dataId);
     if (!this.policy.canManageData(user, table)) {
       throw new ForbiddenError('You do not have permission to update data in this table.');
     }
-    const isSystem = !!(dataDto.data as any)?.__isSystem;
+    // isSystem is derived from the call context only — never from the client payload.
+    // Strip __isSystem from the data before validation to ensure it is never stored.
+    const isSystem = !!(options?.isSystem);
+    const sanitizedDataDto = { ...(dataDto.data as any) };
+    delete sanitizedDataDto.__isSystem;
+    dataDto = { ...dataDto, data: sanitizedDataDto };
     const schema = table.schema as unknown as ITableSchema;
 
     // --- Guard 1: readOnly fields ---
