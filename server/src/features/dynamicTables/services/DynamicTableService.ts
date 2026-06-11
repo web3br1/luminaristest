@@ -74,6 +74,9 @@ export class DynamicTableService {
   }
 
   private async _deleteTable(tableId: string): Promise<void> {
+    // Resolve the owner before deletion so we can invalidate the KnowledgeGraph afterward.
+    const tableToDelete = await this.repository.findTableById(tableId);
+
     // Impede excluir tabela que é referenciada por outras
     const refs = await this.repository.findTablesReferencingTableId(tableId);
     if (refs.length > 0) {
@@ -81,6 +84,14 @@ export class DynamicTableService {
       throw new ValidationError(`Não é possível excluir a tabela. Ela é referenciada por: ${refNames}`);
     }
     await this.repository.deleteTable(tableId);
+
+    // Invalidate the KnowledgeGraph so the agent does not "see" the deleted table
+    // on the next chat session. syncGraph will rebuild it from the remaining tables (R27).
+    if (tableToDelete && this.knowledgeGraphService) {
+      await this.knowledgeGraphService.syncGraph(tableToDelete.userId).catch(err =>
+        console.error('Error syncing graph after table deletion:', err)
+      );
+    }
   }
 
   /**
