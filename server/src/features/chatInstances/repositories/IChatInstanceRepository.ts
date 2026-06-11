@@ -26,11 +26,14 @@ export interface IChatInstanceRepository {
   }>;
 
   /**
-   * Retrieves an instance by its ID.
+   * Retrieves an instance by its ID, scoped to the owning user.
+   * Passing userId enforces ownership at the DB level so no post-fetch check
+   * can be bypassed by a race condition.
    * @param id - Instance ID
-   * @returns Instance or null if not found
+   * @param userId - ID of the requesting user (ownership check)
+   * @returns Instance or null if not found / not owned by userId
    */
-  getInstanceById(id: string): Promise<IChatInstance | null>;
+  getInstanceById(id: string, userId: string): Promise<IChatInstance | null>;
 
   /**
    * Retrieves all instances for a specific user, optionally filtered by type.

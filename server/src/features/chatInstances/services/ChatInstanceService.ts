@@ -120,8 +120,10 @@ export class ChatInstanceService {
       throw new UnauthorizedError('Authentication required');
     }
 
-    const instance = await this.chatInstanceRepository.getInstanceById(id);
+    const instance = await this.chatInstanceRepository.getInstanceById(id, userContext.userId);
     if (!instance) {
+      // Return NotFoundError regardless of whether the instance exists but belongs to
+      // another user — avoids leaking the existence of foreign resources.
       throw new NotFoundError('Instance not found');
     }
 
@@ -228,7 +230,7 @@ export class ChatInstanceService {
       throw new ValidationError('Invalid instance update data', validationResult.error.flatten().fieldErrors);
     }
 
-    const instance = await this.chatInstanceRepository.getInstanceById(id);
+    const instance = await this.chatInstanceRepository.getInstanceById(id, userContext.userId);
     if (!instance) {
       throw new NotFoundError('Instance not found');
     }
@@ -268,7 +270,7 @@ export class ChatInstanceService {
       throw new UnauthorizedError('Authentication required');
     }
 
-    const instance = await this.chatInstanceRepository.getInstanceById(id);
+    const instance = await this.chatInstanceRepository.getInstanceById(id, userContext.userId);
     if (!instance) {
       throw new NotFoundError('Instance not found');
     }

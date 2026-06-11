@@ -62,13 +62,17 @@ export class ChatInstanceRepository implements IChatInstanceRepository {
   }
 
   /**
-   * Retrieves an instance by its ID
+   * Retrieves an instance by its ID, scoped to the owning user.
+   * The userId is included in the WHERE clause so the database enforces
+   * ownership atomically — no separate post-fetch check is required.
+   * Returns null when the record does not exist OR belongs to a different user.
    * @param id - Instance ID
-   * @returns Instance or null if not found
+   * @param userId - ID of the requesting user (ownership check)
+   * @returns Instance or null if not found / not owned by userId
    */
-  async getInstanceById(id: string): Promise<IChatInstance | null> {
-    const instance = await prisma.chatInstance.findUnique({
-      where: { id },
+  async getInstanceById(id: string, userId: string): Promise<IChatInstance | null> {
+    const instance = await prisma.chatInstance.findFirst({
+      where: { id, userId },
       select: {
         id: true,
         title: true,
