@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'next-i18next';
 
@@ -33,14 +33,60 @@ export function Modal({
     setMounted(true);
   }, []);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (isDirty) {
       if (!window.confirm('Existem alterações não salvas. Tem certeza que deseja fechar?')) {
         return;
       }
     }
     onClose();
-  };
+  }, [isDirty, onClose]);
+
+  // Focus trap: trap Tab/Shift+Tab inside the modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const el = modalRef.current;
+      if (!el) return;
+
+      const focusable = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (node) => !node.hasAttribute('disabled') && node.offsetParent !== null
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey) {
+        if (document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    // Focus the first focusable element when modal opens
+    const el = modalRef.current;
+    if (el) {
+      const focusable = el.querySelectorAll<HTMLElement>(FOCUSABLE);
+      const first = Array.from(focusable).find((n) => !n.hasAttribute('disabled'));
+      if (first) first.focus();
+    }
+
+    document.addEventListener('keydown', trapFocus);
+    return () => {
+      document.removeEventListener('keydown', trapFocus);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -71,7 +117,7 @@ export function Modal({
       document.removeEventListener('keydown', handleEscapeKey);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose, isDirty]);
+  }, [isOpen, handleClose]);
 
   if (!mounted || !isOpen) return null;
 
@@ -79,6 +125,9 @@ export function Modal({
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm transition-all duration-300 animate-in fade-in">
       <div
         ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
         className={`bg-white dark:bg-neutral-900 ${maxWidth} w-full max-h-[90vh] rounded-3xl shadow-2xl relative overflow-hidden flex flex-col border border-white/20 dark:border-neutral-800 animate-in zoom-in-95 duration-200`}
       >
         {/* Top Accent Bar */}
@@ -87,7 +136,7 @@ export function Modal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur-md">
           <div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+            <h3 id="modal-title" className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
               {title}
             </h3>
             <p className="text-[11px] text-gray-500 dark:text-neutral-500 uppercase font-bold tracking-widest mt-0.5">

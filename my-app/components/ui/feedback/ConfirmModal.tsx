@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { MdWarningAmber, MdInfoOutline, MdErrorOutline, MdClose } from 'react-icons/md';
 
@@ -118,6 +118,16 @@ export function ConfirmModal({
     isLoading = false,
     error = null,
 }: ConfirmModalProps) {
+    // ESC key closes the modal — must be called before any early return (Rules of Hooks)
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && !isLoading) onClose();
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, isLoading, onClose]);
+
     if (!isOpen) return null;
 
     const cfg = VARIANT_CONFIG[variant];

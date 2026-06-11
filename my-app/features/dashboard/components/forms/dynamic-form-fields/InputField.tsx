@@ -18,9 +18,11 @@ interface InputFieldProps {
   format?: 'cpf' | 'cnpj';
   readOnly?: boolean;
   disabled?: boolean;
+  'aria-invalid'?: boolean;
+  'aria-describedby'?: string;
 }
 
-function InputField({ type, name, value, onChange, className, required, label, format, readOnly, disabled }: InputFieldProps) {
+function InputField({ type, name, value, onChange, className, required, label, format, readOnly, disabled, 'aria-invalid': ariaInvalid, 'aria-describedby': ariaDescribedby }: InputFieldProps) {
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
     onChange(name, event.target.value);
   }
@@ -37,6 +39,8 @@ function InputField({ type, name, value, onChange, className, required, label, f
     className: mergedClassName,
     readOnly,
     disabled,
+    ...(ariaInvalid !== undefined && { 'aria-invalid': ariaInvalid }),
+    ...(ariaDescribedby !== undefined && { 'aria-describedby': ariaDescribedby }),
   };
 
   if (type === 'email') {

@@ -271,7 +271,7 @@ export function InventoryTable({
                                                                 size={20}
                                                                 className={`text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
                                                             />
-                                                            <div className="flex flex-col cursor-pointer hover:underline decoration-blue-500/30 underline-offset-4" onClick={(e) => { e.stopPropagation(); onSelectProduct?.(prod); }}>
+                                                            <div role="button" tabIndex={0} className="flex flex-col cursor-pointer hover:underline decoration-blue-500/30 underline-offset-4" onClick={(e) => { e.stopPropagation(); onSelectProduct?.(prod); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onSelectProduct?.(prod); } }}>
                                                                 <div className="flex items-center gap-2">
                                                                     <span className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-tight truncate max-w-[200px]">{name}</span>
                                                                     {sku && <span className="text-[10px] font-mono font-bold text-gray-400 bg-gray-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded tracking-tighter">{sku}</span>}
@@ -331,7 +331,7 @@ export function InventoryTable({
                                                     if (col.id === 'location') {
                                                         return (
                                                             <td key={col.id} className="px-2 py-3">
-                                                                <div className="flex items-center gap-2 pl-6 cursor-pointer hover:underline decoration-blue-500/30 underline-offset-4" onClick={() => onSelectInventory?.(inv)}>
+                                                                <div role="button" tabIndex={0} className="flex items-center gap-2 pl-6 cursor-pointer hover:underline decoration-blue-500/30 underline-offset-4" onClick={() => onSelectInventory?.(inv)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectInventory?.(inv); } }}>
                                                                     <MdLocationOn size={14} className="text-gray-300 dark:text-gray-600 group-hover:text-blue-500 transition-colors" />
                                                                     <span className="text-[11px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-tight">{String(unit.data.name || 'Unidade')}</span>
                                                                 </div>

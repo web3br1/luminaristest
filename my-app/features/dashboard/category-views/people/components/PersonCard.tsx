@@ -56,8 +56,12 @@ export function PersonCard({ person, onSelect, tableId, tableSchema, onDeleteCli
 
     return (
         <div
+            role="button"
+            tabIndex={0}
             className="group bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-4 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-700 transition-all duration-200 cursor-pointer"
             onClick={onSelect}
+            onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && onSelect) { e.preventDefault(); onSelect(); } }}
+            aria-label={person.name}
         >
             {/* Header with Avatar, Name and 3-dot menu */}
             <div className="flex items-start justify-between mb-3">

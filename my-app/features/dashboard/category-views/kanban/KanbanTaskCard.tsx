@@ -29,7 +29,11 @@ function KanbanTaskCard({ task, tableId, tableSchema, onSuccess, isOverlay, onCl
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && onClick) { e.preventDefault(); onClick(); } }}
+      aria-label={task.name}
       className={`relative bg-white dark:bg-neutral-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-neutral-700/60 cursor-pointer hover:shadow-md hover:border-blue-500/30 dark:hover:border-blue-500/30 transition-all duration-200 ${isOverlay ? 'shadow-2xl ring-2 ring-blue-500 rotate-2 scale-105' : ''}`}
     >
       <div className="absolute top-2 right-2 z-10">

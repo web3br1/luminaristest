@@ -51,6 +51,8 @@ interface FieldComponentProps {
   targetTable?: string;
   displayField?: string;
   multiple?: boolean;
+  'aria-invalid'?: boolean;
+  'aria-describedby'?: string;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -278,8 +280,12 @@ function DynamicForm({ schema, onSubmit, onClose, initialData = {}, fieldErrors 
       }),
     };
     const combinedErrors = { ...localErrors, ...fieldErrors };
+    const hasError = Boolean(combinedErrors[field.name]);
+    const errorId = `${field.name}-error`;
     if (field.type !== 'boolean' && !isBantSelect) {
-      componentProps.className = `${finalClassName} ${combinedErrors[field.name] ? 'border-red-500' : ''}`;
+      componentProps.className = `${finalClassName} ${hasError ? 'border-red-500' : ''}`;
+      componentProps['aria-invalid'] = hasError;
+      if (hasError) componentProps['aria-describedby'] = errorId;
     }
     return (
       <div key={field.name} className={`flex flex-col space-y-1.5 ${colSpanClass}`}>
@@ -300,8 +306,8 @@ function DynamicForm({ schema, onSubmit, onClose, initialData = {}, fieldErrors 
           )}
         </label>
         <FieldComponent {...componentProps} />
-        {combinedErrors[field.name] && (
-          <p className="mt-1 text-[11px] text-red-600 font-bold uppercase tracking-tight">
+        {hasError && (
+          <p id={errorId} className="mt-1 text-[11px] text-red-600 font-bold uppercase tracking-tight" role="alert">
             {t(`common:errors.${combinedErrors[field.name]}`, combinedErrors[field.name])}
           </p>
         )}
