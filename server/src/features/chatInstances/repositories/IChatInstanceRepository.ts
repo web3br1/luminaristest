@@ -14,12 +14,13 @@ export interface IChatInstanceRepository {
   createInstance(data: Prisma.ChatInstanceCreateInput): Promise<Prisma.ChatInstanceGetPayload<{}>>;
 
   /**
-   * Retrieves a paginated list of instances.
+   * Retrieves a paginated list of instances scoped to a specific user.
+   * @param userId - User ID to filter by (required — prevents cross-tenant leaks)
    * @param page - Page number (1-based)
    * @param limit - Number of items per page
    * @returns Object containing instances array and total count
    */
-  getAllInstances(page?: number, limit?: number): Promise<{
+  getAllInstances(userId: string, page?: number, limit?: number): Promise<{
     instances: IChatInstanceSummary[];
     totalCount: number;
   }>;

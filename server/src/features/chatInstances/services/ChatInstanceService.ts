@@ -99,7 +99,7 @@ export class ChatInstanceService {
       throw new ForbiddenError('Instance listing forbidden by policy');
     }
 
-    const result = await this.chatInstanceRepository.getAllInstances(page, limit);
+    const result = await this.chatInstanceRepository.getAllInstances(userContext.userId, page, limit);
     return {
       instances: result.instances.map(instance => mapToSummaryDto(instance)),
       totalCount: result.totalCount

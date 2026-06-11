@@ -30,16 +30,19 @@ export class ChatInstanceRepository implements IChatInstanceRepository {
   }
 
   /**
-   * Retrieves a paginated list of instances
+   * Retrieves a paginated list of instances scoped to a specific user.
+   * The userId filter is mandatory to prevent cross-tenant data leaks.
+   * @param userId - User ID to filter by
    * @param page - Page number (1-based)
    * @param limit - Number of items per page
    * @returns Object containing instances array and total count
    */
-  async getAllInstances(page: number = 1, limit: number = 10): Promise<{ instances: IChatInstanceSummary[]; totalCount: number; }> {
+  async getAllInstances(userId: string, page: number = 1, limit: number = 10): Promise<{ instances: IChatInstanceSummary[]; totalCount: number; }> {
     const skip = (page - 1) * limit;
 
     const [instances, totalCount] = await prisma.$transaction([
       prisma.chatInstance.findMany({
+        where: { userId },
         skip,
         take: limit,
         select: {
@@ -52,7 +55,7 @@ export class ChatInstanceRepository implements IChatInstanceRepository {
         },
         orderBy: { updatedAt: 'desc' }
       }),
-      prisma.chatInstance.count()
+      prisma.chatInstance.count({ where: { userId } })
     ]);
 
     return { instances, totalCount };
