@@ -1,11 +1,13 @@
 import type { IUserRepository } from '../repositories/IUserRepository';
 import type { IUserPolicy } from '../policies/IUserPolicy';
+import type { IVectorRepository } from '../../documents/repositories/IVectorRepository';
 import { CreateUserDto, UpdateUserDto, UserDto, isCreateUserDto, isUpdateUserDto } from '../dtos/UserDto';
 import bcrypt from 'bcryptjs';
 import type { IUser } from '../models/User.model';
 import { Role } from '../models/User.model';
 import { Prisma } from 'generated/prisma';
 import { ServiceError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../../../lib/errors';
+import logger from '../../../lib/logger';
 
 /**
  * Public user profile type - minimal user information for public viewing
@@ -24,7 +26,8 @@ export type SafeUserProfile = Omit<IUser, 'password'>;
 export class UserService {
   constructor(
     private userRepository: IUserRepository,
-    private userPolicy: IUserPolicy
+    private userPolicy: IUserPolicy,
+    private vectorRepository: IVectorRepository
   ) { }
 
   /**
@@ -239,6 +242,13 @@ export class UserService {
     if (!user) {
       throw new NotFoundError('User not found');
     }
+
+    // LGPD art.18 VI — right to erasure: purge Qdrant vectors BEFORE the SQL
+    // delete.  If Qdrant fails we abort here and the user record is still intact
+    // so the operation can be retried.  True distributed transactions are not
+    // available between Qdrant and Postgres, so this ordering is the safest choice.
+    logger.info('Deleting Qdrant vectors before user deletion (LGPD art.18 VI)', { userId: id });
+    await this.vectorRepository.deleteVectorsByUserId(id);
 
     await this.userRepository.deleteUser(id);
   }
