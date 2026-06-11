@@ -41,7 +41,7 @@ export const ProductAutoStockPlugin: RulePlugin = {
     });
     // Units são obrigatórias para criar estoque: se não houver, não cria nada
     if (!unitTable) return;
-    const units = await ctx.repository.findDataByTableId(unitTable.id);
+    const { data: units } = await ctx.repository.findDataByTableId(unitTable.id);
     if (!Array.isArray(units) || units.length === 0) return;
     for (const u of units) {
       await ctx.repository.createData(productUnitsTableId, { productId, unitId: String(u.id), stock: 0 });

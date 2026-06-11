@@ -53,7 +53,7 @@ export const UnitAutoStockPlugin: RulePlugin = {
       const d = r?.data || r; return String(d?.productId || '') === productId;
     });
 
-    for (const p of products) {
+    for (const p of products.data) {
       const productId = String(p?.id || '');
       if (!productId) continue;
       if (hasRow(productId)) continue; // idempotent

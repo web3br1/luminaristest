@@ -142,7 +142,7 @@ Pergunta Reformulada:
             try {
               toolArgs = JSON.parse(toolCall.function.arguments);
             } catch (parseError) {
-              logger.warn({ toolName: toolCall.function.name }, 'Failed to parse tool args, skipping');
+              logger.warn('Failed to parse tool args, skipping', { toolName: toolCall.function.name });
               continue;
             }
             const result = await this.agentService.handleToolCall(

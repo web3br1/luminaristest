@@ -44,12 +44,12 @@ export class ChatMessageService {
    * @throws {ServiceError} If chat instance is missing
    * @throws {NotFoundError} If chat instance not found
    */
-  private async enrichMessageWithUserId(message: Omit<IChatMessage, 'userId' | 'updatedAt' | 'createdAt'> & { updatedAt?: Date, createdAt?: Date }): Promise<IChatMessage> {
+  private async enrichMessageWithUserId(message: Omit<IChatMessage, 'userId' | 'updatedAt' | 'createdAt'> & { updatedAt?: Date, createdAt?: Date }, userId: string): Promise<IChatMessage> {
     if (!message.chatInstanceId) {
       throw new ServiceError('Message is missing chatInstanceId');
     }
 
-    const chatInstance = await this.chatInstanceRepository.getInstanceById(message.chatInstanceId);
+    const chatInstance = await this.chatInstanceRepository.getInstanceById(message.chatInstanceId, userId);
     if (!chatInstance) {
       throw new NotFoundError('Associated ChatInstance not found for message');
     }
@@ -83,7 +83,7 @@ export class ChatMessageService {
       throw new ValidationError('Invalid message creation data', validationResult.error.flatten().fieldErrors);
     }
 
-    const chatInstance = await this.chatInstanceRepository.getInstanceById(data.chatInstanceId);
+    const chatInstance = await this.chatInstanceRepository.getInstanceById(data.chatInstanceId, userContext.userId);
     if (!chatInstance) {
       throw new NotFoundError('Chat instance not found');
     }
@@ -119,7 +119,7 @@ export class ChatMessageService {
     if (!domainMessage) {
       throw new ServiceError('Failed to retrieve created message');
     }
-    domainMessage = await this.enrichMessageWithUserId(domainMessage);
+    domainMessage = await this.enrichMessageWithUserId(domainMessage, userContext.userId);
     return this.mapToDto(domainMessage);
   }
 
@@ -142,7 +142,7 @@ export class ChatMessageService {
       throw new NotFoundError('Message not found');
     }
 
-    message = await this.enrichMessageWithUserId(message);
+    message = await this.enrichMessageWithUserId(message, userContext.userId);
 
     if (!this.chatMessagePolicy.canView(userContext, message)) {
       throw new ForbiddenError('Message view forbidden by policy');
@@ -165,7 +165,7 @@ export class ChatMessageService {
       throw new UnauthorizedError('Authentication required');
     }
 
-    const chatInstance = await this.chatInstanceRepository.getInstanceById(chatInstanceId);
+    const chatInstance = await this.chatInstanceRepository.getInstanceById(chatInstanceId, userContext.userId);
     if (!chatInstance) {
       throw new NotFoundError('Chat instance not found');
     }
@@ -219,7 +219,7 @@ export class ChatMessageService {
       throw new NotFoundError('Message not found');
     }
 
-    messageToUpdate = await this.enrichMessageWithUserId(messageToUpdate);
+    messageToUpdate = await this.enrichMessageWithUserId(messageToUpdate, userContext.userId);
 
     if (!this.chatMessagePolicy.canUpdate(userContext, messageToUpdate)) {
       throw new ForbiddenError('Message update forbidden by policy');
@@ -235,7 +235,7 @@ export class ChatMessageService {
       }
 
       const updatedMessage = await this.chatMessageRepository.updateMessage(id, updatePayload);
-      const finalMessage = await this.enrichMessageWithUserId(updatedMessage);
+      const finalMessage = await this.enrichMessageWithUserId(updatedMessage, userContext.userId);
       return this.mapToDto(finalMessage);
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -262,7 +262,7 @@ export class ChatMessageService {
       throw new NotFoundError('Message not found');
     }
 
-    messageToDelete = await this.enrichMessageWithUserId(messageToDelete);
+    messageToDelete = await this.enrichMessageWithUserId(messageToDelete, userContext.userId);
 
     if (!this.chatMessagePolicy.canDelete(userContext, messageToDelete)) {
       throw new ForbiddenError('Message deletion forbidden by policy');

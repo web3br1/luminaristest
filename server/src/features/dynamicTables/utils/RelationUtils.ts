@@ -15,7 +15,7 @@ export async function fetchRelatedTableData(targetTableId: string): Promise<IDyn
 
   try {
     const repo = getFactory().getDynamicTableRepository();
-    const data = await repo.findDataByTableId(targetTableId);
+    const { data } = await repo.findDataByTableId(targetTableId);
     return data;
   } catch (err) {
     console.error('Erro ao buscar dados relacionados:', err);

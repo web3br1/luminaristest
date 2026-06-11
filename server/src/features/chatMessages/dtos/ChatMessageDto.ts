@@ -52,7 +52,7 @@ export const CreateChatMessageSchema = z.object({
     .max(4000, 'chatMessage.validation.contentTooLong')
     .regex(/^[\s\S]*$/, 'chatMessage.validation.contentInvalidCharacters'),
   role: z.literal(ChatMessageRole.USER, {
-    errorMap: () => ({ message: 'chatMessage.validation.roleInvalid' }),
+    error: 'chatMessage.validation.roleInvalid',
   }),
   chatInstanceId: z.string().cuid({ message: 'chatMessage.validation.chatInstanceIdInvalidCuid' }),
   documentIds: z.array(z.string()).optional(),
