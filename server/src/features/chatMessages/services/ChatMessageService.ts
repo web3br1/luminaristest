@@ -96,11 +96,12 @@ export class ChatMessageService {
       throw new ForbiddenError('Message creation forbidden by policy');
     }
 
-    // Persist the user's message
-    // Dados da mensagem a ser criada
+    // Persist the user's message.
+    // Role is hardcoded to USER regardless of what the DTO carries — clients must
+    // never be able to forge ASSISTANT or SYSTEM messages in the history.
     const messageData: Prisma.ChatMessageCreateInput = {
       content: data.content,
-      role: data.role as unknown as MessageRole,
+      role: 'USER' as unknown as MessageRole, // security: ignore client-supplied role
       chatInstance: { connect: { id: data.chatInstanceId } }
     };
     
@@ -218,7 +219,7 @@ export class ChatMessageService {
     try {
       const updatePayload: Prisma.ChatMessageUpdateInput = {};
       if (data.content !== undefined) updatePayload.content = data.content;
-      if (data.role !== undefined) updatePayload.role = data.role as unknown as MessageRole;
+      // Role is intentionally excluded from updates — clients cannot change message role.
 
       if (Object.keys(updatePayload).length === 0) {
         return this.mapToDto(messageToUpdate);

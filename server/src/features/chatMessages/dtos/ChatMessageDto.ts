@@ -32,7 +32,8 @@ export const ChatMessageSchema = z.object({
 });
 
 /**
- * Schema for creating a new chat message
+ * Schema for creating a new chat message (user-facing endpoint).
+ * Only the USER role is accepted — clients cannot forge ASSISTANT or SYSTEM messages.
  * @openapi
  * components:
  *   schemas:
@@ -41,7 +42,7 @@ export const ChatMessageSchema = z.object({
  *       required: [content, role, chatInstanceId]
  *       properties:
  *         content: { type: string, minLength: 1, maxLength: 4000 }
- *         role: { type: string, enum: [user, assistant, system] }
+ *         role: { type: string, enum: [USER] }
  *         chatInstanceId: { type: string, format: cuid }
  *         documentIds: { type: array, items: { type: string } }
  */
@@ -50,15 +51,16 @@ export const CreateChatMessageSchema = z.object({
     .min(1, 'chatMessage.validation.contentRequired')
     .max(4000, 'chatMessage.validation.contentTooLong')
     .regex(/^[\s\S]*$/, 'chatMessage.validation.contentInvalidCharacters'),
-  role: z.nativeEnum(ChatMessageRole, {
-    message: 'chatMessage.validation.roleRequired',
+  role: z.literal(ChatMessageRole.USER, {
+    errorMap: () => ({ message: 'chatMessage.validation.roleInvalid' }),
   }),
   chatInstanceId: z.string().cuid({ message: 'chatMessage.validation.chatInstanceIdInvalidCuid' }),
   documentIds: z.array(z.string()).optional(),
 });
 
 /**
- * Schema for updating a chat message
+ * Schema for updating a chat message (user-facing endpoint).
+ * The role field is intentionally excluded — clients cannot alter message roles.
  * @openapi
  * components:
  *   schemas:
@@ -66,9 +68,8 @@ export const CreateChatMessageSchema = z.object({
  *       type: object
  *       properties:
  *         content: { type: string, minLength: 1, maxLength: 4000 }
- *         role: { type: string, enum: [user, assistant, system] }
  */
-export const UpdateChatMessageSchema = CreateChatMessageSchema.partial();
+export const UpdateChatMessageSchema = CreateChatMessageSchema.omit({ role: true, chatInstanceId: true, documentIds: true }).partial();
 
 /**
  * Schema for chat message summary (used in lists)

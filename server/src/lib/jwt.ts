@@ -5,6 +5,9 @@ const _rawSecret = process.env.JWT_SECRET;
 if (!_rawSecret) {
   throw new Error('[FATAL] JWT_SECRET environment variable is not set. Cannot start server.');
 }
+if (_rawSecret.length < 32) {
+  throw new Error('[FATAL] JWT_SECRET must be at least 32 characters');
+}
 const JWT_SECRET: Secret = _rawSecret;
 const JWT_EXPIRES_IN: SignOptions['expiresIn'] = (process.env.JWT_EXPIRES_IN as any) || '7d';
 
