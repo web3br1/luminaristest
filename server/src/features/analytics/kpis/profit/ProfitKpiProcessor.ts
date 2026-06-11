@@ -105,88 +105,26 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
 
   const revenueByCustomer = new Map<string, number>();
 
-  // DEBUG: Track filtering
-  let rowsSkippedExcluded = 0;
-  let rowsSkippedNotFinalized = 0;
-  let rowsSkippedNotPaid = 0;
-  let rowsSkippedInvalidAmount = 0;
-  let rowsSkippedInvalidDate = 0;
-  let rowsSkippedWrongPeriod = 0;
-  let rowsIncluded = 0;
-
-  // DEBUG: Detailed tracking for each row
-  const revenueRowDetails: Array<{
-    id: string;
-    amount: number;
-    rawAmount: any; // Valor bruto antes da conversão
-    date: string | null;
-    status: string;
-    paymentStatus: string;
-    periodKey: string | null;
-    included: boolean;
-    reason: string;
-    totalAmountField?: any; // Valor do campo totalAmount original
-    dateDebug?: any; // Informações detalhadas sobre a data (timezone, etc.)
-  }> = [];
-
   // Process revenue rows
   for (const row of rows) {
     const data = row.data || {};
     const rowStatus = String(data[statusField] || '');
     const rowPaymentStatus = String(data[paymentStatusField] || '');
-    const rawAmountValue = data[revenueAmountField]; // Valor bruto do campo
-    const rowAmount = DataSanitizer.extractCurrency(rawAmountValue);
+    const rowAmount = DataSanitizer.extractCurrency(data[revenueAmountField]);
     const rawDate = data[revenueDateField];
     const date = rawDate ? new Date(rawDate) : null;
-
-    let reason = '';
-    let included = false;
 
     // Skip excluded statuses
     if (statusField) {
       const st = rowStatus.toLowerCase();
       if (excludeStatuses.some((s) => st === String(s).toLowerCase())) {
-        rowsSkippedExcluded++;
-        reason = `Excluded status: ${rowStatus}`;
-        revenueRowDetails.push({
-          id: row.id,
-          amount: rowAmount,
-          rawAmount: rawAmountValue,
-          date: rawDate || null,
-          status: rowStatus,
-          paymentStatus: rowPaymentStatus,
-          periodKey: null,
-          included: false,
-          reason,
-          totalAmountField: data[revenueAmountField],
-          dateDebug: rawDate ? {
-            rawDate,
-            dateISO: date?.toISOString(),
-            dateLocal: date?.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
-          } : null,
-        });
         continue;
       }
     }
 
     // Require Finalized status if enabled
     if (requireFinalized && statusField) {
-      const st = rowStatus.toLowerCase();
-      if (st !== 'finalized') {
-        rowsSkippedNotFinalized++;
-        reason = `Not finalized: ${rowStatus}`;
-        revenueRowDetails.push({
-          id: row.id,
-          amount: rowAmount,
-          rawAmount: rawAmountValue,
-          date: rawDate || null,
-          status: rowStatus,
-          paymentStatus: rowPaymentStatus,
-          periodKey: null,
-          included: false,
-          reason,
-          totalAmountField: data[revenueAmountField],
-        });
+      if (rowStatus.toLowerCase() !== 'finalized') {
         continue;
       }
     }
@@ -195,57 +133,15 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
     if (requirePaid && paymentStatusField) {
       const paymentStatus = rowPaymentStatus.toLowerCase();
       if (paymentStatus !== 'paid' && paymentStatus !== 'pago') {
-        rowsSkippedNotPaid++;
-        reason = `Not paid: ${rowPaymentStatus}`;
-        revenueRowDetails.push({
-          id: row.id,
-          amount: rowAmount,
-          rawAmount: rawAmountValue,
-          date: rawDate || null,
-          status: rowStatus,
-          paymentStatus: rowPaymentStatus,
-          periodKey: null,
-          included: false,
-          reason,
-          totalAmountField: data[revenueAmountField],
-        });
         continue;
       }
     }
 
     if (!Number.isFinite(rowAmount) || rowAmount <= 0) {
-      rowsSkippedInvalidAmount++;
-      reason = `Invalid amount: ${rowAmount}`;
-      revenueRowDetails.push({
-        id: row.id,
-        amount: rowAmount,
-        rawAmount: rawAmountValue,
-        date: rawDate || null,
-        status: rowStatus,
-        paymentStatus: rowPaymentStatus,
-        periodKey: null,
-        included: false,
-        reason,
-        totalAmountField: data[revenueAmountField],
-      });
       continue;
     }
 
     if (!date || !isFinite(date.getTime())) {
-      rowsSkippedInvalidDate++;
-      reason = `Invalid date: ${rawDate}`;
-      revenueRowDetails.push({
-        id: row.id,
-        amount: rowAmount,
-        rawAmount: rawAmountValue,
-        date: rawDate || null,
-        status: rowStatus,
-        paymentStatus: rowPaymentStatus,
-        periodKey: null,
-        included: false,
-        reason,
-        totalAmountField: data[revenueAmountField],
-      });
       continue;
     }
 
@@ -258,52 +154,13 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
       historyMap.get(monthKey)!.revenue = addMoney(historyMap.get(monthKey)!.revenue, rowAmount);
     }
 
-    const key = isCurrent ? 'CURRENT' : (isPrev ? 'PREV' : 'OUTSIDE');
-
-    // DEBUG: Log date calculation details for timezone debugging
-    const dateDebug = {
-      rawDate,
-      dateISO: date.toISOString(),
-      dateLocal: date.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
-      year: date.getFullYear(),
-      month: date.getMonth() + 1,
-      day: date.getDate(),
-      hours: date.getHours(),
-      periodKey: key,
-    };
-
     if (isCurrent) {
       totalRevenue = addMoney(totalRevenue, rowAmount);
       currentPeriodRevenueIds.push(row.id);
-      rowsIncluded++;
-      included = true;
-      reason = `Included (current period)`;
     } else if (isPrev) {
       totalRevenuePrevPeriod = addMoney(totalRevenuePrevPeriod, rowAmount);
       prevPeriodRevenueIds.push(row.id);
-      included = true;
-      reason = `Included (previous period)`;
-    } else {
-      rowsSkippedWrongPeriod++;
-      reason = `Wrong period (outside of both boundaries)`;
     }
-
-    // Add date debug info to revenue row details
-    const revenueDetail = {
-      id: row.id,
-      amount: rowAmount,
-      rawAmount: rawAmountValue,
-      date: rawDate || null,
-      status: rowStatus,
-      paymentStatus: rowPaymentStatus,
-      periodKey: key,
-      included,
-      reason,
-      totalAmountField: data[revenueAmountField],
-      dateDebug, // NOVO: Informações detalhadas sobre a data
-    };
-
-    revenueRowDetails.push(revenueDetail);
 
     const customerId = String(data.customerId || '').trim();
     if (customerId) {
@@ -311,69 +168,7 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
     }
   }
 
-  // Calculate revenue summary statistics
-  const amountsSummary = {
-    totalRows: rows.length,
-    rowsWithZeroAmount: revenueRowDetails.filter(r => r.amount === 0).length,
-    rowsWithNullAmount: revenueRowDetails.filter(r => r.rawAmount == null || r.rawAmount === undefined).length,
-    rowsWithInvalidAmount: revenueRowDetails.filter(r => !Number.isFinite(r.amount) || r.amount <= 0).length,
-    includedRowsWithZeroAmount: revenueRowDetails.filter(r => r.included && r.amount === 0).length,
-    totalAmountIncluded: revenueRowDetails.filter(r => r.included).reduce((sum, r) => sum + r.amount, 0),
-    revenueAmountField,
-    sampleZeroAmountRows: revenueRowDetails.filter(r => r.amount === 0).slice(0, 3).map(r => ({
-      id: r.id,
-      rawAmount: r.rawAmount,
-      amount: r.amount,
-      totalAmountField: r.totalAmountField,
-      status: r.status,
-      paymentStatus: r.paymentStatus,
-    })),
-    // NOVO: Análise de vendas por status
-    salesByStatus: {
-      finalized: revenueRowDetails.filter(r => r.status.toLowerCase() === 'finalized').length,
-      draft: revenueRowDetails.filter(r => r.status.toLowerCase() === 'draft').length,
-      paid: revenueRowDetails.filter(r => r.paymentStatus.toLowerCase() === 'paid' || r.paymentStatus.toLowerCase() === 'pago').length,
-      pending: revenueRowDetails.filter(r => r.paymentStatus.toLowerCase() === 'pending').length,
-    },
-    // NOVO: Análise de vendas incluídas vs excluídas
-    includedVsExcluded: {
-      included: revenueRowDetails.filter(r => r.included).length,
-      excluded: revenueRowDetails.filter(r => !r.included).length,
-      excludedByStatus: revenueRowDetails.filter(r => !r.included && r.reason.includes('Not finalized')).length,
-      excludedByPayment: revenueRowDetails.filter(r => !r.included && r.reason.includes('Not paid')).length,
-      excludedByPeriod: revenueRowDetails.filter(r => !r.included && r.reason.includes('Wrong period')).length,
-    },
-    // NOVO: Verificar se há vendas duplicadas
-    duplicateIds: (() => {
-      const ids = revenueRowDetails.map(r => r.id);
-      const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
-      return duplicates.length > 0 ? [...new Set(duplicates)] : null;
-    })(),
-  };
-
   // Integrate with expenses table if available
-  let expenseRowsTotal = 0;
-  let expenseRowsSkippedNotPaid = 0;
-  let expenseRowsSkippedInvalidAmount = 0;
-  let expenseRowsSkippedInvalidDate = 0;
-  let expenseRowsSkippedWrongPeriod = 0;
-  let expenseRowsIncluded = 0;
-
-  // DEBUG: Detailed tracking for each expense row
-  const expenseRowDetails: Array<{
-    id: string;
-    amount: number;
-    date: string | null;
-    category: string;
-    categoryRaw: string;
-    paymentStatus: string;
-    periodKey: string | null;
-    included: boolean;
-    classifiedAs: string;
-    reason: string;
-    dateDebug?: any; // Informações detalhadas sobre a data (timezone, etc.)
-  }> = [];
-
   let prevVariableCostTotal = 0;
   let prevFixedCostTotal = 0;
   let prevTaxesTotal = 0;
@@ -382,7 +177,6 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
   if (fetchByPresetTableKey && typeof params.costSourceTableKey === 'string') {
     try {
       const { rows: expenseRows } = await fetchByPresetTableKey(params.costSourceTableKey);
-      expenseRowsTotal = expenseRows.length;
       const expenseAmountField = params.expenseAmountField || 'amount';
       const expenseCategoryField = params.expenseCategoryField || 'category';
       const expenseDateField = params.expenseDateField || 'paymentDate';
@@ -392,72 +186,24 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
       for (const row of expenseRows) {
         const data = row.data || {};
         const rowPaymentStatus = String(data[expensePaymentStatusField] || '');
-        const rawAmountValue = data[expenseAmountField];
-        const rowAmount = DataSanitizer.extractCurrency(rawAmountValue);
-        const rowCategory = String(data[expenseCategoryField] || '');
-        const categoryRaw = rowCategory.toLowerCase();
+        const rowAmount = DataSanitizer.extractCurrency(data[expenseAmountField]);
+        const categoryRaw = String(data[expenseCategoryField] || '').toLowerCase();
         const rawDate = data[expenseDateField];
         const date = rawDate ? new Date(rawDate) : null;
-
-        let reason = '';
-        let included = false;
-        let classifiedAs = 'none';
 
         // Require Paid payment status for expenses if enabled
         if (requireExpensePaid && expensePaymentStatusField) {
           const paymentStatus = rowPaymentStatus.toLowerCase();
           if (paymentStatus !== 'paid' && paymentStatus !== 'pago') {
-            expenseRowsSkippedNotPaid++;
-            reason = `Not paid: ${rowPaymentStatus}`;
-            expenseRowDetails.push({
-              id: row.id,
-              amount: rowAmount,
-              date: rawDate || null,
-              category: rowCategory,
-              categoryRaw,
-              paymentStatus: rowPaymentStatus,
-              periodKey: null,
-              included: false,
-              classifiedAs: 'none',
-              reason,
-            });
             continue;
           }
         }
 
         if (!Number.isFinite(rowAmount) || rowAmount <= 0) {
-          expenseRowsSkippedInvalidAmount++;
-          reason = `Invalid amount: ${rowAmount}`;
-          expenseRowDetails.push({
-            id: row.id,
-            amount: rowAmount,
-            date: rawDate || null,
-            category: rowCategory,
-            categoryRaw,
-            paymentStatus: rowPaymentStatus,
-            periodKey: null,
-            included: false,
-            classifiedAs: 'none',
-            reason,
-          });
           continue;
         }
 
         if (!date || !isFinite(date.getTime())) {
-          expenseRowsSkippedInvalidDate++;
-          reason = `Invalid date: ${rawDate}`;
-          expenseRowDetails.push({
-            id: row.id,
-            amount: rowAmount,
-            date: rawDate || null,
-            category: rowCategory,
-            categoryRaw,
-            paymentStatus: rowPaymentStatus,
-            periodKey: null,
-            included: false,
-            classifiedAs: 'none',
-            reason,
-          });
           continue;
         }
 
@@ -473,48 +219,16 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
           else if (categoryRaw.includes('tax') || categoryRaw.includes('imposto')) h.taxes = addMoney(h.taxes, rowAmount);
         }
 
-        const key = isCurrent ? 'CURRENT' : (isPrev ? 'PREV' : 'OUTSIDE');
-
-        // DEBUG: Log date calculation details for timezone debugging
-        const expenseDateDebug = {
-          rawDate,
-          dateISO: date.toISOString(),
-          dateLocal: date.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
-          year: date.getFullYear(),
-          month: date.getMonth() + 1,
-          day: date.getDate(),
-          hours: date.getHours(),
-          periodKey: key,
-        };
-
         if (!isCurrent && !isPrev) {
-          expenseRowsSkippedWrongPeriod++;
-          reason = `Wrong period (outside of boundaries)`;
-          expenseRowDetails.push({
-            id: row.id,
-            amount: rowAmount,
-            date: rawDate || null,
-            category: rowCategory,
-            categoryRaw,
-            paymentStatus: rowPaymentStatus,
-            periodKey: key,
-            included: false,
-            classifiedAs: 'none',
-            reason,
-            dateDebug: expenseDateDebug,
-          });
           continue;
         }
 
         expenseIds.push(row.id);
-        expenseRowsIncluded++;
-        included = true;
 
         // Classify costs
         if (categoryRaw.includes('variable') || categoryRaw.includes('marketing')) {
           if (isCurrent) variableCostTotal = addMoney(variableCostTotal, rowAmount);
           else if (isPrev) prevVariableCostTotal = addMoney(prevVariableCostTotal, rowAmount);
-          classifiedAs = 'variable';
         } else if (
           categoryRaw.includes('fixed') ||
           categoryRaw.includes('personnel') ||
@@ -522,73 +236,16 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
         ) {
           if (isCurrent) fixedCostTotal = addMoney(fixedCostTotal, rowAmount);
           else if (isPrev) prevFixedCostTotal = addMoney(prevFixedCostTotal, rowAmount);
-          classifiedAs = 'fixed';
         } else if (categoryRaw.includes('tax') || categoryRaw.includes('imposto')) {
           if (isCurrent) taxesTotal = addMoney(taxesTotal, rowAmount);
           else if (isPrev) prevTaxesTotal = addMoney(prevTaxesTotal, rowAmount);
-          classifiedAs = 'tax';
-        } else {
-          classifiedAs = 'unclassified';
         }
 
         if (categoryRaw.includes('nonrecurring') || categoryRaw.includes('não recorrente')) {
           if (isCurrent) nonRecurringTotal = addMoney(nonRecurringTotal, rowAmount);
           else if (isPrev) prevNonRecurringTotal = addMoney(prevNonRecurringTotal, rowAmount);
         }
-
-        reason = `Included (period: ${key}, classified as: ${classifiedAs})`;
-        expenseRowDetails.push({
-          id: row.id,
-          amount: rowAmount,
-          date: rawDate || null,
-          category: rowCategory,
-          categoryRaw,
-          paymentStatus: rowPaymentStatus,
-          periodKey: key,
-          included: true,
-          classifiedAs,
-          reason,
-          dateDebug: expenseDateDebug, // NOVO: Informações detalhadas sobre a data
-        });
       }
-
-      // Calculate expense summary statistics
-      const expenseAmountsSummary = {
-        totalExpenseRows: expenseRows.length,
-        expenseRowsIncluded,
-        expenseRowsSkippedNotPaid,
-        expenseRowsSkippedWrongPeriod,
-        expenseRowsSkippedInvalidAmount,
-        expenseRowsSkippedInvalidDate,
-        // NOVO: Análise de classificação
-        classificationSummary: {
-          variable: expenseRowDetails.filter(r => r.classifiedAs === 'variable' && r.included).reduce((sum, r) => sum + r.amount, 0),
-          fixed: expenseRowDetails.filter(r => r.classifiedAs === 'fixed' && r.included).reduce((sum, r) => sum + r.amount, 0),
-          tax: expenseRowDetails.filter(r => r.classifiedAs === 'tax' && r.included).reduce((sum, r) => sum + r.amount, 0),
-          unclassified: expenseRowDetails.filter(r => r.classifiedAs === 'unclassified' && r.included).length,
-          none: expenseRowDetails.filter(r => r.classifiedAs === 'none' && r.included).length,
-        },
-        // NOVO: Análise de períodos errados
-        wrongPeriodExpenses: expenseRowDetails.filter(r => !r.included && r.reason.includes('Wrong period')).map(r => ({
-          id: r.id,
-          amount: r.amount,
-          category: r.category,
-          date: r.date,
-          periodKey: r.periodKey,
-          expectedPeriod: 'CURRENT',
-          dateDebug: r.dateDebug,
-        })),
-        // NOVO: Verificar se há despesas duplicadas
-        duplicateIds: (() => {
-          const ids = expenseRowDetails.map(r => r.id);
-          const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
-          return duplicates.length > 0 ? [...new Set(duplicates)] : null;
-        })(),
-        // NOVO: Análise de categorias
-        categoriesFound: [...new Set(expenseRowDetails.map(r => r.category))],
-        categoriesIncluded: [...new Set(expenseRowDetails.filter(r => r.included).map(r => r.category))],
-        categoriesExcluded: [...new Set(expenseRowDetails.filter(r => !r.included).map(r => r.category))],
-      };
     } catch (err) {
       console.warn('[profitKpiProcessor] Failed to integrate expenses:', err);
     }
