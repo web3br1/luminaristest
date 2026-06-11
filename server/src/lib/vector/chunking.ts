@@ -34,7 +34,7 @@ export function chunkText(
   options: ChunkingOptions = {}
 ): string[] {
   if (!text || typeof text !== 'string') {
-    logger.warn('Invalid text provided for chunking', { text });
+    logger.warn('Invalid text provided for chunking', { textLength: typeof text === 'string' ? text.length : 0 });
     return [];
   }
 

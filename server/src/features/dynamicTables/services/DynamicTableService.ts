@@ -703,8 +703,8 @@ export class DynamicTableService {
       return schema.parse(data);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        console.log('[DynamicTableService] Validation Failed. Data:', data);
-        console.log('[DynamicTableService] Validation Errors:', JSON.stringify(error.flatten().fieldErrors, null, 2));
+        console.log('[DynamicTableService] Validation Failed. FieldCount:', Object.keys(data || {}).length);
+        console.log('[DynamicTableService] Validation Errors:', JSON.stringify(Object.keys(error.flatten().fieldErrors), null, 2));
         throw new ValidationError('Invalid data provided.', error.flatten().fieldErrors);
       }
       throw new ValidationError('Data validation failed.');

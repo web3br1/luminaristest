@@ -439,7 +439,7 @@ class AnalyticsService {
             tableId: tableId,
             pipeline: {
               source: { kind: 'tableId', id: tableId },
-              measures: [{ field: field.name, aggregation: 'sum', label: field.label || field.name }],
+              measures: [{ type: 'sum', field: field.name, alias: field.label || field.name }],
               dimensions: []
             }
           },
@@ -456,7 +456,7 @@ class AnalyticsService {
             tableId: tableId,
             pipeline: {
               source: { kind: 'tableId', id: tableId },
-              measures: [{ field: field.name, aggregation: 'avg', label: `Média ${field.label || field.name}` }],
+              measures: [{ type: 'avg', field: field.name, alias: `Média ${field.label || field.name}` }],
               dimensions: []
             }
           }
@@ -473,8 +473,8 @@ class AnalyticsService {
               tableId: tableId,
               pipeline: {
                 source: { kind: 'tableId', id: tableId },
-                measures: [{ field: field.name, aggregation: 'sum', label: field.label || field.name }],
-                dimensions: [{ field: dateField, type: 'date', interval: 'month' }]
+                measures: [{ type: 'sum', field: field.name, alias: field.label || field.name }],
+                dimensions: [{ type: 'period', dateField: dateField, period: 'month' }]
               }
             }
           });
@@ -492,8 +492,8 @@ class AnalyticsService {
             tableId: tableId,
             pipeline: {
               source: { kind: 'tableId', id: tableId },
-              measures: [{ field: '*', aggregation: 'count', label: 'Total' }],
-              dimensions: [{ field: field.name, type: 'categorical' }]
+              measures: [{ type: 'count', alias: 'Total' }],
+              dimensions: [{ type: 'field', field: field.name }]
             }
           }
         });
@@ -510,8 +510,8 @@ class AnalyticsService {
             tableId: tableId,
             pipeline: {
               source: { kind: 'tableId', id: tableId },
-              measures: [{ field: '*', aggregation: 'count', label: 'Volume' }],
-              dimensions: [{ field: dateField, type: 'date', interval: 'month' }]
+              measures: [{ type: 'count', alias: 'Volume' }],
+              dimensions: [{ type: 'period', dateField: dateField, period: 'month' }]
             }
           }
         });
@@ -527,7 +527,7 @@ class AnalyticsService {
           tableId: tableId,
           pipeline: {
             source: { kind: 'tableId', id: tableId },
-            measures: [{ field: '*', aggregation: 'count', label: 'Total' }],
+            measures: [{ type: 'count', alias: 'Total' }],
             dimensions: []
           }
         }

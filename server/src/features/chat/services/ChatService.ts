@@ -85,7 +85,7 @@ Pergunta Reformulada:
 
   async generateResponse(request: ChatRequest & { user: UserContext }): Promise<ChatResponse> {
     const { query = '', documentIds, history, confirmedProposalId, user } = request;
-    logger.info('Iniciando geração de resposta de chat', { query, documentIds, historyLength: history?.length });
+    logger.info('Iniciando geração de resposta de chat', { queryLength: query.length, documentCount: documentIds?.length, historyLength: history?.length });
 
     // 0. Verifica se é uma confirmação de proposta
     if (confirmedProposalId) {

@@ -27,12 +27,19 @@ export class DataSanitizer {
         str = str.replace(/,/g, '');
       }
     } else if (lastCommaIndex > -1) {
-      // Only comma exists. Check if it's acting as a decimal (e.g. "1500,50") or thousands (e.g. "1,500")
-      // Heuristic: If there are exactly 2 digits after the comma, or 1 or 3+, usually 1,500 means 1500, but "15,5" means 15.5
-      // Wait, standard assumption: single comma without dots usually acts as a decimal in PT-BR, BUT if it is precisely 3 digits after like 1,000 it might be thousand.
-      // Safer fallback for PT-BR / European systems: assume comma is a decimal separator.
-      // If it ends with exactly 3 digits e.g. "1,500", some people mean 1500. To be strict, let's treat comma as decimal if it exists.
-      str = str.replace(',', '.');
+      // Only commas exist, no dots. Determine whether commas are thousands separators or a decimal separator.
+      const commaCount = (str.match(/,/g) || []).length;
+      const digitsAfterLastComma = str.length - lastCommaIndex - 1;
+      if (commaCount > 1) {
+        // Multiple commas: must be thousands separators (e.g. "1,234,567") — strip all commas
+        str = str.replace(/,/g, '');
+      } else if (digitsAfterLastComma === 3) {
+        // Single comma with exactly 3 digits after it (e.g. "1,500") — treat as thousands separator
+        str = str.replace(/,/g, '');
+      } else {
+        // Single comma with 1, 2, or 4+ digits after it (e.g. "1,5" or "15,50") — treat as decimal separator
+        str = str.replace(',', '.');
+      }
     }
     
     const parsed = Number(str);

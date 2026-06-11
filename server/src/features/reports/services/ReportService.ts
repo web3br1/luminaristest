@@ -70,7 +70,7 @@ export class ReportService implements IReportService {
   ): Promise<GenerateReportResponse> {
     const { query, documentIds, userId } = request;
     onProgress?.({ status: 'started', message: 'Iniciando análise do seu pedido...' });
-    logger.info('ReportService: Iniciando geração de relatório.', { query, documentIds });
+    logger.info('ReportService: Iniciando geração de relatório.', { queryLength: query.length, documentCount: documentIds?.length, userId });
 
     let context = '';
     let userPrompt = query;
@@ -93,10 +93,10 @@ export class ReportService implements IReportService {
       }
 
       onProgress?.({ status: 'rag_started', message: 'Entendido. Buscando informações nos seus documentos...' });
-      logger.info('Triagem Inteligente: A consulta requer contexto. Executando RAG.', { query });
+      logger.info('Triagem Inteligente: A consulta requer contexto. Executando RAG.', { queryLength: query.length });
             // Etapa 2.1: Refinar a consulta para otimizar a busca vetorial.
       const refinedQuery = await this._rewriteQueryForSearch(query);
-      logger.info('Consulta refinada para busca RAG.', { original: query, refined: refinedQuery });
+      logger.info('Consulta refinada para busca RAG.', { originalLength: query.length, refinedLength: refinedQuery.length });
 
       const queryEmbedding = await this.embeddingService.embedText(refinedQuery);
       // Pass userId so the vector store enforces tenant isolation at the index level.
@@ -111,10 +111,10 @@ export class ReportService implements IReportService {
         onProgress?.({ status: 'rag_completed', message: 'Informações encontradas. Preparando para gerar o gráfico...' });
         userPrompt = `Contexto dos documentos selecionados:\n---\n${context}\n---\n\nCom base no contexto acima, responda à seguinte solicitação: "${query}"`;
       } else {
-        logger.warn('Nenhum contexto encontrado via RAG, mesmo com documentIds.', { query });
+        logger.warn('Nenhum contexto encontrado via RAG, mesmo com documentIds.', { queryLength: query.length });
       }
     } else {
-        logger.info('Nenhum documento selecionado. Pulando RAG.', { query });
+        logger.info('Nenhum documento selecionado. Pulando RAG.', { queryLength: query.length });
     }
 
     // 3. Construa o prompt do sistema.
@@ -151,7 +151,7 @@ export class ReportService implements IReportService {
     }
 
     // Se não houver chamada de ferramenta, apenas retorne a resposta de texto da IA.
-    logger.info('IA respondeu textualmente.', { query });
+    logger.info('IA respondeu textualmente.', { queryLength: query.length });
     return {
       response: response?.content || 'Não consegui processar sua solicitação.',
     };

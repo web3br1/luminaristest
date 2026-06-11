@@ -190,7 +190,7 @@ export class DashboardLayoutRepository implements IDashboardLayoutRepository {
 
       // Verifica se os dados necessários estão presentes
       if (!data || !data.type) {
-        console.error('Dados de layout inválidos:', { layout, data });
+        console.error('Dados de layout inválidos:', { layoutId: layout.id, userId: layout.userId, layoutSize: JSON.stringify(layout).length });
         throw new Error('Dados de layout inválidos: tipo não especificado');
       }
 
@@ -207,7 +207,7 @@ export class DashboardLayoutRepository implements IDashboardLayoutRepository {
         updatedAt: layout.updatedAt,
       };
     } catch (error) {
-      console.error('Erro ao mapear layout:', error, layout);
+      console.error('Erro ao mapear layout:', error, { layoutId: layout.id, userId: layout.userId });
       throw new Error(`Falha ao mapear layout: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   }
@@ -229,7 +229,7 @@ export class DashboardLayoutRepository implements IDashboardLayoutRepository {
 
       // Verifica se os dados necessários estão presentes
       if (!data || !data.type) {
-        console.error('Dados de resumo de layout inválidos:', { layout, data });
+        console.error('Dados de resumo de layout inválidos:', { layoutId: layout.id, userId: layout.userId, layoutSize: JSON.stringify(layout).length });
         throw new Error('Dados de resumo de layout inválidos: tipo não especificado');
       }
 
@@ -244,7 +244,7 @@ export class DashboardLayoutRepository implements IDashboardLayoutRepository {
         updatedAt: layout.updatedAt,
       };
     } catch (error) {
-      console.error('Erro ao mapear resumo do layout:', error, layout);
+      console.error('Erro ao mapear resumo do layout:', error, { layoutId: layout.id, userId: layout.userId });
       throw new Error(`Falha ao mapear resumo do layout: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   }
