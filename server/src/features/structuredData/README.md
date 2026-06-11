@@ -1,5 +1,15 @@
 # Feature: Structured Data
 
+> **DEPRECATED (R26 — Onda 3)**
+> The structuredData sub-feature (Excel → structured JSON display) has been retired on the frontend.
+> The backend implementation (service, repository, controller, route) is preserved here but the
+> frontend was never connected — zero UI components, zero imports were ever built.
+> The display library intended for this feature (Handsontable, commercial license) and the
+> frontend parsing dependency (exceljs) have been removed from `my-app/package.json`.
+>
+> **Future decision required:** either build the frontend UI (SpreadsheetWidget) and reconnect,
+> or remove the backend pipeline entirely. Do not add new consumers until that decision is made.
+
 ## Visão Geral
 
 - **Categoria:** Feature de Entidade

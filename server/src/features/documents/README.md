@@ -77,7 +77,7 @@ documents/
 ## Interação com Outras Features
 
 - **Consome:**
-    - `features/structuredData`: O `DocumentProcessingPipeline` chama o `StructuredDataService` para criar registros de dados estruturados quando um documento tabular é processado.
+    - `features/structuredData`: O `DocumentProcessingPipeline` chama o `StructuredDataService` para criar registros de dados estruturados quando um documento tabular é processado. **DEPRECATED R26** — ver `features/structuredData/README.md`.
     - `features/users`: O `DocumentProcessingPipeline` utiliza o `UserRepository` para obter os dados completos do usuário (`IUser`) necessários para as chamadas de serviço.
     - `lib/openai`: Utiliza o `OpenAIService` para tarefas de IA, como determinar se um texto é tabular.
 

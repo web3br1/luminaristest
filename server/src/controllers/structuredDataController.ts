@@ -1,3 +1,8 @@
+/**
+ * @deprecated R26 — structuredData feature retired (Onda 3).
+ * The backend pipeline is preserved but the frontend was never connected.
+ * Do not expand until a UI is built. See features/structuredData/README.md.
+ */
 import type { Request, Response } from 'express';
 import { getFactory } from '@/lib/factory';
 import { handleApiError } from '@/lib/apiUtils';
