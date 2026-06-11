@@ -1,7 +1,11 @@
 import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
 import { Request } from 'express';
 
-const JWT_SECRET: Secret = process.env.JWT_SECRET || 'your-jwt-secret-key';
+const _rawSecret = process.env.JWT_SECRET;
+if (!_rawSecret) {
+  throw new Error('[FATAL] JWT_SECRET environment variable is not set. Cannot start server.');
+}
+const JWT_SECRET: Secret = _rawSecret;
 const JWT_EXPIRES_IN: SignOptions['expiresIn'] = (process.env.JWT_EXPIRES_IN as any) || '7d';
 
 interface JWTPayload {
@@ -11,12 +15,12 @@ interface JWTPayload {
 }
 
 export function generateToken(payload: JWTPayload): string {
-  const options: SignOptions = { expiresIn: JWT_EXPIRES_IN };
+  const options: SignOptions = { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256' };
   return jwt.sign(payload as object, JWT_SECRET, options);
 }
 
 export function verifyToken(token: string): JWTPayload {
-  return jwt.verify(token, JWT_SECRET) as JWTPayload;
+  return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as JWTPayload;
 }
 
 export function getAuthToken(req: Request): string | undefined {
