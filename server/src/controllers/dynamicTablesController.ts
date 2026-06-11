@@ -47,14 +47,17 @@ export async function getTableData(req: Request, res: Response) {
     const parse = cuidSchema.safeParse(req.params.tableId);
     if (!parse.success) return res.status(400).json({ success: false, error: 'Invalid table ID' });
 
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50), 200);
+
     const service = getFactory().getDynamicTableService();
-    const data = await service.getTableData(ctx as any, req.params.tableId);
+    const result = await service.getTableData(ctx as any, req.params.tableId, page, limit);
 
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
-    return res.json({ success: true, data });
+    return res.json({ success: true, data: result.data, total: result.total, page: result.page, limit: result.limit, totalPages: result.totalPages });
   } catch (error) {
     return handleApiError(error, res);
   }

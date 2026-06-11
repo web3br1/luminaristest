@@ -16,10 +16,10 @@ export async function listMessages(req: Request, res: Response) {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
-    const { instanceId } = QueryParamsSchema.parse({ ...req.query, instanceId: req.query.instanceId });
+    const parsed = QueryParamsSchema.parse({ ...req.query, instanceId: req.query.instanceId });
     const svc = getFactory().getChatMessageService();
-    const messages = await svc.getMessagesByInstance(instanceId, ctx as any);
-    return res.status(200).json({ success: true, data: messages });
+    const result = await svc.getMessagesByInstance(parsed.instanceId, ctx as any, parsed.page, parsed.limit);
+    return res.status(200).json({ success: true, data: result.data, total: result.total, page: result.page, limit: result.limit, totalPages: result.totalPages });
   } catch (error) {
     return handleApiError(error, res);
   }

@@ -107,10 +107,10 @@ export async function listDocuments(req: Request, res: Response) {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-    const page = Number(req.query.page || 1);
-    const limit = Number(req.query.limit || 10);
+    const page = Math.max(1, Number(req.query.page || 1));
+    const safeLimit = Math.min(Number(req.query.limit || 50) || 50, 100);
     const service = getFactory().getDocumentService();
-    const data = await service.getAllDocuments(ctx as any, page, limit);
+    const data = await service.getAllDocuments(ctx as any, page, safeLimit);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);

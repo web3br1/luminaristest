@@ -156,7 +156,7 @@ export class DynamicTableService {
       }
     }
     // 3) Revalidar dados existentes contra o novo schema e bloquear se inválidos
-    const existingData = await this.repository.findDataByTableId(tableId);
+    const existingData = await this.repository.findAllDataByTableId(tableId);
     for (const row of existingData) {
       try {
         this.validateDataAgainstSchema(row.data as any, data.schema as unknown as ITableSchema);
@@ -413,9 +413,18 @@ export class DynamicTableService {
     return created;
   }
 
-  public async getTableData(user: UserContext, tableId: string) {
-    const table = await this.getTableById(user, tableId);
-    return this.repository.findDataByTableId(tableId);
+  public async getTableData(user: UserContext, tableId: string, page: number = 1, limit: number = 50): Promise<{ data: import('../models/DynamicTable.model').IDynamicTableData[]; total: number; page: number; limit: number; totalPages: number }> {
+    await this.getTableById(user, tableId);
+    const safeLimit = Math.min(Math.max(1, limit), 200);
+    const safePage = Math.max(1, page);
+    const { data, total } = await this.repository.findDataByTableId(tableId, safePage, safeLimit);
+    return { data, total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit) };
+  }
+
+  /** Internal unbounded fetch — used by analytics and AI services that need all rows. */
+  public async getAllTableData(user: UserContext, tableId: string): Promise<import('../models/DynamicTable.model').IDynamicTableData[]> {
+    await this.getTableById(user, tableId);
+    return this.repository.findAllDataByTableId(tableId);
   }
 
   public async *getTableDataStream(user: UserContext, tableId: string, batchSize: number = 1000) {
@@ -930,7 +939,7 @@ export class DynamicTableService {
       const allPresent = rule.fields.every(f => data[f] !== undefined && data[f] !== null);
       if (!allPresent) continue;
 
-      const existingRows = await this.repository.findDataByTableId(table.id);
+      const existingRows = await this.repository.findAllDataByTableId(table.id);
       const duplicate = existingRows.find(row => {
         if (dataIdToExclude && row.id === dataIdToExclude) return false;
         const d = row.data as Record<string, unknown>;

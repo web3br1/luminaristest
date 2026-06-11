@@ -96,7 +96,7 @@ class AnalyticsService {
     // Note: getTableData requires full UserContext but we only have userId
     // Using type assertion as this is an internal service call
     const userContext = { id: userId, userId } as any;
-    const defs = await dtService.getTableData(userContext, coreTable.id);
+    const defs = await dtService.getAllTableData(userContext, coreTable.id);
 
     // Convert CORE definitions (pipeline) to ChartPreset
     const coreGroupsMap = new Map<string, ChartPreset[]>();

@@ -160,7 +160,7 @@ export class ChatMessageService {
    * @throws {NotFoundError} If chat instance not found
    * @throws {ForbiddenError} If user cannot access chat instance or list messages
    */
-  async getMessagesByInstance(chatInstanceId: string, userContext: UserContext): Promise<ChatMessageSummaryDto[]> {
+  async getMessagesByInstance(chatInstanceId: string, userContext: UserContext, page: number = 1, limit: number = 50): Promise<{ data: ChatMessageSummaryDto[]; total: number; page: number; limit: number; totalPages: number }> {
     if (!userContext.userId) {
       throw new UnauthorizedError('Authentication required');
     }
@@ -173,14 +173,23 @@ export class ChatMessageService {
     if (chatInstance.userId !== userContext.userId) {
       throw new ForbiddenError('Access to chat instance forbidden');
     }
-    
+
     if (!this.chatMessagePolicy.canListAll(userContext)) {
       throw new ForbiddenError('Message listing forbidden by policy');
     }
 
-    const messages = await this.chatMessageRepository.getMessagesByInstance(chatInstanceId);
-    const enrichedMessages = await Promise.all(messages.map(msg => this.enrichMessageWithUserId(msg)));
-    return enrichedMessages.map(msg => this.mapToSummaryDto(msg));
+    const safeLimit = Math.min(Math.max(1, limit), 200);
+    const safePage = Math.max(1, page);
+
+    const { messages, total } = await this.chatMessageRepository.getMessagesByInstance(chatInstanceId, safePage, safeLimit);
+
+    // Bulk-enrich: all messages share the same chatInstanceId, so the single
+    // chatInstance fetched above covers all of them — no per-message queries.
+    const enriched: ChatMessageSummaryDto[] = messages.map(msg =>
+      this.mapToSummaryDto({ ...msg, userId: chatInstance.userId, createdAt: msg.createdAt || new Date(), updatedAt: msg.updatedAt || new Date() })
+    );
+
+    return { data: enriched, total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit) };
   }
 
   /**

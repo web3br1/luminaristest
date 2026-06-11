@@ -120,7 +120,7 @@ async function resolveRelationFields(
     if (!targetTableId) continue;
     
     try {
-      const relatedRows = await service.getTableData(user, targetTableId);
+      const relatedRows = await service.getAllTableData(user, targetTableId);
       const lookup = new Map<string, string>();
       
       for (const relRow of relatedRows) {
@@ -257,7 +257,7 @@ async function fetchRecordsForDataPoint(
   for (const tableInfo of tablesToFetch) {
     try {
       const table = await service.getTableById(user, tableInfo.tableId);
-      const tableRows = await service.getTableData(user, tableInfo.tableId);
+      const tableRows = await service.getAllTableData(user, tableInfo.tableId);
       
       const matchingRecords: TableDataRow[] = [];
       for (const row of tableRows) {
@@ -333,7 +333,7 @@ export async function resolveChartData(
   }
 
   const table = await service.getTableById(user, tableId);
-  const rows = await service.getTableData(user, tableId);
+  const rows = await service.getAllTableData(user, tableId);
 
   // Validate field mappings
   const hasFieldMappings =
@@ -396,7 +396,7 @@ export async function resolveChartData(
           throw new Error(`Table not found for key: ${presetTableKey}`);
         }
         const other = await service.getTableById(user, otherTableId);
-        const otherRowsRaw = await service.getTableData(user, otherTableId);
+        const otherRowsRaw = await service.getAllTableData(user, otherTableId);
         return {
           table: other,
           schema: other.schema as any,
@@ -405,7 +405,7 @@ export async function resolveChartData(
       },
       fetchByTableId: async (tid: string) => {
         const other = await service.getTableById(user, tid);
-        const otherRowsRaw = await service.getTableData(user, tid);
+        const otherRowsRaw = await service.getAllTableData(user, tid);
         return {
           table: other,
           schema: other.schema as any,
@@ -548,7 +548,7 @@ export async function resolveChartDetails(
 
   // Execute processor to get recordIds for the data point
   const table = await service.getTableById(user, resolvedTableId);
-  const allRows = await service.getTableData(user, resolvedTableId);
+  const allRows = await service.getAllTableData(user, resolvedTableId);
 
   const processorParams: Record<string, any> = {
     ...chart.params,
@@ -580,7 +580,7 @@ export async function resolveChartDetails(
           throw new Error(`Table not found for key: ${presetTableKey}`);
         }
         const other = await service.getTableById(user, otherTableId);
-        const otherRowsRaw = await service.getTableData(user, otherTableId);
+        const otherRowsRaw = await service.getAllTableData(user, otherTableId);
         return {
           table: other,
           schema: other.schema as any,
@@ -589,7 +589,7 @@ export async function resolveChartDetails(
       },
       fetchByTableId: async (tid: string) => {
         const other = await service.getTableById(user, tid);
-        const otherRowsRaw = await service.getTableData(user, tid);
+        const otherRowsRaw = await service.getAllTableData(user, tid);
         return {
           table: other,
           schema: other.schema as any,
@@ -729,7 +729,7 @@ export async function resolveChartDetails(
   const recordsByTable: Record<string, { tableName: string; tableKey: string; records: TableDataRow[]; total: number }> = {};
   
   for (const tableInfo of tablesToFetch) {
-    const tableRows = await service.getTableData(user, tableInfo.tableId);
+    const tableRows = await service.getAllTableData(user, tableInfo.tableId);
     
     // Filter records that match our recordIds
     const matchingRecords: TableDataRow[] = [];

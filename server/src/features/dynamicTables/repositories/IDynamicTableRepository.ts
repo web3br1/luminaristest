@@ -17,7 +17,9 @@ export interface IDynamicTableRepository {
   createData(tableId: string, data: Record<string, any>): Promise<IDynamicTableData>;
   findDataById(dataId: string): Promise<IDynamicTableData | null>;
   findDataByIds(dataIds: string[]): Promise<IDynamicTableData[]>;
-  findDataByTableId(tableId: string): Promise<IDynamicTableData[]>;
+  findDataByTableId(tableId: string, page?: number, limit?: number): Promise<{ data: IDynamicTableData[]; total: number }>;
+  /** Internal use only — returns ALL rows without pagination for validation/analytics. */
+  findAllDataByTableId(tableId: string): Promise<IDynamicTableData[]>;
   findDataBatchStreamByTableId(tableId: string, batchSize?: number): AsyncGenerator<IDynamicTableData[]>;
   updateData(dataId: string, data: Record<string, any>): Promise<IDynamicTableData>;
   deleteData(dataId: string): Promise<void>;

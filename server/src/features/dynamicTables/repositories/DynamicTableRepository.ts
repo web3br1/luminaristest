@@ -99,7 +99,27 @@ export class DynamicTableRepository implements IDynamicTableRepository {
     });
   }
 
-  async findDataByTableId(tableId: string): Promise<IDynamicTableData[]> {
+  async findDataByTableId(tableId: string, page: number = 1, limit: number = 50): Promise<{ data: IDynamicTableData[]; total: number }> {
+    const safeLimit = Math.min(Math.max(1, limit), 200);
+    const safePage = Math.max(1, page);
+    const skip = (safePage - 1) * safeLimit;
+
+    const where = { dynamicTableId: tableId, deletedAt: null };
+
+    const [data, total] = await Promise.all([
+      prisma.dynamicTableData.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: safeLimit,
+      }),
+      prisma.dynamicTableData.count({ where }),
+    ]);
+
+    return { data, total };
+  }
+
+  async findAllDataByTableId(tableId: string): Promise<IDynamicTableData[]> {
     return prisma.dynamicTableData.findMany({
       where: { dynamicTableId: tableId, deletedAt: null },
       orderBy: { createdAt: 'desc' },

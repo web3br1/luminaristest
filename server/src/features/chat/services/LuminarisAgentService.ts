@@ -121,7 +121,7 @@ export class LuminarisAgentService {
             }
 
             case 'query_table_data': {
-                const data = await this.dynamicTableService.getTableData(user, args.tableId);
+                const data = await this.dynamicTableService.getAllTableData(user, args.tableId);
                 let filtered = data;
                 if (args.filters) {
                     filtered = data.filter((row: any) => {

@@ -136,23 +136,37 @@ export class ChatMessageRepository implements IChatMessageRepository {
    * @param chatInstanceId - ID of the chat instance
    * @returns Array of messages
    */
-  async getMessagesByInstance(chatInstanceId: string): Promise<IChatMessage[]> {
-    const messages = await prisma.chatMessage.findMany({
-      where: { chatInstanceId },
-      select: {
-        id: true,
-        content: true,
-        role: true,
-        chatInstanceId: true,
-        createdAt: true,
-        updatedAt: true
-      },
-      orderBy: { createdAt: 'asc' }
-    });
-    return messages.map(msg => ({
+  async getMessagesByInstance(chatInstanceId: string, page: number = 1, limit: number = 50): Promise<{ messages: IChatMessage[]; total: number }> {
+    const safeLimit = Math.min(Math.max(1, limit), 200);
+    const safePage = Math.max(1, page);
+    const skip = (safePage - 1) * safeLimit;
+
+    const where = { chatInstanceId };
+
+    const [rows, total] = await Promise.all([
+      prisma.chatMessage.findMany({
+        where,
+        select: {
+          id: true,
+          content: true,
+          role: true,
+          chatInstanceId: true,
+          createdAt: true,
+          updatedAt: true
+        },
+        orderBy: { createdAt: 'asc' },
+        skip,
+        take: safeLimit,
+      }),
+      prisma.chatMessage.count({ where }),
+    ]);
+
+    const messages = rows.map(msg => ({
       ...msg,
       role: this.convertPrismaRoleToDomainRole(msg.role as PrismaMessageRole)
     }));
+
+    return { messages, total };
   }
 
   /**

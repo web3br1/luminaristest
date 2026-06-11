@@ -32,11 +32,13 @@ export interface IChatMessageRepository {
   getMessageById(id: string): Promise<IChatMessage | null>;
 
   /**
-   * Retrieves all messages for a specific chat instance.
+   * Retrieves a paginated list of messages for a specific chat instance.
    * @param chatInstanceId - ID of the chat instance
-   * @returns Array of messages
+   * @param page - Page number (1-based, default 1)
+   * @param limit - Items per page (default 50, max 200)
+   * @returns Paginated result with messages and total count
    */
-  getMessagesByInstance(chatInstanceId: string): Promise<IChatMessage[]>;
+  getMessagesByInstance(chatInstanceId: string, page?: number, limit?: number): Promise<{ messages: IChatMessage[]; total: number }>;
 
   /**
    * Updates a message.

@@ -19,7 +19,7 @@ export async function listAnalyticsDefinitions(req: Request, res: Response) {
     if (!tableId) return res.status(200).json({ success: true, data: [] });
 
     const service = getFactory().getDynamicTableService();
-    const rows = await service.getTableData(ctx as any, tableId);
+    const rows = await service.getAllTableData(ctx as any, tableId);
     return res.status(200).json({ success: true, data: rows });
   } catch (error) {
     return handleApiError(error, res);
