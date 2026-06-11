@@ -1,0 +1,42 @@
+{
+  "dto.validation.contentRequired": "O conteúdo é obrigatório.",
+  "dto.validation.roleRequired": "O papel (role) é obrigatório.",
+  "dto.validation.roleInvalid": "O papel deve ser USER ou ASSISTANT.",
+  "dto.validation.chatInstanceIdRequired": "O ID da instância de chat é obrigatório.",
+  "dto.validation.chatInstanceIdInvalid": "O ID da instância de chat deve ser um CUID válido.",
+  "dto.validation.titleInvalid": "O título deve ser uma string, se fornecido.",
+
+  "api.chatInstance.notFound": "Instância de chat não encontrada.",
+  "api.chatInstance.forbidden": "Você não tem permissão para acessar esta instância de chat.",
+  "api.chatInstance.updated": "Título da instância de chat atualizado com sucesso.",
+  "api.chatInstance.deleted": "Instância de chat excluída com sucesso.",
+  "api.chatInstance.error.updateFailed": "Falha ao atualizar o título da instância de chat.",
+  "api.chatInstance.error.deleteFailed": "Falha ao excluir a instância de chat.",
+  "api.chatInstance.error.createFailed": "Falha ao criar ou recuperar a instância de chat.",
+
+  "api.chatMessage.notFound": "Mensagem de chat não encontrada.",
+  "api.chatMessage.forbidden": "Você não tem permissão para acessar esta mensagem.",
+  "api.chatMessage.deleted": "Mensagem de chat excluída com sucesso.",
+  "api.chatMessage.error.deleteFailed": "Falha ao excluir a mensagem de chat.",
+  "api.chatMessage.error.createFailed": "Falha ao criar a mensagem de chat.",
+
+  "chatInstance.error.notFound": "Instância de chat não encontrada. Verifique o ID e tente novamente.",
+  "chatInstance.error.genericCreateError": "Não foi possível criar ou recuperar a instância de chat. Tente novamente mais tarde.",
+  "chatInstance.error.genericFetchError": "Não foi possível recuperar as instâncias de chat. Tente novamente mais tarde.",
+  "chatInstance.error.genericUpdateError": "Não foi possível atualizar a instância de chat. Tente novamente mais tarde.",
+  "chatInstance.error.genericDeleteError": "Não foi possível excluir a instância de chat. Tente novamente mais tarde.",
+
+  "chatMessage.error.notFound": "Mensagem de chat não encontrada.",
+  "chatMessage.error.unexpectedError": "Ocorreu um erro inesperado com a mensagem de chat.",
+  "chatMessage.error.deleteFailed": "Falha ao excluir a mensagem de chat.",
+  "chatMessage.error.genericCreateError": "Não foi possível criar a mensagem de chat. Tente novamente mais tarde.",
+  "chatMessage.error.genericFetchError": "Não foi possível recuperar as mensagens de chat. Tente novamente mais tarde.",
+
+  "chatMessage.error.aiNoResponse": "O assistente de IA não forneceu uma resposta. Por favor, tente enviar sua mensagem novamente.",
+  "chatMessage.error.aiApiKeyMissing": "O serviço de IA não está configurado. Entre em contato com o suporte.",
+  "chatMessage.error.aiProcessingError": "Ocorreu um erro ao se comunicar com o assistente de IA. Tente novamente em breve.",
+
+  "common.error.unauthorized": "Não autorizado. Por favor, faça o login.",
+  "common.error.forbidden": "Acesso negado. Você não tem permissão para realizar esta ação.",
+  "common.error.invalidId": "O ID fornecido é inválido."
+}

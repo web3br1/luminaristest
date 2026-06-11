@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { getFactory } from '@/lib/factory';
 import { CreateDocumentSchema, UpdateDocumentSchema } from '@/features/documents/dtos/DocumentDto';
@@ -8,8 +8,98 @@ import { getUserContextFromRequest } from '@/lib/authUtils';
 import { qdrant } from '@/lib/vector/qdrant';
 import { DocumentProcessingService } from '@/features/documents/services/DocumentProcessingService';
 
-const upload = multer({ storage: multer.memoryStorage() });
-export const uploadMiddleware = upload.single('file');
+// ---------------------------------------------------------------------------
+// Multer security configuration (R7)
+// ---------------------------------------------------------------------------
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+
+const DOCUMENT_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',       // XLSX
+  'application/msword',       // legacy .doc
+  'application/octet-stream', // some browsers send this for .docx/.xlsx
+]);
+
+const TOKEN_COST_MIME_TYPES = new Set([
+  ...DOCUMENT_MIME_TYPES,
+  'text/csv',
+]);
+
+/** Magic-bytes validation — secondary check after MIME filter. */
+function validateMagicBytes(buffer: Buffer, mimetype: string): boolean {
+  const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46]; // %PDF
+  const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04]; // PK (DOCX and XLSX are ZIP-based)
+
+  if (mimetype === 'application/pdf') {
+    return PDF_MAGIC.every((byte, i) => buffer[i] === byte);
+  }
+  if (
+    mimetype.includes('officedocument') ||
+    mimetype.includes('spreadsheet') ||
+    mimetype === 'application/msword' ||
+    mimetype === 'application/octet-stream'
+  ) {
+    return ZIP_MAGIC.every((byte, i) => buffer[i] === byte);
+  }
+  // CSV and other text-based types — no magic bytes to check
+  return true;
+}
+
+/** Wraps a multer single-field middleware and converts multer errors to HTTP responses. */
+function makeUploadMiddleware(
+  allowedTypes: Set<string>,
+  fieldName: string,
+) {
+  const instance = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: MAX_FILE_SIZE,
+      files: 1,
+      fields: 10,
+    },
+    fileFilter: (_req, file, cb) => {
+      if (allowedTypes.has(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('INVALID_FILE_TYPE'));
+      }
+    },
+  });
+
+  const single = instance.single(fieldName);
+
+  return (req: Request, res: Response, next: NextFunction): void => {
+    single(req, res, (err: unknown) => {
+      if (!err) {
+        next();
+        return;
+      }
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          res.status(413).json({
+            success: false,
+            error: 'File too large. Maximum size is 50 MB.',
+          });
+          return;
+        }
+        res.status(400).json({ success: false, error: `Upload error: ${err.message}` });
+        return;
+      }
+      if (err instanceof Error && err.message === 'INVALID_FILE_TYPE') {
+        res.status(415).json({
+          success: false,
+          error: 'File type not supported. Allowed types: PDF, DOCX, XLSX.',
+        });
+        return;
+      }
+      next(err);
+    });
+  };
+}
+
+export const uploadMiddleware = makeUploadMiddleware(DOCUMENT_MIME_TYPES, 'file');
 
 
 export async function listDocuments(req: Request, res: Response) {
@@ -93,6 +183,14 @@ export async function uploadDocument(req: Request, res: Response) {
     const file = (req as any).file as Express.Multer.File | undefined;
     if (!file) {
       return res.status(400).json({ success: false, error: 'File is required (field name: file)' });
+    }
+
+    // Secondary magic-bytes check — guards against MIME spoofing
+    if (!validateMagicBytes(file.buffer, file.mimetype)) {
+      return res.status(415).json({
+        success: false,
+        error: 'File content does not match declared type.',
+      });
     }
 
     const bodyValidation = CreateDocumentSchema.pick({
@@ -191,7 +289,7 @@ export async function getDocumentQdrant(req: Request, res: Response) {
   }
 }
 
-export const tokenCostUpload = upload.single('file');
+export const tokenCostUpload = makeUploadMiddleware(TOKEN_COST_MIME_TYPES, 'file');
 export async function computeTokenCost(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
