@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { handleApiError } from '@/lib/apiUtils';
 import { getUserContextFromRequest } from '@/lib/authUtils';
 import { getFactory } from '@/lib/factory';
+import prisma from '@/lib/prisma';
+import logger from '@/lib/logger';
 
 const QuickCreationSchema = z.object({
   mode: z.literal('quick').optional(),
@@ -341,6 +343,14 @@ export async function deleteUserSystem(req: Request, res: Response) {
 
     const service = getFactory().getDynamicTableService();
     await service.deleteAllTablesForUser(ctx.id);
+
+    // Clean up stale KnowledgeGraph and orphaned ActionProposals so the agent
+    // does not inject references to now-deleted tables into prompts (R27).
+    await prisma.knowledgeGraph.deleteMany({ where: { userId: ctx.id } });
+    await prisma.actionProposal.deleteMany({ where: { userId: ctx.id } });
+
+    logger.info(`User system reset: tables, KnowledgeGraph, and proposals cleaned for user ${ctx.id}`);
+
     return res.status(204).end();
   } catch (error) {
     return handleApiError(error, res);
