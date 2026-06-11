@@ -34,7 +34,23 @@ const outDir = path.resolve(process.cwd(), 'public');
 const outFile = path.join(outDir, 'openapi.json');
 
 if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-fs.writeFileSync(outFile, JSON.stringify(specs, null, 2));
+
+const json = JSON.stringify(specs, null, 2);
+fs.writeFileSync(outFile, json);
+
+// Validate generated JSON
+JSON.parse(json);
+
+const pathCount = Object.keys(specs.paths || {}).length;
+const methods = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'];
+const operationCount = Object.values(specs.paths || {}).reduce(
+  (n, item) => n + methods.filter((m) => item[m]).length,
+  0
+);
+
 console.log('OpenAPI spec generated at', outFile);
+console.log('  Paths:      ' + pathCount);
+console.log('  Operations: ' + operationCount);
+console.log('  JSON is valid.');
 
 
