@@ -28,33 +28,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     console.error('ErrorBoundary caught an error:', error, errorInfo);
   }
 
-  componentDidMount() {
-    window.addEventListener('error', this.handleWindowError);
-    window.addEventListener('unhandledrejection', this.handlePromiseRejection);
-  }
-
-  componentWillUnmount() {
-    window.removeEventListener('error', this.handleWindowError);
-    window.removeEventListener('unhandledrejection', this.handlePromiseRejection);
-  }
-
-  handleWindowError = (event: ErrorEvent) => {
-    this.setState({
-      hasError: true,
-      error: event.error || new Error(event.message),
-      errorInfo: { componentStack: event.filename } as ErrorInfo
-    });
-    event.preventDefault();
-  };
-
-  handlePromiseRejection = (event: PromiseRejectionEvent) => {
-    this.setState({
-      hasError: true,
-      error: event.reason || new Error('Erro na Promise'),
-      errorInfo: { componentStack: 'Promise rejeitada' } as ErrorInfo
-    });
-    event.preventDefault();
-  };
+  // componentDidMount / componentWillUnmount global listeners removed (R14):
+  // ErrorBoundary must only catch React render errors via componentDidCatch /
+  // getDerivedStateFromError. Hijacking global 'error' and 'unhandledrejection'
+  // events suppressed observability and caused every async promise rejection to
+  // render the full-page error UI instead of logging to the console.
 
   handleReset = () => {
     window.location.reload();
