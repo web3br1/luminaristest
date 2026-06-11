@@ -11,6 +11,8 @@ import { NotFoundError, ForbiddenError, ValidationError } from '../../../lib/err
 import { globalRuleRegistry } from '../rules/RuleRegistry';
 import type { RuleContext } from '../rules/RuleTypes';
 import { KnowledgeGraphService } from '../../chat/services/KnowledgeGraphService';
+import prisma from '../../../lib/prisma';
+import { TransactionalDynamicTableRepository } from '../repositories/TransactionalDynamicTableRepository';
 
 export class DynamicTableService {
   private repository: IDynamicTableRepository;
@@ -394,12 +396,20 @@ export class DynamicTableService {
     const validatedData = this.validateDataAgainstSchema(sanitizedData, table.schema as unknown as ITableSchema);
     await this.validateAdvancedRules(table, validatedData);
     await this.enforceNoOverlap(table, table.schema as unknown as ITableSchema, validatedData, isSystem);
-    // Rules: beforeCreate
+    // Rules: beforeCreate (validation-focused; runs outside transaction to avoid long locks)
     await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'create', before: null, after: validatedData, repository: this.repository, isSystem }, 'beforeCreate');
-    const created = await this.repository.createData(tableId, validatedData);
-    // Include created id in 'after' context so plugins can reference the new entry
-    const afterWithId = { ...validatedData, id: created.id } as any;
-    await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'create', before: null, after: afterWithId, repository: this.repository, isSystem }, 'afterCreate');
+
+    // Wrap the main write + afterCreate side-effects in a single transaction so that
+    // a plugin failure (e.g. SalesPlugin stock update) rolls back the record creation.
+    const created = await prisma.$transaction(async (tx) => {
+      const txRepo = new TransactionalDynamicTableRepository(tx);
+      const record = await txRepo.createData(tableId, validatedData);
+      // Include created id in 'after' context so plugins can reference the new entry
+      const afterWithId = { ...validatedData, id: record.id } as any;
+      await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'create', before: null, after: afterWithId, repository: txRepo, isSystem }, 'afterCreate');
+      return record;
+    });
+
     return created;
   }
 
@@ -554,17 +564,25 @@ export class DynamicTableService {
     await this.validateAdvancedRules(table, mergedData, dataId);
     await this.enforceNoOverlap(table, schema, mergedData, isSystem, dataId);
 
-    // Rules: beforeUpdate (include entry id in payload so plugins can reference it).
+    // Rules: beforeUpdate runs outside the transaction (validation-focused, avoids long locks).
     // afterWithId is intentionally mutable: plugins that write to ctx.after (e.g. GoalsPlugin,
     // LeadsPlugin computing derived fields) will have their changes persisted because we extract
     // the clean data object from afterWithId (minus id) before calling updateData.
     const beforeWithId = { ...(existingData.data as any), id: dataId } as any;
     const afterWithId = { ...mergedData as any, id: dataId } as any;
     await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'update', before: beforeWithId, after: afterWithId, repository: this.repository, isSystem }, 'beforeUpdate');
-    // Extract the (possibly mutated) data from afterWithId, stripping the synthetic id field.
-    const { id: _afterId, ...persistedData } = afterWithId;
-    const updated = await this.repository.updateData(dataId, persistedData);
-    await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'update', before: beforeWithId, after: afterWithId, repository: this.repository, isSystem }, 'afterUpdate');
+
+    // Wrap the main write + afterUpdate side-effects in a single transaction so that
+    // a plugin failure (e.g. SalesPlugin stock/commission update) rolls back the record update.
+    const updated = await prisma.$transaction(async (tx) => {
+      const txRepo = new TransactionalDynamicTableRepository(tx);
+      // Extract the (possibly mutated) data from afterWithId, stripping the synthetic id field.
+      const { id: _afterId, ...persistedData } = afterWithId;
+      const record = await txRepo.updateData(dataId, persistedData);
+      await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'update', before: beforeWithId, after: afterWithId, repository: txRepo, isSystem }, 'afterUpdate');
+      return record;
+    });
+
     return updated;
   }
 
@@ -638,17 +656,23 @@ export class DynamicTableService {
         }
       }
     }
-    // Rules: beforeDelete
+    // Rules: beforeDelete runs outside the transaction (validation-focused, avoids long locks).
     const existing = await this.repository.findDataById(dataId);
     await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'delete', before: existing?.data as any, after: null, repository: this.repository }, 'beforeDelete');
-    await this.repository.deleteData(dataId);
 
-    // Execute cascade soft deletes recursively
-    for (const cascade of cascadeIds) {
-      await this.deleteTableData(user, cascade.dataId);
-    }
+    // Wrap the main delete + cascade + afterDelete side-effects in a single transaction so that
+    // a plugin failure rolls back the soft-delete and any cascade deletions.
+    await prisma.$transaction(async (tx) => {
+      const txRepo = new TransactionalDynamicTableRepository(tx);
+      await txRepo.deleteData(dataId);
 
-    await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'delete', before: existing?.data as any, after: null, repository: this.repository }, 'afterDelete');
+      // Execute cascade soft deletes recursively (within the same transaction)
+      for (const cascade of cascadeIds) {
+        await txRepo.deleteData(cascade.dataId);
+      }
+
+      await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'delete', before: existing?.data as any, after: null, repository: txRepo }, 'afterDelete');
+    });
   }
 
   public async deleteAllTablesForUser(userId: string): Promise<void> {
