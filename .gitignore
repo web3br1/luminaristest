@@ -1,0 +1,17 @@
+﻿node_modules/
+.env
+.env.local
+.env.*.local
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+dist/
+.next/
+generated/
+*.tmp
+*.log
+npm-debug.log*
+coverage/
+.DS_Store
+Thumbs.db
