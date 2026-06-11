@@ -19,7 +19,9 @@ export async function me(req: Request, res: Response) {
 
 export async function logout(req: Request, res: Response) {
   try {
-    return res.json({ success: true, message: 'Logged out' });
+    res.clearCookie('auth_token', { path: '/', sameSite: 'lax' });
+    res.clearCookie('auth_token', { path: '/', sameSite: 'lax', httpOnly: true });
+    return res.json({ success: true });
   } catch (error) {
     return handleApiError(error, res);
   }
