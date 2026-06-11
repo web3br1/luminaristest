@@ -215,6 +215,21 @@ export async function processSaleStockUpdate(ctx: RuleContext, items: Array<{ id
   if (!hasInventory) return;
   const unitId = String(saleUnitId || '');
 
+  // Idempotency guard: if this sale was already Finalized in the database, a retry or
+  // double-apply (e.g. from a transaction rollback/retry scenario) must not re-apply
+  // stock deltas. We re-read the persisted record rather than trusting ctx.before, which
+  // may reflect the in-memory state before this transaction began.
+  if (nextStatus === 'Finalized') {
+    const saleId = String((ctx.after as any)?.id || (ctx.before as any)?.id || '');
+    if (saleId) {
+      const currentSale = await ctx.repository.findDataById(saleId);
+      if ((currentSale?.data as any)?.status === 'Finalized') {
+        // Already processed — skip to avoid double stock deduction.
+        return;
+      }
+    }
+  }
+
   for (const it of items) {
     const isProduct = (it.data?.type ? String(it.data.type) === 'Product' : !!it.data?.productId);
     if (!isProduct) continue;
