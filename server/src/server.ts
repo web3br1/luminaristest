@@ -12,6 +12,7 @@ import { authMiddleware } from './middleware/auth';
 import path from 'path';
 import prisma from './lib/prisma';
 import { logger } from './lib/logger';
+import { purgeOldDeletedRecords } from './jobs/PurgeDeletedRecords';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -108,6 +109,18 @@ const httpServer = app.listen(PORT, () => {
   console.log(`Luminaris Server running on http://localhost:${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
 });
+
+// LGPD/R38 — 90-day soft-delete purge job
+// First run 60 s after startup, then every 24 h.
+const PURGE_INITIAL_DELAY_MS = 60 * 1000;
+const PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+setTimeout(() => {
+  purgeOldDeletedRecords().catch((err) => logger.error(err, 'Purge job failed'));
+  setInterval(() => {
+    purgeOldDeletedRecords().catch((err) => logger.error(err, 'Purge job failed'));
+  }, PURGE_INTERVAL_MS);
+}, PURGE_INITIAL_DELAY_MS);
 
 // Graceful shutdown
 function gracefulShutdown() {
