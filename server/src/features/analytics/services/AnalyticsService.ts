@@ -12,6 +12,7 @@ import type { PipelineSpec } from '../core/pipeline/Pipeline';
 import { getTemplate } from '../core';
 import { mapConfigurationToProcessorParams, getProcessorKeyFromConfig } from '../engine/FieldMapper';
 import { validateConfigurations } from './AnalyticsValidator';
+import { kpiCacheService } from './KpiCacheService';
 import { getFactory } from '@/lib/factory';
 import { logger } from '@/lib/logger';
 import type { IDynamicTable, ITableSchema } from '../../dynamicTables/models/DynamicTable.model';
@@ -65,6 +66,12 @@ class AnalyticsService {
     userId: string,
     presetKeyFilter?: string
   ): Promise<AnalyticsPresetGroup[]> {
+    const cacheKey = `${userId}:${presetKeyFilter ?? ''}`;
+    const cached = kpiCacheService.get(cacheKey);
+    if (cached !== null) {
+      return cached as AnalyticsPresetGroup[];
+    }
+
     const dtService = getFactory().getDynamicTableService();
     const allTables = await dtService.getTablesForUser(userId);
 
@@ -89,6 +96,7 @@ class AnalyticsService {
     );
 
     if (!coreTable) {
+      kpiCacheService.set(cacheKey, codeGroups);
       return codeGroups;
     }
 
@@ -170,7 +178,9 @@ class AnalyticsService {
       });
     }
 
-    return [...codeGroups, ...coreGroups];
+    const result = [...codeGroups, ...coreGroups];
+    kpiCacheService.set(cacheKey, result);
+    return result;
   }
 
   /**

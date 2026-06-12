@@ -11,6 +11,7 @@ import { NotFoundError, ForbiddenError, ValidationError } from '../../../lib/err
 import { globalRuleRegistry } from '../rules/RuleRegistry';
 import type { RuleContext } from '../rules/RuleTypes';
 import { KnowledgeGraphService } from '../../chat/services/KnowledgeGraphService';
+import { kpiCacheService } from '../../analytics/services/KpiCacheService';
 import prisma from '../../../lib/prisma';
 import { TransactionalDynamicTableRepository } from '../repositories/TransactionalDynamicTableRepository';
 
@@ -445,6 +446,7 @@ export class DynamicTableService {
       return record;
     });
 
+    kpiCacheService.invalidate(table.userId);
     return created;
   }
 
@@ -627,6 +629,7 @@ export class DynamicTableService {
       return record;
     });
 
+    kpiCacheService.invalidate(table.userId);
     return updated;
   }
 
@@ -717,6 +720,8 @@ export class DynamicTableService {
 
       await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'delete', before: existing?.data as any, after: null, repository: txRepo }, 'afterDelete');
     });
+
+    kpiCacheService.invalidate(table.userId);
   }
 
   public async deleteAllTablesForUser(userId: string): Promise<void> {
