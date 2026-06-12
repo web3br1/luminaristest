@@ -10,6 +10,7 @@ import { UserContext } from '@/lib/authUtils';
 import { ForbiddenError } from '@/lib/errors';
 import prisma from '@/lib/prisma';
 import OpenAI from 'openai';
+import { sanitizeUserInput, wrapSystemPrompt } from '@/lib/PromptSanitizer';
 
 const RAG_SYSTEM_PROMPT = `
 Você é um assistente de IA especializado em analisar documentos e responder perguntas com base estritamente no conteúdo fornecido.
@@ -84,7 +85,8 @@ Pergunta Reformulada:
   }
 
   async generateResponse(request: ChatRequest & { user: UserContext }): Promise<ChatResponse> {
-    const { query = '', documentIds, history, confirmedProposalId, user } = request;
+    const { documentIds, history, confirmedProposalId, user } = request;
+    const query = sanitizeUserInput(request.query ?? '');
     logger.info('Iniciando geração de resposta de chat', { queryLength: query.length, documentCount: documentIds?.length, historyLength: history?.length });
 
     // 0. Verifica se é uma confirmação de proposta
@@ -117,7 +119,7 @@ Pergunta Reformulada:
       const knowledgeGraphPrompt = await this.knowledgeGraphService.getGraphPrompt(user.id);
 
       const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-        { role: 'system', content: AGENT_SYSTEM_PROMPT },
+        { role: 'system', content: wrapSystemPrompt(AGENT_SYSTEM_PROMPT, user.id) },
         { role: 'system', content: knowledgeGraphPrompt },
         ...(history || []).map(h => ({ role: h.role, content: h.content } as any)),
         { role: 'user', content: query }
@@ -230,7 +232,7 @@ Pergunta Reformulada:
     }
 
     const finalPrompt = `Contexto:\n---\n${context}\n---\nPergunta: "${contextualQuery}"`;
-    const answer = await this.openaiService.getChatCompletion(finalPrompt, RAG_SYSTEM_PROMPT);
+    const answer = await this.openaiService.getChatCompletion(finalPrompt, wrapSystemPrompt(RAG_SYSTEM_PROMPT, user.id));
 
     return {
       answer: answer || 'Não foi possível gerar uma resposta.',

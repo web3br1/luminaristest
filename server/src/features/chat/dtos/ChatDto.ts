@@ -10,7 +10,7 @@ const HistoryItemSchema = z.object({
  * Schema para validar a requisição de chat.
  */
 export const ChatRequestSchema = z.object({
-  query: z.string().optional(),
+  query: z.string().max(4000).optional(),
   documentIds: z.array(z.string()).optional(),
   history: z.array(HistoryItemSchema).optional(),
   // Permite que o frontend envie o ID de uma proposta confirmada
