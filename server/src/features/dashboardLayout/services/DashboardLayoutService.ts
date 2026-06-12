@@ -248,12 +248,12 @@ export class DashboardLayoutService {
         throw new ForbiddenError('User not permitted to update this layout');
       }
 
-      // Create update data in Prisma format
+      // Merge patch onto current domain fields to avoid losing data on partial update
       const updateData: Prisma.DashboardLayoutUpdateInput = {
         layoutData: {
-          name: data.name,
-          type: data.type,
-          config: data.config,
+          name: data.name ?? layout.name,
+          type: (data.type ?? layout.type) as string,
+          config: (data.config ?? layout.config) as unknown as Prisma.InputJsonValue,
         } as Prisma.InputJsonValue,
       };
 
