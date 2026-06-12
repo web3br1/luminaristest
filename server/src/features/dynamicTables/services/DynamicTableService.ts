@@ -194,11 +194,18 @@ export class DynamicTableService {
   /**
    * Installs a suite of tables from a preset as a system process.
    * Resolves relationships between tables during creation.
+   *
+   * This function is one-shot: the caller (dashboardController) checks whether the user
+   * already has tables and returns 403 if so, preventing double-installation.
+   * The entire 3-pass write is wrapped in a single prisma.$transaction so that any
+   * failure mid-install rolls back ALL partial table creation automatically — the ERP
+   * is never left in a half-installed state.
+   *
    * @param userId The ID of the user to associate the tables with.
    * @param preset The preset object containing table definitions.
    */
   public async installPresetAsSystem(userId: string, preset: { tables: Record<string, { name: string; category: DynamicTableCategory; schema: ITableSchema }> }) {
-    // Pré-validação de dependências entre tabelas do preset
+    // ── Pre-flight validation (pure in-memory — no DB writes) ──────────────────
     const tableKeys = Object.keys(preset.tables);
     // Nova validação baseada em metadados de preset (requires/excludes/capabilities)
     // Recolhe capacidades fornecidas e requeridas e também coerções entre tabelas
@@ -250,6 +257,12 @@ export class DynamicTableService {
       if (!tableDef?.schema || !Array.isArray(tableDef.schema.fields)) {
         throw new ValidationError(`Tabela do preset inválida: '${key}' sem schema.fields`);
       }
+      // Validate field name uniqueness (CPU-only — no DB access)
+      const fieldNames = tableDef.schema.fields.map(f => f.name.trim().toLowerCase());
+      const uniqueFieldNames = new Set(fieldNames);
+      if (uniqueFieldNames.size !== fieldNames.length) {
+        throw new ValidationError(`Tabela do preset inválida: '${key}' contém nomes de campos duplicados.`);
+      }
       for (const field of tableDef.schema.fields) {
         if (field.type === 'relation' && field.relation?.targetTable) {
           const target = field.relation.targetTable;
@@ -264,65 +277,76 @@ export class DynamicTableService {
       }
     }
 
-    const presetKeyToTableIdMap = new Map<string, string>();
-    const createdTables: { id: string; presetKey: string; originalSchema: ITableSchema }[] = [];
-
-    // 1. Primeira Passagem: Criar todas as tabelas com schemas parciais (sem relações)
-    for (const presetKey in preset.tables) {
-      const tableDefinition = preset.tables[presetKey];
-      if (!tableDefinition?.schema || !Array.isArray(tableDefinition.schema.fields)) {
-        throw new ValidationError(`Tabela do preset inválida: '${presetKey}' sem schema.fields`);
-      }
-      const tempSchema: ITableSchema = {
-        ...tableDefinition.schema,
-        fields: tableDefinition.schema.fields.filter(f => f.type !== 'relation'),
-      };
-
-      const newTable = await this._createTable(userId, {
-        name: tableDefinition.name,
-        category: tableDefinition.category, // Passar a categoria do preset
-        schema: tempSchema,
-        internalName: presetKey,
-      });
-
-      presetKeyToTableIdMap.set(presetKey, newTable.id);
-      createdTables.push({
-        id: newTable.id,
-        presetKey: presetKey,
-        originalSchema: tableDefinition.schema
-      });
-    }
-
-    // 2. Segunda Passagem: Atualizar tabelas com os schemas completos e relações resolvidas
-    for (const table of createdTables) {
-      const resolvedSchema = this.resolvePresetRelations(table.originalSchema, presetKeyToTableIdMap);
-      await this.updateTableSchemaAsSystem(table.id, { schema: resolvedSchema });
-    }
-
-    // 3. Substituir saleItems por variante adequada (products/services/mixed)
-    const capsProvided = Array.from(provides.values());
+    // Resolve variant schemas before entering the transaction. Dynamic imports must not
+    // run inside a SQLite transaction to avoid holding the connection lock during I/O.
     const hasStock = provides.has('inventory.stock');
     const hasServices = provides.has('services.catalog');
     const saleItemsKey = Object.keys(preset.tables).find(k => k === 'saleItems');
+    let variantSchema: ITableSchema | null = null;
     if (saleItemsKey) {
-      const saleItemsTableId = presetKeyToTableIdMap.get('saleItems');
-      if (saleItemsTableId) {
-        // Choose module variant and update schema of saleItems table accordingly
-        let variantSchema: ITableSchema | null = null;
-        try {
-          const { saleItemsProductsOnlyModule } = await import('../presets/modules/finance/SalesItemsProductsOnly');
-          const { saleItemsServicesOnlyModule } = await import('../presets/modules/finance/SalesItemsServicesOnly');
-          const { saleItemsMixedModule } = await import('../presets/modules/finance/SalesItemsMixed');
-          if (hasStock && hasServices) variantSchema = saleItemsMixedModule.schema;
-          else if (hasStock) variantSchema = saleItemsProductsOnlyModule.schema;
-          else variantSchema = saleItemsServicesOnlyModule.schema;
-        } catch { }
-        if (variantSchema) {
+      try {
+        const { saleItemsProductsOnlyModule } = await import('../presets/modules/finance/SalesItemsProductsOnly');
+        const { saleItemsServicesOnlyModule } = await import('../presets/modules/finance/SalesItemsServicesOnly');
+        const { saleItemsMixedModule } = await import('../presets/modules/finance/SalesItemsMixed');
+        if (hasStock && hasServices) variantSchema = saleItemsMixedModule.schema;
+        else if (hasStock) variantSchema = saleItemsProductsOnlyModule.schema;
+        else variantSchema = saleItemsServicesOnlyModule.schema;
+      } catch { /* no variant available — use preset default */ }
+    }
+
+    // ── Transactional 3-pass install ───────────────────────────────────────────
+    // All DB writes go through txRepo so that a failure at any point causes a full
+    // rollback — the ERP is never left in a half-installed state.
+    await prisma.$transaction(async (tx) => {
+      const txRepo = new TransactionalDynamicTableRepository(tx);
+
+      const presetKeyToTableIdMap = new Map<string, string>();
+      const createdTables: { id: string; presetKey: string; originalSchema: ITableSchema }[] = [];
+
+      // Pass 1: Create all tables with partial schemas (relation fields stripped).
+      // Relations reference other tables by ID which are not yet known at this point.
+      for (const presetKey in preset.tables) {
+        const tableDefinition = preset.tables[presetKey];
+        const tempSchema: ITableSchema = {
+          ...tableDefinition.schema,
+          fields: tableDefinition.schema.fields.filter(f => f.type !== 'relation'),
+        };
+
+        const newTable = await txRepo.createTable(userId, {
+          name: tableDefinition.name,
+          category: tableDefinition.category,
+          schema: tempSchema,
+          internalName: presetKey,
+        });
+
+        presetKeyToTableIdMap.set(presetKey, newTable.id);
+        createdTables.push({
+          id: newTable.id,
+          presetKey: presetKey,
+          originalSchema: tableDefinition.schema,
+        });
+      }
+
+      // Pass 2: Update every table with its full schema, resolving @@PRESET_TABLE_KEY::
+      // markers to the concrete table IDs assigned in Pass 1.
+      for (const table of createdTables) {
+        const resolvedSchema = this.resolvePresetRelations(table.originalSchema, presetKeyToTableIdMap);
+        await txRepo.updateTableSchema(table.id, { schema: resolvedSchema });
+      }
+
+      // Pass 3: Swap saleItems schema for the variant that matches the preset's
+      // capabilities (products-only / services-only / mixed).
+      if (saleItemsKey && variantSchema) {
+        const saleItemsTableId = presetKeyToTableIdMap.get('saleItems');
+        if (saleItemsTableId) {
           const resolvedVariantSchema = this.resolvePresetRelations(variantSchema, presetKeyToTableIdMap);
-          await this.updateTableSchemaAsSystem(saleItemsTableId, { schema: resolvedVariantSchema });
+          await txRepo.updateTableSchema(saleItemsTableId, { schema: resolvedVariantSchema });
         }
       }
-    }
+    }, {
+      // Preset installs can involve many tables; allow up to 30 s before timing out.
+      timeout: 30000,
+    });
 
     return { message: 'Preset installed successfully' };
   }

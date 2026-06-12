@@ -4,6 +4,11 @@
  * Provisioning helper for inventory: when a new Product is created, automatically
  * creates per-unit stock rows (stock=0) on the Product Units table for all existing units.
  * Idempotent at unit level through UnitAutoStockPlugin when units are added later.
+ *
+ * Idempotency: before creating a stock row for a (productId, unitId) pair, the plugin
+ * checks whether a row for that pair already exists and skips creation if so. This
+ * prevents double-provisioning on retry (e.g. after a transaction rollback) and mirrors
+ * the idempotency strategy used in UnitAutoStockPlugin.
  */
 import type { RulePlugin } from '../RuleTypes';
 import { resolveTable, tableMatches } from '../shared/tableFinder';
@@ -43,8 +48,20 @@ export const ProductAutoStockPlugin: RulePlugin = {
     if (!unitTable) return;
     const { data: units } = await ctx.repository.findDataByTableId(unitTable.id);
     if (!Array.isArray(units) || units.length === 0) return;
+
+    // Idempotency: fetch all existing stock rows for this product once, then skip
+    // any (productId, unitId) pair that already has a row. This prevents double-
+    // provisioning when the plugin is retried (e.g. after a transaction rollback).
+    const existingRows = await ctx.repository.findRowsByFieldValue(productUnitsTableId, 'productId', productId);
+    const provisionedUnitIds = new Set(
+      existingRows.map((r: any) => String((r?.data ?? r)?.unitId || ''))
+    );
+
     for (const u of units) {
-      await ctx.repository.createData(productUnitsTableId, { productId, unitId: String(u.id), stock: 0 });
+      const unitId = String(u.id);
+      if (!unitId) continue;
+      if (provisionedUnitIds.has(unitId)) continue; // already exists — skip
+      await ctx.repository.createData(productUnitsTableId, { productId, unitId, stock: 0, reserved: 0 });
     }
   },
 };
