@@ -4,12 +4,21 @@ import { ICustomizableTable, ICustomizationState, IMessage } from '../models/Int
 
 /**
  * Classe responsável por gerenciar o estado da customização.
- * 
- * IMPORTANTE: Esta implementação armazena o estado da sessão em memória. 
- * Isso é adequado para desenvolvimento, mas NÃO para produção, pois o estado
- * será perdido se o servidor reiniciar e não pode ser compartilhado entre
- * múltiplos servidores. Para produção, considere substituir por uma solução
- * de armazenamento persistente como Redis.
+ *
+ * BUG / TODO (R28 — in-memory state): Esta implementação armazena TODA a sessão de
+ * customização em um Map em memória (`activeCustomizations`). Isso tem dois problemas
+ * graves em produção:
+ *
+ *   1. O estado é perdido quando o processo Node reinicia (deploy, crash, reinício).
+ *   2. Em ambientes com múltiplas réplicas (horizontal scaling) cada instância tem
+ *      seu próprio mapa — um request que cai em outra réplica não encontra a sessão.
+ *
+ * Solução recomendada para produção:
+ *   - Substituir este Map por Redis (ex: ioredis) com TTL automático.
+ *   - Alternativa simples sem nova infra: persistir o ICustomizationState serializado
+ *     em JSON em um modelo Prisma como `InterviewSession { id, userId, state Json }`.
+ *
+ * Para o MVP (desenvolvimento) este comportamento em memória é aceitável.
  */
 export class StateManager {
   private static instance: StateManager;
@@ -123,7 +132,8 @@ export class StateManager {
     }
     
     // Gera uma chave a partir do nome da tabela
-    const key = tableName.toLowerCase().replace(/\\s+/g, '_');
+    // BUG FIX (R28): /\\s+/g had a literal backslash and never matched whitespace. Fixed to /\s+/g.
+    const key = tableName.toLowerCase().replace(/\s+/g, '_');
     
     // Verifica se já existe uma tabela com essa chave
     if (session.tables.some(t => t.key === key)) {

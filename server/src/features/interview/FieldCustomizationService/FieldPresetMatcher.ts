@@ -144,10 +144,13 @@ export class FieldPresetMatcher {
         Se nenhum campo existente for adequado, retorne matchFound: false e sugira um nome e configuração para um novo campo personalizado.
       `;
       
-      const response = await this.openaiService.getChatCompletion(
-        JSON.stringify([{ role: 'system', content: promptTemplate }]),
-        'gpt-4-turbo'
-      );
+      // BUG FIX (R28): getChatCompletion(userMessage, systemPrompt) — 'gpt-4-turbo' was
+      // being passed as the systemPrompt instead of the actual prompt. Fixed to use
+      // getChatCompletionWithHistory so the model is kept at the correct parameter position.
+      const response = await this.openaiService.getChatCompletionWithHistory([
+        { role: 'system', content: promptTemplate },
+        { role: 'user', content: fieldDescription },
+      ]);
       
       // Extrai o JSON da resposta
       if (!response) {

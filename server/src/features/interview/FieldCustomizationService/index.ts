@@ -287,11 +287,13 @@ export class FieldCustomizationService {
         .replace('{{TABLE_DESCRIPTION}}', table.description)
         .replace('{{TABLE_FIELDS}}', JSON.stringify(table.fields || []));
       
-      // Enviar para validação
-      const response = await this.openaiService.getChatCompletion(
-        JSON.stringify([{ role: 'system', content: validationPrompt }]),
-        'gpt-4-turbo'
-      );
+      // BUG FIX (R28): getChatCompletion(userMessage, systemPrompt) — 'gpt-4-turbo' was
+      // being passed as the systemPrompt instead of the actual prompt. Fixed to use
+      // getChatCompletionWithHistory so the model is kept at the correct parameter position.
+      const response = await this.openaiService.getChatCompletionWithHistory([
+        { role: 'system', content: validationPrompt },
+        { role: 'user', content: `Valide os campos da tabela ${table.name}.` },
+      ]);
       
       return {
         suggestions: response || 'Não foi possível validar os campos.',

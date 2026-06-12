@@ -7,6 +7,7 @@ import {
   getDashboardSidebar,
   deleteUserSystem,
 } from '@/controllers/dashboardController';
+import { postChatInterview } from '@/controllers/interviewController';
 
 const router = Router();
 
@@ -28,6 +29,10 @@ router.get('/sidebar', getDashboardSidebar);
 
 // DELETE /api/dashboard/system
 router.delete('/system', deleteUserSystem);
+
+// POST /api/dashboard/ai/ChatInterview — AI onboarding interview (R28)
+// Auth is enforced inside the controller via getUserContextFromRequest.
+router.post('/ai/ChatInterview', postChatInterview);
 
 export default router;
 

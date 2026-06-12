@@ -330,44 +330,45 @@ Você gostaria de:
         };
       }
 
-      // Extrai o JSON da resposta
+      // Extrai o JSON da resposta.
+      // BUG FIX (R28): regex anterior /\{[^\}]*\}/ tinha backslashes literais e nunca fazia match.
+      // Agora usa regex correta com fallback via JSON.parse para extrair o JSON da resposta.
       try {
-        const jsonMatch = aiResponse.match(/\\{[^\\}]*\\}/);
-        if (jsonMatch) {
-          const tableInfo = JSON.parse(jsonMatch[0]);
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+        const jsonCandidate = jsonMatch ? jsonMatch[0] : aiResponse.trim();
+        const tableInfo = JSON.parse(jsonCandidate);
 
-          // Verifica se as informações são válidas
-          if (!tableInfo.tableName || !tableInfo.description) {
-            return {
-              response: "Não consegui identificar claramente o nome ou a descrição da tabela. Por favor, forneça essas informações no formato: \"Quero adicionar uma tabela de [nome] para [descrição]\".",
-              nextStage: 'CUSTOMIZATION_IN_PROGRESS',
-              sessionId
-            };
-          }
+        // Verifica se as informações são válidas
+        if (!tableInfo.tableName || !tableInfo.description) {
+          return {
+            response: "Não consegui identificar claramente o nome ou a descrição da tabela. Por favor, forneça essas informações no formato: \"Quero adicionar uma tabela de [nome] para [descrição]\".",
+            nextStage: 'CUSTOMIZATION_IN_PROGRESS',
+            sessionId
+          };
+        }
 
-          // Adiciona a tabela ao estado
-          const success = this.stateManager.addTable(
-            sessionId,
-            tableInfo.tableName,
-            tableInfo.description
-          );
+        // Adiciona a tabela ao estado
+        const success = this.stateManager.addTable(
+          sessionId,
+          tableInfo.tableName,
+          tableInfo.description
+        );
 
-          // Reseta o estado de ação
-          this.stateManager.setCurrentAction(sessionId, null);
+        // Reseta o estado de ação
+        this.stateManager.setCurrentAction(sessionId, null);
 
-          if (success) {
-            return {
-              response: `# Tabela Adicionada com Sucesso!\n\nA tabela "${tableInfo.tableName}" foi adicionada ao seu sistema.\n\nVocê gostaria de:\n\n1. **Adicionar** outra funcionalidade\n2. **Remover** alguma funcionalidade existente\n3. **Finalizar** a customização e criar o sistema`,
-              nextStage: 'CUSTOMIZATION_IN_PROGRESS',
-              sessionId
-            };
-          } else {
-            return {
-              response: `Não foi possível adicionar a tabela "${tableInfo.tableName}". Ela pode já existir no sistema ou ocorreu um erro no processo.\n\nPor favor, tente um nome diferente ou escolha outra ação:`,
-              nextStage: 'CUSTOMIZATION_IN_PROGRESS',
-              sessionId
-            };
-          }
+        if (success) {
+          return {
+            response: `# Tabela Adicionada com Sucesso!\n\nA tabela "${tableInfo.tableName}" foi adicionada ao seu sistema.\n\nVocê gostaria de:\n\n1. **Adicionar** outra funcionalidade\n2. **Remover** alguma funcionalidade existente\n3. **Finalizar** a customização e criar o sistema`,
+            nextStage: 'CUSTOMIZATION_IN_PROGRESS',
+            sessionId
+          };
+        } else {
+          return {
+            response: `Não foi possível adicionar a tabela "${tableInfo.tableName}". Ela pode já existir no sistema ou ocorreu um erro no processo.\n\nPor favor, tente um nome diferente ou escolha outra ação:`,
+            nextStage: 'CUSTOMIZATION_IN_PROGRESS',
+            sessionId
+          };
         }
       } catch (error) {
         logger.error(`[CustomizationService] Erro ao processar JSON da adição de tabela: ${error}`);

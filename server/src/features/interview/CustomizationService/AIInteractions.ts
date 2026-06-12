@@ -73,13 +73,21 @@ export class AIInteractions {
       }
 
       try {
-        // Extrai e parseia o JSON da resposta
-        const jsonMatch = response.match(/\\{[^\\}]*\\}/);
+        // Extrai e parseia o JSON da resposta usando regex correta e fallback via JSON.parse
+        // BUG FIX (R28): regex anterior /\{[^\}]*\}/ tinha backslashes literais e nunca fazia match.
+        // Agora tentamos extrair o primeiro bloco JSON com regex multi-line e, em seguida,
+        // fazemos o parse via try/catch para robustez.
+        let jsonCandidate: string | null = null;
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          const result = JSON.parse(jsonMatch[0]);
-          logger.info(`[AIInteractions] Intenção identificada: ${result.action}`);
-          return result;
+          jsonCandidate = jsonMatch[0];
+        } else {
+          // Último recurso: tentar parsear a resposta inteira
+          jsonCandidate = response.trim();
         }
+        const result = JSON.parse(jsonCandidate);
+        logger.info(`[AIInteractions] Intenção identificada: ${result.action}`);
+        return result;
       } catch (parseError) {
         logger.error(`[AIInteractions] Erro ao parsear JSON da intenção: ${parseError}`);
       }
