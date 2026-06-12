@@ -19,8 +19,8 @@ import KpiTooltip from './KpiTooltip';
 // =============================================================================
 
 const DONUT_COLORS = {
-  value: '#22c55e',
-  rest: 'rgba(31, 41, 55, 0.25)',
+  value: '#10b981', // lumi-success (was #22c55e green-500, aligned to lumi-success emerald-500)
+  rest: 'rgba(31, 41, 55, 0.25)', // lumi-text at 25% opacity
 };
 
 // =============================================================================

@@ -111,7 +111,7 @@ export default function PieDonutChart({
               fill="#8884d8"
               dataKey="value"
               nameKey="name"
-              stroke="#111827"
+              stroke="#111827" /* lumi-text */
               strokeOpacity={0.08}
             >
               {arcData.map((_, index) => (
@@ -122,11 +122,11 @@ export default function PieDonutChart({
               formatter={(value: number) => formatValue(value, currency)}
               contentStyle={tooltipStyles}
               itemStyle={{
-                color: isDark ? '#111827' : '#f3f4f6',
+                color: isDark ? '#111827' /* lumi-text */ : '#f3f4f6' /* lumi-surface */,
                 padding: '2px 0',
               }}
               labelStyle={{
-                color: isDark ? '#111827' : '#f3f4f6',
+                color: isDark ? '#111827' /* lumi-text */ : '#f3f4f6' /* lumi-surface */,
                 fontWeight: 600,
                 marginBottom: '4px',
                 display: 'none',

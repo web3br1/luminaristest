@@ -66,7 +66,7 @@ export default function DashboardKpiCard({
                         data={sparklineData || []}
                         height={40}
                         showTrend={true}
-                        color={trend === 'up' ? '#10b981' : '#ef4444'}
+                        color={trend === 'up' ? '#10b981' /* lumi-success */ : '#ef4444' /* lumi-danger */}
                     />
                 </div>
             )}

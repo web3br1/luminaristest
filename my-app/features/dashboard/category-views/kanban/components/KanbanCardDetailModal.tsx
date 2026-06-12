@@ -136,7 +136,7 @@ export function KanbanCardDetailModal({
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
 
             {/* Modal Card */}
-            <div className="relative w-full max-w-4xl bg-[#f4f5f7] dark:bg-neutral-900 rounded-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col min-h-[500px]">
+            <div className="relative w-full max-w-4xl bg-lumi-surface dark:bg-neutral-900 rounded-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col min-h-[500px]">
 
                 {/* Close Button */}
                 <button

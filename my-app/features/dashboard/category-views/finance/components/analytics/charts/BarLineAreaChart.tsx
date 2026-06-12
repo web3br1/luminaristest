@@ -133,7 +133,7 @@ export default function BarLineAreaChart({
     };
 
     const axisProps = {
-      stroke: '#9ca3af',
+      stroke: '#9ca3af', // lumi-muted
       fontSize: 11,
     };
 
@@ -141,11 +141,11 @@ export default function BarLineAreaChart({
       formatter: (value: number) => formatValue(value, currency),
       contentStyle: tooltipStyles,
       itemStyle: {
-        color: isDark ? '#111827' : '#f3f4f6',
+        color: isDark ? '#111827' /* lumi-text */ : '#f3f4f6' /* lumi-surface */,
         padding: '2px 0',
       },
       labelStyle: {
-        color: isDark ? '#111827' : '#f3f4f6',
+        color: isDark ? '#111827' /* lumi-text */ : '#f3f4f6' /* lumi-surface */,
         fontWeight: 600,
         marginBottom: '4px',
       },
@@ -184,7 +184,7 @@ export default function BarLineAreaChart({
           <Line
             type="monotone"
             dataKey="value"
-            stroke={colors[0] || '#3b82f6'}
+            stroke={colors[0] || '#3b82f6' /* lumi-primary */}
             strokeWidth={2}
             dot={{
               r: 3,

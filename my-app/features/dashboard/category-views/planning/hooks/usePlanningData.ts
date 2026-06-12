@@ -7,10 +7,10 @@ import { useTableRelationLookups } from '../../../shared/hooks/useTableRelationL
 import { DynamicTableService } from '../../../../../lib/services/dynamic-table.service';
 
 const COLOR_BY_STATUS: Record<string, string> = {
-    Scheduled: '#3b82f6',
-    Completed: '#10b981',
-    'No-Show': '#f59e0b',
-    Cancelled: '#ef4444',
+    Scheduled: '#3b82f6',  // lumi-primary
+    Completed: '#10b981',  // lumi-success
+    'No-Show': '#f59e0b',  // lumi-warning / amber-400
+    Cancelled: '#ef4444',  // lumi-danger
 };
 
 export function usePlanningData(tables: IDynamicTable[], activeTableId: string) {

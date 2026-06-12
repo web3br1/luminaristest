@@ -104,14 +104,14 @@ export const AuthSplitLayout: React.FC<AuthSplitLayoutProps> = ({ children, titl
       </div>
 
       {/* Right Column: Visual/Inspirational Info */}
-      <div className="hidden lg:flex flex-col justify-center relative w-[55%] xl:w-[60%] bg-[#0B0D11] overflow-hidden">
+      <div className="hidden lg:flex flex-col justify-center relative w-[55%] xl:w-[60%] bg-lumi-bg-dark overflow-hidden">
         {/* Abstract Background Decoration */}
         <div className="absolute inset-0 z-0">
           <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full bg-blue-600/10 blur-[120px]" />
           <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-purple-600/10 blur-[120px]" />
           {/* Diagonal Lines Effect */}
           <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
-               style={{ backgroundImage: 'linear-gradient(45deg, #ffffff 1px, transparent 1px), linear-gradient(-45deg, #ffffff 1px, transparent 1px)', backgroundSize: '60px 60px' }} 
+               style={{ backgroundImage: 'linear-gradient(45deg, #ffffff /* lumi-bg */ 1px, transparent 1px), linear-gradient(-45deg, #ffffff /* lumi-bg */ 1px, transparent 1px)', backgroundSize: '60px 60px' }}
           />
         </div>
 
@@ -153,11 +153,11 @@ export const AuthSplitLayout: React.FC<AuthSplitLayoutProps> = ({ children, titl
                <div className="flex items-center justify-between">
                  <div className="flex -space-x-4">
                    {[1,2,3,4].map(idx => (
-                     <div key={idx} className="w-12 h-12 rounded-full border-4 border-[#12141A] bg-slate-800 flex items-center justify-center overflow-hidden transition-transform hover:scale-110 hover:z-20 cursor-pointer">
+                     <div key={idx} className="w-12 h-12 rounded-full border-4 border-lumi-dark-500 bg-slate-800 flex items-center justify-center overflow-hidden transition-transform hover:scale-110 hover:z-20 cursor-pointer">
                         <img src={`https://i.pravatar.cc/150?u=${idx + 10}`} alt="User" className="w-full h-full object-cover" />
                      </div>
                    ))}
-                   <div className="w-12 h-12 rounded-full border-4 border-[#12141A] bg-blue-600 flex items-center justify-center text-white text-xs font-bold transition-transform hover:scale-110 hover:z-20 cursor-pointer">
+                   <div className="w-12 h-12 rounded-full border-4 border-lumi-dark-500 bg-blue-600 flex items-center justify-center text-white text-xs font-bold transition-transform hover:scale-110 hover:z-20 cursor-pointer">
                      +2k
                    </div>
                  </div>

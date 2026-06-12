@@ -302,7 +302,7 @@ export default function AnalyticsDashboard({ presetKey, tables }: AnalyticsDashb
                                     }
 
                                     if (isProgress) {
-                                        return <DashboardProgressCard key={kpi.key} {...cardProps} color="#a78bfa" />;
+                                        return <DashboardProgressCard key={kpi.key} {...cardProps} color="#6366f1" /* lumi-secondary */ />;
                                     }
 
                                     const analysisType = (kpi.options?.metricAnalysis as Record<string, string>)?.[kpi.title] || 'snapshot';
@@ -342,7 +342,8 @@ export default function AnalyticsDashboard({ presetKey, tables }: AnalyticsDashb
                                     }
 
                                     if (kpi.type === 'pie' || kpi.type === 'donut') {
-                                        const colors = ['#6366f1', '#a78bfa', '#c4b5fd', '#ddd6fe', '#ede9fe', '#f5f3ff'];
+                                        // lumi-secondary and its tints — replace hardcoded hex with tokens where possible
+                                        const colors = ['#6366f1' /* lumi-secondary */, '#a78bfa', '#c4b5fd', '#ddd6fe', '#ede9fe', '#f5f3ff'];
                                         const pieData = data.data?.map((d, i) => ({ name: d.name || d.label || '', value: d.value, count: d.count || d.value, color: colors[i % colors.length] })) || [];
                                         return (
                                             <div key={kpi.key} className="col-span-1 border border-gray-100 dark:border-gray-800 rounded-2xl bg-white dark:bg-neutral-900 overflow-hidden shadow-sm hover:shadow-md transition-shadow">

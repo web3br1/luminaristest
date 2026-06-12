@@ -3,16 +3,20 @@
 @tailwind utilities;
 
 /* Luminaris Theme - Clean & Professional (Blue + Charcoal) */
+/* Design tokens — use these CSS vars in plain CSS; use Tailwind classes (bg-lumi-primary etc.) in components */
 :root {
   /* Light mode base */
-  --lumi-bg-base: #FAFAFA;
-  --lumi-bg-surface: #FFFFFF;
-  --lumi-bg-elevated: #F5F5F5;
-  --lumi-text-primary: #171717;
-  --lumi-text-secondary: #525252;
-  --lumi-border: #E5E5E5;
-  --lumi-accent: #2563EB;
-  --lumi-accent-secondary: #0D9488;
+  --lumi-bg-base: #FAFAFA;       /* bg-lumi-bg */
+  --lumi-bg-surface: #FFFFFF;    /* bg-lumi-bg */
+  --lumi-bg-elevated: #F5F5F5;   /* bg-lumi-surface */
+  --lumi-text-primary: #171717;  /* text-lumi-text */
+  --lumi-text-secondary: #525252; /* text-lumi-muted */
+  --lumi-border: #E5E5E5;        /* border-lumi-border */
+  --lumi-accent: #2563EB;        /* text/bg-lumi-primary */
+  --lumi-accent-secondary: #6366f1; /* text/bg-lumi-secondary (indigo-500) */
+  --lumi-danger: #ef4444;        /* text/bg-lumi-danger */
+  --lumi-success: #10b981;       /* text/bg-lumi-success */
+  --lumi-warning: #f59e0b;       /* text/bg-lumi-warning */
 }
 
 .dark {
@@ -23,8 +27,11 @@
   --lumi-text-primary: #FAFAFA;
   --lumi-text-secondary: #A3A3A3;
   --lumi-border: #404040;
-  --lumi-accent: #3B82F6;
-  --lumi-accent-secondary: #2DD4BF;
+  --lumi-accent: #3B82F6;        /* lumi-primary dark */
+  --lumi-accent-secondary: #818cf8; /* lumi-secondary dark (indigo-400) */
+  --lumi-danger: #ef4444;
+  --lumi-success: #10b981;
+  --lumi-warning: #f59e0b;
 }
 
 /* Custom gradient utilities for galaxy effect */
@@ -301,9 +308,8 @@ body {
   bottom: 3px;
   width: 8px;
   height: 8px;
-  border-right: 2px solid #6366f1;
-  /* indigo-500 */
-  border-bottom: 2px solid #6366f1;
+  border-right: 2px solid var(--lumi-accent); /* lumi-secondary / indigo-500 */
+  border-bottom: 2px solid var(--lumi-accent);
   border-radius: 1px;
 }
 
@@ -312,14 +318,13 @@ body {
 }
 
 .dark .react-resizable-handle::after {
-  border-right-color: #818cf8;
-  /* indigo-400 */
-  border-bottom-color: #818cf8;
+  border-right-color: var(--lumi-accent); /* lumi-accent dark / indigo-400 */
+  border-bottom-color: var(--lumi-accent);
 }
 
 .react-grid-item.react-grid-placeholder {
-  background: rgba(99, 102, 241, 0.1) !important;
+  background: rgba(99, 102, 241, 0.1) !important; /* lumi-secondary at 10% */
   border-radius: 8px !important;
-  border: 2px dashed #6366f1 !important;
+  border: 2px dashed var(--lumi-accent) !important; /* lumi-secondary */
   opacity: 0.5 !important;
 }

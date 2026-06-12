@@ -11,6 +11,21 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Design tokens — replace hardcoded hex with these classes
+        // e.g. bg-lumi-bg, text-lumi-text, border-lumi-border, bg-lumi-danger, text-lumi-success
+        'lumi-primary':   '#3b82f6', // blue-500  — main action/interactive color
+        'lumi-secondary': '#6366f1', // indigo-500 — secondary accent (charts, resize handles)
+        'lumi-accent':    '#10b981', // emerald-500 — positive/success accent
+        'lumi-bg':        '#ffffff', // white — page/surface background
+        'lumi-bg-dark':   '#0B0D11', // deepest dark bg (auth panel, calendar dark bg)
+        'lumi-surface':   '#f3f4f6', // gray-100 — elevated card background
+        'lumi-text':      '#111827', // gray-900 — primary text
+        'lumi-muted':     '#9ca3af', // gray-400 — muted/secondary text
+        'lumi-border':    '#e5e7eb', // gray-200 — default border
+        'lumi-danger':    '#ef4444', // red-500  — error/danger/negative
+        'lumi-success':   '#10b981', // emerald-500 — success/positive
+        'lumi-warning':   '#f59e0b', // amber-400 — warning/no-show/caution
+
         // Custom Luminaris palette - Clean & Professional
         lumi: {
           // Primary accent - Classic Blue (universal & professional)

@@ -17,7 +17,7 @@ interface SparklineProps {
  */
 export default function Sparkline({
     data,
-    color = '#6366f1',
+    color = '#6366f1', // lumi-secondary
     height = 32,
     showTrend = false
 }: SparklineProps) {
@@ -51,9 +51,9 @@ export default function Sparkline({
 
     const barColor = showTrend
         ? trend > 0
-            ? '#10b981' // emerald-500
+            ? '#10b981' // lumi-success / emerald-500
             : trend < 0
-                ? '#ef4444' // red-500
+                ? '#ef4444' // lumi-danger / red-500
                 : color
         : color;
 

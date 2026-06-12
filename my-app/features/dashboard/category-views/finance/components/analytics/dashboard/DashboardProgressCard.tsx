@@ -20,7 +20,7 @@ export default function DashboardProgressCard({
     change,
     trend,
     higherIsBetter = true,
-    color = '#6366f1',
+    color = '#6366f1', // lumi-secondary
 }: DashboardProgressCardProps) {
     const isDark = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
     

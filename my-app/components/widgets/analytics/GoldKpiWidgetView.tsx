@@ -89,11 +89,11 @@ export default function GoldKpiWidgetView({ kpi, chartPreset }: GoldKpiWidgetVie
             <div className="absolute bottom-0 left-0 right-0 h-1/2 opacity-20 pointer-events-none transform translate-y-2">
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={mockSparklineData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                        <Area 
-                            type="monotone" 
-                            dataKey="value" 
-                            stroke={trend === 'down' ? '#ef4444' : (trend === 'up' ? '#10b981' : '#3b82f6')} 
-                            fill={trend === 'down' ? '#ef4444' : (trend === 'up' ? '#10b981' : '#3b82f6')} 
+                        <Area
+                            type="monotone"
+                            dataKey="value"
+                            stroke={trend === 'down' ? '#ef4444' /* lumi-danger */ : (trend === 'up' ? '#10b981' /* lumi-success */ : '#3b82f6' /* lumi-primary */)}
+                            fill={trend === 'down' ? '#ef4444' /* lumi-danger */ : (trend === 'up' ? '#10b981' /* lumi-success */ : '#3b82f6' /* lumi-primary */)}
                             strokeWidth={2}
                         />
                     </AreaChart>
