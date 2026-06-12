@@ -269,6 +269,11 @@ export const salesModule = {
         expenseAmountField: 'amount',
         expenseCategoryField: 'category',
         expenseDateField: 'paymentDate',
+        // Defaults for employee/equity KPIs — overridable via analyticsDefinitions CORE config
+        employeesCount: 3,
+        totalHoursWorked: 528, // 3 employees × 22 working days × 8h
+        equity: 50000,
+        recurringProfit: 3500, // estimated recurring portion of monthly net profit
       },
     } as AnalyticsConfiguration,
     // --- 1.1 Receita Global – Gráficos de evolução ---
@@ -481,7 +486,7 @@ export const salesModule = {
         excludeStatuses: ['Cancelled'],
         expensesTableKey: '@@PRESET_TABLE_KEY::expenses',
         expenseAmountField: 'amount',
-        expenseDateField: 'paymentDate',
+        expenseDateField: 'date',
         expenseDueDateField: 'dueDate',
         expensePaymentStatusField: 'paymentStatus',
       },
