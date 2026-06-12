@@ -2,6 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'next-i18next';
 import { MdWarningAmber, MdInfoOutline, MdErrorOutline, MdClose } from 'react-icons/md';
 
 // =============================================================================
@@ -45,8 +46,10 @@ const VARIANT_CONFIG: Record<
         confirmBg: string;
         confirmHover: string;
         confirmShadow: string;
-        defaultTitle: string;
-        defaultConfirmLabel: string;
+        defaultTitleKey: string;
+        defaultTitleFallback: string;
+        defaultConfirmLabelKey: string;
+        defaultConfirmLabelFallback: string;
         accentBar: string;
     }
 > = {
@@ -56,8 +59,10 @@ const VARIANT_CONFIG: Record<
         confirmBg: 'bg-red-600',
         confirmHover: 'hover:bg-red-700 active:bg-red-800',
         confirmShadow: 'shadow-red-600/20',
-        defaultTitle: 'Confirmar ação?',
-        defaultConfirmLabel: 'Sim, confirmar',
+        defaultTitleKey: 'confirm.confirmAction',
+        defaultTitleFallback: 'Confirm action?',
+        defaultConfirmLabelKey: 'confirm.yesConfirm',
+        defaultConfirmLabelFallback: 'Yes, confirm',
         accentBar: 'bg-red-600',
     },
     warning: {
@@ -66,8 +71,10 @@ const VARIANT_CONFIG: Record<
         confirmBg: 'bg-amber-600',
         confirmHover: 'hover:bg-amber-700 active:bg-amber-800',
         confirmShadow: 'shadow-amber-600/20',
-        defaultTitle: 'Tem certeza?',
-        defaultConfirmLabel: 'Sim, prosseguir',
+        defaultTitleKey: 'confirm.areYouSure',
+        defaultTitleFallback: 'Are you sure?',
+        defaultConfirmLabelKey: 'confirm.yesProceed',
+        defaultConfirmLabelFallback: 'Yes, proceed',
         accentBar: 'bg-amber-500',
     },
     info: {
@@ -76,8 +83,10 @@ const VARIANT_CONFIG: Record<
         confirmBg: 'bg-blue-600',
         confirmHover: 'hover:bg-blue-700 active:bg-blue-800',
         confirmShadow: 'shadow-blue-600/20',
-        defaultTitle: 'Confirmar?',
-        defaultConfirmLabel: 'Confirmar',
+        defaultTitleKey: 'confirm.confirm',
+        defaultTitleFallback: 'Confirm?',
+        defaultConfirmLabelKey: 'actions.confirm',
+        defaultConfirmLabelFallback: 'Confirm',
         accentBar: 'bg-blue-600',
     },
 };
@@ -113,11 +122,13 @@ export function ConfirmModal({
     title,
     message,
     confirmLabel,
-    cancelLabel = 'Não, fechar',
+    cancelLabel,
     variant = 'danger',
     isLoading = false,
     error = null,
 }: ConfirmModalProps) {
+    const { t } = useTranslation('common');
+
     // ESC key closes the modal — must be called before any early return (Rules of Hooks)
     useEffect(() => {
         if (!isOpen) return;
@@ -131,8 +142,9 @@ export function ConfirmModal({
     if (!isOpen) return null;
 
     const cfg = VARIANT_CONFIG[variant];
-    const resolvedTitle = title ?? cfg.defaultTitle;
-    const resolvedConfirmLabel = confirmLabel ?? cfg.defaultConfirmLabel;
+    const resolvedTitle = title ?? t(cfg.defaultTitleKey, cfg.defaultTitleFallback);
+    const resolvedConfirmLabel = confirmLabel ?? t(cfg.defaultConfirmLabelKey, cfg.defaultConfirmLabelFallback);
+    const resolvedCancelLabel = cancelLabel ?? t('confirm.notClose', 'No, close');
 
     const modal = (
         <div
@@ -162,7 +174,7 @@ export function ConfirmModal({
                         onClick={onClose}
                         disabled={isLoading}
                         className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1 ml-2 disabled:opacity-40"
-                        aria-label="Fechar"
+                        aria-label={t('actions.close', 'Close')}
                     >
                         <MdClose size={20} />
                     </button>
@@ -189,7 +201,7 @@ export function ConfirmModal({
                         disabled={isLoading}
                         className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl transition-colors disabled:opacity-50"
                     >
-                        {cancelLabel}
+                        {resolvedCancelLabel}
                     </button>
                     <button
                         onClick={onConfirm}
@@ -199,7 +211,7 @@ export function ConfirmModal({
                         {isLoading ? (
                             <>
                                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                Aguarde...
+                                {t('confirm.pleaseWait', 'Please wait...')}
                             </>
                         ) : (
                             resolvedConfirmLabel

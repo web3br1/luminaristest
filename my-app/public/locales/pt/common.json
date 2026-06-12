@@ -238,7 +238,11 @@
   "chat": {
     "start_conversation": "Inicie uma conversa digitando uma mensagem abaixo.",
     "placeholder": "Pergunte qualquer coisa sobre seus documentos...",
-    "send_button": "Enviar"
+    "send_button": "Enviar",
+    "new_conversation": "Nova Conversa",
+    "no_conversations": "Nenhuma conversa",
+    "ask_anything": "Pergunte qualquer coisa!",
+    "connected_to_engine": "Conectado ao Motor de Análise"
   },
   "save_changes": "Salvar Alterações",
   "cancel": "Cancelar",
@@ -421,5 +425,55 @@
   "confirm_delete_title": "Inativar Registro?",
   "confirm_delete_generic_msg": "Este registro será inativado. O histórico será preservado.",
   "error_deleting_record": "Ocorreu um erro ao tentar inativar o registro.",
-  "relation_cell_items": "{{count}} itens"
+  "relation_cell_items": "{{count}} itens",
+
+  "unsavedChangesConfirm": "Existem alterações não salvas. Tem certeza que deseja fechar?",
+
+  "documents": {
+    "subtitle": "Gerencie seus documentos e realize análises com base no seu conteúdo",
+    "searchPlaceholder": "Buscar documentos...",
+    "allDocuments": "Todos os Documentos",
+    "dataAnalysis": "Análise de Dados",
+    "knowledgeBase": "Base de Conhecimento",
+    "statusCompleted": "Completo",
+    "statusProcessing": "Processando",
+    "noResultsFiltered": "Nenhum documento encontrado com os filtros aplicados.",
+    "noDocuments": "Nenhum documento encontrado. Clique em \"Upload Document\" para adicionar.",
+    "hideDetails": "Ocultar Detalhes",
+    "viewDetails": "Ver Detalhes",
+    "deleteTitle": "Excluir documento",
+    "deleteMessage": "Tem certeza que deseja excluir este documento? Essa ação removerá também seus vetores e não pode ser desfeita."
+  },
+
+  "actions": {
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "add": "Adicionar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "close": "Fechar",
+    "confirm": "Confirmar",
+    "back": "Voltar"
+  },
+  "status": {
+    "loading": "Carregando...",
+    "error": "Erro",
+    "success": "Sucesso",
+    "empty": "Nenhum resultado",
+    "saving": "Salvando..."
+  },
+  "confirm": {
+    "deleteTitle": "Confirmar exclusão",
+    "deleteMessage": "Tem certeza que deseja excluir este item?",
+    "cannotUndo": "Esta ação não pode ser desfeita.",
+    "confirmAction": "Confirmar ação?",
+    "yesConfirm": "Sim, confirmar",
+    "areYouSure": "Tem certeza?",
+    "yesProceed": "Sim, prosseguir",
+    "confirm": "Confirmar?",
+    "notClose": "Não, fechar",
+    "pleaseWait": "Aguarde..."
+  }
 }

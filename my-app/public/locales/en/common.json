@@ -238,7 +238,11 @@
   "chat": {
     "start_conversation": "Start a conversation by typing a message below.",
     "placeholder": "Ask anything about your documents...",
-    "send_button": "Send"
+    "send_button": "Send",
+    "new_conversation": "New Conversation",
+    "no_conversations": "No conversations",
+    "ask_anything": "Ask anything!",
+    "connected_to_engine": "Connected to Analysis Engine"
   },
   "save_changes": "Save Changes",
   "cancel": "Cancel",
@@ -422,5 +426,55 @@
   "confirm_delete_title": "Inactivate Record?",
   "confirm_delete_generic_msg": "This record will be inactivated. History will be preserved.",
   "error_deleting_record": "An error occurred while inactivating the record.",
-  "relation_cell_items": "{{count}} items"
+  "relation_cell_items": "{{count}} items",
+
+  "unsavedChangesConfirm": "There are unsaved changes. Are you sure you want to close?",
+
+  "documents": {
+    "subtitle": "Manage your documents and perform analysis based on their content",
+    "searchPlaceholder": "Search documents...",
+    "allDocuments": "All Documents",
+    "dataAnalysis": "Data Analysis",
+    "knowledgeBase": "Knowledge Base",
+    "statusCompleted": "Completed",
+    "statusProcessing": "Processing",
+    "noResultsFiltered": "No documents found matching the applied filters.",
+    "noDocuments": "No documents found. Click \"Upload Document\" to add.",
+    "hideDetails": "Hide Details",
+    "viewDetails": "View Details",
+    "deleteTitle": "Delete document",
+    "deleteMessage": "Are you sure you want to delete this document? This will also remove its vectors and cannot be undone."
+  },
+
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "filter": "Filter",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back"
+  },
+  "status": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "empty": "No results",
+    "saving": "Saving..."
+  },
+  "confirm": {
+    "deleteTitle": "Confirm deletion",
+    "deleteMessage": "Are you sure you want to delete this item?",
+    "cannotUndo": "This action cannot be undone.",
+    "confirmAction": "Confirm action?",
+    "yesConfirm": "Yes, confirm",
+    "areYouSure": "Are you sure?",
+    "yesProceed": "Yes, proceed",
+    "confirm": "Confirm?",
+    "notClose": "No, close",
+    "pleaseWait": "Please wait..."
+  }
 }

@@ -35,12 +35,12 @@ export function Modal({
 
   const handleClose = useCallback(() => {
     if (isDirty) {
-      if (!window.confirm('Existem alterações não salvas. Tem certeza que deseja fechar?')) {
+      if (!window.confirm(t('common:unsavedChangesConfirm', 'There are unsaved changes. Are you sure you want to close?'))) {
         return;
       }
     }
     onClose();
-  }, [isDirty, onClose]);
+  }, [isDirty, onClose, t]);
 
   // Focus trap: trap Tab/Shift+Tab inside the modal
   useEffect(() => {
@@ -146,7 +146,7 @@ export function Modal({
           <button
             onClick={handleClose}
             className="p-2.5 rounded-2xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all duration-200 text-gray-400 hover:text-gray-900 dark:hover:text-white group"
-            aria-label="Close modal"
+            aria-label={t('common:actions.close', 'Close')}
           >
             <svg
               className="w-5 h-5 transition-transform group-hover:rotate-90 duration-300"

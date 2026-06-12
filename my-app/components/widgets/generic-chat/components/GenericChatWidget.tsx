@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from 'next-i18next';
 import { GenericChatWidgetProps } from '../types/generic-chat.types';
 import { useChatInstance, useChatMessages, useChatInstances, type Message } from '../../shared/hooks';
 import { getCookie, setCookie, deleteCookie } from 'cookies-next';
@@ -25,6 +26,7 @@ function GenericChatWidget({
     inputPlaceholder = 'Digite sua pergunta...',
     contextProvider,
 }: GenericChatWidgetProps) {
+    const { t } = useTranslation('common');
     const [inputValue, setInputValue] = useState('');
     const [renameValue, setRenameValue] = useState('');
     const [proposalToConfirm, setProposalToConfirm] = useState<any>(null);
@@ -193,16 +195,16 @@ function GenericChatWidget({
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                         </svg>
-                                        Nova Conversa
+                                        {t('chat.new_conversation', 'New Conversation')}
                                     </div>
                                 </button>
                             </div>
 
                             <div className="max-h-64 overflow-y-auto custom-scrollbar">
                                 {isLoadingInstances ? (
-                                    <div className="p-3 text-center text-xs text-gray-500">Carregando...</div>
+                                    <div className="p-3 text-center text-xs text-gray-500">{t('status.loading', 'Loading...')}</div>
                                 ) : allChatInstances.length === 0 ? (
-                                    <div className="p-3 text-center text-xs text-gray-500">Nenhuma conversa</div>
+                                    <div className="p-3 text-center text-xs text-gray-500">{t('chat.no_conversations', 'No conversations')}</div>
                                 ) : (
                                     allChatInstances.map((instance) => {
                                         const isBeingDeleted = instanceIdPendingDelete === instance.id;
@@ -225,8 +227,8 @@ function GenericChatWidget({
                                                         }}
                                                     />
                                                     <div className="flex gap-1 mt-1">
-                                                        <button onClick={() => confirmRename(instance.id, renameValue)} disabled={isRenamingInstance} className="flex-1 px-2 py-1 text-xs bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50">{isRenamingInstance ? '...' : 'Salvar'}</button>
-                                                        <button onClick={cancelRename} className="flex-1 px-2 py-1 text-xs bg-slate-200 dark:bg-zinc-600 rounded">Cancelar</button>
+                                                        <button onClick={() => confirmRename(instance.id, renameValue)} disabled={isRenamingInstance} className="flex-1 px-2 py-1 text-xs bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50">{isRenamingInstance ? '...' : t('actions.save', 'Save')}</button>
+                                                        <button onClick={cancelRename} className="flex-1 px-2 py-1 text-xs bg-slate-200 dark:bg-zinc-600 rounded">{t('actions.cancel', 'Cancel')}</button>
                                                     </div>
                                                 </div>
                                             );
@@ -235,10 +237,10 @@ function GenericChatWidget({
                                         if (isBeingDeleted) {
                                             return (
                                                 <div key={instance.id} className="p-2 bg-red-50 dark:bg-red-900/20">
-                                                    <p className="text-xs text-red-600 dark:text-red-400 mb-2">Excluir "{instance.title || 'Chat'}"?</p>
+                                                    <p className="text-xs text-red-600 dark:text-red-400 mb-2">{t('actions.delete', 'Delete')} &ldquo;{instance.title || 'Chat'}&rdquo;?</p>
                                                     <div className="flex gap-1">
-                                                        <button onClick={() => confirmDeleteInstance(instance.id)} disabled={isDeletingInstance} className="flex-1 px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50">{isDeletingInstance ? '...' : 'Excluir'}</button>
-                                                        <button onClick={cancelDeleteConfirmation} className="flex-1 px-2 py-1 text-xs bg-slate-200 dark:bg-zinc-600 rounded">Cancelar</button>
+                                                        <button onClick={() => confirmDeleteInstance(instance.id)} disabled={isDeletingInstance} className="flex-1 px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50">{isDeletingInstance ? '...' : t('actions.delete', 'Delete')}</button>
+                                                        <button onClick={cancelDeleteConfirmation} className="flex-1 px-2 py-1 text-xs bg-slate-200 dark:bg-zinc-600 rounded">{t('actions.cancel', 'Cancel')}</button>
                                                     </div>
                                                 </div>
                                             );
@@ -253,7 +255,7 @@ function GenericChatWidget({
                                                 <button onClick={(e) => { e.stopPropagation(); setRenameValue(instance.title || ''); startRename(instance.id); }} className="p-1.5 ml-1 rounded text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700 transition" title="Renomear">
                                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                                 </button>
-                                                <button onClick={(e) => { e.stopPropagation(); requestDeleteConfirmation(instance.id); }} className="p-1.5 ml-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all" title="Excluir">
+                                                <button onClick={(e) => { e.stopPropagation(); requestDeleteConfirmation(instance.id); }} className="p-1.5 ml-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all" title={t('actions.delete', 'Delete')}>
                                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                 </button>
                                             </div>
@@ -267,7 +269,7 @@ function GenericChatWidget({
 
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {onClose && (
-                        <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); handleClose(); }} className="widget-action-btn p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors focus:outline-none" title="Fechar">
+                        <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); handleClose(); }} className="widget-action-btn p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors focus:outline-none" title={t('actions.close', 'Close')}>
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                     )}
@@ -284,8 +286,8 @@ function GenericChatWidget({
                     <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
                         <div className="text-center">
                             <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                            <p className="text-sm">Pergunte qualquer coisa!</p>
-                            <p className="text-xs mt-1 opacity-75">Conectado ao Motor de Análise</p>
+                            <p className="text-sm">{t('chat.ask_anything', 'Ask anything!')}</p>
+                            <p className="text-xs mt-1 opacity-75">{t('chat.connected_to_engine', 'Connected to Analysis Engine')}</p>
                         </div>
                     </div>
                 ) : (
