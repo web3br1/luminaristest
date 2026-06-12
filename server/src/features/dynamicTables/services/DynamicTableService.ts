@@ -31,6 +31,37 @@ export class DynamicTableService {
 
   // --- Private Core Logic Methods ---
 
+  /**
+   * Validates that every relation column in the given schema has a `targetTable` that
+   * (a) exists in the database and (b) is owned by `userId`.
+   * Throws a ValidationError on the first violation found.
+   * Columns whose `targetTable` is a preset marker (@@PRESET_TABLE_KEY::...) are skipped.
+   */
+  private async validateRelationTargetOwnership(userId: string, schema: ITableSchema): Promise<void> {
+    if (!Array.isArray(schema?.fields)) return;
+    for (const field of schema.fields) {
+      if (field.type !== 'relation' || !field.relation?.targetTable) continue;
+      const targetId = field.relation.targetTable;
+      if (typeof targetId === 'string' && targetId.startsWith('@@PRESET_TABLE_KEY::')) continue;
+      const targetTable = await this.repository.findTableById(targetId);
+      if (!targetTable) {
+        throw new ValidationError(
+          `Relação inválida no campo '${field.label || field.name}': tabela alvo '${targetId}' não existe.`
+        );
+      }
+      if (targetTable.userId !== userId) {
+        throw new ValidationError(
+          `Relação inválida no campo '${field.label || field.name}': tabela alvo '${targetId}' não pertence a este usuário.`
+        );
+      }
+      if ((targetTable.schema as unknown as ITableSchema)?.ui?.presentation === 'system') {
+        throw new ValidationError(
+          `Relação inválida no campo '${field.label || field.name}': não é permitido referenciar tabelas de sistema.`
+        );
+      }
+    }
+  }
+
   private async _createTable(userId: string, data: CreateDynamicTableDtoType): Promise<IDynamicTable> {
     // Validação para impedir nomes de campos duplicados
     const fieldNames = data.schema.fields.map(field => field.name.trim().toLowerCase());
@@ -44,19 +75,8 @@ export class DynamicTableService {
     // (mesmo que a primeira passagem de presets persista sem relações)
     this.buildZodSchema(data.schema as unknown as ITableSchema);
 
-    // Se houver campos de relação, garanta que a tabela alvo exista (exceto quando for marcador de preset)
-    for (const field of data.schema.fields) {
-      if (field.type === 'relation' && field.relation?.targetTable) {
-        const target = field.relation.targetTable;
-        if (typeof target === 'string' && target.startsWith('@@PRESET_TABLE_KEY::')) {
-          continue; // permitido no fluxo de preset, será resolvido na 2ª passagem
-        }
-        const targetTable = await this.repository.findTableById(target);
-        if (!targetTable) {
-          throw new ValidationError(`Relação inválida: tabela alvo '${target}' não existe.`);
-        }
-      }
-    }
+    // Validate that every relation column's targetTable exists and belongs to this user.
+    await this.validateRelationTargetOwnership(userId, data.schema as unknown as ITableSchema);
 
     const table = await this.repository.createTable(userId, data);
     if (this.knowledgeGraphService) {
@@ -86,12 +106,52 @@ export class DynamicTableService {
     }
     await this.repository.deleteTable(tableId);
 
+    // Flag any relation columns in OTHER tables that pointed to the now-deleted tableId.
+    // This is a best-effort sweep: we load all tables for the owner and mark stale refs.
+    if (tableToDelete) {
+      await this.markBrokenRelationColumns(tableToDelete.userId, tableId).catch(err =>
+        console.error('Error marking broken relation columns after table deletion:', err)
+      );
+    }
+
     // Invalidate the KnowledgeGraph so the agent does not "see" the deleted table
     // on the next chat session. syncGraph will rebuild it from the remaining tables (R27).
     if (tableToDelete && this.knowledgeGraphService) {
       await this.knowledgeGraphService.syncGraph(tableToDelete.userId).catch(err =>
         console.error('Error syncing graph after table deletion:', err)
       );
+    }
+  }
+
+  /**
+   * After a table is deleted, scan all surviving tables owned by the same user and set
+   * `relation.broken = true` on every column whose `targetTable` matches the deleted tableId.
+   * This prevents silent data corruption: the schema remains intact but callers can detect
+   * and surface the broken reference to users.
+   */
+  private async markBrokenRelationColumns(userId: string, deletedTableId: string): Promise<void> {
+    const allTables = await this.repository.findTablesByUserId(userId);
+    for (const table of allTables) {
+      const schema = table.schema as unknown as ITableSchema;
+      if (!schema?.fields) continue;
+
+      let dirty = false;
+      for (const field of schema.fields) {
+        if (
+          field.type === 'relation' &&
+          field.relation?.targetTable === deletedTableId &&
+          !(field.relation as any).broken
+        ) {
+          (field.relation as any).broken = true;
+          dirty = true;
+        }
+      }
+
+      if (dirty) {
+        await this.repository.updateTableSchema(table.id, { schema }).catch(err =>
+          console.error(`Error persisting broken-relation flag for table ${table.id}:`, err)
+        );
+      }
     }
   }
 
@@ -154,19 +214,17 @@ export class DynamicTableService {
     }
     // 2) Validar schema via buildZodSchema
     this.buildZodSchema(data.schema);
-    // 2.1) Verificar que relações apontam para tabelas existentes (ids reais)
+    // 2.1) Verify that relation columns point to existing tables owned by the same user.
+    // Preset markers are not permitted in updateTableSchema operations.
     for (const field of data.schema.fields) {
       if (field.type === 'relation' && field.relation?.targetTable) {
         const target = field.relation.targetTable;
         if (typeof target === 'string' && target.startsWith('@@PRESET_TABLE_KEY::')) {
           throw new ValidationError(`Relação inválida em schema update: marcador de preset não é permitido nesta operação (${field.name}).`);
         }
-        const targetTable = await this.repository.findTableById(target);
-        if (!targetTable) {
-          throw new ValidationError(`Relação inválida: tabela alvo '${target}' não existe (${field.name}).`);
-        }
       }
     }
+    await this.validateRelationTargetOwnership(tableExists.userId, data.schema);
     // 3) Revalidar dados existentes contra o novo schema e bloquear se inválidos
     const existingData = await this.repository.findAllDataByTableId(tableId);
     for (const row of existingData) {
@@ -424,6 +482,9 @@ export class DynamicTableService {
     if (!this.policy.canManageData(user, table)) {
       throw new ForbiddenError('You do not have permission to add data to this table.');
     }
+    // Guard: ensure every relation column's targetTable exists and belongs to this user.
+    // This prevents a malicious client from probing or inserting data into cross-user tables.
+    await this.validateRelationTargetOwnership(table.userId, table.schema as unknown as ITableSchema);
     // isSystem is derived from the call context only — never from the client payload.
     // Strip __isSystem from the data before validation to ensure it is never stored.
     const isSystem = !!(options?.isSystem);
@@ -524,6 +585,8 @@ export class DynamicTableService {
     if (!this.policy.canManageData(user, table)) {
       throw new ForbiddenError('You do not have permission to update data in this table.');
     }
+    // Guard: ensure every relation column's targetTable exists and belongs to this user.
+    await this.validateRelationTargetOwnership(table.userId, table.schema as unknown as ITableSchema);
     // isSystem is derived from the call context only — never from the client payload.
     // Strip __isSystem from the data before validation to ensure it is never stored.
     const isSystem = !!(options?.isSystem);
