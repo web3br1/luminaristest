@@ -13,6 +13,7 @@ import path from 'path';
 import prisma from './lib/prisma';
 import { logger } from './lib/logger';
 import { purgeOldDeletedRecords } from './jobs/PurgeDeletedRecords';
+import { DocumentStatus } from './features/documents/models/Document.model';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -116,11 +117,33 @@ const PURGE_INITIAL_DELAY_MS = 60 * 1000;
 const PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 setTimeout(() => {
-  purgeOldDeletedRecords().catch((err) => logger.error(err, 'Purge job failed'));
+  purgeOldDeletedRecords().catch((err) => logger.error('Purge job failed', { err }));
   setInterval(() => {
-    purgeOldDeletedRecords().catch((err) => logger.error(err, 'Purge job failed'));
+    purgeOldDeletedRecords().catch((err) => logger.error('Purge job failed', { err }));
   }, PURGE_INTERVAL_MS);
 }, PURGE_INITIAL_DELAY_MS);
+
+// R18 — PROCESSING watchdog: every 5 minutes, fail documents stuck in PROCESSING for > 10 minutes.
+setInterval(() => {
+  const cutoff = new Date(Date.now() - 10 * 60 * 1000);
+  prisma.document.updateMany({
+    where: {
+      status: DocumentStatus.PROCESSING,
+      updatedAt: { lt: cutoff },
+    },
+    data: {
+      status: DocumentStatus.FAILED,
+      processingError: 'Processing timeout',
+      processingDate: new Date(),
+    },
+  }).then((result) => {
+    if (result.count > 0) {
+      logger.warn(`Processing watchdog: marked ${result.count} stuck document(s) as FAILED`);
+    }
+  }).catch((err) => {
+    logger.error('Processing watchdog failed', { err });
+  });
+}, 300000);
 
 // Graceful shutdown
 function gracefulShutdown() {
