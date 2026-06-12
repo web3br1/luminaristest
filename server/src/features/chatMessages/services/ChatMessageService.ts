@@ -101,7 +101,7 @@ export class ChatMessageService {
     // never be able to forge ASSISTANT or SYSTEM messages in the history.
     const messageData: Prisma.ChatMessageCreateInput = {
       content: data.content,
-      role: 'USER' as unknown as MessageRole, // security: ignore client-supplied role
+      role: 'user' as unknown as MessageRole, // security: hardcode USER domain role (repo converts to Prisma enum)
       chatInstance: { connect: { id: data.chatInstanceId } }
     };
     
