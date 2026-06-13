@@ -110,7 +110,7 @@ export async function listDocuments(req: Request, res: Response) {
     const page = Math.max(1, Number(req.query.page || 1));
     const safeLimit = Math.min(Number(req.query.limit || 50) || 50, 100);
     const service = getFactory().getDocumentService();
-    const data = await service.getAllDocuments(ctx as any, page, safeLimit);
+    const data = await service.getAllDocuments(ctx, page, safeLimit);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
@@ -123,7 +123,7 @@ export async function listDocumentNames(req: Request, res: Response) {
     if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
     const service = getFactory().getDocumentService();
-    const data = await service.getDocumentListForUser(ctx as any);
+    const data = await service.getDocumentListForUser(ctx);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
@@ -137,7 +137,7 @@ export async function getDocumentById(req: Request, res: Response) {
 
     const { id } = req.params;
     const service = getFactory().getDocumentService();
-    const data = await service.getDocumentById(id, ctx as any);
+    const data = await service.getDocumentById(id, ctx);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
@@ -151,7 +151,7 @@ export async function deleteDocument(req: Request, res: Response) {
 
     const { id } = req.params;
     const service = getFactory().getDocumentService();
-    await service.deleteDocument(id, ctx as any);
+    await service.deleteDocument(id, ctx);
     return res.json({ success: true });
   } catch (error) {
     return handleApiError(error, res);
@@ -168,7 +168,7 @@ export async function searchDocuments(req: Request, res: Response) {
       return res.status(400).json({ success: false, error: 'Query is required' });
     }
     const service = getFactory().getDocumentService();
-    const results = await service.searchDocuments(query, ctx as any, limit ?? 10);
+    const results = await service.searchDocuments(query, ctx, limit ?? 10);
     return res.json({ success: true, data: results });
   } catch (error) {
     return handleApiError(error, res);
@@ -219,11 +219,11 @@ export async function uploadDocument(req: Request, res: Response) {
       fileName,
       fileType,
       fileSize,
-      ctx as any,
+      ctx,
       documentPurpose
     );
 
-    return res.status(201).json({ success: true, data: created });
+    return res.status(202).json({ success: true, data: created });
   } catch (error) {
     return handleApiError(error, res);
   }
@@ -239,7 +239,7 @@ export async function updateDocument(req: Request, res: Response) {
     if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });
 
     const service = getFactory().getDocumentService();
-    const updated = await service.updateDocument(id, parse.data, ctx as any);
+    const updated = await service.updateDocument(id, parse.data, ctx);
     return res.json({ success: true, data: updated });
   } catch (error) {
     return handleApiError(error, res);
@@ -279,7 +279,7 @@ export async function getDocumentQdrant(req: Request, res: Response) {
     const factory = getFactory();
     const vectorRepo = factory.getVectorRepository();
     const documentService = factory.getDocumentService();
-    const document = await documentService.getDocumentById(documentId, ctx as any);
+    const document = await documentService.getDocumentById(documentId, ctx);
     if (!document) return res.status(404).json({ success: false, error: 'Document not found' });
 
     const points = await vectorRepo.getPointsByDocumentId(documentId);

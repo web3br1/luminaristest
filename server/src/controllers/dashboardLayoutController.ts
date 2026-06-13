@@ -25,7 +25,7 @@ export async function listLayouts(req: Request, res: Response) {
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     QueryParamsSchema.parse(req.query);
-    const layouts = await getFactory().getDashboardLayoutService().getLayoutsByUser(ctx as any);
+    const layouts = await getFactory().getDashboardLayoutService().getLayoutsByUser(ctx);
     return res.status(200).json({ success: true, data: { layouts } });
   } catch (error) {
     return handleApiError(error, res);
@@ -38,7 +38,7 @@ export async function createLayout(req: Request, res: Response) {
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const validated = CreateDashboardLayoutSchema.parse(req.body);
-    const newLayout = await getFactory().getDashboardLayoutService().createLayout(validated, ctx as any);
+    const newLayout = await getFactory().getDashboardLayoutService().createLayout(validated, ctx);
     return res.status(201).json({ success: true, data: newLayout });
   } catch (error) {
     return handleApiError(error, res);
@@ -51,7 +51,7 @@ export async function getLayoutById(req: Request, res: Response) {
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const { id } = LayoutIdSchema.parse(req.params);
-    const layout = await getFactory().getDashboardLayoutService().getLayoutById(id, ctx as any);
+    const layout = await getFactory().getDashboardLayoutService().getLayoutById(id, ctx);
     return res.status(200).json({ success: true, data: layout });
   } catch (error) {
     return handleApiError(error, res);
@@ -74,7 +74,7 @@ export async function updateLayout(req: Request, res: Response) {
       });
     }
 
-    const updated = await getFactory().getDashboardLayoutService().updateLayout(id, updateData as any, ctx as any);
+    const updated = await getFactory().getDashboardLayoutService().updateLayout(id, updateData as any, ctx);
     return res.status(200).json({ success: true, data: updated });
   } catch (error) {
     return handleApiError(error, res);
@@ -87,7 +87,7 @@ export async function deleteLayout(req: Request, res: Response) {
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const { id } = LayoutIdSchema.parse(req.params);
-    await getFactory().getDashboardLayoutService().deleteLayout(id, ctx as any);
+    await getFactory().getDashboardLayoutService().deleteLayout(id, ctx);
     return res.status(200).json({ success: true, message: 'Layout deleted' });
   } catch (error) {
     return handleApiError(error, res);

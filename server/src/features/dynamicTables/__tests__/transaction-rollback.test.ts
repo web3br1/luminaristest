@@ -84,8 +84,14 @@ jest.mock('../../../lib/prisma', () => ({
 jest.mock('../repositories/TransactionalDynamicTableRepository', () => {
   return {
     TransactionalDynamicTableRepository: jest.fn().mockImplementation(() => ({
-      createData: fakeTxClient.dynamicTableData.create,
-      updateData: fakeTxClient.dynamicTableData.update,
+      // Wrap to match IDynamicTableRepository signature: createData(tableId, data)
+      createData: jest.fn(async (tableId: string, data: Record<string, any>) =>
+        fakeTxClient.dynamicTableData.create({ data: { dynamicTableId: tableId, data } })
+      ),
+      // Wrap to match IDynamicTableRepository signature: updateData(dataId, data)
+      updateData: jest.fn(async (dataId: string, data: Record<string, any>) =>
+        fakeTxClient.dynamicTableData.update({ where: { id: dataId }, data: { data } })
+      ),
       findDataById: fakeTxClient.dynamicTableData.findFirst,
       findDataByTableId: jest.fn(async () => ({ data: [], total: 0 })),
       findDataByIds: fakeTxClient.dynamicTableData.findMany,

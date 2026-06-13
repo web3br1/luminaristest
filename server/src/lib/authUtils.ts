@@ -1,22 +1,15 @@
+import type { Request } from 'express';
 import { Role } from '../features/users/models/User.model';
+import type { UserContext } from '../types/UserContext';
 
-// Define and export UserContext to match service expectations
-export interface UserContext {
-  userId: string; // Explicitly userId
-  id: string; // Keep id for compatibility if IUser is used elsewhere as context
-  name: string;
-  username: string;
-  email: string;
-  role: Role;
-  createdAt: Date;
-  updatedAt: Date;
-}
+// Re-export canonical UserContext from types — single source of truth (R35)
+export type { UserContext } from '../types/UserContext';
 
 /**
  * Retrieves the authenticated user context from an Express Request.
  * Assumes middleware has already verified the token/headers.
  */
-export function getUserContextFromRequest(req: any): UserContext | null {
+export function getUserContextFromRequest(req: Request): UserContext | null {
   const userId = req.headers['x-user-id'] as string;
   const username = req.headers['x-user-username'] as string;
   const email = req.headers['x-user-email'] as string;
@@ -28,13 +21,16 @@ export function getUserContextFromRequest(req: any): UserContext | null {
   if (userId && username && role) {
     return {
       id: userId,
-      userId: userId,
+      userId,
       name: name ?? '',
-      username: username,
+      username,
       email: email ?? '',
-      role: role,
+      role,
       createdAt: createdAt ? new Date(createdAt) : new Date(),
       updatedAt: updatedAt ? new Date(updatedAt) : new Date(),
+      userRole: role,
+      userEmail: email ?? '',
+      userName: name ?? undefined,
     };
   }
 

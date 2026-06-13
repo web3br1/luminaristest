@@ -32,7 +32,7 @@ export async function getTable(req: Request, res: Response) {
     if (!parse.success) return res.status(400).json({ success: false, error: 'Invalid table ID' });
 
     const service = getFactory().getDynamicTableService();
-    const table = await service.getTableById(ctx as any, req.params.tableId);
+    const table = await service.getTableById(ctx, req.params.tableId);
     return res.json({ success: true, data: table });
   } catch (error) {
     return handleApiError(error, res);
@@ -51,7 +51,7 @@ export async function getTableData(req: Request, res: Response) {
     const limit = Math.min(Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50), 200);
 
     const service = getFactory().getDynamicTableService();
-    const result = await service.getTableData(ctx as any, req.params.tableId, page, limit);
+    const result = await service.getTableData(ctx, req.params.tableId, page, limit);
 
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -75,7 +75,7 @@ export async function createTableData(req: Request, res: Response) {
     if (!body.success) return res.status(400).json({ success: false, error: body.error.flatten() });
 
     const service = getFactory().getDynamicTableService();
-    const created = await service.createTableData(ctx as any, req.params.tableId, body.data);
+    const created = await service.createTableData(ctx, req.params.tableId, body.data);
     return res.status(201).json({ success: true, data: created });
   } catch (error) {
     return handleApiError(error, res);
@@ -94,7 +94,7 @@ export async function updateTableData(req: Request, res: Response) {
     if (!body.success) return res.status(400).json({ success: false, error: body.error.flatten() });
 
     const service = getFactory().getDynamicTableService();
-    const updated = await service.updateTableData(ctx as any, req.params.dataId, body.data);
+    const updated = await service.updateTableData(ctx, req.params.dataId, body.data);
     return res.json({ success: true, data: updated });
   } catch (error) {
     return handleApiError(error, res);
@@ -110,7 +110,7 @@ export async function deleteTableData(req: Request, res: Response) {
     if (!dataIdParse.success) return res.status(400).json({ success: false, error: 'Invalid data ID' });
 
     const service = getFactory().getDynamicTableService();
-    await service.deleteTableData(ctx as any, req.params.dataId);
+    await service.deleteTableData(ctx, req.params.dataId);
     return res.status(204).end();
   } catch (error) {
     return handleApiError(error, res);
@@ -134,7 +134,7 @@ export async function resolveRelations(req: Request, res: Response) {
     if (!body.success) return res.status(400).json({ success: false, error: body.error.flatten() });
 
     const service = getFactory().getDynamicTableService();
-    const data = await service.resolveRelations(ctx as any, body.data.lookups);
+    const data = await service.resolveRelations(ctx, body.data.lookups);
 
     res.setHeader('Cache-Control', 'public, max-age=30'); // short cache given lookup nature
     return res.json({ success: true, data });

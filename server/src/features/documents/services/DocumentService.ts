@@ -102,34 +102,74 @@ export class DocumentService {
     }
 
     const buffer = Buffer.from(fileBuffer);
-    const text = await this.processingService.extractText(fileBuffer, mimeType);
 
     const doc = await this.repository.create({
       userId: userContext.id,
       fileName,
       fileType: fileType.toUpperCase() as 'PDF' | 'DOCX' | 'XLSX',
       fileSize,
-      textContent: text,
-      status: DocumentStatus.PENDING,
+      textContent: '',
+      status: DocumentStatus.PROCESSING,
       mimeType: mimeType,
       documentPurpose: documentPurpose,
     });
 
-    this.processDocumentAsync(doc, text, buffer).catch(error => {
-      logger.error(`Error in async document processing for document ${doc.id}`, { error });
+    setImmediate(() => {
+      this.processDocumentAsync(doc.id, fileBuffer, buffer, mimeType).catch(error => {
+        logger.error(`Error in async document processing for document ${doc.id}`, { error });
+      });
     });
 
     return doc;
   }
 
   /**
-   * Processes document asynchronously (chunking, embedding, etc.)
+   * Processes document asynchronously (parse text, generate embeddings, store in Qdrant, update status).
+   * On error: updates status to FAILED with errorMessage.
    */
-  private async processDocumentAsync(document: IDocument, text: string, fileBuffer: Buffer): Promise<void> {
+  private async processDocumentAsync(
+    docId: string,
+    fileBuffer: ArrayBuffer,
+    buffer: Buffer,
+    mimeType: string
+  ): Promise<void> {
     try {
-      await this.processingPipeline.processDocument(document, text, fileBuffer);
+      // Re-fetch document to get latest state
+      const document = await this.repository.findById(docId);
+      if (!document) {
+        logger.error(`processDocumentAsync: document ${docId} not found`);
+        return;
+      }
+
+      // Parse text from file
+      const text = await this.processingService.extractText(fileBuffer, mimeType);
+
+      // Persist extracted text and keep status=PROCESSING
+      await this.repository.update(docId, {
+        status: DocumentStatus.PROCESSING,
+        textContent: text,
+        summary: document.summary,
+        contextJson: document.contextJson,
+        processingDate: null,
+        processingError: null,
+      });
+
+      // Run chunking + embedding + Qdrant storage; pipeline sets status=COMPLETED on success
+      const docWithText: IDocument = { ...document, textContent: text };
+      await this.processingPipeline.processDocument(docWithText, text, buffer);
     } catch (error) {
-      logger.error(`Async processing failed for document ${document.id}`, { error });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown processing error';
+      logger.error(`Async processing failed for document ${docId}`, { error });
+      try {
+        await this.repository.update(docId, {
+          status: DocumentStatus.FAILED,
+          summary: null,
+          processingDate: new Date(),
+          processingError: errorMessage,
+        });
+      } catch (updateError) {
+        logger.error(`Failed to update document ${docId} status to FAILED`, { updateError });
+      }
     }
   }
 

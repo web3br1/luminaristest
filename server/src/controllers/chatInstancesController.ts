@@ -20,11 +20,11 @@ export async function listChatInstances(req: Request, res: Response) {
     const svc = getFactory().getChatInstanceService();
 
     if (type) {
-      const instances = await svc.getInstancesByUser(ctx as any, type);
+      const instances = await svc.getInstancesByUser(ctx, type);
       return res.status(200).json({ success: true, data: instances, totalCount: instances.length });
     }
 
-    const { instances, totalCount } = await svc.getAllInstances(ctx as any, page, limit);
+    const { instances, totalCount } = await svc.getAllInstances(ctx, page, limit);
     return res.status(200).json({ success: true, data: instances, totalCount });
   } catch (error) {
     return handleApiError(error, res);
@@ -40,7 +40,7 @@ export async function createChatInstance(req: Request, res: Response) {
     if (!bodyResult.success) return res.status(400).json({ success: false, error: bodyResult.error.format() });
 
     const svc = getFactory().getChatInstanceService();
-    const newInstance = await svc.createInstance(bodyResult.data, ctx as any);
+    const newInstance = await svc.createInstance(bodyResult.data, ctx);
     return res.status(201).json({ success: true, data: mapToDto(newInstance) });
   } catch (error) {
     return handleApiError(error, res);
@@ -59,7 +59,7 @@ export async function updateChatInstance(req: Request, res: Response) {
     if (!bodyResult.success) return res.status(400).json({ success: false, error: bodyResult.error.format() });
 
     const svc = getFactory().getChatInstanceService();
-    const updatedInstance = await svc.updateInstance(id, bodyResult.data, ctx as any);
+    const updatedInstance = await svc.updateInstance(id, bodyResult.data, ctx);
     return res.status(200).json({ success: true, data: mapToDto(updatedInstance) });
   } catch (error) {
     return handleApiError(error, res);
@@ -75,7 +75,7 @@ export async function deleteChatInstance(req: Request, res: Response) {
     if (!id) return res.status(400).json({ success: false, error: 'Instance ID required' });
 
     const svc = getFactory().getChatInstanceService();
-    await svc.deleteInstance(id, ctx as any);
+    await svc.deleteInstance(id, ctx);
     return res.status(200).json({ success: true, message: 'Chat instance deleted' });
   } catch (error) {
     return handleApiError(error, res);
@@ -97,7 +97,7 @@ export async function getOrCreateChatInstance(req: Request, res: Response) {
 
     const { widgetInstanceId, type } = bodyResult.data;
     const svc = getFactory().getChatInstanceService();
-    const instance = await svc.getOrCreateInstance(widgetInstanceId, type, ctx as any);
+    const instance = await svc.getOrCreateInstance(widgetInstanceId, type, ctx);
     return res.status(200).json({ success: true, data: instance });
   } catch (error) {
     return handleApiError(error, res);

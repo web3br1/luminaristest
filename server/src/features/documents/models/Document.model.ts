@@ -68,6 +68,7 @@ export interface DocumentUpdateInput {
   contextJson?: any;
   processingDate: Date | null;
   processingError: string | null;
+  textContent?: string;
 }
 
 /**
@@ -78,4 +79,5 @@ export enum DocumentStatus {
   PROCESSING = 'PROCESSING',
   COMPLETED = 'COMPLETED',
   ERROR = 'ERROR',
+  FAILED = 'FAILED',
 } 

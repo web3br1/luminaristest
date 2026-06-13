@@ -10,8 +10,12 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
-    const adminEmail = 'admin@admin.com';
-    const adminPassword = 'Admin@123';
+    const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@example.com';
+    const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+    if (!adminPassword) {
+        console.error('SEED_ADMIN_PASSWORD environment variable is required for seeding');
+        process.exit(1);
+    }
     const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
     console.log('🌱 Seeding database...');

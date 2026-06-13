@@ -67,6 +67,7 @@ graph LR
         ...(data.contextJson !== undefined && { contextJson: data.contextJson }),
         processingDate: data.processingDate,
         processingError: data.processingError,
+        ...(data.textContent !== undefined && { textContent: data.textContent }),
       },
     });
     return this.toDomain(updated);

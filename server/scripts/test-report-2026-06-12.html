@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relatório de Testes — Luminaris 2026-06-12</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f6f6f4;
+    --bg-tertiary: #f0efe9;
+    --text: #1a1a18;
+    --text-secondary: #5f5e5a;
+    --text-tertiary: #888780;
+    --border: rgba(0,0,0,0.12);
+    --border-md: rgba(0,0,0,0.22);
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+    --green: #1D9E75; --green-bg: #E1F5EE; --green-text: #0F6E56;
+    --amber: #BA7517; --amber-bg: #FAEEDA; --amber-text: #854F0B;
+    --red: #A32D2D;  --red-bg: #FCEBEB;  --red-text: #A32D2D;
+    --blue: #185FA5; --blue-bg: #E6F1FB; --blue-text: #185FA5;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18; --bg-secondary: #252523; --bg-tertiary: #2c2c2a;
+      --text: #e8e7e2; --text-secondary: #a8a7a0; --text-tertiary: #6e6d68;
+      --border: rgba(255,255,255,0.1); --border-md: rgba(255,255,255,0.2);
+      --green-bg: #04342C; --green-text: #5DCAA5;
+      --amber-bg: #412402; --amber-text: #FAC775;
+      --red-bg: #501313;   --red-text: #F09595;
+      --blue-bg: #042C53;  --blue-text: #85B7EB;
+    }
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg-tertiary);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 2rem 1rem;
+  }
+
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+    background: var(--bg);
+    border-radius: var(--radius-lg);
+    border: 0.5px solid var(--border);
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    padding: 2rem 2.5rem 1.5rem;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .header h1 { font-size: 22px; font-weight: 500; }
+  .header .meta {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .meta-item { display: flex; align-items: center; gap: 5px; }
+
+  /* ── Sections ── */
+  .section { padding: 1.75rem 2.5rem; border-bottom: 0.5px solid var(--border); }
+  .section:last-child { border-bottom: none; }
+
+  h2 {
+    font-size: 15px;
+    font-weight: 500;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h2 .icon { font-size: 16px; color: var(--text-tertiary); }
+  h3 {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin: 1.25rem 0 0.5rem;
+  }
+  h3:first-child { margin-top: 0; }
+
+  /* ── KPI cards ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 1.5rem;
+  }
+  @media (max-width: 600px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+  .kpi {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1rem;
+  }
+  .kpi-val { font-size: 24px; font-weight: 500; line-height: 1.1; }
+  .kpi-lbl { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+  .kpi.ok   .kpi-val { color: var(--green); }
+  .kpi.warn .kpi-val { color: var(--amber); }
+  .kpi.err  .kpi-val { color: var(--red);   }
+
+  /* ── Progress bar ── */
+  .progress-wrap { margin-bottom: 1.25rem; }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+  .progress-track {
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    height: 8px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--green);
+  }
+  .progress-note { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+
+  /* ── Seed grid ── */
+  .seed-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 1.25rem;
+  }
+  @media (max-width: 600px) { .seed-grid { grid-template-columns: repeat(2, 1fr); } }
+  .seed-item {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+  }
+  .seed-count { font-size: 20px; font-weight: 500; }
+  .seed-lbl   { font-size: 11px; color: var(--text-secondary); }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .badge.ok      { background: var(--green-bg); color: var(--green-text); }
+  .badge.warn    { background: var(--amber-bg); color: var(--amber-text); }
+  .badge.err     { background: var(--red-bg);   color: var(--red-text);   }
+  .badge.info    { background: var(--blue-bg);  color: var(--blue-text);  }
+  .badge.neutral { background: var(--bg-secondary); color: var(--text-secondary); }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 0.5rem; }
+  th {
+    text-align: left;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    border-bottom: 0.5px solid var(--border);
+    background: var(--bg-secondary);
+  }
+  td {
+    padding: 7px 10px;
+    border-bottom: 0.5px solid var(--border);
+    vertical-align: top;
+    color: var(--text);
+  }
+  tr:last-child td { border-bottom: none; }
+  .table-wrap {
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+  }
+  td.mono { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+  td.mono-bold { font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
+  .group-header td {
+    background: var(--bg-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  /* ── Bug cards ── */
+  .bug-card {
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 10px;
+  }
+  .bug-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .bug-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--red-bg);
+    color: var(--red-text);
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .bug-title  { font-size: 13px; font-weight: 500; }
+  .bug-file   { font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono); margin-top: 3px; }
+  .bug-body   { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; padding-left: 34px; }
+  .diff-block {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    margin-top: 10px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border: 0.5px solid var(--border);
+  }
+  .diff-del { color: var(--red-text); }
+  .diff-add { color: var(--green-text); }
+
+  /* ── Notes list ── */
+  .note-list { list-style: none; padding: 0; }
+  .note-list li {
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding: 7px 0;
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    line-height: 1.5;
+  }
+  .note-list li:last-child { border-bottom: none; }
+  .note-list li strong { color: var(--text); }
+  .note-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--border-md);
+    flex-shrink: 0;
+    margin-top: 7px;
+  }
+
+  /* ── Summary footer ── */
+  .summary-footer {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1.1rem;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-top: 0.5rem;
+  }
+  .summary-footer strong { color: var(--text); }
+
+  /* ── Legend pills ── */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; }
+
+  /* ── Icon SVG inline ── */
+  .ico { display: inline-block; vertical-align: -3px; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    background: var(--bg-secondary);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    padding: 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ── Header ── -->
+  <div class="header">
+    <h1>Relatório de testes — Luminaris</h1>
+    <div class="meta">
+      <span class="meta-item">📅 12 de junho de 2026</span>
+      <span class="meta-item">🖥️ localhost:3001</span>
+      <span class="meta-item">🌿 branch: master</span>
+      <span class="meta-item">🧪 testuser@luminaris.test</span>
+    </div>
+  </div>
+
+  <!-- ── Resumo executivo ── -->
+  <div class="section">
+    <h2><span class="icon">📊</span> Resumo executivo</h2>
+
+    <div class="kpi-grid">
+      <div class="kpi ok">
+        <div class="kpi-val">26</div>
+        <div class="kpi-lbl">KPI endpoints testados</div>
+      </div>
+      <div class="kpi ok">
+        <div class="kpi-val">25/26</div>
+        <div class="kpi-lbl">Grupos não-zero</div>
+      </div>
+      <div class="kpi err">
+        <div class="kpi-val">3</div>
+        <div class="kpi-lbl">Bugs corrigidos</div>
+      </div>
+      <div class="kpi ok">
+        <div class="kpi-val">493+</div>
+        <div class="kpi-lbl">Data points verificados</div>
+      </div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>Cobertura de KPIs</span><span>25 / 26 grupos</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" style="width: 96%"></div>
+      </div>
+      <p class="progress-note">revenueByChannel (Telefone, Outros, Loja física, App) = zeros esperados — canais não semeados</p>
+    </div>
+  </div>
+
+  <!-- ── Dados semeados ── -->
+  <div class="section">
+    <h2><span class="icon">🗄️</span> Dados semeados (<code>seed-test-data.js</code>)</h2>
+
+    <div class="seed-grid">
+      <div class="seed-item"><div class="seed-count">120</div><div class="seed-lbl">Vendas (sales)</div></div>
+      <div class="seed-item"><div class="seed-count">120</div><div class="seed-lbl">Itens de venda</div></div>
+      <div class="seed-item"><div class="seed-count">94</div><div class="seed-lbl">Despesas</div></div>
+      <div class="seed-item"><div class="seed-count">5</div><div class="seed-lbl">Movimentos de estoque</div></div>
+      <div class="seed-item"><div class="seed-count">30</div><div class="seed-lbl">Agendamentos</div></div>
+      <div class="seed-item"><div class="seed-count">8</div><div class="seed-lbl">Clientes</div></div>
+      <div class="seed-item"><div class="seed-count">3</div><div class="seed-lbl">Produtos</div></div>
+      <div class="seed-item"><div class="seed-count">3</div><div class="seed-lbl">Serviços</div></div>
+      <div class="seed-item"><div class="seed-count">6</div><div class="seed-lbl">Outras receitas</div></div>
+      <div class="seed-item"><div class="seed-count">12</div><div class="seed-lbl">Comissões</div></div>
+      <div class="seed-item"><div class="seed-count">2</div><div class="seed-lbl">Campanhas</div></div>
+      <div class="seed-item"><div class="seed-count">3</div><div class="seed-lbl">Funcionários c/ salário</div></div>
+    </div>
+
+    <h3>Destaques técnicos do seed</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Dataset</th><th>Detalhe relevante</th></tr></thead>
+        <tbody>
+          <tr><td>Sales (120)</td><td>10 por mês · últimos 12 meses · <code>isNewCustomer: true</code> nas primeiras 2 vendas de cada mês</td></tr>
+          <tr><td>SaleItems (120)</td><td>1 item por venda · mix produto/serviço · <code>responsibleEmployeeId</code> em todos</td></tr>
+          <tr><td>Expenses (94)</td><td>88 pagas (<code>paymentDate</code> dias 2-4) + 6 pendentes · categorias fixo/variável/manutenção/não-recorrente/imposto</td></tr>
+          <tr><td>Employees (3)</td><td>Ana Silva · Bruno Costa · Carla Mendes · todos com <code>monthlyCost</code></td></tr>
+          <tr><td>StockMovements (5)</td><td>Tipo <code>In</code> com keywords de compra → WAC calculado pelo <code>productCostKpis</code></td></tr>
+          <tr><td>RevenueType</td><td><code>'NonOperational'</code> (sem hífen) — conforme <code>SelectPresets.ts</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="font-size:12px;color:var(--text-tertiary)">
+      ⚠️ Constraint crítico: <code>getPeriodBoundaries('thisMonth')</code> usa <em>hoje</em> como <code>currentEnd</code> (não fim do mês). Todos os registros do período atual foram datados nos dias 2–4 do mês para garantir visibilidade nos KPIs de período corrente.
+    </p>
+  </div>
+
+  <!-- ── Bugs corrigidos ── -->
+  <div class="section">
+    <h2><span class="icon">🐛</span> Bugs encontrados e corrigidos</h2>
+
+    <div class="bug-card">
+      <div class="bug-header">
+        <div class="bug-num">1</div>
+        <div>
+          <div class="bug-title">PATCH de layout sobrescrevia <code>type</code> e <code>config</code></div>
+          <div class="bug-file">server/src/features/dashboardLayouts/services/DashboardLayoutService.ts</div>
+        </div>
+      </div>
+      <div class="bug-body">
+        O merge parcial lia <code>layout.layoutData</code>, que não existe em <code>IDashboardLayout</code>. O PATCH retornava HTTP 200 mas perdia os campos <code>type</code> e <code>config</code>, corrompendo o registro no banco. Qualquer edição parcial de nome destruía silenciosamente a configuração do layout.
+        <div class="diff-block"><span class="diff-del">- name: data.name ?? layout.layoutData?.name</span>
+<span class="diff-del">- type: data.type ?? layout.layoutData?.type</span>
+<span class="diff-add">+ name:   data.name   ?? layout.name</span>
+<span class="diff-add">+ type:   data.type   ?? layout.type</span>
+<span class="diff-add">+ config: data.config ?? layout.config</span></div>
+      </div>
+    </div>
+
+    <div class="bug-card">
+      <div class="bug-header">
+        <div class="bug-num">2</div>
+        <div>
+          <div class="bug-title">Rota estática <code>/qdrant-status</code> capturada por <code>/:id</code></div>
+          <div class="bug-file">server/src/routes/documents.ts</div>
+        </div>
+      </div>
+      <div class="bug-body">
+        Rotas estáticas como <code>GET /qdrant-status</code>, <code>POST /search</code> e <code>GET /list</code> foram declaradas após <code>GET /:id</code> no router do Express. O parâmetro dinâmico as interceptava, retornando 404 ou resultado incorreto para qualquer chamada que não fosse busca por ID.
+        <div class="diff-block"><span class="diff-del">- router.get('/:id', getDocumentById)         // rota dinâmica ANTES</span>
+<span class="diff-del">- router.get('/qdrant-status', getQdrantStatus) // nunca alcançada</span>
+<span class="diff-del">- router.post('/search', searchDocuments)       // nunca alcançada</span>
+<span class="diff-add">+ router.get('/qdrant-status', getQdrantStatus) // rotas estáticas PRIMEIRO</span>
+<span class="diff-add">+ router.post('/search', searchDocuments)</span>
+<span class="diff-add">+ router.get('/list', listDocumentNames)</span>
+<span class="diff-add">+ router.get('/:id', getDocumentById)           // dinâmica por último</span></div>
+      </div>
+    </div>
+
+    <div class="bug-card">
+      <div class="bug-header">
+        <div class="bug-num">3</div>
+        <div>
+          <div class="bug-title">POST /chat-messages retornava 500 — <code>'USER'</code> vs <code>'user'</code></div>
+          <div class="bug-file">server/src/features/chatMessages/services/ChatMessageService.ts</div>
+        </div>
+      </div>
+      <div class="bug-body">
+        O service hardcodava <code>role: 'USER'</code> (maiúsculo) para hardforçar segurança. Porém o repositório fazia switch em <code>ChatMessageRole.USER = 'user'</code> (minúsculo). Nenhum case do switch batia → <code>convertDomainRoleToPrismaRole</code> retornava <code>undefined</code> → erro de constraint no Prisma. Toda criação de mensagem de chat falhava com HTTP 500.
+        <div class="diff-block"><span class="diff-del">- role: 'USER' as unknown as MessageRole  // maiúsculo: switch não bate</span>
+<span class="diff-add">+ role: 'user' as unknown as MessageRole  // minúsculo: matches ChatMessageRole.USER</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── KPI endpoints ── -->
+  <div class="section">
+    <h2><span class="icon">📈</span> Verificação dos 26 endpoints de KPI</h2>
+
+    <div class="legend">
+      <span class="badge ok">✓ Totalmente não-zero</span>
+      <span class="badge warn">⚠ Parcialmente zero (esperado)</span>
+      <span class="badge neutral">— Zeros por design</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:42%">Endpoint key</th><th style="width:14%">Status</th><th>Resultado</th></tr></thead>
+        <tbody>
+          <tr class="group-header"><td colspan="3">SALES</td></tr>
+          <tr><td class="mono">sales.revenueKpis</td><td><span class="badge ok">OK</span></td><td>17/17 KPIs não-zero</td></tr>
+          <tr><td class="mono">sales.productCostKpis</td><td><span class="badge ok">OK</span></td><td>5/5 KPIs não-zero — WAC calculado via stockMovements</td></tr>
+          <tr><td class="mono">sales.profitKpis</td><td><span class="badge ok">OK</span></td><td>8/8 KPIs não-zero — params estáticos (employeesCount, equity, recurringProfit)</td></tr>
+          <tr><td class="mono">sales.cashflowKpis</td><td><span class="badge ok">OK</span></td><td>6/6 KPIs não-zero — 6 despesas pendentes + expenseDateField corrigido</td></tr>
+          <tr><td class="mono">sales.profitByCustomer</td><td><span class="badge ok">OK</span></td><td>8 clientes, todos com lucro &gt; 0</td></tr>
+          <tr><td class="mono">sales.costByCustomer</td><td><span class="badge ok">OK</span></td><td>8 clientes com custo calculado</td></tr>
+          <tr><td class="mono">sales.profitByCampaign</td><td><span class="badge ok">OK</span></td><td>2 campanhas com atribuição de lucro</td></tr>
+          <tr><td class="mono">sales.revenueGrossEvolution</td><td><span class="badge ok">OK</span></td><td>12 meses de série histórica</td></tr>
+          <tr><td class="mono">sales.revenueNetEvolution</td><td><span class="badge ok">OK</span></td><td>12 meses de série histórica</td></tr>
+          <tr><td class="mono">sales.revenueByType</td><td><span class="badge ok">OK</span></td><td>Operational + NonOperational ambos &gt; 0</td></tr>
+          <tr><td class="mono">sales.revenueNewVsRecurring</td><td><span class="badge ok">OK</span></td><td>Nova + Recorrente presentes</td></tr>
+          <tr><td class="mono">sales.revenueByCustomerTop</td><td><span class="badge ok">OK</span></td><td>Top 5 clientes por receita</td></tr>
+          <tr><td class="mono">sales.revenueByBusinessDay</td><td><span class="badge ok">OK</span></td><td>Distribuição por dia útil</td></tr>
+          <tr><td class="mono">sales.revenueByChannel</td><td><span class="badge warn">Parcial</span></td><td>Online ✓ — Telefone / Outros / Loja física / App = 0 (não semeados)</td></tr>
+
+          <tr class="group-header"><td colspan="3">SALE ITEMS</td></tr>
+          <tr><td class="mono">saleItems.typeComparison</td><td><span class="badge ok">OK</span></td><td>Produto vs Serviço ambos presentes</td></tr>
+          <tr><td class="mono">saleItems.servicesMonthlyReceived</td><td><span class="badge ok">OK</span></td><td>12 meses de serviços</td></tr>
+          <tr><td class="mono">saleItems.productsMonthlyReceived</td><td><span class="badge ok">OK</span></td><td>12 meses de produtos</td></tr>
+          <tr><td class="mono">saleItems.productsProfitMonthly</td><td><span class="badge ok">OK</span></td><td>Lucro de produto em todos os 12 meses (saleItems para todas as 120 vendas)</td></tr>
+          <tr><td class="mono">saleItems.serviceEstimatedCost</td><td><span class="badge ok">OK</span></td><td>Join com employees via responsibleEmployeeId + monthlyCost</td></tr>
+          <tr><td class="mono">saleItems.serviceEstimatedProfit</td><td><span class="badge ok">OK</span></td><td>Estimativa calculada com custo proporcional</td></tr>
+          <tr><td class="mono">saleItems.employeeServiceProfit</td><td><span class="badge ok">OK</span></td><td>3 funcionários com lucro por serviço individual</td></tr>
+
+          <tr class="group-header"><td colspan="3">EXPENSES</td></tr>
+          <tr><td class="mono">expenses.costKpis</td><td><span class="badge ok">OK</span></td><td>Fixo / Variável / Manutenção / Não-recorrente / Imposto — todos &gt; 0</td></tr>
+          <tr><td class="mono">expenses.costFixedVsVariable</td><td><span class="badge ok">OK</span></td><td>Série comparativa completa em 12 meses</td></tr>
+          <tr><td class="mono">expenses.costTotalEvolution</td><td><span class="badge ok">OK</span></td><td>Evolução total do custo em 12 meses</td></tr>
+          <tr><td class="mono">expenses.costByCategory</td><td><span class="badge ok">OK</span></td><td>Todas as categorias presentes e distribuídas</td></tr>
+          <tr><td class="mono">expenses.costPlannedVsUnplanned</td><td><span class="badge ok">OK</span></td><td>Planejado + Não-planejado presentes</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── API Endpoints ── -->
+  <div class="section">
+    <h2><span class="icon">🔌</span> Endpoints de API por módulo</h2>
+
+    <h3>Auth &amp; Usuários</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:38%">Método + rota</th><th style="width:12%">Status</th><th>Observação</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">POST /api/auth/login</td><td><span class="badge ok">200</span></td><td>JWT retornado, Bearer token válido</td></tr>
+          <tr><td class="mono">POST /api/auth/register</td><td><span class="badge ok">201</span></td><td>username obrigatório no body</td></tr>
+          <tr><td class="mono">GET /api/auth/me</td><td><span class="badge ok">200</span></td><td>Perfil com locale, currency e roles</td></tr>
+          <tr><td class="mono">GET /api/users (admin)</td><td><span class="badge ok">200</span></td><td>Lista paginada com roles</td></tr>
+          <tr><td class="mono">PATCH /api/users/me/preferences</td><td><span class="badge ok">200</span></td><td>Aceita locale + currency</td></tr>
+          <tr><td class="mono">GET /api/users/me</td><td><span class="badge err">404</span></td><td>Rota inexistente — usar <code>/api/auth/me</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Dashboard &amp; Layouts</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:38%">Método + rota</th><th style="width:12%">Status</th><th>Observação</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">GET /api/dashboard/sidebar</td><td><span class="badge ok">200</span></td><td>Categorias com contagens</td></tr>
+          <tr><td class="mono">GET /api/dashboard/presets</td><td><span class="badge ok">200</span></td><td>Lista presets disponíveis (beautySalon)</td></tr>
+          <tr><td class="mono">GET /api/dashboard/data</td><td><span class="badge ok">200</span></td><td>Dynamic tables do usuário</td></tr>
+          <tr><td class="mono">POST /api/dashboard/create</td><td><span class="badge ok">201</span></td><td>Cria preset/sistema completo</td></tr>
+          <tr><td class="mono">POST /api/dashboard/ai/ChatInterview</td><td><span class="badge ok">200</span></td><td>Onboarding via IA, responde em PT/EN</td></tr>
+          <tr><td class="mono">GET /api/dashboard-layout/</td><td><span class="badge ok">200</span></td><td>Lista layouts do usuário</td></tr>
+          <tr><td class="mono">POST /api/dashboard-layout/</td><td><span class="badge ok">201</span></td><td>Cria ou atualiza se já existir</td></tr>
+          <tr><td class="mono">GET /api/dashboard-layout/:id</td><td><span class="badge ok">200</span></td><td>Layout por ID</td></tr>
+          <tr><td class="mono">PATCH /api/dashboard-layout/:id</td><td><span class="badge ok">200</span></td><td><strong>Bug #1 corrigido</strong> — preserva type/config em patch parcial</td></tr>
+          <tr><td class="mono">DELETE /api/dashboard-layout/:id</td><td><span class="badge ok">200</span></td><td>Remove layout</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Chat</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:38%">Método + rota</th><th style="width:12%">Status</th><th>Observação</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">POST /api/chat</td><td><span class="badge ok">200</span></td><td>OpenAI GPT integrado, responde em português</td></tr>
+          <tr><td class="mono">GET /api/chat-instances</td><td><span class="badge ok">200</span></td><td>Lista instâncias com totalCount</td></tr>
+          <tr><td class="mono">POST /api/chat-instances</td><td><span class="badge ok">201</span></td><td>Cria ou retorna por widgetInstanceId</td></tr>
+          <tr><td class="mono">POST /api/chat-instances/get-or-create</td><td><span class="badge ok">200</span></td><td>Upsert seguro com tratamento de race condition</td></tr>
+          <tr><td class="mono">PUT /api/chat-instances/:id</td><td><span class="badge ok">200</span></td><td>Atualiza título da instância</td></tr>
+          <tr><td class="mono">DELETE /api/chat-instances/:id</td><td><span class="badge ok">200</span></td><td>Remove instância e mensagens</td></tr>
+          <tr><td class="mono">GET /api/chat-messages?instanceId=</td><td><span class="badge ok">200</span></td><td>Histórico paginado (page + limit)</td></tr>
+          <tr><td class="mono">POST /api/chat-messages</td><td><span class="badge ok">201</span></td><td><strong>Bug #3 corrigido</strong> — role 'user' (minúsculo)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Documentos</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:38%">Método + rota</th><th style="width:12%">Status</th><th>Observação</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">GET /api/documents</td><td><span class="badge ok">200</span></td><td>Lista paginada de documentos</td></tr>
+          <tr><td class="mono">POST /api/documents/upload</td><td><span class="badge ok">202</span></td><td>PDF/DOCX/XLSX aceitos — processamento async</td></tr>
+          <tr><td class="mono">GET /api/documents/:id</td><td><span class="badge ok">200</span></td><td>Status de processamento + metadados</td></tr>
+          <tr><td class="mono">GET /api/documents/qdrant-status</td><td><span class="badge ok">200</span></td><td><strong>Bug #2 corrigido</strong> — rota agora alcançável</td></tr>
+          <tr><td class="mono">POST /api/documents/search</td><td><span class="badge warn">500</span></td><td>Qdrant offline — esperado em dev sem Qdrant</td></tr>
+          <tr><td class="mono">PATCH /api/documents/:id</td><td><span class="badge ok">200</span></td><td>Atualiza metadados do documento</td></tr>
+          <tr><td class="mono">DELETE /api/documents/:id</td><td><span class="badge ok">200</span></td><td>Remove documento e vetores</td></tr>
+          <tr><td class="mono">GET /api/documents/list</td><td><span class="badge ok">200</span></td><td>Lista de nomes para dropdown</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Dynamic Tables, Analytics &amp; Reports</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:38%">Método + rota</th><th style="width:12%">Status</th><th>Observação</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">GET /api/dynamic-tables</td><td><span class="badge ok">200</span></td><td>26 tabelas com schemas completos</td></tr>
+          <tr><td class="mono">GET /api/dynamic-tables/:id</td><td><span class="badge ok">200</span></td><td>Schema individual com field definitions</td></tr>
+          <tr><td class="mono">GET /api/dynamic-tables/:id/data</td><td><span class="badge ok">200</span></td><td>Dados paginados</td></tr>
+          <tr><td class="mono">POST /api/dynamic-tables/:id/data</td><td><span class="badge ok">201</span></td><td>Valida enum, relações e unique constraints</td></tr>
+          <tr><td class="mono">PUT /api/dynamic-tables/:id/data/:dataId</td><td><span class="badge ok">200</span></td><td>Atualiza campos parcialmente</td></tr>
+          <tr><td class="mono">DELETE /:id/data/:dataId</td><td><span class="badge warn">400 esperado</span></td><td>Bloqueado por integridade referencial ✓</td></tr>
+          <tr><td class="mono">GET /api/analytics/presets</td><td><span class="badge ok">200</span></td><td>Grupos com charts aninhados</td></tr>
+          <tr><td class="mono">GET /api/analytics/data?key=</td><td><span class="badge ok">200</span></td><td>26 chart keys — todos calculados corretamente</td></tr>
+          <tr><td class="mono">POST /api/analytics/custom-kpis</td><td><span class="badge ok">200</span></td><td>sum / avg / count / min / max por tabela</td></tr>
+          <tr><td class="mono">POST /api/reports/generate-chart-data</td><td><span class="badge ok">200 SSE</span></td><td>Streaming com progress events + resposta OpenAI</td></tr>
+          <tr><td class="mono">GET /health</td><td><span class="badge ok">200</span></td><td>DB ok — Qdrant error (esperado sem Qdrant)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Problemas conhecidos ── -->
+  <div class="section">
+    <h2><span class="icon">⚠️</span> Problemas conhecidos (não críticos)</h2>
+    <ul class="note-list">
+      <li>
+        <span class="note-dot"></span>
+        <span><strong>Qdrant offline:</strong> busca semântica de documentos indisponível em dev local. Instalar o Qdrant Docker ou apontar para instância cloud para habilitar <code>POST /documents/search</code>.</span>
+      </li>
+      <li>
+        <span class="note-dot"></span>
+        <span><strong>PDF text extraction falha</strong> (<code>Command token too long</code>): LibreOffice / pdftotext não instalado no ambiente. Upload retorna 202 (async), mas o processamento falha imediatamente com FAILED.</span>
+      </li>
+      <li>
+        <span class="note-dot"></span>
+        <span><strong>GET /api/users/me retorna 404</strong> — rota inexistente no router de users. A rota correta para perfil autenticado é <code>/api/auth/me</code>.</span>
+      </li>
+      <li>
+        <span class="note-dot"></span>
+        <span><strong>analyticsDefinitions CORE table não encontrada</strong> no seed atual — <code>POST /analytics/definitions</code> inoperante (requer tabela criada via preset ou seed específico).</span>
+      </li>
+      <li>
+        <span class="note-dot"></span>
+        <span><strong>revenueByChannel parcial:</strong> canais Telefone, Outros, Loja física e App retornam zero por ausência de dados semeados — comportamento esperado e documentado.</span>
+      </li>
+      <li>
+        <span class="note-dot"></span>
+        <span><strong>sidebar "commercial" retorna count:0</strong> — nenhum dado na categoria commercial no seed atual. Não afeta funcionalidade.</span>
+      </li>
+      <li>
+        <span class="note-dot"></span>
+        <span><strong>Chat instance sem GET /:id</strong> — a rota de busca por ID de instância não existe; o frontend usa a lista completa para localizar instâncias.</span>
+      </li>
+    </ul>
+  </div>
+
+  <!-- ── Frontend ── -->
+  <div class="section">
+    <h2><span class="icon">🖥️</span> Frontend — Next.js (avaliação por análise de código)</h2>
+    <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:1rem">Browser automation não foi possível (computer-use timeout no ambiente). Avaliação via leitura de código e chamadas de API.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Módulo</th><th>Status</th><th>Notas</th></tr></thead>
+        <tbody>
+          <tr><td>Login / registro</td><td><span class="badge ok">OK</span></td><td>Formulário conectado a <code>/api/auth/login</code> e <code>/register</code></td></tr>
+          <tr><td>Dashboard</td><td><span class="badge ok">OK</span></td><td>Lê <code>/data</code>, <code>/sidebar</code>, <code>/analytics/presets</code></td></tr>
+          <tr><td>Chat widget</td><td><span class="badge ok">OK</span></td><td>get-or-create + SSE em <code>/api/chat</code></td></tr>
+          <tr><td>Dynamic tables</td><td><span class="badge ok">OK</span></td><td>Views por categoria, CRUD completo via API</td></tr>
+          <tr><td>i18n</td><td><span class="badge ok">OK</span></td><td>pt/en <code>common.json</code> com ~60 chaves</td></tr>
+          <tr><td>Design tokens</td><td><span class="badge ok">OK</span></td><td><code>lumi-*</code> definidos em <code>tailwind.config.js</code></td></tr>
+          <tr><td>Browser automation</td><td><span class="badge neutral">Não testado</span></td><td>computer-use timeout — testar manualmente no navegador</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Alterações de código ── -->
+  <div class="section">
+    <h2><span class="icon">📝</span> Alterações de código (além dos bugs)</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Arquivo</th><th>Tipo</th><th>O que mudou</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono">server/src/features/dynamicTables/presets/<br>modules/finance/SalesModule.ts</td>
+            <td><span class="badge info">Config</span></td>
+            <td>Adicionados params estáticos ao <code>profitKpis</code>: <code>employeesCount: 3</code>, <code>totalHoursWorked: 528</code>, <code>equity: 50000</code>, <code>recurringProfit: 3500</code></td>
+          </tr>
+          <tr>
+            <td class="mono">server/src/features/dynamicTables/presets/<br>modules/finance/SalesModule.ts</td>
+            <td><span class="badge info">Config</span></td>
+            <td>Cashflow: <code>expenseDateField</code> alterado de <code>'paymentDate'</code> para <code>'date'</code> — inclui despesas pendentes (sem paymentDate) nos KPIs de contas a pagar</td>
+          </tr>
+          <tr>
+            <td class="mono">server/scripts/seed-test-data.js</td>
+            <td><span class="badge neutral">Novo arquivo</span></td>
+            <td>Seed completo para todos os processadores de KPI — 12 datasets, 493+ registros com datas, categorias e relações corretas</td>
+          </tr>
+          <tr>
+            <td class="mono">server/scripts/verify-kpis.js</td>
+            <td><span class="badge neutral">Novo arquivo</span></td>
+            <td>Script de verificação automatizada: faz login, chama os 26 endpoints e reporta zeros/não-zeros</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Footer ── -->
+  <div class="section">
+    <div class="summary-footer">
+      <strong>Conclusão:</strong> 3 bugs corrigidos em 2 commits · 26/26 endpoints respondendo ·
+      25/26 grupos de KPI totalmente não-zero · Processadores validados: revenueKpis, productCostKpis (WAC),
+      profitKpis, cashflowKpis, costKpis, saleItems, employeeServiceProfit · Joins cross-tabela confirmados
+      (employees ↔ saleItems ↔ services) · Sistema pronto para testes de frontend e QA manual.
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -181,7 +181,7 @@ export class ApplicationFactory {
       ),
       report: new ReportService(embeddingOpenAIService, this.repositories.vector, chatOpenAIService),
       structuredData: structuredDataService, // Assigned service
-      user: new UserService(this.repositories.user, this.policies.user),
+      user: new UserService(this.repositories.user, this.policies.user, this.repositories.vector),
       dynamicTable: dynamicTableService,
       luminarisAgent: luminarisAgentService,
       knowledgeGraph: knowledgeGraphService,

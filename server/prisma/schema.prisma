@@ -103,6 +103,7 @@ enum ProcessingStatus {
   PROCESSING
   COMPLETED
   ERROR
+  FAILED
 }
 
 // Purpose of the document - affects processing flow

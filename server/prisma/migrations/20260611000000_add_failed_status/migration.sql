@@ -1,0 +1,3 @@
+-- R18: Add FAILED value to ProcessingStatus enum for document processing watchdog.
+-- SQLite stores enum values as TEXT, so no schema change is needed at the DB level.
+-- This migration documents the addition of FAILED as a valid ProcessingStatus value.

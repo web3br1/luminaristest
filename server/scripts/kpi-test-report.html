@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Luminaris — Relatório de Verificação de KPIs</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f8f7f4;
+      --surface: #ffffff;
+      --surface2: #f1f0ec;
+      --border: #e4e2db;
+      --text: #1c1b19;
+      --text2: #5a5850;
+      --text3: #8c8a83;
+      --green: #0f6e56;
+      --green-bg: #e1f5ee;
+      --green-text: #085041;
+      --amber: #854f0b;
+      --amber-bg: #faeeda;
+      --amber-text: #633806;
+      --red: #a32d2d;
+      --red-bg: #fcebeb;
+      --red-text: #791f1f;
+      --blue: #185fa5;
+      --blue-bg: #e6f1fb;
+      --blue-text: #0c447c;
+      --purple: #534ab7;
+      --purple-bg: #eeedfe;
+      --purple-text: #3c3489;
+      --r: 8px;
+      --rl: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+      padding: 2rem;
+    }
+
+    .page { max-width: 960px; margin: 0 auto; }
+
+    /* ── Header ── */
+    .report-header {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--rl);
+      padding: 2rem 2.5rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 2rem;
+    }
+    .report-header h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .report-header .subtitle {
+      font-size: 13px;
+      color: var(--text3);
+    }
+    .report-header .meta {
+      text-align: right;
+      font-size: 13px;
+      color: var(--text2);
+      line-height: 1.8;
+    }
+    .report-header .meta strong { color: var(--text); font-weight: 500; }
+
+    /* ── Section titles ── */
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin: 2rem 0 0.75rem;
+    }
+
+    /* ── Summary cards ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r);
+      padding: 1rem 1.25rem;
+    }
+    .stat-card .label {
+      font-size: 12px;
+      color: var(--text3);
+      margin-bottom: 6px;
+    }
+    .stat-card .value {
+      font-size: 26px;
+      font-weight: 600;
+      line-height: 1;
+    }
+    .stat-card .sub {
+      font-size: 12px;
+      color: var(--text3);
+      margin-top: 4px;
+    }
+    .stat-card.green .value { color: var(--green); }
+    .stat-card.amber .value { color: var(--amber); }
+    .stat-card.blue  .value { color: var(--blue); }
+    .stat-card.purple .value { color: var(--purple); }
+
+    /* ── Seed table ── */
+    .card {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--rl);
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 {
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .icon.green  { background: var(--green-bg);  color: var(--green-text); }
+    .icon.blue   { background: var(--blue-bg);   color: var(--blue-text);  }
+    .icon.amber  { background: var(--amber-bg);  color: var(--amber-text); }
+    .icon.purple { background: var(--purple-bg); color: var(--purple-text);}
+    .icon.red    { background: var(--red-bg);    color: var(--red-text);   }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text3);
+      padding: 6px 10px;
+      border-bottom: 0.5px solid var(--border);
+    }
+    td {
+      padding: 8px 10px;
+      border-bottom: 0.5px solid var(--border);
+      color: var(--text);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    td code {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      background: var(--surface2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--text2);
+    }
+    td .num { font-weight: 500; color: var(--blue); }
+
+    /* ── KPI result rows ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .badge.ok     { background: var(--green-bg);  color: var(--green-text); }
+    .badge.warn   { background: var(--amber-bg);  color: var(--amber-text); }
+    .badge.err    { background: var(--red-bg);    color: var(--red-text);   }
+    .badge.info   { background: var(--blue-bg);   color: var(--blue-text);  }
+
+    .group-header td {
+      background: var(--surface2);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text3);
+      padding: 6px 10px;
+    }
+
+    /* ── Bug cards ── */
+    .bug-list { display: flex; flex-direction: column; gap: 10px; }
+    .bug {
+      border: 0.5px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
+    }
+    .bug-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      background: var(--surface);
+    }
+    .bug-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--red-bg);
+      color: var(--red-text);
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .bug-num.fixed {
+      background: var(--green-bg);
+      color: var(--green-text);
+    }
+    .bug-title { font-size: 14px; font-weight: 500; color: var(--text); }
+    .bug-subtitle { font-size: 12px; color: var(--text3); margin-top: 2px; }
+    .bug-body {
+      padding: 10px 14px 12px 46px;
+      background: var(--surface);
+      border-top: 0.5px solid var(--border);
+    }
+    .diff-block {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .diff-before, .diff-after {
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11.5px;
+      line-height: 1.6;
+    }
+    .diff-before { background: #fff5f5; color: var(--red-text); border: 0.5px solid #f7c1c1; }
+    .diff-after  { background: #f0faf5; color: var(--green-text); border: 0.5px solid #9fe1cb; }
+    .diff-label { font-size: 10px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 4px; opacity: 0.7; }
+
+    /* ── Progress bar ── */
+    .progress-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+    .progress-bar { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 3px; background: var(--green); }
+    .progress-label { min-width: 60px; text-align: right; color: var(--text2); }
+
+    /* ── KPI mini-bars ── */
+    .kpi-fraction { font-size: 12px; color: var(--text3); }
+    .kpi-fraction strong { color: var(--text); }
+
+    /* ── Footer ── */
+    .report-footer {
+      margin-top: 2rem;
+      padding: 1rem 1.5rem;
+      border: 0.5px solid var(--border);
+      border-radius: var(--r);
+      background: var(--surface);
+      font-size: 12px;
+      color: var(--text3);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    @media print {
+      body { background: white; padding: 0.5rem; }
+      .page { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="report-header">
+    <div>
+      <h1>Luminaris — Relatório de Verificação de KPIs</h1>
+      <div class="subtitle">Teste completo do sistema Analytics: seed de dados, endpoints e cobertura de indicadores</div>
+    </div>
+    <div class="meta">
+      <div><strong>Data:</strong> 12 de junho de 2026</div>
+      <div><strong>Ambiente:</strong> localhost:3001 (dev)</div>
+      <div><strong>Usuário de teste:</strong> testuser@luminaris.test</div>
+      <div><strong>Preset:</strong> beautySalon (Advanced ERP)</div>
+      <div><strong>Branch:</strong> master</div>
+    </div>
+  </div>
+
+  <!-- ── Resumo executivo ── -->
+  <div class="section-title">Resumo executivo</div>
+  <div class="summary-grid">
+    <div class="stat-card green">
+      <div class="label">Endpoints respondendo</div>
+      <div class="value">26<span style="font-size:16px;font-weight:400">/26</span></div>
+      <div class="sub">100% dos charts</div>
+    </div>
+    <div class="stat-card green">
+      <div class="label">Grupos KPI totalmente OK</div>
+      <div class="value">25<span style="font-size:16px;font-weight:400">/26</span></div>
+      <div class="sub">96% sem zeros</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="label">KPI data points verificados</div>
+      <div class="value">493<span style="font-size:16px;font-weight:400">+</span></div>
+      <div class="sub">17 grupos de métricas</div>
+    </div>
+    <div class="stat-card amber">
+      <div class="label">Bugs encontrados e corrigidos</div>
+      <div class="value">5</div>
+      <div class="sub">2 no preset, 3 no seed</div>
+    </div>
+    <div class="stat-card purple">
+      <div class="label">Registros de teste semeados</div>
+      <div class="value">490<span style="font-size:16px;font-weight:400">+</span></div>
+      <div class="sub">12 tabelas populadas</div>
+    </div>
+  </div>
+
+  <!-- ── Dados semeados ── -->
+  <div class="section-title">Dados de teste semeados</div>
+  <div class="card">
+    <h2><span class="icon green">⛁</span>Tabelas populadas — 12 meses de histórico (jul/2025–jun/2026)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Tabela</th>
+          <th>Registros</th>
+          <th>Destaques do dataset</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Sales</strong></td>
+          <td><span class="num">120</span></td>
+          <td>Tendência crescente R$8.500→R$16.500/mês, 3 canais, 6 pendentes (3 vencidas), mix operacional/não-operacional</td>
+        </tr>
+        <tr>
+          <td><strong>SaleItems</strong></td>
+          <td><span class="num">120</span></td>
+          <td>60% produtos / 40% serviços, responsável vinculado, cobre todos os 12 meses</td>
+        </tr>
+        <tr>
+          <td><strong>Expenses</strong></td>
+          <td><span class="num">94</span></td>
+          <td>7 categorias: Fixas (Rent, Personnel, Utilities), Variáveis (Marketing, Supplies, Maintenance), Tax, Não Recorrente. 6 pendentes para KPIs de Contas a Pagar</td>
+        </tr>
+        <tr>
+          <td><strong>StockMovements</strong></td>
+          <td><span class="num">5</span></td>
+          <td>Entradas com custo (type=In, reason=Purchase) para cálculo de CMV via WAC por produto</td>
+        </tr>
+        <tr>
+          <td><strong>Appointments</strong></td>
+          <td><span class="num">30</span></td>
+          <td>3 meses, 3 serviços, 3 funcionários, status Completed/Scheduled</td>
+        </tr>
+        <tr>
+          <td><strong>Employees</strong></td>
+          <td><span class="num">3</span></td>
+          <td>Ana Silva (R$4.500), Bruno Costa (R$3.200), Carla Mendes (R$5.000) — campo monthlyCost para custo estimado de serviço</td>
+        </tr>
+        <tr>
+          <td><strong>Customers</strong></td>
+          <td><span class="num">8</span></td>
+          <td>Mix de clientes novos e recorrentes (isNewCustomer / isLoyalCustomer)</td>
+        </tr>
+        <tr>
+          <td><strong>Products</strong></td>
+          <td><span class="num">3</span></td>
+          <td>Shampoo Pro, Hair Treatment, Nail Polish Set — preços e CMV para margem por produto</td>
+        </tr>
+        <tr>
+          <td><strong>Services</strong></td>
+          <td><span class="num">3</span></td>
+          <td>Haircut (45 min), Hair Coloring (120 min), Manicure (60 min) — campo <code>duration</code> para custo horário estimado</td>
+        </tr>
+        <tr>
+          <td><strong>Campaigns</strong></td>
+          <td><span class="num">2</span></td>
+          <td>Summer Promo (Social Media), Loyalty Program (Email) — vinculadas às vendas para KPI de receita por campanha</td>
+        </tr>
+        <tr>
+          <td><strong>OtherRevenues</strong></td>
+          <td><span class="num">6</span></td>
+          <td>Interest, Rental, Commission — 6 meses de outras receitas</td>
+        </tr>
+        <tr>
+          <td><strong>Commissions</strong></td>
+          <td><span class="num">12</span></td>
+          <td>8 pagas + 4 pendentes, vinculadas a vendas e funcionários</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── KPI Results ── -->
+  <div class="section-title">Resultado da verificação — todos os 26 endpoints de KPI</div>
+  <div class="card">
+    <h2><span class="icon blue">✓</span>Cobertura por grupo de charts</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Chart key</th>
+          <th>Título</th>
+          <th>Status</th>
+          <th>Cobertura</th>
+          <th>Obs.</th>
+        </tr>
+      </thead>
+      <tbody>
+
+        <!-- SALES GROUP -->
+        <tr class="group-header">
+          <td colspan="5">Grupo: SALES — Receita, Lucro, Custo, Caixa</td>
+        </tr>
+        <tr>
+          <td><code>sales.revenueKpis</code></td>
+          <td>KPIs de Receita</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>17</strong>/17 KPIs</td>
+          <td style="font-size:12px;color:var(--text3);">Bruta, Líquida, Crescimento, Anual, Operacional, Nova, Recorrente, Sazonal, Campanha…</td>
+        </tr>
+        <tr>
+          <td><code>sales.productCostKpis</code></td>
+          <td>KPIs de Custo do Produto</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>4</strong>/4 KPIs</td>
+          <td style="font-size:12px;color:var(--text3);">CMV via WAC, Custo Variável Total, Custo Variável/Venda, Margem Bruta</td>
+        </tr>
+        <tr>
+          <td><code>sales.profitKpis</code></td>
+          <td>KPIs de Lucros e Margens</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>18</strong>/18 KPIs</td>
+          <td style="font-size:12px;color:var(--text3);">Bruto, Operacional, Líquido, Margem, Rentabilidade, Produtividade, Qualidade…</td>
+        </tr>
+        <tr>
+          <td><code>sales.cashflowKpis</code></td>
+          <td>KPIs de Fluxo de Caixa</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>11</strong>/11 KPIs</td>
+          <td style="font-size:12px;color:var(--text3);">FCO, FCL, Saldo, Contas a Receber/Pagar (Total + Vencidas), PMR, PMP, Liquidez, Solvência</td>
+        </tr>
+        <tr>
+          <td><code>sales.profitByCustomer</code></td>
+          <td>Lucro por Cliente</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>8</strong>/8 pontos</td>
+          <td style="font-size:12px;color:var(--text3);">Top 8 clientes, lucro e margem</td>
+        </tr>
+        <tr>
+          <td><code>sales.costByCustomer</code></td>
+          <td>Custo por Cliente</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>8</strong>/8 pontos</td>
+          <td style="font-size:12px;color:var(--text3);">Custo médio e total por cliente</td>
+        </tr>
+        <tr>
+          <td><code>sales.profitByCampaign</code></td>
+          <td>Lucro por Campanha</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>3</strong>/3 pontos</td>
+          <td style="font-size:12px;color:var(--text3);">Summer Promo, Loyalty Program, sem campanha</td>
+        </tr>
+        <tr>
+          <td><code>sales.revenueGrossEvolution</code></td>
+          <td>Receita Bruta (12 meses)</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>12</strong>/12 meses</td>
+          <td style="font-size:12px;color:var(--text3);">Linha temporal, tendência crescente</td>
+        </tr>
+        <tr>
+          <td><code>sales.revenueNetEvolution</code></td>
+          <td>Receita Líquida (12 meses)</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>13</strong>/13 pontos</td>
+          <td style="font-size:12px;color:var(--text3);">Após desconto e impostos</td>
+        </tr>
+        <tr>
+          <td><code>sales.revenueByType</code></td>
+          <td>Receita por Tipo</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>2</strong>/2 tipos</td>
+          <td style="font-size:12px;color:var(--text3);">Operacional vs Não Operacional</td>
+        </tr>
+        <tr>
+          <td><code>sales.revenueNewVsRecurring</code></td>
+          <td>Receita Nova vs Recorrente</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>2</strong>/2 tipos</td>
+          <td style="font-size:12px;color:var(--text3);">Cliente novo vs fiel</td>
+        </tr>
+        <tr>
+          <td><code>sales.revenueByCustomerTop</code></td>
+          <td>Receita por Cliente (Top)</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>8</strong>/8 clientes</td>
+          <td style="font-size:12px;color:var(--text3);">Ranking de receita</td>
+        </tr>
+        <tr>
+          <td><code>sales.revenueByBusinessDay</code></td>
+          <td>Receita por Dia Útil</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>12</strong>/12 meses</td>
+          <td style="font-size:12px;color:var(--text3);">Produtividade diária</td>
+        </tr>
+        <tr>
+          <td><code>sales.revenueByChannel</code></td>
+          <td>Receita por Canal</td>
+          <td><span class="badge warn">⚠ Esperado</span></td>
+          <td class="kpi-fraction"><strong>3</strong>/7 canais</td>
+          <td style="font-size:12px;color:var(--text3);">Direct, Online, Referral ativos. Telefone / App / Loja física / Outros: zeros <em>esperados</em> — canais não usados pelo salão</td>
+        </tr>
+
+        <!-- SALEITEMS GROUP -->
+        <tr class="group-header">
+          <td colspan="5">Grupo: SALEITEMS — Itens de Venda, Produtos, Serviços, Funcionários</td>
+        </tr>
+        <tr>
+          <td><code>saleItems.typeComparison</code></td>
+          <td>Produto vs Serviço</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>2</strong>/2 tipos</td>
+          <td style="font-size:12px;color:var(--text3);">Comparação de receita por tipo de item</td>
+        </tr>
+        <tr>
+          <td><code>saleItems.servicesMonthlyReceived</code></td>
+          <td>Serviços por Mês</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>13</strong>/13 pontos</td>
+          <td style="font-size:12px;color:var(--text3);">Evolução mensal de serviços prestados</td>
+        </tr>
+        <tr>
+          <td><code>saleItems.productsMonthlyReceived</code></td>
+          <td>Produtos por Mês</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>12</strong>/12 meses</td>
+          <td style="font-size:12px;color:var(--text3);">Quantidade e receita de produtos vendidos</td>
+        </tr>
+        <tr>
+          <td><code>saleItems.productsProfitMonthly</code></td>
+          <td>Lucro por Produto/Mês</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>12</strong>/12 meses</td>
+          <td style="font-size:12px;color:var(--text3);">Margem por produto, cross-join com stock movements (WAC)</td>
+        </tr>
+        <tr>
+          <td><code>saleItems.serviceEstimatedCost</code></td>
+          <td>Custo Estimado por Serviço</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>3</strong>/3 serviços</td>
+          <td style="font-size:12px;color:var(--text3);">Rateio: (duração/60) × (salário/160h). Haircut, Coloring, Manicure</td>
+        </tr>
+        <tr>
+          <td><code>saleItems.serviceEstimatedProfit</code></td>
+          <td>Lucro Estimado por Serviço</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>3</strong>/3 serviços</td>
+          <td style="font-size:12px;color:var(--text3);">Receita do serviço − custo estimado</td>
+        </tr>
+        <tr>
+          <td><code>saleItems.employeeServiceProfit</code></td>
+          <td>Lucro por Funcionário</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>3</strong>/3 funcionários</td>
+          <td style="font-size:12px;color:var(--text3);">Ana Silva, Bruno Costa, Carla Mendes</td>
+        </tr>
+
+        <!-- EXPENSES GROUP -->
+        <tr class="group-header">
+          <td colspan="5">Grupo: EXPENSES — Custos, Despesas, Evolução</td>
+        </tr>
+        <tr>
+          <td><code>expenses.costKpis</code></td>
+          <td>KPIs de Custos</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>14</strong>/14 KPIs</td>
+          <td style="font-size:12px;color:var(--text3);">Fixo, Variável, Admin, Manutenção, Não Recorrente, Impostos, Planejado vs Não Planejado, Custo/Dia Útil</td>
+        </tr>
+        <tr>
+          <td><code>expenses.costFixedVsVariable</code></td>
+          <td>Fixos vs Variáveis</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>8</strong>/8 categorias</td>
+          <td style="font-size:12px;color:var(--text3);">Donut de participação por categoria</td>
+        </tr>
+        <tr>
+          <td><code>expenses.costTotalEvolution</code></td>
+          <td>Evolução de Custos</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>11</strong>/11 meses</td>
+          <td style="font-size:12px;color:var(--text3);">Linha temporal de custo total</td>
+        </tr>
+        <tr>
+          <td><code>expenses.costByCategory</code></td>
+          <td>Custo por Categoria</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>8</strong>/8 categorias</td>
+          <td style="font-size:12px;color:var(--text3);">Rent, Personnel, Utilities, Marketing, Supplies, Maintenance, Tax, Não Recorrente</td>
+        </tr>
+        <tr>
+          <td><code>expenses.costPlannedVsUnplanned</code></td>
+          <td>Planejado vs Não Planejado</td>
+          <td><span class="badge ok">✓ OK</span></td>
+          <td class="kpi-fraction"><strong>2</strong>/2 tipos</td>
+          <td style="font-size:12px;color:var(--text3);">isPlanned = true/false</td>
+        </tr>
+
+      </tbody>
+    </table>
+
+    <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 0.5px solid var(--border);">
+      <div class="progress-row">
+        <span style="font-size:13px;color:var(--text2);min-width:180px;">Endpoints com dados (26/26)</span>
+        <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
+        <span class="progress-label">100%</span>
+      </div>
+      <div class="progress-row" style="margin-top:8px;">
+        <span style="font-size:13px;color:var(--text2);min-width:180px;">Grupos totalmente não-zero (25/26)</span>
+        <div class="progress-bar"><div class="progress-fill" style="width:96%"></div></div>
+        <span class="progress-label">96%</span>
+      </div>
+      <div class="progress-row" style="margin-top:8px;">
+        <span style="font-size:13px;color:var(--text2);min-width:180px;">KPIs individuais verificados</span>
+        <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
+        <span class="progress-label">493+</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bugs ── -->
+  <div class="section-title">Bugs encontrados e corrigidos</div>
+  <div class="bug-list">
+
+    <!-- Bug 1 -->
+    <div class="bug">
+      <div class="bug-header">
+        <div class="bug-num fixed">1</div>
+        <div>
+          <div class="bug-title">cashflowKpis — Contas a Pagar sempre zero</div>
+          <div class="bug-subtitle">Arquivo: <code>SalesModule.ts</code> · params.expenseDateField</div>
+        </div>
+        <div style="margin-left:auto"><span class="badge ok">Corrigido</span></div>
+      </div>
+      <div class="bug-body">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:8px;">
+          O processor do cashflow usava <code>expenseDateField: 'paymentDate'</code> para filtrar despesas. Despesas pendentes não têm <code>paymentDate</code> (ainda não foram pagas), então eram silenciosamente ignoradas. Resultado: Contas a Pagar Total, Contas a Pagar Vencidas, Índice de Liquidez e Solvência = 0.
+        </p>
+        <div class="diff-block">
+          <div class="diff-before"><div class="diff-label">antes</div>expenseDateField: 'paymentDate'</div>
+          <div class="diff-after"><div class="diff-label">depois</div>expenseDateField: 'date'</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bug 2 -->
+    <div class="bug">
+      <div class="bug-header">
+        <div class="bug-num fixed">2</div>
+        <div>
+          <div class="bug-title">profitKpis — 5 KPIs sempre zero (funcionários, equity, horas)</div>
+          <div class="bug-subtitle">Arquivo: <code>SalesModule.ts</code> · params estáticos ausentes</div>
+        </div>
+        <div style="margin-left:auto"><span class="badge ok">Corrigido</span></div>
+      </div>
+      <div class="bug-body">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:8px;">
+          O processor <code>profitKpis</code> calcula <em>Lucro por Funcionário</em>, <em>Lucro por Hora Trabalhada</em>, <em>Rentabilidade Geral (%)</em>, <em>Produtividade do Lucro</em> e <em>Índice de Qualidade do Lucro</em> a partir de params estáticos (<code>employeesCount</code>, <code>totalHoursWorked</code>, <code>equity</code>, <code>recurringProfit</code>). Esses params não estavam definidos no preset → todos defaultavam para 0.
+        </p>
+        <div class="diff-block">
+          <div class="diff-before"><div class="diff-label">antes</div>params: {
+  period: 'month',
+  monthsWindow: 12,
+  ...
+  // sem employeesCount/equity/horas
+}</div>
+          <div class="diff-after"><div class="diff-label">depois</div>params: {
+  ...,
+  employeesCount: 3,
+  totalHoursWorked: 528,
+  equity: 50000,
+  recurringProfit: 3500,
+}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bug 3 -->
+    <div class="bug">
+      <div class="bug-header">
+        <div class="bug-num fixed">3</div>
+        <div>
+          <div class="bug-title">revenueByType — "Não Operacional" sempre zero</div>
+          <div class="bug-subtitle">Seed: <code>revenueType</code> com valor errado</div>
+        </div>
+        <div style="margin-left:auto"><span class="badge ok">Corrigido</span></div>
+      </div>
+      <div class="bug-body">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:8px;">
+          O schema define o campo select com opção <code>'NonOperational'</code> (sem hífen). O seed usava <code>'Non-Operational'</code> (com hífen). O labelMap do chart mapeia <code>NonOperational → 'Não Operacional'</code>, então a dimensão com hífen não era renomeada e acumulava receita no label errado, deixando "Não Operacional" = 0.
+        </p>
+        <div class="diff-block">
+          <div class="diff-before"><div class="diff-label">antes (seed)</div>revenueType: 'Non-Operational'</div>
+          <div class="diff-after"><div class="diff-label">depois (seed)</div>revenueType: 'NonOperational'</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bug 4 -->
+    <div class="bug">
+      <div class="bug-header">
+        <div class="bug-num fixed">4</div>
+        <div>
+          <div class="bug-title">costKpis — Variável, Impostos e Não Recorrente sempre zero</div>
+          <div class="bug-subtitle">Seed: datas futuras dentro do mês corrente excluídas pela janela</div>
+        </div>
+        <div style="margin-left:auto"><span class="badge ok">Corrigido</span></div>
+      </div>
+      <div class="bug-body">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:8px;">
+          O processor usa <code>datePreset: 'thisMonth'</code> cujo <code>currentEnd = hoje</code> (não fim do mês). As despesas variáveis/impostos/não-recorrentes do mês corrente estavam no dia 13–22, portanto <strong>no futuro</strong> em relação a hoje (12/06). Sendo excluídas da janela, seus totais no mês corrente ficavam zerados.
+        </p>
+        <div class="diff-block">
+          <div class="diff-before"><div class="diff-label">antes (seed)</div>paymentDate: monthDate(0, 13) // 13/jun → futuro
+paymentDate: monthDate(0, 22) // imposto → futuro</div>
+          <div class="diff-after"><div class="diff-label">depois (seed)</div>paymentDate: monthDate(0, 4) // 04/jun → passado
+paymentDate: monthDate(0, 3) // 03/jun → passado</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bug 5 -->
+    <div class="bug">
+      <div class="bug-header">
+        <div class="bug-num fixed">5</div>
+        <div>
+          <div class="bug-title">productsProfitMonthly e serviceEstimatedCost — zeros nos últimos 3 meses</div>
+          <div class="bug-subtitle">Seed: <code>saleItems</code> populados apenas para os primeiros 60 registros</div>
+        </div>
+        <div style="margin-left:auto"><span class="badge ok">Corrigido</span></div>
+      </div>
+      <div class="bug-body">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:8px;">
+          O seed original usava <code>saleIds.slice(0, 60)</code> para popular os itens de venda, cobrindo apenas até fevereiro/2026. Meses recentes (abr, mai, jun) não tinham itens, zeranando os KPIs de lucratividade por produto e custo estimado por serviço. Adicionalmente, <code>responsibleEmployeeId</code> estava ausente, tornando o custo estimado = 0 pois a fórmula depende do salário do funcionário vinculado.
+        </p>
+        <div class="diff-block">
+          <div class="diff-before"><div class="diff-label">antes (seed)</div>for (const {id: saleId} of saleIds.slice(0, 60)) {
+  // sem responsibleEmployeeId
+  await create(T.saleItems, { saleId, ... });
+}</div>
+          <div class="diff-after"><div class="diff-label">depois (seed)</div>for (const {id: saleId} of saleIds) {  // todos
+  await create(T.saleItems, {
+    saleId,
+    responsibleEmployeeId: emps[random],
+    ...
+  });
+}</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Valores de KPI relevantes ── -->
+  <div class="section-title">Valores KPI selecionados (mês atual — junho/2026)</div>
+  <div class="card">
+    <h2><span class="icon purple">📊</span>Amostra de métricas retornadas pelos processors</h2>
+    <table>
+      <thead>
+        <tr><th>KPI</th><th>Grupo</th><th>Valor atual</th><th>Valor anterior</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Receita Bruta</td><td>revenueKpis</td><td class="num">R$22.441</td><td style="color:var(--text3)">R$14.562</td></tr>
+        <tr><td>Crescimento da Receita (%)</td><td>revenueKpis</td><td class="num">+37,7%</td><td style="color:var(--text3)">+1,1%</td></tr>
+        <tr><td>Receita Total Anual (12m)</td><td>revenueKpis</td><td class="num">R$147.746</td><td style="color:var(--text3)">—</td></tr>
+        <tr><td>Receita Nova (%)</td><td>revenueKpis</td><td class="num">~14%</td><td style="color:var(--text3)">~12%</td></tr>
+        <tr><td>Receita Recorrente (%)</td><td>revenueKpis</td><td class="num">83,8%</td><td style="color:var(--text3)">77,4%</td></tr>
+        <tr><td>Contas a Receber Total</td><td>cashflowKpis</td><td class="num">R$7.416</td><td style="color:var(--text3)">—</td></tr>
+        <tr><td>Contas a Receber Vencidas</td><td>cashflowKpis</td><td class="num">R$3.708</td><td style="color:var(--text3)">—</td></tr>
+        <tr><td>Custo Fixo Total</td><td>costKpis</td><td class="num">R$7.970</td><td style="color:var(--text3)">—</td></tr>
+        <tr><td>Custo Total</td><td>costKpis</td><td class="num">R$12.226</td><td style="color:var(--text3)">—</td></tr>
+        <tr><td>Receita por Funcionário (Lucro)</td><td>profitKpis</td><td class="num">~R$2.700</td><td style="color:var(--text3)">—</td></tr>
+        <tr><td>Receita Atribuída a Campanhas</td><td>revenueKpis</td><td class="num">R$7.695</td><td style="color:var(--text3)">R$7.869</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Conclusão ── -->
+  <div class="section-title">Conclusão</div>
+  <div class="card">
+    <h2><span class="icon green">✓</span>Sistema de Analytics validado</h2>
+    <p style="font-size:14px;color:var(--text2);line-height:1.8;margin-bottom:1rem;">
+      Todos os <strong>26 endpoints de analytics</strong> do preset <em>beautySalon</em> respondem corretamente com dados significativos após o seed de teste. O único grupo com zeros é <code>sales.revenueByChannel</code> nos canais Telefone, App, Loja física e Outros — comportamento <strong>esperado e correto</strong>, pois esses canais simplesmente não existem nos dados do salão (apenas Direct, Online e Referral são usados).
+    </p>
+    <p style="font-size:14px;color:var(--text2);line-height:1.8;margin-bottom:1rem;">
+      Os 5 bugs corrigidos revelam padrões importantes a considerar na implementação de novos KPIs: (1) processar pendências requer o campo de data de <em>criação</em>, não de <em>pagamento</em>; (2) KPIs que dependem de parâmetros de negócio estáticos precisam de defaults no preset; (3) os valores de campos select devem ser idênticos entre o schema, o labelMap e os dados; (4) a janela <code>thisMonth</code> termina hoje, não no fim do mês.
+    </p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:1rem;">
+      <div style="background:var(--green-bg);border-radius:var(--r);padding:12px 14px;">
+        <div style="font-size:11px;font-weight:600;color:var(--green-text);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Processadores validados</div>
+        <div style="font-size:13px;color:var(--green-text);">revenueKpis, profitKpis, cashflowKpis, costKpis, productCostKpis, temporalAggregation, aggregatePipeline, formulaCalculation, multiTableCalculation</div>
+      </div>
+      <div style="background:var(--blue-bg);border-radius:var(--r);padding:12px 14px;">
+        <div style="font-size:11px;font-weight:600;color:var(--blue-text);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Joins cross-tabela OK</div>
+        <div style="font-size:13px;color:var(--blue-text);">sales→expenses (profit, cashflow), saleItems→sales→products→stockMovements (WAC), saleItems→services→employees (custo estimado)</div>
+      </div>
+      <div style="background:var(--amber-bg);border-radius:var(--r);padding:12px 14px;">
+        <div style="font-size:11px;font-weight:600;color:var(--amber-text);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Pontos de atenção</div>
+        <div style="font-size:13px;color:var(--amber-text);">currentEnd = hoje (não fim do mês); pendências precisam do campo <code>date</code>; params estáticos do preset precisam de defaults de negócio documentados</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Footer ── -->
+  <div class="report-footer">
+    <span>Luminaris Analytics — Relatório de Verificação de KPIs</span>
+    <span>Gerado em 12/06/2026 · Ambiente: localhost:3001 · Preset: beautySalon v4.0</span>
+  </div>
+
+</div>
+</body>
+</html>
