@@ -1120,6 +1120,115 @@
  *                 type: string
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *
+ *   /api/crm/pipeline/advance:
+ *     post:
+ *       summary: Advance a lead to a target stage (with optional proposal side-effect)
+ *       tags: [CRM]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/AdvanceStageInput' }
+ *       responses:
+ *         '200':
+ *           description: Updated lead record
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data: { type: object }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/crm/pipeline/proposal:
+ *     post:
+ *       summary: Create a standalone proposal and refresh the lead snapshot
+ *       tags: [CRM]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [leadId, amount]
+ *               properties:
+ *                 leadId: { type: string }
+ *                 amount: { type: number }
+ *                 currency: { type: string, enum: [BRL, USD, EUR] }
+ *                 winProbability: { type: number }
+ *                 estimatedCloseDate: { type: string }
+ *       responses:
+ *         '201':
+ *           description: Created proposal record
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data: { type: object }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/crm/pipeline/no-show:
+ *     post:
+ *       summary: Record a meeting no-show (reschedule or revert the lead stage)
+ *       tags: [CRM]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [leadId, option]
+ *               properties:
+ *                 leadId: { type: string }
+ *                 option: { type: string, enum: [reschedule, revert] }
+ *                 rescheduleAt: { type: string, format: date-time }
+ *                 previousStageId: { type: string }
+ *       responses:
+ *         '200':
+ *           description: Acknowledgement
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data: { type: object, properties: { ok: { type: boolean } } }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/crm/pipeline-analytics:
+ *     get:
+ *       summary: Aggregated CRM KPI bundle over the leads dataset
+ *       tags: [CRM]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - in: query
+ *           name: datePreset
+ *           schema: { type: string, enum: [today, thisWeek, thisMonth, last30Days, lastMonth, thisYear] }
+ *       responses:
+ *         '200':
+ *           description: Keyed bundle of chart-ready KPI series (cards, funnel, source, status, bant, proposals, activities)
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data: { type: object }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
  * components:
  *   responses:
  *     BadRequestError:
