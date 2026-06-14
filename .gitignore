@@ -15,3 +15,7 @@ npm-debug.log*
 coverage/
 .DS_Store
 Thumbs.db
+
+# Generated build artifacts (não versionar)
+*.tsbuildinfo
+next-env.d.ts
