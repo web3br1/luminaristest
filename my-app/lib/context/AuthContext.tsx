@@ -3,6 +3,10 @@ import { deleteCookie, getCookie } from 'cookies-next';
 import { useRouter } from 'next/router';
 import type { Role } from '../../types/Role';
 
+// API base URL — mirrors apiClient's fallback so auth works even when the
+// NEXT_PUBLIC_API_BASE_URL env var is unset (prevents a stuck "Authenticating…").
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001/api';
+
 // Type for the user object stored in context
 interface AuthUser {
   id: string;
@@ -35,14 +39,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true); // Start loading
   const router = useRouter();
-  const isCheckingRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const localeSyncedRef = useRef(false);
 
   // Check initial auth state (e.g., by calling a /api/me endpoint)
   // This ensures the state is correct even after a page refresh.
-  const checkAuthState = useCallback(async () => {
-    if (isCheckingRef.current) return;
-    isCheckingRef.current = true;
-    setIsLoading(true);
+  const checkAuthState = useCallback(async (options?: { silent?: boolean }) => {
+    // `silent` re-validations (on route change) must NOT toggle the global
+    // loading gate — otherwise every navigation flashes "Authenticating…" and,
+    // combined with the locale-sync redirect, can keep the spinner up forever.
+    const silent = options?.silent ?? false;
+    if (!silent) setIsLoading(true);
+    // Backstop: a hung/blocked request must never leave the UI stuck on
+    // "Authenticating…". Abort after 8s so `finally` always resolves isLoading.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
     try {
       const token = getCookie('auth_token');
 
@@ -53,14 +64,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       if (!sanitizedToken) {
+        if (isMountedRef.current) setUser(null);
         return;
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/me`, {
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: {
           'authorization': `Bearer ${sanitizedToken}`
-        }
+        },
+        signal: controller.signal,
       });
+      if (!isMountedRef.current) return;
       if (response.ok) {
         const { data: userData } = await response.json();
         setUser({
@@ -82,27 +96,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error("Failed to fetch auth state:", error);
       setUser(null);
     } finally {
-      isCheckingRef.current = false;
-      setIsLoading(false);
+      clearTimeout(timeout);
+      // Unconditional: the initial check MUST resolve or the UI sticks on
+      // "Authenticating…". Silent re-checks never touched isLoading, so leave it.
+      if (!silent) setIsLoading(false);
     }
   }, []);
 
   // Verificar o estado de autenticação ao montar o componente
   useEffect(() => {
+    isMountedRef.current = true;
     checkAuthState();
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [checkAuthState]);
 
-  // Sync Next.js locale with the user's saved preference
+  // Sync Next.js locale with the user's saved preference.
+  // Guarded so it attempts the replace ONCE per mismatch — `router.replace` with a
+  // locale that doesn't actually switch (no-op) would otherwise loop forever
+  // (replace → routeChangeComplete → re-render → replace → …), keeping the UI busy.
   useEffect(() => {
-    if (user?.locale && user.locale !== router.locale) {
-      router.replace(router.asPath, router.asPath, { locale: user.locale });
+    if (!user?.locale || user.locale === router.locale) {
+      localeSyncedRef.current = false;
+      return;
     }
+    if (localeSyncedRef.current) return;
+    localeSyncedRef.current = true;
+    router.replace(router.asPath, router.asPath, { locale: user.locale });
   }, [user?.locale, router]);
 
   // Verificar o estado de autenticação quando a rota mudar
   useEffect(() => {
     const handleRouteChange = () => {
-      checkAuthState();
+      // Re-validate silently — never re-trigger the global "Authenticating…" gate
+      // on navigation (that, plus locale-sync, was the perpetual-spinner bug).
+      checkAuthState({ silent: true });
     };
 
     router.events.on('routeChangeComplete', handleRouteChange);
@@ -120,7 +149,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null);
     try {
       // Call API to clear cookie server-side
-      await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/logout`, { method: 'POST' });
+      await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST' });
     } catch (error) {
       console.error('Logout API call failed:', error);
     }
