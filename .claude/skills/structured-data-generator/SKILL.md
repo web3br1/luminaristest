@@ -1,0 +1,192 @@
+---
+name: structured-data-generator
+description: Gera ou estende o pipeline de extração de dados estruturados (XLSX → tabela editável) — DocumentPurpose DATA_ANALYSIS, StructuredDataService e integração com o frontend de spreadsheet
+argument-hint: "[acao: novo-extrator|novo-tipo-coluna|multi-sheet|frontend-widget]"
+allowed-tools: Read, Grep, Glob, Write, Edit
+---
+
+# Structured Data Generator
+
+## Purpose
+
+Documenta e guia extensões do pipeline de dados estruturados: importação de XLSX para tabela editável no frontend, detecção automática de conteúdo tabular em PDF/DOCX, e API de edição de células. Diferente do RAG (chunks + Qdrant), este pipeline armazena os dados em SQL (JSON column) para permitir edição pelo usuário.
+
+## When to use
+
+- Adicionar suporte a novo formato de arquivo além de XLSX, PDF, DOCX
+- Adicionar novo tipo de coluna além de TEXT, NUMBER, CURRENCY, PERCENTAGE, DATE
+- Modificar como XLSX multi-sheet é apresentado no frontend
+- Implementar novo widget de spreadsheet no frontend
+- Adicionar endpoint de export (CSV, JSON) a partir de `StructuredData`
+- Debugar por que XLSX não está sendo extraído (DATA_ANALYSIS vs KNOWLEDGE_BASE)
+
+## Inputs
+
+- `$ARGUMENTS[0]`: ação — `novo-extrator` | `novo-tipo-coluna` | `multi-sheet` | `frontend-widget`
+
+## Architecture — dois pipelines distintos, mesma entry point
+
+```
+DocumentService.createDocument(fileBuffer, fileName, fileType, fileSize, user, documentPurpose?)
+  │                           ↑
+  │                     DocumentPurpose.DATA_ANALYSIS (XLSX → tabela)
+  │                     DocumentPurpose.KNOWLEDGE_BASE (PDF → RAG)
+  │
+  └── setImmediate → DocumentProcessingPipeline.process(document, fileBuffer)
+        │
+        ├── documentPurpose === DATA_ANALYSIS?
+        │     ├── fileType === XLSX (fileBuffer presente)?
+        │     │     └── extractStructuredDataFromExcel(fileBuffer)
+        │     │           └── StructuredDataService.createFromStructured(user, docId, { sheets })
+        │     └── PDF/DOCX?
+        │           └── OpenAIService.isTextTabular(text)
+        │                 ├── true  → StructuredDataService.createFromText(user, docId, text)
+        │                 └── false → pular extração estruturada
+        │
+        ├── documentPurpose === KNOWLEDGE_BASE?
+        │     └── PULAR extração estruturada → ir direto para chunks + embeddings
+        │
+        └── (ambos os fluxos) → processChunks() → embeddings → Qdrant
+```
+
+## Repository patterns to inspect first
+
+```
+server/src/features/documents/services/DocumentProcessingPipeline.ts   ← dispatcher DATA_ANALYSIS vs KB
+server/src/features/documents/services/DocumentService.ts               ← createDocument, setImmediate async
+server/src/features/structuredData/services/StructuredDataService.ts    ← API completa
+server/src/features/structuredData/models/StructuredData.model.ts       ← IStructuredData, Header, SheetData
+server/src/features/structuredData/types/Sheet.types.ts                 ← ExcelHeader, SheetStructured
+server/src/features/structuredData/dtos/StructuredDataDto.ts            ← validação de input
+server/prisma/schema.prisma (modelo StructuredData)                     ← documentId FK, headers JSON, data JSON
+```
+
+## Data model
+
+```typescript
+// Dois formatos possíveis para `data` (depende de quantas sheets o XLSX tem)
+
+// Formato 1: single-sheet — array de arrays direto
+type StructuredDataValue = (string | number | null)[][];
+
+// Formato 2: multi-sheet — array de objetos SheetData
+type SheetData = {
+  name: string;
+  headers: { key: string; title: string; type: 'TEXT' | 'NUMBER' | 'CURRENCY' | 'PERCENTAGE' | 'DATE' }[];
+  data: (string | number | null)[][];
+};
+type StructuredDataValue = SheetData[];
+
+// Tipo canônico salvo no Prisma (JSON column)
+interface IStructuredData {
+  id: string;
+  documentId: string;
+  headers: Header[];   // { name: string; type: HeaderType }
+  data: StructuredDataValue;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+## Generation contract — adicionar novo tipo de coluna
+
+### 1. Adicionar ao enum em `models/StructuredData.model.ts`
+
+```typescript
+export type HeaderType = 'TEXT' | 'NUMBER' | 'CURRENCY' | 'PERCENTAGE' | 'DATE' | 'BOOLEAN'; // ← add
+```
+
+### 2. Adicionar ao tipo `ApiHeader` em `types/Sheet.types.ts`
+
+```typescript
+export interface ExcelHeader {
+  key: string;
+  title: string;
+  type: 'TEXT' | 'NUMBER' | 'CURRENCY' | 'PERCENTAGE' | 'DATE' | 'BOOLEAN'; // ← add
+}
+```
+
+### 3. Atualizar a lógica de detecção em `extractStructuredDataFromExcel()`
+
+Verificar onde o tipo de coluna é inferido a partir dos valores da célula Excel e adicionar detecção de boolean:
+
+```typescript
+function inferColumnType(values: (string | number | null)[]): HeaderType {
+  const nonNull = values.filter(v => v !== null);
+  if (nonNull.every(v => typeof v === 'boolean' || v === 'TRUE' || v === 'FALSE')) return 'BOOLEAN';
+  if (nonNull.every(v => typeof v === 'number')) return 'NUMBER';
+  // ... lógica existente ...
+  return 'TEXT';
+}
+```
+
+### 4. Atualizar o DTO de validação em `dtos/StructuredDataDto.ts`
+
+```typescript
+const HeaderTypeEnum = z.enum(['TEXT', 'NUMBER', 'CURRENCY', 'PERCENTAGE', 'DATE', 'BOOLEAN']);
+```
+
+## Generation contract — adicionar novo extrator de formato
+
+Localização: `server/src/features/documents/services/extractors/`
+
+```typescript
+// Padrão do extrator — mesma assinatura dos existentes
+export async function extractStructuredDataFromCsv(
+  fileBuffer: Buffer
+): Promise<{ sheets: SheetStructured[] }> {
+  // Parse CSV → SheetStructured com headers inferidos
+  return {
+    sheets: [{
+      name: 'Sheet1',
+      headers: [/* ExcelHeader[] */],
+      data: [/* (string|number|null)[][] */],
+    }],
+  };
+}
+
+// Registrar no DocumentProcessingPipeline.ts
+if (fileType === FileType.CSV) {
+  const structured = await extractStructuredDataFromCsv(fileBuffer);
+  await structuredDataService.createFromStructured(user, documentId, structured);
+}
+```
+
+Adicionar `CSV` ao enum `FileType` em `schema.prisma` + `migrate dev`.
+
+## Diferença crítica: DATA_ANALYSIS vs KNOWLEDGE_BASE
+
+| Aspecto | DATA_ANALYSIS | KNOWLEDGE_BASE |
+|---|---|---|
+| Trigger | `documentPurpose = DATA_ANALYSIS` (padrão para XLSX) | `documentPurpose = KNOWLEDGE_BASE` |
+| Extração | XLSX: `extractStructuredDataFromExcel()` — tabular direto; PDF/DOCX: `isTextTabular()` + `extractStructuredData()` | Chunking de texto |
+| Armazenamento | `StructuredData` (Prisma JSON) — editável | Chunks SQL + vetores Qdrant |
+| Frontend | Spreadsheet widget editável | Chat RAG com sourceDocuments |
+| Update | `StructuredDataService.update()` via PATCH | Imutável após indexação |
+
+## Files usually created or changed
+
+```
+server/src/features/structuredData/models/StructuredData.model.ts        ← EDIT (novo tipo)
+server/src/features/structuredData/types/Sheet.types.ts                  ← EDIT (novo ExcelHeader type)
+server/src/features/structuredData/services/StructuredDataService.ts     ← EDIT (nova lógica)
+server/src/features/structuredData/dtos/StructuredDataDto.ts             ← EDIT (validação)
+server/src/features/documents/services/extractors/<format>Extractor.ts  ← NEW (novo formato)
+server/src/features/documents/services/DocumentProcessingPipeline.ts    ← EDIT (novo fileType case)
+server/prisma/schema.prisma                                               ← EDIT (novo FileType enum)
+```
+
+## Required checks
+
+```bash
+cd server && npx tsc --noEmit
+cd server && npx prisma migrate dev --name add_<tipo>_to_structured_data
+```
+
+## Anti-patterns
+
+- **Não confundir os dois fluxos de XLSX** — `extractTextFromExcel()` extrai texto puro (para RAG/chunking); `extractStructuredDataFromExcel()` extrai estrutura tabular (para DATA_ANALYSIS). São funções diferentes com saídas diferentes.
+- **Não usar `documentPurpose = KNOWLEDGE_BASE` para XLSX tabulares** — este purpose pula toda a extração estruturada e vai direto para embedding. O dado tabular é perdido.
+- **Não armazenar `StructuredData` no Qdrant** — esses dados vão para SQL (JSON column), não para o vector store. Qdrant é exclusivo para embeddings de texto.
+- **Não retornar sheet[0] sem detectar formato** — `StructuredDataService.getByDocumentId()` normaliza o formato multi-sheet automaticamente; não assumir que `data` é sempre `(string|number|null)[][]`.
+- **Não modificar `data` diretamente no Prisma** — sempre via `StructuredDataService.update()` que valida schema e propaga para o frontend.
