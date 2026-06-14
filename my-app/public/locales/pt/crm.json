@@ -1,0 +1,85 @@
+{
+  "common": {
+    "loading": "Carregando…"
+  },
+  "nav": {
+    "overview": "Visão Geral",
+    "pipeline": "Pipeline",
+    "contacts": "Contatos",
+    "accounts": "Contas",
+    "proposals": "Propostas",
+    "activities": "Atividades",
+    "meetings": "Reuniões",
+    "analytics": "Analytics"
+  },
+  "analytics": {
+    "title": "CRM — Analytics",
+    "subtitle": "KPIs do funil, conversão e qualificação"
+  },
+  "overview": {
+    "title": "CRM — Visão Geral",
+    "subtitle": "Versão resumida do Leads 360",
+    "open_pipeline": "Abrir Pipeline",
+    "hot_leads": "Leads mais quentes",
+    "empty": "Nenhum lead encontrado."
+  },
+  "kpi": {
+    "total": "Total de Leads",
+    "open": "Em aberto",
+    "won": "Ganhos",
+    "pipeline_value": "Valor do Pipeline",
+    "win_rate": "Win Rate"
+  },
+  "pipeline": {
+    "title": "Pipeline",
+    "subtitle": "Gestão do funil por etapa",
+    "back": "← Visão Geral",
+    "no_stages": "Nenhuma etapa configurada.",
+    "empty_stage": "Sem registros"
+  },
+  "detail": {
+    "back": "← Pipeline",
+    "score": "Score",
+    "advance": "Avançar para",
+    "last_stage": "Última etapa",
+    "bant": "Qualificação BANT",
+    "budget": "Budget",
+    "authority": "Authority",
+    "need": "Need",
+    "timing": "Timing",
+    "contact": "Contato",
+    "phone": "Telefone",
+    "status": "Status",
+    "not_found": "Lead não encontrado."
+  },
+  "contacts": {
+    "title": "Contatos",
+    "name": "Nome",
+    "phone": "Telefone",
+    "job": "Cargo",
+    "role": "Papel",
+    "empty": "Nenhum contato. Instale o módulo CRM para começar."
+  },
+  "accounts": {
+    "title": "Contas",
+    "name": "Empresa",
+    "segment": "Segmento",
+    "size": "Porte",
+    "city": "Cidade",
+    "empty": "Nenhuma conta. Instale o módulo CRM para começar."
+  },
+  "proposals": {
+    "title": "Propostas",
+    "amount": "Valor",
+    "win": "Win %",
+    "eta": "Fechamento",
+    "empty": "Nenhuma proposta ainda."
+  },
+  "activities": {
+    "title": "Atividades",
+    "empty": "Nenhuma atividade registrada."
+  },
+  "meetings": {
+    "title": "Reuniões"
+  }
+}
