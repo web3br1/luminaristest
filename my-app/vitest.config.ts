@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 export default defineConfig({
   // `as any`: known nominal Plugin type clash between the app's vite and the
   // vite version nested under vitest — runtime is unaffected. Tooling-only.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- known vite/react Plugin type mismatch between versions
   plugins: [react() as any],
   resolve: {
     alias: {

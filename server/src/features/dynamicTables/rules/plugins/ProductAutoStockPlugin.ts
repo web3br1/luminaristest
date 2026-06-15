@@ -11,6 +11,7 @@
  * the idempotency strategy used in UnitAutoStockPlugin.
  */
 import type { RulePlugin } from '../RuleTypes';
+import type { IDynamicTableData } from '../../models/DynamicTable.model';
 import { resolveTable, tableMatches } from '../shared/tableFinder';
 
 const SCHEMA_KEYS = {
@@ -26,7 +27,7 @@ export const ProductAutoStockPlugin: RulePlugin = {
     return tableMatches(ctx.table, { categories: ['products'], internalNames: [SCHEMA_KEYS.PRODUCTS], names: ['Products', 'products', 'Produtos'] });
   },
   async afterCreate(ctx) {
-    const productId = String((ctx.after as any)?.id || '');
+    const productId = String(ctx.after?.id || '');
     if (!productId) return;
     // Descobre a tabela de estoque (Product Units)
     const productUnitsTable = await resolveTable(ctx, {
@@ -54,7 +55,7 @@ export const ProductAutoStockPlugin: RulePlugin = {
     // provisioning when the plugin is retried (e.g. after a transaction rollback).
     const existingRows = await ctx.repository.findRowsByFieldValue(productUnitsTableId, 'productId', productId);
     const provisionedUnitIds = new Set(
-      existingRows.map((r: any) => String((r?.data ?? r)?.unitId || ''))
+      existingRows.map((r: IDynamicTableData) => String(((r?.data as Record<string, unknown>) ?? {})?.unitId || ''))
     );
 
     for (const u of units) {

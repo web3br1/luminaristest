@@ -277,7 +277,7 @@ async function fetchRecordsForDataPoint(
         if (recordIds.includes(row.id)) {
           // Ensure data is a Record<string, any>
           const rowData = row.data && typeof row.data === 'object' && !Array.isArray(row.data)
-            ? (row.data as Record<string, any>)
+            ? (row.data as Record<string, unknown>)
             : {};
           matchingRecords.push({
             id: row.id,
@@ -317,7 +317,7 @@ async function fetchRecordsForDataPoint(
 export async function resolveChartData(
   req: Request,
   chartKey: string,
-  params: Record<string, any> = {}
+  params: Record<string, unknown> = {}
 ) {
   const user = userContextFromHeaders(req);
   const allGroups: AnalyticsPresetGroup[] = await analyticsService.getAllPresetGroupsAsync(user.id);

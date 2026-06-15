@@ -36,7 +36,7 @@ export async function extractTextFromExcel(buffer: ArrayBuffer): Promise<string>
       extractedText.push(`=== SHEET ${index + 1}: ${sheetName} ===`);
       
       worksheet.eachRow((row) => {
-        const rowText = (row.values as any[])
+        const rowText = (row.values as unknown[])
           .map((cell) => (cell != null ? cell.toString() : ''))
           .join('\t');
         if (rowText.trim() !== '') {
@@ -53,7 +53,7 @@ export async function extractTextFromExcel(buffer: ArrayBuffer): Promise<string>
     // Single sheet format - keep original simple format
     const worksheet = sheets[0];
     worksheet.eachRow((row) => {
-      const rowText = (row.values as any[])
+      const rowText = (row.values as unknown[])
         .map((cell) => (cell != null ? cell.toString() : ''))
         .join('\t');
       if (rowText.trim() !== '') {
@@ -78,7 +78,7 @@ export async function extractSheetsFromExcel(buffer: ArrayBuffer): Promise<Excel
   workbook.eachSheet((worksheet) => {
     let sheetContent = '';
     worksheet.eachRow((row) => {
-      const rowText = (row.values as any[])
+      const rowText = (row.values as unknown[])
         .map((cell) => (cell != null ? cell.toString() : ''))
         .join(' ');
       sheetContent += rowText + '\n';

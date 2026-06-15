@@ -55,8 +55,8 @@ export function formatRelatedDisplayValue(record: IDynamicTableData | null, disp
     return '(Não especificado)';
   }
   
-  // Trata data como Record<string, any> para permitir acesso dinâmico
-  const data = record.data as Record<string, any>;
+  // Trata data como Record<string, unknown> para permitir acesso dinâmico
+  const data = record.data as Record<string, unknown>;
   
   // Se o displayField não estiver presente, tenta usar um campo padrão
   let displayValue: unknown;

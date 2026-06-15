@@ -58,12 +58,12 @@ export interface AnalyticsConfiguration {
    * Chart display options (colors, currency, labels, etc.).
    * Merged with template's defaultOptions.
    */
-  options?: Record<string, any>;
+  options?: Record<string, unknown>;
 
   /**
    * Additional parameters to pass to the processor.
    * Merged with template's defaultParams and fieldMapping.
    */
-  params?: Record<string, any>;
+  params?: Record<string, unknown>;
 }
 

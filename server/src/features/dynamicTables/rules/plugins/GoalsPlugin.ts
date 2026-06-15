@@ -12,7 +12,7 @@
 import type { RulePlugin, RuleContext } from '../RuleTypes';
 import { tableMatches } from '../shared/tableFinder';
 
-async function autoComputeResult(ctx: RuleContext, after: any) {
+async function autoComputeResult(ctx: RuleContext, after: Record<string, unknown>) {
     const targetAmount = after?.targetAmount;
     const actualAmount = after?.actualAmount;
     const endDate = after?.endDate ? new Date(after.endDate) : null;
@@ -43,9 +43,9 @@ export const GoalsPlugin: RulePlugin = {
         return tableMatches(ctx.table, { categories: ['operations'], internalNames: [SCHEMA_KEYS.GOALS], names: ['Goals', 'goals', 'Metas'] });
     },
     async beforeCreate(ctx) {
-        await autoComputeResult(ctx, ctx.after as any);
+        await autoComputeResult(ctx, ctx.after ?? {});
     },
     async beforeUpdate(ctx) {
-        await autoComputeResult(ctx, ctx.after as any);
+        await autoComputeResult(ctx, ctx.after ?? {});
     },
 };

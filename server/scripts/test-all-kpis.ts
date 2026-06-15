@@ -50,6 +50,7 @@ async function fetchUser() {
 async function fetchTableData(
   user: { id: string },
   tableName: string
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
 ): Promise<{ table: any; schema: any; rows: TableDataRow[] }> {
   const table = await prisma.dynamicTable.findFirst({
     where: {
@@ -76,6 +77,7 @@ async function fetchTableData(
 
   return {
     table,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
     schema: (table.schema as any) || { fields: [] },
     rows,
   };
@@ -87,6 +89,7 @@ async function fetchTableData(
 
 async function testRevenueKPIs(
   user: { id: string },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
   salesTable: any,
   salesRows: TableDataRow[]
 ) {
@@ -129,6 +132,7 @@ async function testRevenueKPIs(
 
 async function testCostKPIs(
   user: { id: string },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
   expensesTable: any,
   expensesRows: TableDataRow[]
 ) {
@@ -165,8 +169,10 @@ async function testCostKPIs(
 
 async function testProfitKPIs(
   user: { id: string },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
   salesTable: any,
   salesRows: TableDataRow[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
   expensesTable: any,
   expensesRows: TableDataRow[]
 ) {
@@ -221,8 +227,10 @@ async function testProfitKPIs(
 
 async function testCashflowKPIs(
   user: { id: string },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
   salesTable: any,
   salesRows: TableDataRow[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
   expensesTable: any,
   expensesRows: TableDataRow[]
 ) {
@@ -322,7 +330,9 @@ async function runAllTests() {
       console.error(errorStack);
     }
     // Use globalThis.process for Node.js compatibility
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- globalThis.process not in type definitions
     if (typeof globalThis !== 'undefined' && (globalThis as any).process?.exit) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- globalThis.process not in type definitions
       (globalThis as any).process.exit(1);
     } else {
       throw error;

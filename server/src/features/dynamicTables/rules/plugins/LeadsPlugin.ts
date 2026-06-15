@@ -87,80 +87,80 @@ export const LeadsPlugin: RulePlugin = {
   async beforeCreate(ctx) {
     const tableName = ctx.table.internalName || ctx.table.name;
     if (tableName === SCHEMA_KEYS.LEADS || tableName === 'Leads') {
-      await validateLead(ctx, ctx.after as any);
+      await validateLead(ctx, ctx.after ?? {});
       // Não recalcula score se nenhum campo BANT mudou; preserva o score anterior
       const bantKeys = ['bantBudget', 'bantAuthority', 'bantNeed', 'bantTiming'];
-      const touchedBant = bantKeys.some(k => (ctx.after as any)[k] !== undefined);
+      const touchedBant = bantKeys.some(k => (ctx.after ?? {})[k] !== undefined);
       if (touchedBant) {
-        const merged = { ...(ctx.before as any), ...(ctx.after as any) } as any;
-        (ctx.after as any).score = calcScore(merged);
-      } else if ((ctx.before as any)?.score != null) {
-        (ctx.after as any).score = (ctx.before as any).score;
+        const merged = { ...(ctx.before ?? {}), ...(ctx.after ?? {}) } as Record<string, unknown>;
+        (ctx.after ?? {}).score = calcScore(merged);
+      } else if ((ctx.before ?? {})?.score != null) {
+        (ctx.after ?? {}).score = (ctx.before ?? {}).score;
       }
       // Forçar estágio inicial se não vier preenchido
       if (!ctx.after?.stageId && ctx.after?.pipelineId) {
         const firstStageId = await findFirstStageForPipeline(ctx, String(ctx.after.pipelineId));
-        if (firstStageId) (ctx.after as any).stageId = firstStageId;
+        if (firstStageId) (ctx.after ?? {}).stageId = firstStageId;
       } else if (!ctx.after?.stageId && !ctx.after?.pipelineId) {
         // Se pipeline não vier, escolher pipeline default da unidade e seu primeiro estágio
         const pipe = await findDefaultPipelineForUnit(ctx, String(ctx.after?.unitId || ''));
         if (pipe) {
-          (ctx.after as any).pipelineId = pipe.id;
+          (ctx.after ?? {}).pipelineId = pipe.id;
           const firstStageId = await findFirstStageForPipeline(ctx, String(pipe.id));
-          if (firstStageId) (ctx.after as any).stageId = firstStageId;
+          if (firstStageId) (ctx.after ?? {}).stageId = firstStageId;
         }
       }
-      if (!(ctx.after as any)?.pipelineId || !(ctx.after as any)?.stageId) {
+      if (!(ctx.after ?? {})?.pipelineId || !(ctx.after ?? {})?.stageId) {
         throw new ValidationError('Não foi possível determinar Pipeline/Stage padrão para a unidade.', { pipelineId: ['Obrigatório'], stageId: ['Obrigatório'] });
       }
     }
     if (tableName === SCHEMA_KEYS.PROPOSALS || tableName === 'Lead Proposals') {
-      await validateProposal(ctx, ctx.after as any);
+      await validateProposal(ctx, ctx.after ?? {});
     }
   },
   async beforeUpdate(ctx) {
     const tableName = ctx.table.internalName || ctx.table.name;
     if (tableName === SCHEMA_KEYS.LEADS || tableName === 'Leads') {
-      await validateLead(ctx, ctx.after as any);
+      await validateLead(ctx, ctx.after ?? {});
       // Só recalcula score se algum campo BANT foi tocado; caso contrário preserva
       const bantKeys = ['bantBudget', 'bantAuthority', 'bantNeed', 'bantTiming'];
-      const touchedBant = bantKeys.some(k => (ctx.after as any)[k] !== undefined);
+      const touchedBant = bantKeys.some(k => (ctx.after ?? {})[k] !== undefined);
       if (touchedBant) {
-        const merged = { ...(ctx.before as any), ...(ctx.after as any) } as any;
-        (ctx.after as any).score = calcScore(merged);
-      } else if ((ctx.before as any)?.score != null) {
-        (ctx.after as any).score = (ctx.before as any).score;
+        const merged = { ...(ctx.before ?? {}), ...(ctx.after ?? {}) } as Record<string, unknown>;
+        (ctx.after ?? {}).score = calcScore(merged);
+      } else if ((ctx.before ?? {})?.score != null) {
+        (ctx.after ?? {}).score = (ctx.before ?? {}).score;
       }
 
       // Enforce sequential stage transitions and stage-specific requirements
-      const prevStageId = String((ctx.before as any)?.stageId || '');
-      const nextStageId = String((ctx.after as any)?.stageId || '');
+      const prevStageId = String((ctx.before ?? {})?.stageId || '');
+      const nextStageId = String((ctx.after ?? {})?.stageId || '');
       if (prevStageId && nextStageId && prevStageId !== nextStageId) {
         // Determine pipeline to read stages
-        const effectivePipelineId = String((ctx.after as any)?.pipelineId || (ctx.before as any)?.pipelineId || '');
+        const effectivePipelineId = String((ctx.after ?? {})?.pipelineId || (ctx.before ?? {})?.pipelineId || '');
         if (effectivePipelineId) {
           const stagesTable = await findStagesTable(ctx);
           if (stagesTable) {
             const stages = await ctx.repository.findRowsByFieldValue(stagesTable.id, 'pipelineId', effectivePipelineId);
             const list = stages
-              .sort((a, b) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
+              .sort((a, b) => Number((a.data as Record<string, unknown> || {}).order || 0) - Number((b.data as Record<string, unknown> || {}).order || 0));
             const idxPrev = list.findIndex((s) => String(s.id) === prevStageId);
             const idxNext = list.findIndex((s) => String(s.id) === nextStageId);
             if (idxPrev >= 0 && idxNext >= 0) {
-              const prevType = String(((list[idxPrev].data as any) || {}).type || '').toLowerCase();
+              const prevType = String(((list[idxPrev].data as Record<string, unknown>) || {}).type || '').toLowerCase();
               const movingForward = idxNext === idxPrev + 1;
               const movingBackwardFromMeeting = (idxNext === idxPrev - 1) && prevType === 'meeting';
               if (!movingForward && !movingBackwardFromMeeting) {
                 throw new ValidationError('Transição de estágio inválida. Só é permitido avançar uma etapa por vez.', { stageId: ['Só pode avançar para a próxima etapa'] });
               }
-              const nextType = String(((list[idxNext].data as any) || {}).type || '').toLowerCase();
+              const nextType = String(((list[idxNext].data as Record<string, unknown>) || {}).type || '').toLowerCase();
               // Stage-specific data requirements
               if (movingForward && nextType === 'meeting') {
-                const nextAt = (ctx.after as any)?.nextActionAt;
+                const nextAt = (ctx.after ?? {})?.nextActionAt;
                 if (!nextAt) {
                   throw new ValidationError('Agende a data/horário da reunião antes de avançar para "Reunião Agendada".', { nextActionAt: ['Obrigatório para Reunião Agendada'] });
                 }
-                const d = new Date(nextAt);
+                const d = new Date(String(nextAt));
                 if (!isFinite(d.getTime())) {
                   throw new ValidationError('Data/Horário inválidos para a reunião.', { nextActionAt: ['Data inválida'] });
                 }
@@ -169,9 +169,9 @@ export const LeadsPlugin: RulePlugin = {
                 }
               }
               if (nextType === 'proposal') {
-                const amt = (ctx.after as any)?.latestProposalAmount;
-                const cur = (ctx.after as any)?.latestProposalCurrency;
-                const prob = (ctx.after as any)?.latestProposalWinProbability;
+                const amt = (ctx.after ?? {})?.latestProposalAmount;
+                const cur = (ctx.after ?? {})?.latestProposalCurrency;
+                const prob = (ctx.after ?? {})?.latestProposalWinProbability;
                 if (amt == null || Number(amt) < 0) {
                   throw new ValidationError('Informe o valor negociado para avançar para "Proposta Enviada".', { latestProposalAmount: ['Obrigatório e >= 0'] });
                 }
@@ -188,66 +188,66 @@ export const LeadsPlugin: RulePlugin = {
       }
     }
     if (tableName === SCHEMA_KEYS.PROPOSALS || tableName === 'Lead Proposals') {
-      await validateProposal(ctx, ctx.after as any);
+      await validateProposal(ctx, ctx.after ?? {});
     }
   },
   async afterCreate(ctx) {
     const tableName = ctx.table.internalName || ctx.table.name;
     if (tableName === SCHEMA_KEYS.PROPOSALS || tableName === 'Lead Proposals') {
-      await upsertLatestProposalSnapshot(ctx, (ctx.after as any).leadId);
-      await addActivity(ctx, (ctx.after as any).leadId, 'proposal', 'Proposta criada', { proposalId: (ctx.after as any).id });
+      await upsertLatestProposalSnapshot(ctx, String((ctx.after ?? {}).leadId));
+      await addActivity(ctx, String((ctx.after ?? {}).leadId), 'proposal', 'Proposta criada', { proposalId: (ctx.after ?? {}).id });
     }
     if (tableName === SCHEMA_KEYS.LEADS || tableName === 'Leads') {
-      await addActivity(ctx, (ctx.after as any).id, 'field_update', 'Lead criado', {});
+      await addActivity(ctx, String((ctx.after ?? {}).id), 'field_update', 'Lead criado', {});
     }
     if (tableName === SCHEMA_KEYS.ACTIVITIES || tableName === 'Lead Activities') {
-      await reflectActivitySideEffects(ctx, ctx.after as any);
+      await reflectActivitySideEffects(ctx, ctx.after ?? {});
     }
   },
   async afterUpdate(ctx) {
     const tableName = ctx.table.internalName || ctx.table.name;
     if (tableName === SCHEMA_KEYS.PROPOSALS || tableName === 'Lead Proposals') {
-      await upsertLatestProposalSnapshot(ctx, (ctx.after as any).leadId);
-      await addActivity(ctx, (ctx.after as any).leadId, 'proposal', 'Proposta atualizada', { proposalId: (ctx.after as any).id });
+      await upsertLatestProposalSnapshot(ctx, String((ctx.after ?? {}).leadId));
+      await addActivity(ctx, String((ctx.after ?? {}).leadId), 'proposal', 'Proposta atualizada', { proposalId: (ctx.after ?? {}).id });
     }
     if (tableName === SCHEMA_KEYS.LEADS || tableName === 'Leads') {
       // Detectar mudanças de stage
-      const prevStage = String((ctx.before as any)?.stageId || '');
-      const nextStage = String((ctx.after as any)?.stageId || '');
+      const prevStage = String((ctx.before ?? {})?.stageId || '');
+      const nextStage = String((ctx.after ?? {})?.stageId || '');
       if (prevStage && nextStage && prevStage !== nextStage) {
-        await addActivity(ctx, (ctx.after as any).id, 'stage_change', 'Mudança de estágio', { prevStage, nextStage });
+        await addActivity(ctx, String((ctx.after ?? {}).id), 'stage_change', 'Mudança de estágio', { prevStage, nextStage });
         // If moving into meeting stage, also log meeting scheduling if present
         const stagesTable = await findStagesTable(ctx);
         if (stagesTable) {
           const stPrev = await ctx.repository.findDataById(prevStage);
           const stNext = await ctx.repository.findDataById(nextStage);
-          const prevType = String((((stPrev?.data) as any) || {}).type || '').toLowerCase();
-          const nextType = String((((stNext?.data) as any) || {}).type || '').toLowerCase();
-          if (nextType === 'meeting' && (ctx.after as any)?.nextActionAt) {
-            await addActivity(ctx, (ctx.after as any).id, 'meeting', 'Reunião agendada', { when: (ctx.after as any).nextActionAt });
+          const prevType = String(((stPrev?.data as Record<string, unknown>) || {}).type || '').toLowerCase();
+          const nextType = String(((stNext?.data as Record<string, unknown>) || {}).type || '').toLowerCase();
+          if (nextType === 'meeting' && (ctx.after ?? {})?.nextActionAt) {
+            await addActivity(ctx, String((ctx.after ?? {}).id), 'meeting', 'Reunião agendada', { when: (ctx.after ?? {}).nextActionAt });
           }
           // If moving one step back from a meeting stage, log no-show.
           // Index is computed within the lead's pipeline (equivalent to the prior global order
           // for stages of the same pipeline, since prev/next always share it).
-          const effectivePipelineId = String((ctx.after as any)?.pipelineId || (ctx.before as any)?.pipelineId || '');
+          const effectivePipelineId = String((ctx.after ?? {})?.pipelineId || (ctx.before ?? {})?.pipelineId || '');
           const list = (await ctx.repository.findRowsByFieldValue(stagesTable.id, 'pipelineId', effectivePipelineId))
-            .sort((a, b) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
+            .sort((a, b) => Number((a.data as Record<string, unknown> || {}).order || 0) - Number((b.data as Record<string, unknown> || {}).order || 0));
           const idxPrev = list.findIndex((s) => String(s.id) === prevStage);
           const idxNext = list.findIndex((s) => String(s.id) === nextStage);
           if (prevType === 'meeting' && idxNext === idxPrev - 1) {
             // Padrão ouro: limpar agendamento anterior para evitar resíduos
-            (ctx.after as any).nextActionAt = null;
-            const scheduledAt = (ctx.before as any)?.nextActionAt;
-            await addActivity(ctx, (ctx.after as any).id, 'meeting_no_show', 'Não compareceu à reunião', { prevStage, nextStage, scheduledAt });
+            (ctx.after ?? {}).nextActionAt = null;
+            const scheduledAt = (ctx.before ?? {})?.nextActionAt;
+            await addActivity(ctx, String((ctx.after ?? {}).id), 'meeting_no_show', 'Não compareceu à reunião', { prevStage, nextStage, scheduledAt });
             if (scheduledAt) {
-              await addActivity(ctx, (ctx.after as any).id, 'meeting_cancelled', 'Reunião cancelada', { scheduledAt });
+              await addActivity(ctx, String((ctx.after ?? {}).id), 'meeting_cancelled', 'Reunião cancelada', { scheduledAt });
             }
           }
         }
       }
     }
     if (tableName === SCHEMA_KEYS.ACTIVITIES || tableName === 'Lead Activities') {
-      await reflectActivitySideEffects(ctx, ctx.after as any);
+      await reflectActivitySideEffects(ctx, ctx.after ?? {});
     }
   },
 };
@@ -260,7 +260,7 @@ export const LeadsPlugin: RulePlugin = {
  * - BANT options strictly validated when provided
  * Note: pipeline/stage can be empty on create; plugin fills defaults.
  */
-async function validateLead(ctx: RuleContext, after: any) {
+async function validateLead(ctx: RuleContext, after: Record<string, unknown>) {
   const unitId = String(after?.unitId || '').trim();
   const pipelineId = String(after?.pipelineId || '').trim();
   const stageId = String(after?.stageId || '').trim();
@@ -273,14 +273,14 @@ async function validateLead(ctx: RuleContext, after: any) {
   if (!pipelineId) return; // será preenchido por quem chama ou por etapa posterior
   const pipeline = await ctx.repository.findDataById(pipelineId);
   if (!pipeline) throw new ValidationError('Pipeline não encontrado.', { pipelineId: ['Inexistente'] });
-  const pipelineUnitId = String(((pipeline.data as any) || {}).unitId || '');
+  const pipelineUnitId = String(((pipeline.data as Record<string, unknown>) || {}).unitId || '');
   if (pipelineUnitId && pipelineUnitId !== unitId) {
     throw new ValidationError('O pipeline selecionado não pertence à unidade informada.', { pipelineId: ['Pipeline deve pertencer à unidade'], unitId: ['Unidade incompatível com o pipeline'] });
   }
   if (!stageId) return; // será preenchido como primeiro estágio na criação
   const stage = await ctx.repository.findDataById(stageId);
   if (!stage) throw new ValidationError('Estágio não encontrado.', { stageId: ['Inexistente'] });
-  const stagePipelineId = String(((stage.data as any) || {}).pipelineId || '');
+  const stagePipelineId = String(((stage.data as Record<string, unknown>) || {}).pipelineId || '');
   if (stagePipelineId && stagePipelineId !== pipelineId) {
     throw new ValidationError('O estágio selecionado não pertence ao pipeline informado.', { stageId: ['Estágio deve pertencer ao pipeline'], pipelineId: ['Pipeline incompatível com o estágio'] });
   }
@@ -315,13 +315,13 @@ async function validateLead(ctx: RuleContext, after: any) {
 /**
  * Validates proposal record data ranges and dates.
  */
-async function validateProposal(ctx: RuleContext, after: any) {
+async function validateProposal(ctx: RuleContext, after: Record<string, unknown>) {
   const amount = Number(after?.amount);
   if (Number.isNaN(amount) || amount < 0) throw new ValidationError('Valor da proposta inválido.', { amount: ['Deve ser >= 0'] });
   const prob = Number(after?.winProbability ?? 0);
   if (prob < 0 || prob > 100) throw new ValidationError('Probabilidade deve estar entre 0 e 100.', { winProbability: ['0 a 100'] });
   if (after?.estimatedCloseDate) {
-    const d = new Date(after.estimatedCloseDate);
+    const d = new Date(String(after.estimatedCloseDate));
     const today = new Date(); today.setHours(0, 0, 0, 0);
     if (isFinite(d.getTime()) && d < today) {
       throw new ValidationError('Data estimada de fechamento não pode ser no passado.', { estimatedCloseDate: ['Deve ser futura'] });
@@ -338,23 +338,24 @@ async function upsertLatestProposalSnapshot(ctx: RuleContext, leadId: string) {
   const list = await ctx.repository.findRowsByFieldValue(proposalsTable.id, 'leadId', String(leadId));
   if (list.length === 0) return;
   // pega a mais recente por updatedAt|createdAt
-  const latest = list.sort((a, b) => new Date((b as any).updatedAt || (b as any).createdAt).getTime() - new Date((a as any).updatedAt || (a as any).createdAt).getTime())[0];
-  const patch = {
-    latestProposalAmount: (latest.data as any)?.amount,
-    latestProposalCurrency: (latest.data as any)?.currency,
-    latestProposalEtaClose: (latest.data as any)?.estimatedCloseDate,
-    latestProposalWinProbability: (latest.data as any)?.winProbability,
-  } as any;
+  const latest = list.sort((a, b) => new Date(String((b as Record<string, unknown>).updatedAt || (b as Record<string, unknown>).createdAt)).getTime() - new Date(String((a as Record<string, unknown>).updatedAt || (a as Record<string, unknown>).createdAt)).getTime())[0];
+  const latestData = (latest.data as Record<string, unknown>) ?? {};
+  const patch: Record<string, unknown> = {
+    latestProposalAmount: latestData.amount,
+    latestProposalCurrency: latestData.currency,
+    latestProposalEtaClose: latestData.estimatedCloseDate,
+    latestProposalWinProbability: latestData.winProbability,
+  };
   // merge no lead
   const lead = await ctx.repository.findDataById(String(leadId));
   if (!lead) return;
-  await ctx.repository.updateData(leadId, { ...((lead.data as any) || {}), ...patch } as any);
+  await ctx.repository.updateData(leadId, { ...((lead.data as Record<string, unknown>) || {}), ...patch } as Record<string, unknown>);
 }
 
 /**
  * Append a Lead Activity in the activities table.
  */
-async function addActivity(ctx: RuleContext, leadId: string, type: string, message: string, payload: any) {
+async function addActivity(ctx: RuleContext, leadId: string, type: string, message: string, payload: Record<string, unknown>) {
   const activitiesTable = await findActivitiesTable(ctx);
   if (!activitiesTable) return;
   await ctx.repository.createData(activitiesTable.id, {
@@ -362,14 +363,14 @@ async function addActivity(ctx: RuleContext, leadId: string, type: string, messa
     type,
     message,
     payload,
-  } as any);
+  } as Record<string, unknown>);
 }
 
 /**
  * Side effects triggered by certain activity types.
  * - call/email/meeting: update lastContactAt on the Lead.
  */
-async function reflectActivitySideEffects(ctx: RuleContext, after: any) {
+async function reflectActivitySideEffects(ctx: RuleContext, after: Record<string, unknown>) {
   const type = String(after?.type || '');
   const leadId = String(after?.leadId || '');
   if (!leadId) return;
@@ -378,7 +379,7 @@ async function reflectActivitySideEffects(ctx: RuleContext, after: any) {
   if (!leadsTable) return;
   const lead = await ctx.repository.findDataById(leadId);
   if (!lead) return;
-  await ctx.repository.updateData(leadId, { ...((lead.data as any) || {}), lastContactAt: new Date().toISOString() } as any);
+  await ctx.repository.updateData(leadId, { ...((lead.data as Record<string, unknown>) || {}), lastContactAt: new Date().toISOString() } as Record<string, unknown>);
 }
 
 /**
@@ -389,7 +390,7 @@ async function findFirstStageForPipeline(ctx: RuleContext, pipelineId: string): 
   if (!stagesTable) return null;
   const list = await ctx.repository.findRowsByFieldValue(stagesTable.id, 'pipelineId', String(pipelineId));
   if (list.length === 0) return null;
-  list.sort((a, b) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
+  list.sort((a, b) => Number((a.data as Record<string, unknown> || {}).order || 0) - Number((b.data as Record<string, unknown> || {}).order || 0));
   return String(list[0].id);
 }
 
@@ -400,7 +401,7 @@ async function findDefaultPipelineForUnit(ctx: RuleContext, unitId: string): Pro
   const pipelinesTable = await findPipelinesTable(ctx);
   if (!pipelinesTable) return null;
   const rows = await ctx.repository.findRowsByFieldValue(pipelinesTable.id, 'unitId', String(unitId));
-  const def = rows.find((r: any) => Boolean((r.data || {}).isDefault));
+  const def = rows.find((r: { data?: Record<string, unknown> }) => Boolean((r.data || {}).isDefault));
   return def ? { id: String(def.id) } : null;
 }
 

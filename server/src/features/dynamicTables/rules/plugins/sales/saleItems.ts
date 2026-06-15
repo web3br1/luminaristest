@@ -1,4 +1,5 @@
 import type { RuleContext } from '../../RuleTypes';
+import type { IDynamicTableData } from '../../../models/DynamicTable.model';
 import { ValidationError } from '../../../../../lib/errors';
 import { logger } from '../../../../../lib/logger';
 import { SALE_KEYS, findSaleById } from './shared';
@@ -22,10 +23,10 @@ export async function deleteSaleIfFirstItem(ctx: RuleContext, saleId: string) {
 /**
  * Load all items for the current sale operation and resolve sale unitId when present.
  */
-export async function loadSaleItems(ctx: RuleContext): Promise<{ items: Array<{ id: string; data: any }>; saleUnitId?: string }> {
+export async function loadSaleItems(ctx: RuleContext): Promise<{ items: Array<{ id: string; data: Record<string, unknown> }>; saleUnitId?: string }> {
   const saleTableId = (ctx.table.id);
-  const saleUnitIdField = ((ctx.schema.fields || []).find((f: any) => f.name === 'unitId')) ? 'unitId' : undefined;
-  const saleUnitId = saleUnitIdField ? String((ctx.after as any)?.unitId || (ctx.before as any)?.unitId || '') : undefined;
+  const saleUnitIdField = ((ctx.schema.fields || []).find((f: { name: string }) => f.name === 'unitId')) ? 'unitId' : undefined;
+  const saleUnitId = saleUnitIdField ? String(ctx.after?.unitId || ctx.before?.unitId || '') : undefined;
 
   let saleItemsTableId: string | null = null;
 
@@ -43,8 +44,8 @@ export async function loadSaleItems(ctx: RuleContext): Promise<{ items: Array<{ 
   const saleItemsNamePatterns = ['Sale Items', 'Itens da Venda', 'SaleItems', 'saleItems'];
 
   for (const t of tables) {
-    const fields = ((t.schema as any)?.fields || []);
-    const saleIdField = fields.find((f: any) => f.name === 'saleId' && f.type === 'relation');
+    const fields = (t.schema?.fields || []);
+    const saleIdField = fields.find((f) => f.name === 'saleId' && f.type === 'relation');
     if (!saleIdField) continue;
 
     const nameLower = t.name.toLowerCase();
@@ -68,8 +69,8 @@ export async function loadSaleItems(ctx: RuleContext): Promise<{ items: Array<{ 
   // Fallback: se não encontrou por nome, procura por relação exata com a tabela de vendas
   if (!saleItemsTableId) {
     for (const t of tables) {
-      const fields = ((t.schema as any)?.fields || []);
-      const saleIdField = fields.find((f: any) => f.name === 'saleId' && f.type === 'relation');
+      const fields = (t.schema?.fields || []);
+      const saleIdField = fields.find((f) => f.name === 'saleId' && f.type === 'relation');
       if (!saleIdField) continue;
 
       // Exclui tabelas conhecidas que não são itens de venda
@@ -92,9 +93,9 @@ export async function loadSaleItems(ctx: RuleContext): Promise<{ items: Array<{ 
     return { items: [], saleUnitId };
   }
 
-  const saleId = String((ctx.after as any)?.id || (ctx.before as any)?.id || '');
+  const saleId = String(ctx.after?.id || ctx.before?.id || '');
   const rawItems = await ctx.repository.findRowsByFieldValue(saleItemsTableId, 'saleId', saleId);
-  const items = rawItems.map((row: any) => ({ id: row.id, data: row.data }));
+  const items = rawItems.map((row: IDynamicTableData) => ({ id: row.id, data: (row.data as Record<string, unknown>) ?? {} }));
 
   return { items, saleUnitId };
 }
@@ -102,7 +103,7 @@ export async function loadSaleItems(ctx: RuleContext): Promise<{ items: Array<{ 
 /**
  * Enforce that a sale item references exactly one of productId or serviceId, and product qty > 0.
  */
-export async function validateSaleItemXor(_ctx: RuleContext, after: any) {
+export async function validateSaleItemXor(_ctx: RuleContext, after: Record<string, unknown>) {
   // Applies to mixed variant: exactly one of productId or serviceId must be provided
   const hasProduct = !!after?.productId;
   const hasService = !!after?.serviceId;
@@ -122,12 +123,12 @@ export async function validateSaleItemXor(_ctx: RuleContext, after: any) {
  * Prevent mixing product and service items within the same sale.
  * Called on insert of a new sale item.
  */
-export async function validateNoMixedItemTypesOnInsert(ctx: RuleContext, after: any) {
+export async function validateNoMixedItemTypesOnInsert(ctx: RuleContext, after: Record<string, unknown>) {
   const saleId = String(after?.saleId || '');
   if (!saleId) return;
   // Fetch existing items for this sale via indexed query (current table = sale items).
   const allItems = await ctx.repository.findRowsByFieldValue(ctx.table.id, 'saleId', saleId);
-  const existing = allItems.map((r: any) => r.data || {});
+  const existing = allItems.map((r: IDynamicTableData) => (r.data as Record<string, unknown>) || {});
   const types = new Set<string>();
   for (const it of existing) {
     if (it?.productId || String(it?.type || '') === 'Product') types.add('Product');
@@ -143,10 +144,10 @@ export async function validateNoMixedItemTypesOnInsert(ctx: RuleContext, after: 
 
 /** Prevent item mutations when the parent sale has been finalized. */
 export async function assertParentSaleNotFinalized(ctx: RuleContext) {
-  const saleId = String((ctx.after as any)?.saleId || (ctx.before as any)?.saleId || '');
+  const saleId = String(ctx.after?.saleId || ctx.before?.saleId || '');
   if (!saleId) return;
   const sale = await findSaleById(ctx, saleId);
-  const status = String((sale?.data as any)?.status || 'Draft');
+  const status = String((sale?.data as Record<string, unknown>)?.status || 'Draft');
   if (status === 'Finalized') {
     throw new ValidationError('Não é permitido alterar itens de uma venda finalizada.');
   }

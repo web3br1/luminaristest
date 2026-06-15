@@ -145,7 +145,7 @@ export class StructuredDataService {
 
     logger.info('Starting structured data extraction with OpenAI', { documentId });
 
-    const structuredContent = await this.openAIService.extractStructuredData(rawText);
+    const structuredContent = await this.openAIService.extractStructuredData(rawText) as Record<string, unknown> | null;
 
     if (!structuredContent || !structuredContent.data) {
       logger.error('Invalid or incomplete data from OpenAI', { documentId });
@@ -171,7 +171,7 @@ export class StructuredDataService {
 
     // Garantimos que o tipo de dados está correto para o banco
     const safeData: (string | number | null)[][] = Array.isArray(structuredContent.data)
-      ? structuredContent.data.map((row: unknown[]) =>
+      ? (structuredContent.data as unknown[][]).map((row) =>
           Array.isArray(row) ? row.map((cell: unknown) =>
             cell === undefined ? null : cell as string | number | null
           ) : []

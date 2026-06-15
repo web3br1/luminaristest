@@ -14,14 +14,14 @@ export interface IDynamicTableRepository {
   deleteTablesByUserId(userId: string): Promise<void>;
 
   // Data operations
-  createData(tableId: string, data: Record<string, any>): Promise<IDynamicTableData>;
+  createData(tableId: string, data: Record<string, unknown>): Promise<IDynamicTableData>;
   findDataById(dataId: string): Promise<IDynamicTableData | null>;
   findDataByIds(dataIds: string[]): Promise<IDynamicTableData[]>;
   findDataByTableId(tableId: string, page?: number, limit?: number): Promise<{ data: IDynamicTableData[]; total: number }>;
   /** Internal use only — returns ALL rows without pagination for validation/analytics. */
   findAllDataByTableId(tableId: string): Promise<IDynamicTableData[]>;
   findDataBatchStreamByTableId(tableId: string, batchSize?: number): AsyncGenerator<IDynamicTableData[]>;
-  updateData(dataId: string, data: Record<string, any>): Promise<IDynamicTableData>;
+  updateData(dataId: string, data: Record<string, unknown>): Promise<IDynamicTableData>;
   deleteData(dataId: string): Promise<void>;
   /**
    * Deletes all data entries for all dynamic tables that belong to the given user.

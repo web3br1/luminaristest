@@ -50,7 +50,7 @@ async function main() {
         const tables = Array.isArray(data) ? data : (data.data || []);
 
         for (const t of TABLES) {
-            const found = tables.find((tbl: any) => tbl.name === t || tbl.internalName === t);
+            const found = tables.find((tbl: { name?: string; internalName?: string; id?: string }) => tbl.name === t || tbl.internalName === t);
             if (found) tableMap[t] = found.id;
             else console.warn(`⚠️ Table not found: ${t}`);
         }
@@ -121,7 +121,7 @@ async function main() {
     }
 }
 
-function getPayload(table: string): any {
+function getPayload(table: string): unknown {
     const ts = Date.now();
     switch (table) {
         case 'Units': return { name: `Test Unit ${ts}`, active: true };
@@ -142,7 +142,7 @@ function getPayload(table: string): any {
     }
 }
 
-function getUpdatePayload(table: string): any {
+function getUpdatePayload(table: string): unknown {
     return { notes: 'Updated by Script', active: false };
 }
 

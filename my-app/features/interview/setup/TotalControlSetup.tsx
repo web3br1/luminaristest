@@ -74,8 +74,8 @@ export default function TotalControlSetup() {
       try {
         const body = (await apiClient.get('/dashboard/presets')) as PresetsResponse;
         setPresets(body.data || []);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err));
       } finally {
         setIsLoading(false);
       }
@@ -96,8 +96,9 @@ export default function TotalControlSetup() {
     setIsFetchingDetails(true);
     setError(null);
     try {
-      const body = (await apiClient.get(`/dashboard/presets/${selectedPreset.key}`).catch((err: any) => {
-          throw new Error(err?.error || err?.message || 'Não foi possível carregar os detalhes do preset.');
+      const body = (await apiClient.get(`/dashboard/presets/${selectedPreset.key}`).catch((err: unknown) => {
+          const e = err as Record<string, unknown>;
+          throw new Error((e?.['error'] as string) || (e?.['message'] as string) || 'Não foi possível carregar os detalhes do preset.');
       })) as PresetsResponse;
       const presetData: IPresetDetails = body.data;
       setPresetDetails(presetData);

@@ -516,8 +516,8 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
 
   // Return all KPIs with recordIds and tableSource
   return [
-    { name: 'Receita Bruta', value: grossRevenue, previousValue: prevGrossRevenue, recordIds: grossRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total } })), timestamp: Date.now() } as any },
-    { name: 'Receita Líquida', value: netRevenue, previousValue: prevNetRevenue, recordIds: grossRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.net } })), timestamp: Date.now() } as any },
+    { name: 'Receita Bruta', value: grossRevenue, previousValue: prevGrossRevenue, recordIds: grossRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Receita Líquida', value: netRevenue, previousValue: prevNetRevenue, recordIds: grossRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.net } as Record<string, unknown> })), timestamp: Date.now() } },
     {
       name: 'Crescimento da Receita (%)',
       value: revenueGrowthPct,
@@ -528,15 +528,15 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
         records: series.map((s, i, arr) => {
           const prev = i > 0 ? arr[i - 1].total : 0;
           const growth = prev > 0 ? ((s.total - prev) / prev) * 100 : 0;
-          return { id: s.name, data: { value: growth } };
+          return { id: s.name, data: { value: growth } as Record<string, unknown> };
         }),
         timestamp: Date.now()
-      } as any
+      }
     },
-    { name: 'Receita Total Anual', value: annualRevenue, previousValue: prevWindowRevenue > 0 ? prevWindowRevenue : undefined, recordIds: windowRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total } })), timestamp: Date.now() } as any },
-    { name: 'Receita Operacional', value: operationalRevenue, previousValue: prevOperationalRevenue, recordIds: operationalRevenueIds, tableSource: mainTableSource, fullRecords: { records: [{ id: 'Operacional', data: { value: operationalRevenue } }, { id: 'Não Operacional', data: { value: nonOperationalRevenue } }], timestamp: Date.now() } as any },
-    { name: 'Receita Não Operacional', value: nonOperationalRevenue, previousValue: prevNonOperationalRevenue, recordIds: nonOperationalRevenueIds, tableSource: mainTableSource, fullRecords: { records: [{ id: 'Operacional', data: { value: operationalRevenue } }, { id: 'Não Operacional', data: { value: nonOperationalRevenue } }], timestamp: Date.now() } as any },
-    { name: 'Receita Média Mensal', value: avgMonthlyRevenue, previousValue: prevAvgMonthlyRevenue > 0 ? prevAvgMonthlyRevenue : undefined, recordIds: windowRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total } })), timestamp: Date.now() } as any },
+    { name: 'Receita Total Anual', value: annualRevenue, previousValue: prevWindowRevenue > 0 ? prevWindowRevenue : undefined, recordIds: windowRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Receita Operacional', value: operationalRevenue, previousValue: prevOperationalRevenue, recordIds: operationalRevenueIds, tableSource: mainTableSource, fullRecords: { records: [{ id: 'Operacional', data: { value: operationalRevenue } as Record<string, unknown> }, { id: 'Não Operacional', data: { value: nonOperationalRevenue } as Record<string, unknown> }], timestamp: Date.now() } },
+    { name: 'Receita Não Operacional', value: nonOperationalRevenue, previousValue: prevNonOperationalRevenue, recordIds: nonOperationalRevenueIds, tableSource: mainTableSource, fullRecords: { records: [{ id: 'Operacional', data: { value: operationalRevenue } as Record<string, unknown> }, { id: 'Não Operacional', data: { value: nonOperationalRevenue } as Record<string, unknown> }], timestamp: Date.now() } },
+    { name: 'Receita Média Mensal', value: avgMonthlyRevenue, previousValue: prevAvgMonthlyRevenue > 0 ? prevAvgMonthlyRevenue : undefined, recordIds: windowRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total } as Record<string, unknown> })), timestamp: Date.now() } },
     {
       name: 'Receita Média por Dia Útil',
       value: avgBusinessDayRevenue,
@@ -548,10 +548,10 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
           const parts = s.name.split('-');
           const date = parts.length === 2 ? new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1) : new Date();
           const businessDays = countBusinessDaysInMonth(date);
-          return { id: s.name, data: { value: s.total / (businessDays || 1) } };
+          return { id: s.name, data: { value: s.total / (businessDays || 1) } as Record<string, unknown> };
         }),
         timestamp: Date.now()
-      } as any
+      }
     },
     {
       name: 'Receita por Hora Operacional',
@@ -564,10 +564,10 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
           const parts = s.name.split('-');
           const date = parts.length === 2 ? new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1) : new Date();
           const businessDays = countBusinessDaysInMonth(date);
-          return { id: s.name, data: { value: s.total / ((businessDays || 1) * 8) } };
+          return { id: s.name, data: { value: s.total / ((businessDays || 1) * 8) } as Record<string, unknown> };
         }),
         timestamp: Date.now()
-      } as any
+      }
     },
     {
       name: 'Receita por Cliente',
@@ -579,10 +579,10 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
         records: series.map(s => {
           // Real ARPU per month (Fix #1): revenue / unique customers in that month
           const monthlyArpu = s.customerCount > 0 ? s.total / s.customerCount : 0;
-          return { id: s.name, data: { value: monthlyArpu } };
+          return { id: s.name, data: { value: monthlyArpu } as Record<string, unknown> };
         }),
         timestamp: Date.now()
-      } as any
+      }
     },
     { 
       name: 'Receita Máxima por Cliente', 
@@ -591,9 +591,9 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
       recordIds: grossRevenueIds, 
       tableSource: mainTableSource,
       fullRecords: {
-        records: series.map(s => ({ id: s.name, data: { value: s.maxCustomerRev } })),
+        records: series.map(s => ({ id: s.name, data: { value: s.maxCustomerRev } as Record<string, unknown> })),
         timestamp: Date.now()
-      } as any
+      }
     },
     {
       name: 'Receita por Categoria',
@@ -602,13 +602,13 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
       recordIds: grossRevenueIds,
       tableSource: mainTableSource,
       fullRecords: {
-        records: Array.from(revenueByCategory.entries()).map(([cat, total]) => ({ id: cat, data: { value: total } })),
+        records: Array.from(revenueByCategory.entries()).map(([cat, total]) => ({ id: cat, data: { value: total } as Record<string, unknown> })),
         timestamp: Date.now()
-      } as any
+      }
     },
-    { name: 'Dependência de Receita de Fonte Única (%)', value: singleSourceDependencyPct, previousValue: singleSourceConfigured && prevRevenueByCustomer.size > 0 && prevGrossRevenue > 0 ? (Math.max(...prevRevenueByCustomer.values()) / prevGrossRevenue) * 100 : undefined, recordIds: grossRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.maxCustomerRev / s.total) * 100 : 0 } })), timestamp: Date.now() } as any },
-    { name: 'Receita Nova (%)', value: newRevenuePct, previousValue: prevGrossRevenue > 0 ? (prevNewRevenue / prevGrossRevenue) * 100 : undefined, recordIds: newRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.newRev / s.total) * 100 : 0 } })), timestamp: Date.now() } as any },
-    { name: 'Receita Recorrente (%)', value: recurringRevenuePct, previousValue: prevGrossRevenue > 0 ? (prevLoyalRevenue / prevGrossRevenue) * 100 : undefined, recordIds: loyalRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.loyalRev / s.total) * 100 : 0 } })), timestamp: Date.now() } as any },
+    { name: 'Dependência de Receita de Fonte Única (%)', value: singleSourceDependencyPct, previousValue: singleSourceConfigured && prevRevenueByCustomer.size > 0 && prevGrossRevenue > 0 ? (Math.max(...prevRevenueByCustomer.values()) / prevGrossRevenue) * 100 : undefined, recordIds: grossRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.maxCustomerRev / s.total) * 100 : 0 } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Receita Nova (%)', value: newRevenuePct, previousValue: prevGrossRevenue > 0 ? (prevNewRevenue / prevGrossRevenue) * 100 : undefined, recordIds: newRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.newRev / s.total) * 100 : 0 } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Receita Recorrente (%)', value: recurringRevenuePct, previousValue: prevGrossRevenue > 0 ? (prevLoyalRevenue / prevGrossRevenue) * 100 : undefined, recordIds: loyalRevenueIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.loyalRev / s.total) * 100 : 0 } as Record<string, unknown> })), timestamp: Date.now() } },
     {
       name: 'Receita Sazonal (Índice)',
       value: seasonalIndex,
@@ -619,10 +619,10 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
         records: series.map(s => {
           const avg = windowRevenue / effectiveMonths; // Fix #3: use real month count
           const idx = avg > 0 ? (s.total / avg) * 100 : 0;
-          return { id: s.name, data: { value: idx } };
+          return { id: s.name, data: { value: idx } as Record<string, unknown> };
         }),
         timestamp: Date.now()
-      } as any
+      }
     },
     {
       name: 'Receita Atribuída a Campanhas', // Fix #6: renamed from "Incremental"
@@ -631,9 +631,9 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
       recordIds: campaignRevenueIds,
       tableSource: mainTableSource,
       fullRecords: {
-        records: Array.from(campaignDistributionMap.entries()).map(([cid, total]) => ({ id: cid, data: { value: total } })),
+        records: Array.from(campaignDistributionMap.entries()).map(([cid, total]) => ({ id: cid, data: { value: total } as Record<string, unknown> })),
         timestamp: Date.now()
-      } as any
+      }
     },
   ];
 };

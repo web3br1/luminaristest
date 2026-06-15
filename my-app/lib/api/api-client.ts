@@ -26,7 +26,7 @@ class ApiClient {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'x-user-timezone': timezone,
-      ...(customHeaders || {}),
+      ...((customHeaders as Record<string, string>) || {}),
     };
 
     if (token) {
@@ -49,7 +49,7 @@ class ApiClient {
       });
 
       const bodyText = await response.text();
-      let result: unknown;
+      let result: Record<string, unknown>;
 
       try {
         result = bodyText ? JSON.parse(bodyText) : {};
@@ -67,7 +67,7 @@ class ApiClient {
         throw result;
       }
 
-      return result;
+      return result as T;
     } catch (error) {
       // Re-throw if it's already our parsed error object, otherwise wrap it
       if (typeof error === 'object' && error !== null && ('error' in error || 'message' in error)) {
@@ -81,7 +81,7 @@ class ApiClient {
     return this.request<T>(path, { ...options, method: 'GET' });
   }
 
-  public post<T>(path: string, body: Record<string, unknown>, options?: RequestInit): Promise<T> {
+  public post<T>(path: string, body: object, options?: RequestInit): Promise<T> {
     return this.request<T>(path, {
       ...options,
       method: 'POST',
@@ -89,7 +89,7 @@ class ApiClient {
     });
   }
 
-  public put<T>(path: string, body: Record<string, unknown>, options?: RequestInit): Promise<T> {
+  public put<T>(path: string, body: object, options?: RequestInit): Promise<T> {
     return this.request<T>(path, {
       ...options,
       method: 'PUT',
@@ -101,7 +101,7 @@ class ApiClient {
     return this.request<T>(path, { ...options, method: 'DELETE' });
   }
 
-  public patch<T>(path: string, body: Record<string, unknown>, options?: RequestInit): Promise<T> {
+  public patch<T>(path: string, body: object, options?: RequestInit): Promise<T> {
     return this.request<T>(path, {
       ...options,
       method: 'PATCH',

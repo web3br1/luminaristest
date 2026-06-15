@@ -98,7 +98,7 @@ export const productCostKpiProcessor: AnalyticsProcessor = async (context): Prom
   // Fetch sales headers to resolve dates for saleItems
   const saleTableKey = params.saleTableKey || params.headerTableKey || 'sales';
   const saleIdField = params.saleIdField || 'saleId';
-  let headerById: Map<string, any> | null = null;
+  let headerById: Map<string, unknown> | null = null;
 
   if (saleTableKey && fetchByPresetTableKey) {
     try {
@@ -205,10 +205,10 @@ export const productCostKpiProcessor: AnalyticsProcessor = async (context): Prom
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return [
-    { name: 'Custo Variável Total', value: currentTotalVariableCost, previousValue: prevTotalVariableCost, recordIds: allCurrentCostIds, tableSource: mixedTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.totalVarCost } })), timestamp: Date.now() } as any },
-    { name: 'Custo Médio por Produto', value: avgCostPerProduct, previousValue: prevAvgContributionMargin ? (prevTotalVariableCost/prevTotalSoldQuantity) : undefined, recordIds: stockMovementIds, tableSource: stockMovementsTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.avgUnitCost } })), timestamp: Date.now() } as any },
-    { name: 'Margem de Contribuição por Produto', value: currentAvgContributionMargin, previousValue: prevAvgContributionMargin, recordIds: allCurrentCostIds, tableSource: mixedTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.avgMargin } })), timestamp: Date.now() } as any },
-    { name: 'Custo Variável por Venda', value: currentAvgVariableCostPerSale, previousValue: prevAvgVariableCostPerSale, recordIds: currentSaleItemIds, tableSource: saleItemsTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.avgVarCostPerSale } })), timestamp: Date.now() } as any },
+    { name: 'Custo Variável Total', value: currentTotalVariableCost, previousValue: prevTotalVariableCost, recordIds: allCurrentCostIds, tableSource: mixedTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.totalVarCost } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Custo Médio por Produto', value: avgCostPerProduct, previousValue: prevAvgContributionMargin ? (prevTotalVariableCost/prevTotalSoldQuantity) : undefined, recordIds: stockMovementIds, tableSource: stockMovementsTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.avgUnitCost } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Margem de Contribuição por Produto', value: currentAvgContributionMargin, previousValue: prevAvgContributionMargin, recordIds: allCurrentCostIds, tableSource: mixedTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.avgMargin } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Custo Variável por Venda', value: currentAvgVariableCostPerSale, previousValue: prevAvgVariableCostPerSale, recordIds: currentSaleItemIds, tableSource: saleItemsTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.avgVarCostPerSale } as Record<string, unknown> })), timestamp: Date.now() } },
   ];
 };
 

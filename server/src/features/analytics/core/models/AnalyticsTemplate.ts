@@ -81,24 +81,24 @@ export interface AnalyticsTemplate {
   /**
    * Default chart options (type, colors, etc.) that can be overridden in configuration.
    */
-  defaultOptions?: Record<string, any>;
+  defaultOptions?: Record<string, unknown>;
 
   /**
    * Default parameters that can be overridden in configuration.
    */
-  defaultParams?: Record<string, any>;
+  defaultParams?: Record<string, unknown>;
 
   /**
    * Default display options for the template.
    */
-  defaultDisplayOptions?: Record<string, any>;
+  defaultDisplayOptions?: Record<string, unknown>;
 
   /**
    * Example configurations for documentation.
    */
   examples?: Array<{
     title: string;
-    params: Record<string, any>;
+    params: Record<string, unknown>;
   }>;
 }
 

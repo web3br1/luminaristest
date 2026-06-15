@@ -49,7 +49,7 @@ export class CrmAnalyticsService {
     const data = await this.dynamicTableService.getAllTableData(user, table.id);
     return data.map((d) => ({
       id: d.id,
-      data: { ...((d.data as Record<string, any>) || {}), _createdAt: d.createdAt, _updatedAt: d.updatedAt },
+      data: { ...((d.data as Record<string, unknown>) || {}), _createdAt: d.createdAt, _updatedAt: d.updatedAt },
     }));
   }
 

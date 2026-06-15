@@ -12,6 +12,7 @@
  * plugin only handles the cross-table side-effect of applying movements to stock.
  */
 import type { RulePlugin, RuleContext } from '../RuleTypes';
+import type { IDynamicTableData } from '../../models/DynamicTable.model';
 import { ValidationError } from '../../../../lib/errors';
 import { resolveTable, tableMatches } from '../shared/tableFinder';
 
@@ -27,11 +28,11 @@ export const StockMovementsApplyPlugin: RulePlugin = {
   },
   async beforeCreate(ctx) {
     // Basic validation: required fields
-    const productId = String((ctx.after as any)?.productId || '');
-    const unitId = String((ctx.after as any)?.unitId || '');
-    const type = String((ctx.after as any)?.type || '');
-    const quantity = Number((ctx.after as any)?.quantity || 0);
-    const sourceType = String((ctx.after as any)?.sourceType || '');
+    const productId = String(ctx.after?.productId || '');
+    const unitId = String(ctx.after?.unitId || '');
+    const type = String(ctx.after?.type || '');
+    const quantity = Number(ctx.after?.quantity || 0);
+    const sourceType = String(ctx.after?.sourceType || '');
     if (!productId) throw new ValidationError('productId é obrigatório para movimentações.');
     if (!unitId) throw new ValidationError('unitId é obrigatório para movimentações.');
     if (!(type === 'In' || type === 'Out')) throw new ValidationError('type inválido para movimentação.');
@@ -44,10 +45,10 @@ export const StockMovementsApplyPlugin: RulePlugin = {
 
     // Regras financeiras para entradas manuais: exigir dados essenciais quando motivo for compra
     if (type === 'In') {
-      const reason = String((ctx.after as any)?.reason || '');
-      const cost = (ctx.after as any)?.cost;
+      const reason = String(ctx.after?.reason || '');
+      const cost = ctx.after?.cost;
       if (reason === 'Purchase') {
-        const supplierId = String((ctx.after as any)?.supplierId || '');
+        const supplierId = String(ctx.after?.supplierId || '');
         if (!supplierId) {
           throw new ValidationError('supplierId é obrigatório para entradas com motivo Compra.');
         }
@@ -55,14 +56,14 @@ export const StockMovementsApplyPlugin: RulePlugin = {
         if (!(isFinite(n) && n > 0)) {
           throw new ValidationError('cost (valor total) deve ser informado e maior que zero para entradas de Compra.');
         }
-        const paymentStatus = String((ctx.after as any)?.paymentStatus || '');
+        const paymentStatus = String(ctx.after?.paymentStatus || '');
         if (!paymentStatus) {
-          (ctx.after as any).paymentStatus = 'Pending';
+          if (ctx.after) ctx.after['paymentStatus'] = 'Pending';
         }
       } else if (typeof cost !== 'undefined') {
         // Normalize custo não negativo quando fornecido
         const n = Number(cost);
-        if (!isFinite(n) || n < 0) (ctx.after as any).cost = 0;
+        if (!isFinite(n) || n < 0) if (ctx.after) ctx.after['cost'] = 0;
       }
     }
 
@@ -73,20 +74,20 @@ export const StockMovementsApplyPlugin: RulePlugin = {
 
     // Normalize reason: manual (sem sourceType) é sempre 'Adjustment'
     if (!sourceType) {
-      (ctx.after as any).reason = 'Adjustment';
+      if (ctx.after) ctx.after['reason'] = 'Adjustment';
     }
 
     // Compute new stock and validate non-negative
-    const currentStock = Number((productUnitRow?.data as any)?.stock ?? 0);
+    const currentStock = Number((productUnitRow?.data as Record<string, unknown>)?.stock ?? 0);
     const newStock = type === 'In' ? currentStock + quantity : currentStock - quantity;
     if (newStock < 0) throw new ValidationError('Operação inválida: estoque insuficiente.');
 
     // Update Product Units stock immediately before creating movement
-    await ctx.repository.updateData(String(productUnitRow.id), { ...(productUnitRow?.data || {}), stock: newStock });
+    await ctx.repository.updateData(String(productUnitRow.id), { ...(productUnitRow?.data as Record<string, unknown> || {}), stock: newStock });
   },
   async beforeUpdate(ctx) {
-    const after: any = ctx.after as any;
-    const before: any = ctx.before as any;
+    const after = ctx.after ?? {};
+    const before = ctx.before ?? {};
     const sourceType = String(after?.sourceType || before?.sourceType || '');
     if (sourceType === 'SALE') return; // sales handled atomically in SalesPlugin
     const productId = String(after?.productId || before?.productId || '');
@@ -98,7 +99,7 @@ export const StockMovementsApplyPlugin: RulePlugin = {
     if (!productId || !unitId) return;
     const { productUnitRow } = await findProductUnit(ctx, productId, unitId);
     if (!productUnitRow) throw new ValidationError('Produto/unidade não possui registro de estoque.');
-    const currentStock = Number((productUnitRow?.data as any)?.stock ?? 0);
+    const currentStock = Number((productUnitRow?.data as Record<string, unknown>)?.stock ?? 0);
     // Reverter efeito antigo e aplicar novo
     const revert = prevType === 'In' ? -prevQty : (prevType === 'Out' ? +prevQty : 0);
     const apply = nextType === 'In' ? +nextQty : (nextType === 'Out' ? -nextQty : 0);
@@ -116,10 +117,10 @@ export const StockMovementsApplyPlugin: RulePlugin = {
         if (!(isFinite(n) && n > 0)) throw new ValidationError('cost (valor total) deve ser maior que zero para entradas de Compra.');
       }
     }
-    await ctx.repository.updateData(String(productUnitRow.id), { ...(productUnitRow?.data || {}), stock: newStock });
+    await ctx.repository.updateData(String(productUnitRow.id), { ...(productUnitRow?.data as Record<string, unknown> || {}), stock: newStock });
   },
   async beforeDelete(ctx) {
-    const before: any = ctx.before as any;
+    const before = ctx.before ?? {};
     const sourceType = String(before?.sourceType || '');
     if (sourceType === 'SALE') return;
     const productId = String(before?.productId || '');
@@ -129,18 +130,18 @@ export const StockMovementsApplyPlugin: RulePlugin = {
     if (!productId || !unitId) return;
     const { productUnitRow } = await findProductUnit(ctx, productId, unitId);
     if (!productUnitRow) throw new ValidationError('Produto/unidade não possui registro de estoque.');
-    const currentStock = Number((productUnitRow?.data as any)?.stock ?? 0);
+    const currentStock = Number((productUnitRow?.data as Record<string, unknown>)?.stock ?? 0);
     const delta = type === 'In' ? -quantity : (type === 'Out' ? +quantity : 0);
     const newStock = currentStock + delta;
     if (newStock < 0) throw new ValidationError('Operação inválida: estoque insuficiente.');
-    await ctx.repository.updateData(String(productUnitRow.id), { ...(productUnitRow?.data || {}), stock: newStock });
+    await ctx.repository.updateData(String(productUnitRow.id), { ...(productUnitRow?.data as Record<string, unknown> || {}), stock: newStock });
   },
 };
 
 /**
  * Resolve Product Units table and the specific (productId, unitId) row.
  */
-async function findProductUnit(ctx: RuleContext, productId: string, unitId: string): Promise<{ productUnitsTableId: string | null; productUnitRow: any | null }> {
+async function findProductUnit(ctx: RuleContext, productId: string, unitId: string): Promise<{ productUnitsTableId: string | null; productUnitRow: IDynamicTableData | null }> {
   const table = await resolveTable(ctx, {
     internalName: SCHEMA_KEYS.PRODUCT_UNITS,
     category: 'inventory',
@@ -151,7 +152,7 @@ async function findProductUnit(ctx: RuleContext, productId: string, unitId: stri
   });
   if (!table) return { productUnitsTableId: null, productUnitRow: null };
   const rows = await ctx.repository.findRowsByFieldValue(table.id, 'productId', String(productId));
-  const productUnitRow = rows.find((e: any) => String((e.data as any)?.unitId || '') === String(unitId)) || null;
+  const productUnitRow = rows.find((e: IDynamicTableData) => String((e.data as Record<string, unknown>)?.unitId || '') === String(unitId)) || null;
   return { productUnitsTableId: table.id, productUnitRow };
 }
 

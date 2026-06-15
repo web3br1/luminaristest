@@ -16,7 +16,7 @@ export class ApiClient {
         };
     }
 
-    async getRows(tableId: string): Promise<any[]> {
+    async getRows(tableId: string): Promise<unknown[]> {
         const res = await fetch(`${this.baseUrl}/dynamic-tables/${tableId}/data`, { headers: this.headers });
         const body = await res.json();
         return body?.data || [];

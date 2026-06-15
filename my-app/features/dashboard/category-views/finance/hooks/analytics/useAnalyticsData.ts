@@ -183,7 +183,7 @@ export function useAnalyticsData(
         if (error instanceof Error) {
           errorMsg = error.message;
         } else if (error && typeof error === 'object') {
-          errorMsg = (error as any).error || (error as any).message || String(error);
+          errorMsg = (error as Record<string, unknown>)['error'] as string || (error as Record<string, unknown>)['message'] as string || String(error);
           if (errorMsg === '[object Object]') errorMsg = JSON.stringify(error);
         } else if (error) {
           errorMsg = String(error);

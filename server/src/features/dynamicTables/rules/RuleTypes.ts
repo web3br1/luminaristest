@@ -8,8 +8,8 @@ export interface RuleContext {
   table: IDynamicTable;
   schema: ITableSchema;
   operation: RuleOperation;
-  before?: Record<string, any> | null;
-  after?: Record<string, any> | null;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
   repository: IDynamicTableRepository;
   isSystem?: boolean;
 }

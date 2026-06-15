@@ -110,8 +110,8 @@ export const temporalAggregationProcessor: AnalyticsProcessor = (context): Chart
     }
   }
 
-  // Get table source - presetKey may not exist on IDynamicTable, so use type assertion
-  const mainTableSource = (table as any).presetKey || (table as any).internalName || params.tableId || 'sales';
+  // Get table source
+  const mainTableSource = table.presetKey || table.internalName || params.tableId || 'sales';
   
   return Array.from(periodTotals.entries())
     .sort(([a], [b]) => a.localeCompare(b))

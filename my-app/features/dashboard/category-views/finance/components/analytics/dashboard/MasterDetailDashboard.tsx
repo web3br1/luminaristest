@@ -78,7 +78,7 @@ function DisplayModeIcon({ mode, chartType, format }: { mode: string; chartType?
     return <svg className="w-3 h-3 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><title>Card</title><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" /></svg>;
 }
 
-function flattenKpis(presetGroups: AnalyticsPresetGroup[], chartData: Record<string, { data: any[] }>): Record<string, FlatKpiItem[]> {
+function flattenKpis(presetGroups: AnalyticsPresetGroup[], chartData: Record<string, { data: unknown[] }>): Record<string, FlatKpiItem[]> {
     const sections: Record<string, FlatKpiItem[]> = {};
     for (const group of presetGroups) {
         for (const chart of group.charts) {

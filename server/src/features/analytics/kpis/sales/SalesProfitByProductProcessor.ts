@@ -77,11 +77,11 @@ export const salesProfitByProductOverTimeProcessor: AnalyticsProcessor = async (
   // ============================================================================
   // LOAD SALE HEADERS (optional — for date + payment status)
   // ============================================================================
-  let headerById: Map<string, Record<string, any>> | null = null;
+  let headerById: Map<string, Record<string, unknown>> | null = null;
   if (headerTableKey && fetchByPresetTableKey) {
     try {
       const { rows: headerRows } = await fetchByPresetTableKey(headerTableKey);
-      headerById = new Map(headerRows.map((r) => [r.id, r.data as Record<string, any>]));
+      headerById = new Map(headerRows.map((r) => [r.id, r.data as Record<string, unknown>]));
     } catch {
       headerById = null;
     }

@@ -41,7 +41,7 @@ export default function LeadCreateModal({ isOpen, onClose, tableId, tableSchema,
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('new_lead', 'Novo Lead')} maxWidth="max-w-3xl">
       <div className="p-4">
-        <DynamicForm schema={{ ...tableSchema, fields: (tableSchema.fields || []).filter((f: ISchemaField) => !['unitId', 'pipelineId', 'stageId', 'status', 'score', 'latestProposalAmount', 'latestProposalCurrency', 'latestProposalEtaClose', 'latestProposalWinProbability', 'lastContactAt', 'nextActionAt'].includes(f.name)).map((f: ISchemaField) => (f.name === 'bantBudget' ? { ...f, type: 'select', options: ['Low', 'Medium', 'High'] } : f)) }} onSubmit={handleSubmit as any} onClose={onClose} initialData={initial} />
+        <DynamicForm schema={{ ...tableSchema, fields: (tableSchema.fields || []).filter((f: ISchemaField) => !['unitId', 'pipelineId', 'stageId', 'status', 'score', 'latestProposalAmount', 'latestProposalCurrency', 'latestProposalEtaClose', 'latestProposalWinProbability', 'lastContactAt', 'nextActionAt'].includes(f.name)).map((f: ISchemaField) => (f.name === 'bantBudget' ? { ...f, type: 'select', options: ['Low', 'Medium', 'High'] } : f)) }} onSubmit={handleSubmit} onClose={onClose} initialData={initial} />
       </div>
     </Modal>
   );

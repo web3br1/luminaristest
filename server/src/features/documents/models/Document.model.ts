@@ -1,3 +1,5 @@
+import type { DocumentContext } from './DocumentContext';
+
 /**
  * Enum definindo os possíveis propósitos de um documento
  */
@@ -65,7 +67,7 @@ export interface DocumentCreateInput {
 export interface DocumentUpdateInput {
   status: DocumentStatus;
   summary: string | null;
-  contextJson?: Record<string, unknown> | null;
+  contextJson?: DocumentContext | Record<string, unknown> | null;
   processingDate: Date | null;
   processingError: string | null;
   textContent?: string;

@@ -9,12 +9,15 @@ if (_rawSecret.length < 32) {
   throw new Error('[FATAL] JWT_SECRET must be at least 32 characters');
 }
 const JWT_SECRET: Secret = _rawSecret;
-const JWT_EXPIRES_IN: SignOptions['expiresIn'] = (process.env.JWT_EXPIRES_IN as string | undefined) || '7d';
+const JWT_EXPIRES_IN = ((process.env.JWT_EXPIRES_IN as string | undefined) || '7d') as SignOptions['expiresIn'];
 
 interface JWTPayload {
   id: string;
   username: string;
   role: string;
+  userId?: string;
+  email?: string;
+  name?: string;
 }
 
 export function generateToken(payload: JWTPayload): string {

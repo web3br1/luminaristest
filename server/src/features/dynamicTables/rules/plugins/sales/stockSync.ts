@@ -1,5 +1,5 @@
 import type { RuleContext } from '../../RuleTypes';
-import type { ISchemaField } from '../../../models/DynamicTable.model';
+import type { IDynamicTableData, ISchemaField } from '../../../models/DynamicTable.model';
 import { ValidationError } from '../../../../../lib/errors';
 import { resolveTable } from '../../shared/tableFinder';
 import { findSaleById } from './shared';
@@ -25,12 +25,12 @@ async function findProductUnitsTableId(ctx: RuleContext): Promise<string | null>
  * - When product changes: remove old reservation, ensure and apply new reservation
  * - When qty changes: apply delta to reservations (with availability check when increasing)
  */
-export async function adjustReservationForItemChange(ctx: RuleContext, before: any | null, after: any | null) {
+export async function adjustReservationForItemChange(ctx: RuleContext, before: Record<string, unknown> | null, after: Record<string, unknown> | null) {
   // Apenas para itens de produto e vendas não finalizadas
   const saleId = String((after?.saleId ?? before?.saleId) || '');
   if (!saleId) return;
   const sale = await findSaleById(ctx, saleId);
-  const saleData = (sale?.data as any) || {};
+  const saleData = (sale?.data as Record<string, unknown>) ?? {};
   const saleStatus = String(saleData.status || 'Draft');
   if (saleStatus === 'Finalized' || saleStatus === 'Cancelled' || saleStatus === 'Returned') return;
 
@@ -85,7 +85,7 @@ export async function ensureReservationAvailability(ctx: RuleContext, productId:
   // Garante que há disponibilidade: stock - reserved >= delta
   const { entry } = await readProductUnit(ctx, productId, unitId);
   if (!entry) return; // Se não há estoque, não há o que reservar. A falha ocorrerá ao finalizar.
-  const d = entry.data as any;
+  const d = entry.data as Record<string, unknown>;
   const stock = Number(d?.stock ?? 0);
   const reserved = Number(d?.reserved ?? 0);
   const available = stock - reserved;
@@ -99,18 +99,18 @@ async function applyReservationDelta(ctx: RuleContext, productId: string, unitId
   if (!delta) return;
   const { entry, tableId } = await readProductUnit(ctx, productId, unitId);
   if (!entry || !tableId) return;
-  const d = entry.data as any;
+  const d = entry.data as Record<string, unknown>;
   const current = Number(d?.reserved ?? 0);
   const next = Math.max(0, current + delta);
   await ctx.repository.updateData(String(entry.id), { ...d, reserved: next });
 }
 
 /** Read the Product Units entry for a (productId, unitId) pair and return row and table id. */
-export async function readProductUnit(ctx: RuleContext, productId: string, unitId: string): Promise<{ entry: any | null; tableId: string | null }> {
+export async function readProductUnit(ctx: RuleContext, productId: string, unitId: string): Promise<{ entry: IDynamicTableData | null; tableId: string | null }> {
   const productUnitsTableId = await findProductUnitsTableId(ctx);
   if (!productUnitsTableId) return { entry: null, tableId: null };
   const rows = await ctx.repository.findRowsByFieldValue(productUnitsTableId, 'productId', String(productId));
-  const entry = rows.find((e: any) => String((e.data as any)?.unitId || '') === String(unitId)) || null;
+  const entry = rows.find((e: IDynamicTableData) => String((e.data as Record<string, unknown>)?.unitId || '') === String(unitId)) || null;
   return { entry, tableId: productUnitsTableId };
 }
 
@@ -121,7 +121,7 @@ export async function ensureSufficientStock(ctx: RuleContext, productUnitId: str
   // Sem controle de estoque no sistema → nada a validar.
   if (!(await findProductUnitsTableId(ctx))) return;
   const entry = await ctx.repository.findDataById(String(productUnitId));
-  const current = Number((entry?.data as any)?.stock ?? 0);
+  const current = Number((entry?.data as Record<string, unknown>)?.stock ?? 0);
   if (current < qtyNeeded) {
     throw new ValidationError('Estoque insuficiente para concluir a venda.');
   }
@@ -135,7 +135,7 @@ export async function resolveProductUnitId(ctx: RuleContext, productId: string, 
   // Se não houver unidades de produto para este produto, tolera ausência de estoque e pula movimentações
   if (candidates.length === 0) return '';
   if (saleUnitId) {
-    const match = candidates.find((e: any) => String((e.data as any)?.unitId || '') === String(saleUnitId));
+    const match = candidates.find((e: IDynamicTableData) => String((e.data as Record<string, unknown>)?.unitId || '') === String(saleUnitId));
     if (match) return String(match.id);
   }
   // fallback: first available productUnit
@@ -143,7 +143,7 @@ export async function resolveProductUnitId(ctx: RuleContext, productId: string, 
 }
 
 /** Create inventory movements for product items (In or Out) and avoid duplicates by (sourceType, sourceId, detailKey). */
-export async function createMovementsForItems(ctx: RuleContext, items: Array<{ id: string; data: any }>, saleUnitId?: string, type: 'In' | 'Out' = 'Out') {
+export async function createMovementsForItems(ctx: RuleContext, items: Array<{ id: string; data: Record<string, unknown> }>, saleUnitId?: string, type: 'In' | 'Out' = 'Out') {
   // Find movements table and whether it requires unitId; if not present, skip silently
   const mv = await findMovementsTable(ctx);
   if (!mv) return;
@@ -156,14 +156,14 @@ export async function createMovementsForItems(ctx: RuleContext, items: Array<{ i
     if (!productUnitId || quantity <= 0) continue;
     // Resolve productId from productUnit
     const productId = await resolveProductIdFromProductUnit(ctx, productUnitId);
-    const saleId = String((ctx.after as any)?.id || (ctx.before as any)?.id || '');
+    const saleId = String(ctx.after?.id || ctx.before?.id || '');
     const reason = type === 'Out' ? 'SALE' : 'RETURN';
-    const payload: any = { productId, type, quantity, date: new Date().toISOString(), reason, sourceId: saleId, detailKey: `${it.id}-${type}` };
+    const payload: Record<string, unknown> = { productId, type, quantity, date: new Date().toISOString(), reason, sourceId: saleId, detailKey: `${it.id}-${type}` };
     if (mv.hasUnitId) {
       if (!saleUnitId) throw new ValidationError('unitId é obrigatório para movimentações neste sistema.');
       payload.unitId = saleUnitId;
     }
-    if (!(await movementExists(ctx, mv.id, payload.sourceId, payload.detailKey))) {
+    if (!(await movementExists(ctx, mv.id, String(payload.sourceId || ''), String(payload.detailKey || '')))) {
       await ctx.repository.createData(mv.id, payload);
     }
   }
@@ -172,7 +172,7 @@ export async function createMovementsForItems(ctx: RuleContext, items: Array<{ i
 /** Resolve productId from a productUnits row id. */
 async function resolveProductIdFromProductUnit(ctx: RuleContext, productUnitId: string): Promise<string> {
   const entry = await ctx.repository.findDataById(String(productUnitId));
-  const pid = String((entry?.data as any)?.productId || '');
+  const pid = String((entry?.data as Record<string, unknown>)?.productId || '');
   if (!pid) throw new ValidationError('productId não encontrado para o item de produto.');
   return pid;
 }
@@ -195,14 +195,14 @@ async function findMovementsTable(ctx: RuleContext): Promise<{ id: string; hasUn
     },
   });
   if (!t) return null;
-  const hasUnitId = ((t.schema as any)?.fields || []).some((f: any) => f.name === 'unitId');
+  const hasUnitId = (t.schema?.fields || []).some((f) => f.name === 'unitId');
   return { id: t.id, hasUnitId };
 }
 
 /** Check if a movement already exists for (sourceId, detailKey). */
 async function movementExists(ctx: RuleContext, movementsTableId: string, sourceId: string, detailKey: string): Promise<boolean> {
   const rows = await ctx.repository.findRowsByFieldValue(movementsTableId, 'sourceId', String(sourceId));
-  return rows.some((r: any) => (r.data as any)?.detailKey === detailKey);
+  return rows.some((r: IDynamicTableData) => (r.data as Record<string, unknown>)?.detailKey === detailKey);
 }
 
 /**
@@ -210,7 +210,7 @@ async function movementExists(ctx: RuleContext, movementsTableId: string, source
  * - Finalized: stock -= qty, reserved -= qty
  * - Cancelled/Returned: reserved -= qty; if previously Finalized → stock += qty
  */
-export async function processSaleStockUpdate(ctx: RuleContext, items: Array<{ id: string; data: any }>, saleUnitId: string | undefined, prevStatus: string, nextStatus: string) {
+export async function processSaleStockUpdate(ctx: RuleContext, items: Array<{ id: string; data: Record<string, unknown> }>, saleUnitId: string | undefined, prevStatus: string, nextStatus: string) {
   const hasInventory = await hasInventorySystem(ctx);
   if (!hasInventory) return;
   const unitId = String(saleUnitId || '');
@@ -220,10 +220,10 @@ export async function processSaleStockUpdate(ctx: RuleContext, items: Array<{ id
   // stock deltas. We re-read the persisted record rather than trusting ctx.before, which
   // may reflect the in-memory state before this transaction began.
   if (nextStatus === 'Finalized') {
-    const saleId = String((ctx.after as any)?.id || (ctx.before as any)?.id || '');
+    const saleId = String(ctx.after?.id || ctx.before?.id || '');
     if (saleId) {
       const currentSale = await ctx.repository.findDataById(saleId);
-      if ((currentSale?.data as any)?.status === 'Finalized') {
+      if ((currentSale?.data as Record<string, unknown>)?.status === 'Finalized') {
         // Already processed — skip to avoid double stock deduction.
         return;
       }
@@ -242,7 +242,7 @@ export async function processSaleStockUpdate(ctx: RuleContext, items: Array<{ id
     const { entry, tableId } = await readProductUnit(ctx, productId, unitId);
     if (!entry || !tableId) continue;
 
-    const d = entry.data as any;
+    const d = entry.data as Record<string, unknown>;
     let stock = Number(d.stock ?? 0);
     let reserved = Number(d.reserved ?? 0);
 

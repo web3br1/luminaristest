@@ -3,6 +3,7 @@ import { MdClose, MdLayers } from 'react-icons/md';
 import { useDrillDownData } from '../../../hooks/analytics/useDrillDownData';
 import { useRelationLookups } from '../../../../../shared/hooks/useRelationLookups';
 import TableView from './TableView';
+import type { IDynamicTableData } from '../../../../../components/shared/dynamic-tables.client';
 
 interface KpiDrillDownDrawerProps {
     isOpen: boolean;
@@ -100,7 +101,7 @@ export default function KpiDrillDownDrawer({ isOpen, onClose, tableId, recordIds
                             {/* We use Generic TableView, passing the schema fields and the returned records */}
                             <TableView
                                 schemaFields={schemaFields}
-                                records={data as unknown as any[]}
+                                records={data as IDynamicTableData[]}
                                 relationLookups={relationLookup}
                             />
 

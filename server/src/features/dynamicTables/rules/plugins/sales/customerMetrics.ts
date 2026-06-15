@@ -12,8 +12,8 @@ import { resolveTable } from '../../shared/tableFinder';
  */
 export async function applyCustomerRevenueSideEffects(
   ctx: RuleContext,
-  beforeSale: any,
-  afterSale: any,
+  beforeSale: Record<string, unknown>,
+  afterSale: Record<string, unknown>,
   prevStatus: string,
   nextStatus: string
 ): Promise<void> {
@@ -40,7 +40,7 @@ export async function applyCustomerRevenueSideEffects(
   const customer = await ctx.repository.findDataById(customerId);
   if (!customer) return;
 
-  const cData = (customer.data || {}) as any;
+  const cData = (customer.data || {}) as Record<string, unknown>;
   const currentCount = Number(cData.totalSalesCount ?? 0) || 0;
   const currentAmount = Number(cData.totalSalesAmount ?? 0) || 0;
 
@@ -64,9 +64,9 @@ export async function applyCustomerRevenueSideEffects(
 
   // Atualiza datas de primeira/última venda com base na data da venda atual
   const saleDateRaw = afterSale?.date || beforeSale?.date;
-  const saleDate = saleDateRaw ? new Date(saleDateRaw) : null;
-  const existingFirst = cData.firstSaleAt ? new Date(cData.firstSaleAt) : null;
-  const existingLast = cData.lastSaleAt ? new Date(cData.lastSaleAt) : null;
+  const saleDate = saleDateRaw ? new Date(String(saleDateRaw)) : null;
+  const existingFirst = cData.firstSaleAt ? new Date(String(cData.firstSaleAt)) : null;
+  const existingLast = cData.lastSaleAt ? new Date(String(cData.lastSaleAt)) : null;
 
   let firstSaleAt = cData.firstSaleAt;
   let lastSaleAt = cData.lastSaleAt;
@@ -81,7 +81,7 @@ export async function applyCustomerRevenueSideEffects(
   }
 
   // Heurística simples para lifecycleStage baseada no número de vendas e receita acumulada
-  let lifecycleStage = cData.lifecycleStage as string | undefined;
+  let lifecycleStage = String(cData.lifecycleStage ?? '') || undefined;
   if (newCount === 0) {
     lifecycleStage = 'Prospect';
   } else if (newCount === 1) {
@@ -97,10 +97,10 @@ export async function applyCustomerRevenueSideEffects(
   const isNewCustomerFlag = !prevEffective && nextEffective && currentCount === 0;
   const isLoyalCustomerFlag = nextEffective && lifecycleStage === 'Loyal';
 
-  (afterSale as any).isNewCustomer = isNewCustomerFlag;
-  (afterSale as any).isLoyalCustomer = isLoyalCustomerFlag;
+  afterSale['isNewCustomer'] = isNewCustomerFlag;
+  afterSale['isLoyalCustomer'] = isLoyalCustomerFlag;
 
-  const patch: any = {
+  const patch: Record<string, unknown> = {
     ...cData,
     totalSalesCount: newCount,
     totalSalesAmount: newAmount,

@@ -16,7 +16,7 @@ import type { IDynamicTable, ITableSchema } from '@/features/dynamicTables/model
  */
 export interface TableDataRow {
   id: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
 }
 
 /**
@@ -43,7 +43,7 @@ export interface AnalyticsProcessorContext {
   schema: ITableSchema;
   rows: TableDataRow[];
   streamRows?: () => AsyncGenerator<TableDataRow[]>;
-  params: Record<string, any>;
+  params: Record<string, unknown>;
   /**
    * Fetch data from another table by preset key.
    * Use for multi-table analytics (e.g., '@@PRESET_TABLE_KEY::expenses').

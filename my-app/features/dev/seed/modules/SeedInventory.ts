@@ -56,7 +56,7 @@ export class SeedInventory {
                 // Idempotency: Check if we already seeded this (simplistic check)
                 // Ideally we check if stock is already high enough
                 const unitsData = await this.api.getRows(productUnitsId);
-                const entry = unitsData.find((u) => (u as Record<string, any>).data?.productId === prod.id && (u as Record<string, any>).data?.unitId === uId);
+                const entry = unitsData.find((u) => (u as { data?: Record<string, unknown> }).data?.productId === prod.id && (u as { data?: Record<string, unknown> }).data?.unitId === uId);
                 const currentStock = Number(entry?.data?.stock || 0);
 
                 if (currentStock >= prod.initialStock) {
@@ -85,7 +85,7 @@ export class SeedInventory {
             if (prod.salePrice) {
                 const allUnits = await this.api.getRows(productUnitsId);
                 for (const uId of units) {
-                    const entry = allUnits.find((u) => (u as Record<string, any>).data?.productId === prod.id && (u as Record<string, any>).data?.unitId === uId);
+                    const entry = allUnits.find((u) => (u as { data?: Record<string, unknown> }).data?.productId === prod.id && (u as { data?: Record<string, unknown> }).data?.unitId === uId);
                     if (entry && Number(entry.data?.salePrice || 0) !== prod.salePrice) {
                         await this.api.putRow(productUnitsId, entry.id, { ...entry.data, salePrice: prod.salePrice }, 'Product Units');
                     }
@@ -106,7 +106,7 @@ export class SeedInventory {
         let attempts = 0;
         while (attempts < 5) {
             const rows = await this.api.getRows(tableId);
-            const entry = rows.find((r) => (r as Record<string, any>).data?.productId === prodId && (r as Record<string, any>).data?.unitId === uId);
+            const entry = rows.find((r) => (r as { data?: Record<string, unknown> }).data?.productId === prodId && (r as { data?: Record<string, unknown> }).data?.unitId === uId);
 
             if (!entry) {
                 console.warn(`[SeedInventory] Missing Product Unit for ${prodId} in ${uId}!`);

@@ -1,4 +1,5 @@
 import type { RuleContext } from '../../RuleTypes';
+import type { IDynamicTableData } from '../../../models/DynamicTable.model';
 import { resolveTable } from '../../shared/tableFinder';
 
 /** Find the commissions table in the workspace (indexed-first). */
@@ -29,7 +30,7 @@ export async function materializeCommissions(
   const commissionsTableId = await findCommissionsTable(ctx);
   if (!commissionsTableId) return; // commissions feature not installed
 
-  const saleId = String((ctx.after as any)?.id || (ctx.before as any)?.id || '');
+  const saleId = String(ctx.after?.id || ctx.before?.id || '');
   // Existing commissions for THIS sale only (indexed) — idempotency is per saleItemId within the sale.
   const existing = await ctx.repository.findRowsByFieldValue(commissionsTableId, 'saleId', saleId);
 
@@ -40,7 +41,7 @@ export async function materializeCommissions(
 
     // Idempotency: skip if a commission for this saleItemId already exists
     const alreadyExists = existing.some(
-      (r: any) => String((r.data as any)?.saleItemId || '') === String(it.id)
+      (r: IDynamicTableData) => String((r.data as Record<string, unknown>)?.saleItemId || '') === String(it.id)
     );
     if (alreadyExists) continue;
 
@@ -78,11 +79,11 @@ export async function cancelCommissionsForSale(
   const commissionsTableId = await findCommissionsTable(ctx);
   if (!commissionsTableId) return;
 
-  const saleId = String((ctx.after as any)?.id || (ctx.before as any)?.id || '');
+  const saleId = String(ctx.after?.id || ctx.before?.id || '');
   const rows = await ctx.repository.findRowsByFieldValue(commissionsTableId, 'saleId', saleId);
 
-  for (const row of rows) {
-    const d = (row.data as any) || {};
+  for (const row of rows as IDynamicTableData[]) {
+    const d = (row.data as Record<string, unknown>) || {};
     const status = String(d.status || 'Pending');
     // Paid commissions are immutable — skip them
     if (status === 'Paid') continue;

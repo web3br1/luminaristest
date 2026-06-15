@@ -70,14 +70,14 @@ export const SalesPlugin: RulePlugin = {
     const isItemsTable = isSaleItemsTable(ctx);
     if (isItemsTable) {
       await assertParentSaleNotFinalized(ctx);
-      await validateSaleItemXor(ctx, ctx.after as any);
+      await validateSaleItemXor(ctx, ctx.after ?? {});
       // Validação adicional para itens de serviço em edição: coerência do agendamento com serviço/responsável/unidade
-      const after: any = ctx.after as any;
+      const after = ctx.after ?? {};
       const isService = !!after?.serviceId || (after?.type && String(after.type) === 'Service');
       if (isService) {
-        const saleId = String(after?.saleId || (ctx.before as any)?.saleId || '');
+        const saleId = String(after?.saleId || ctx.before?.saleId || '');
         const sale = await findSaleById(ctx, saleId);
-        const saleUnitId = String((sale?.data as any)?.unitId || '');
+        const saleUnitId = String((sale?.data as Record<string, unknown>)?.unitId || '');
         await validateServiceAppointmentCoherence(ctx, after, saleUnitId);
       }
       return;
@@ -93,7 +93,7 @@ export const SalesPlugin: RulePlugin = {
 
     // If payment is moving to Paid, force status to Finalized first, avoiding false-positive blocks
     if (paymentChanging && nextPayment === 'Paid' && nextStatus !== 'Finalized') {
-      (ctx.after as any).status = 'Finalized';
+      if (ctx.after) ctx.after['status'] = 'Finalized';
       nextStatus = 'Finalized';
       statusChanging = prevStatus !== nextStatus;
     }
@@ -115,31 +115,31 @@ export const SalesPlugin: RulePlugin = {
 
     // Se marcar como pago e ainda não finalizada, finalize automaticamente
     if (paymentChanging && nextPayment === 'Paid' && nextStatus !== 'Finalized') {
-      (ctx.after as any).status = 'Finalized';
+      if (ctx.after) ctx.after['status'] = 'Finalized';
     }
 
     // Recalculate dueDate when paymentTermDays or date changes
-    const after = ctx.after as any;
-    const before = ctx.before as any;
-    const newTermDays = Number(after?.paymentTermDays ?? before?.paymentTermDays ?? 0);
-    const newDate = after?.date || before?.date;
-    const termChanged = after?.paymentTermDays !== undefined && after?.paymentTermDays !== before?.paymentTermDays;
-    const dateChanged = after?.date !== undefined && after?.date !== before?.date;
+    const afterBeforeUpdate = ctx.after ?? {};
+    const before = ctx.before ?? {};
+    const newTermDays = Number(afterBeforeUpdate?.paymentTermDays ?? before?.paymentTermDays ?? 0);
+    const newDate = afterBeforeUpdate?.date || before?.date;
+    const termChanged = afterBeforeUpdate?.paymentTermDays !== undefined && afterBeforeUpdate?.paymentTermDays !== before?.paymentTermDays;
+    const dateChanged = afterBeforeUpdate?.date !== undefined && afterBeforeUpdate?.date !== before?.date;
     if ((termChanged || dateChanged) && newTermDays > 0 && newDate) {
-      const baseDate = new Date(newDate);
+      const baseDate = new Date(String(newDate));
       baseDate.setDate(baseDate.getDate() + newTermDays);
-      (ctx.after as any).dueDate = baseDate.toISOString().split('T')[0];
+      if (ctx.after) ctx.after['dueDate'] = baseDate.toISOString().split('T')[0];
     }
 
-    if (String((ctx.after as any)?.status || nextStatus) === 'Finalized' && (statusChanging || (paymentChanging && nextPayment === 'Paid'))) {
+    if (String(ctx.after?.status || nextStatus) === 'Finalized' && (statusChanging || (paymentChanging && nextPayment === 'Paid'))) {
       // Must have items and totals consistent
       const { items } = await loadSaleItems(ctx);
       if (items.length === 0) {
         throw new ValidationError('Não é possível finalizar uma venda sem itens.');
       }
       // Validate discount <= subtotal
-      const currentData = (ctx.after as any) || (ctx.before as any) || {};
-      const discount = Number((currentData?.discountAmount ?? 0) as any) || 0;
+      const currentData = ctx.after ?? ctx.before ?? {};
+      const discount = Number(currentData?.discountAmount ?? 0) || 0;
       let subtotal = 0;
       for (const it of items) {
         const isProduct = (it.data?.type ? String(it.data.type) === 'Product' : !!it.data?.productId);
@@ -151,9 +151,9 @@ export const SalesPlugin: RulePlugin = {
         throw new ValidationError('Desconto não pode ser maior que o subtotal.');
       }
       // Customer requirement
-      const simple = Boolean((ctx.after as any)?.simpleCustomer || (ctx.before as any)?.simpleCustomer);
-      const simpleName = String((ctx.after as any)?.simpleCustomerName || (ctx.before as any)?.simpleCustomerName || '').trim();
-      const custId = String((ctx.after as any)?.customerId || (ctx.before as any)?.customerId || '').trim();
+      const simple = Boolean(ctx.after?.simpleCustomer || ctx.before?.simpleCustomer);
+      const simpleName = String(ctx.after?.simpleCustomerName || ctx.before?.simpleCustomerName || '').trim();
+      const custId = String(ctx.after?.customerId || ctx.before?.customerId || '').trim();
       if (!simple && !custId) {
         throw new ValidationError('Informe um cliente (relacional) ou habilite "cliente simples" com um nome.');
       }
@@ -171,7 +171,7 @@ export const SalesPlugin: RulePlugin = {
         const isProduct = (it.data?.type ? String(it.data.type) === 'Product' : !!it.data?.productId);
         if (!isProduct) continue;
         if (hasInventory) {
-          const productUnitId = await resolveProductUnitId(ctx, String(it.data?.productId || ''), String((ctx.after as any)?.unitId || (ctx.before as any)?.unitId || ''));
+          const productUnitId = await resolveProductUnitId(ctx, String(it.data?.productId || ''), String(ctx.after?.unitId || ctx.before?.unitId || ''));
           if (!productUnitId) {
             throw new ValidationError('Produto sem estoque: cadastre o produto no estoque (Product Units) antes de vender.');
           }
@@ -183,25 +183,25 @@ export const SalesPlugin: RulePlugin = {
   async beforeCreate(ctx) {
     const isSalesTable = isSaleHeaderTable(ctx);
     if (isSalesTable) {
-      const after = ctx.after as any;
+      const afterCreate = ctx.after ?? {};
 
       // Validate unitId is required
-      const unitId = String(after?.unitId || '').trim();
+      const unitId = String(afterCreate?.unitId || '').trim();
       if (!unitId) {
         throw new ValidationError('Unidade de negócio é obrigatória para criar uma venda.');
       }
 
       // Auto-fill date with today if not provided
-      if (!after?.date) {
-        (ctx.after as any).date = new Date().toISOString().split('T')[0];
+      if (!afterCreate?.date) {
+        if (ctx.after) ctx.after['date'] = new Date().toISOString().split('T')[0];
       }
 
       // Calculate dueDate from paymentTermDays if provided
-      const paymentTermDays = Number(after?.paymentTermDays || 0);
+      const paymentTermDays = Number(afterCreate?.paymentTermDays || 0);
       if (paymentTermDays > 0) {
-        const baseDate = new Date(after?.date || new Date());
+        const baseDate = new Date(String(afterCreate?.date || new Date()));
         baseDate.setDate(baseDate.getDate() + paymentTermDays);
-        (ctx.after as any).dueDate = baseDate.toISOString().split('T')[0];
+        if (ctx.after) ctx.after['dueDate'] = baseDate.toISOString().split('T')[0];
       }
 
       return;
@@ -209,31 +209,31 @@ export const SalesPlugin: RulePlugin = {
     const isItemsTable = isSaleItemsTable(ctx);
     if (isItemsTable) {
       await assertParentSaleNotFinalized(ctx);
-      await validateSaleItemXor(ctx, ctx.after as any);
+      await validateSaleItemXor(ctx, ctx.after ?? {});
       // Enforce homogeneous sale: cannot mix product and service items in the same sale
-      await validateNoMixedItemTypesOnInsert(ctx, ctx.after as any);
+      await validateNoMixedItemTypesOnInsert(ctx, ctx.after ?? {});
 
       // Validate stock/reservation / appointment BEFORE creating the item.
       // If it fails and the sale has no other items, delete the sale (server-side rollback for first-item failure).
-      const after: any = ctx.after as any;
-      const isProduct = !!after?.productId || (after?.type && String(after.type) === 'Product');
-      const isService = !!after?.serviceId || (after?.type && String(after.type) === 'Service');
+      const afterItem = ctx.after ?? {};
+      const isProduct = !!afterItem?.productId || (afterItem?.type && String(afterItem.type) === 'Product');
+      const isService = !!afterItem?.serviceId || (afterItem?.type && String(afterItem.type) === 'Service');
       if (isService) {
-        const saleId = String(after?.saleId || '');
+        const saleId = String(afterItem?.saleId || '');
         const sale = await findSaleById(ctx, saleId);
-        const saleUnitId = String((sale?.data as any)?.unitId || '');
-        const requiresAppointment = Boolean(after?.requiresAppointment);
-        let apptId = String(after?.appointmentId || '');
+        const saleUnitId = String((sale?.data as Record<string, unknown>)?.unitId || '');
+        const requiresAppointment = Boolean(afterItem?.requiresAppointment);
+        let apptId = String(afterItem?.appointmentId || '');
 
         try {
           // Se o item exigir agendamento e ainda não houver appointmentId, cria automaticamente
           if (requiresAppointment && !apptId) {
-            apptId = await autoCreateAppointmentForServiceItem(ctx, after, saleUnitId, sale);
-            (ctx.after as any).appointmentId = apptId;
+            apptId = await autoCreateAppointmentForServiceItem(ctx, afterItem, saleUnitId, sale);
+            if (ctx.after) ctx.after['appointmentId'] = apptId;
           }
           // Quando houver appointmentId (manual ou automático), valida coerência com serviço/responsável/unidade
           if (apptId) {
-            await validateServiceAppointmentCoherence(ctx, { ...after, appointmentId: apptId }, saleUnitId);
+            await validateServiceAppointmentCoherence(ctx, { ...afterItem, appointmentId: apptId }, saleUnitId);
           }
         } catch (err) {
           // Se falhar na primeira criação de item, remove a venda para evitar draft órfão
@@ -244,18 +244,18 @@ export const SalesPlugin: RulePlugin = {
       }
       if (!isProduct) return;
 
-      const saleId = String(after?.saleId || '');
+      const saleId = String(afterItem?.saleId || '');
       if (!saleId) return;
 
       const sale = await findSaleById(ctx, saleId);
-      const unitId = String((sale?.data as any)?.unitId || '');
+      const unitId = String((sale?.data as Record<string, unknown>)?.unitId || '');
 
       const hasInv = await hasInventorySystem(ctx);
       if (!hasInv) return;
 
       try {
-        const pid = String(after?.productId || '');
-        const qty = Number(after?.quantity || 0);
+        const pid = String(afterItem?.productId || '');
+        const qty = Number(afterItem?.quantity || 0);
         const { entry } = await readProductUnit(ctx, pid, unitId);
         if (!entry) {
           throw new ValidationError('Produto sem estoque: cadastre o produto no estoque (Product Units) antes de vender.');
@@ -274,15 +274,15 @@ export const SalesPlugin: RulePlugin = {
     // Reserva estoque ao adicionar item de produto em venda não finalizada
     const isItemsTable = isSaleItemsTable(ctx);
     if (isItemsTable) {
-      await adjustReservationForItemChange(ctx, null, ctx.after as any);
+      await adjustReservationForItemChange(ctx, null, ctx.after ?? null);
     }
   },
   async afterDelete(ctx) {
     const isItemsTable = isSaleItemsTable(ctx);
     if (isItemsTable) {
-      await adjustReservationForItemChange(ctx, ctx.before as any, null);
+      await adjustReservationForItemChange(ctx, ctx.before ?? null, null);
       // Cancel linked appointment if it was still Scheduled
-      const before: any = ctx.before as any;
+      const before = ctx.before ?? {};
       const isService = !!before?.serviceId || (before?.type && String(before.type) === 'Service');
       if (isService && before?.appointmentId) {
         await cancelLinkedAppointmentsIfScheduled(ctx, [{ id: String(before?.id || ''), data: before }]);
@@ -298,7 +298,7 @@ export const SalesPlugin: RulePlugin = {
   async afterUpdate(ctx) {
     const isItemsTable = isSaleItemsTable(ctx);
     if (isItemsTable) {
-      await adjustReservationForItemChange(ctx, ctx.before as any, ctx.after as any);
+      await adjustReservationForItemChange(ctx, ctx.before ?? null, ctx.after ?? null);
       return;
     }
     const prevStatus = String(ctx.before?.status || 'Draft');
@@ -314,14 +314,14 @@ export const SalesPlugin: RulePlugin = {
       subtotal += qty * price;
     }
     // Merge values without clobbering unrelated data
-    const currentData = (ctx.after as any) || (ctx.before as any) || {};
-    const discount = Number((currentData?.discountAmount ?? 0) as any) || 0;
-    const merged = { ...currentData, subtotal, totalAmount: Math.max(0, subtotal - discount) } as any;
+    const currentData = ctx.after ?? ctx.before ?? {};
+    const discount = Number(currentData?.discountAmount ?? 0) || 0;
+    const merged: Record<string, unknown> = { ...currentData, subtotal, totalAmount: Math.max(0, subtotal - discount) };
 
     // Atualiza métricas agregadas do cliente e flags de receita nova/recorrente na venda
-    await applyCustomerRevenueSideEffects(ctx, ctx.before as any, merged, prevStatus, nextStatus);
+    await applyCustomerRevenueSideEffects(ctx, ctx.before ?? {}, merged, prevStatus, nextStatus);
 
-    await ctx.repository.updateData(String((ctx.after as any)?.id || (ctx.before as any)?.id), merged);
+    await ctx.repository.updateData(String(ctx.after?.id || ctx.before?.id), merged);
 
     // Se status não mudou mas pagamento mudou para Paid, já tratamos auto-finalização em beforeUpdate.
     if (prevStatus === nextStatus) {

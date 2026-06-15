@@ -207,7 +207,7 @@ async function handleQuickCreation(
         tableSchemas.set(key, table.schema);
       }
 
-      const validationResult = validateConfigurations(analyticsConfigs, tableSchemas);
+      const validationResult = validateConfigurations(analyticsConfigs as Parameters<typeof validateConfigurations>[0], tableSchemas);
       if (!validationResult.valid) {
         const errorMessages = validationResult.errors.map(e => `${e.field}: ${e.message}`).join('; ');
         res.status(400).json({

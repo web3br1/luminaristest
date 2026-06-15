@@ -1,4 +1,5 @@
 import type { RulePlugin } from '../RuleTypes';
+import type { IDynamicTableData } from '../../models/DynamicTable.model';
 import { resolveTable, tableMatches } from '../shared/tableFinder';
 
 const SCHEMA_KEYS = {
@@ -20,7 +21,7 @@ export const UnitAutoStockPlugin: RulePlugin = {
     return tableMatches(ctx.table, { internalNames: [SCHEMA_KEYS.UNITS], names: ['Units', 'units', 'Unidades'] });
   },
   async afterCreate(ctx) {
-    const unitId = String((ctx.after as any)?.id || '');
+    const unitId = String(ctx.after?.id || '');
     if (!unitId) return;
 
     // Locate products table to iterate and ensure inventory provisioning per product
@@ -49,8 +50,8 @@ export const UnitAutoStockPlugin: RulePlugin = {
       ctx.repository.findRowsByFieldValue(productUnitsTableId, 'unitId', unitId),
     ]);
 
-    const hasRow = (productId: string) => existingStock.some((r: any) => {
-      const d = r?.data || r; return String(d?.productId || '') === productId;
+    const hasRow = (productId: string) => existingStock.some((r: IDynamicTableData) => {
+      const d = (r?.data as Record<string, unknown>) || {}; return String(d?.productId || '') === productId;
     });
 
     for (const p of products.data) {

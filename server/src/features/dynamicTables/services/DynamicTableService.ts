@@ -15,6 +15,7 @@ import { kpiCacheService } from '../../analytics/services/KpiCacheService';
 import prisma from '../../../lib/prisma';
 import { TransactionalDynamicTableRepository } from '../repositories/TransactionalDynamicTableRepository';
 import { Prisma } from 'generated/prisma';
+import type { PresetTableDefinition } from '../presets';
 
 export class DynamicTableService {
   private repository: IDynamicTableRepository;
@@ -275,7 +276,7 @@ export class DynamicTableService {
     const excludesTables = new Map<string, string[]>();
 
     for (const key of tableKeys) {
-      const def: Record<string, unknown> = preset.tables[key];
+      const def: PresetTableDefinition = preset.tables[key];
       const meta = def?.meta || {};
       (meta.providesCapabilities || []).forEach((c: string) => provides.add(c));
       if (Array.isArray(meta.requiresCapabilities) && meta.requiresCapabilities.length > 0) {
@@ -495,7 +496,7 @@ export class DynamicTableService {
     await this.validateAdvancedRules(table, validatedData);
     await this.enforceNoOverlap(table, table.schema as unknown as ITableSchema, validatedData, isSystem);
     // Rules: beforeCreate (validation-focused; runs outside transaction to avoid long locks)
-    await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'create', before: null, after: validatedData, repository: this.repository, isSystem }, 'beforeCreate');
+    await this.runRules({ userId: table.userId, table, schema: table.schema as unknown as ITableSchema, operation: 'create', before: null, after: validatedData, repository: this.repository, isSystem }, 'beforeCreate');
 
     // Wrap the main write + afterCreate side-effects in a single transaction so that
     // a plugin failure (e.g. SalesPlugin stock update) rolls back the record creation.
@@ -504,7 +505,7 @@ export class DynamicTableService {
       const record = await txRepo.createData(tableId, validatedData);
       // Include created id in 'after' context so plugins can reference the new entry
       const afterWithId = { ...validatedData, id: record.id };
-      await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'create', before: null, after: afterWithId, repository: txRepo, isSystem }, 'afterCreate');
+      await this.runRules({ userId: table.userId, table, schema: table.schema as unknown as ITableSchema, operation: 'create', before: null, after: afterWithId, repository: txRepo, isSystem }, 'afterCreate');
       return record;
     };
     // Reuse the caller's transaction when composing an atomic multi-write (options.tx); otherwise open our own.
@@ -581,12 +582,12 @@ export class DynamicTableService {
 
         const tableResults: Record<string, string> = {};
         for (const row of data) {
-          const rowData = row.data as Record<string, any>;
+          const rowData = row.data as Record<string, unknown>;
           if (displayField && rowData[displayField] !== undefined) {
             tableResults[row.id] = String(rowData[displayField]);
           } else {
             // Fallback: pick the first string field, or just return ID
-            const firstStringKey = Object.keys(rowData).find(k => typeof rowData[k] === 'string');
+            const firstStringKey = Object.keys(rowData).find(k => typeof (rowData as Record<string, unknown>)[k] === 'string');
             tableResults[row.id] = firstStringKey ? String(rowData[firstStringKey]) : String(row.id);
           }
         }
@@ -620,7 +621,7 @@ export class DynamicTableService {
     if (!isSystem) {
       const readOnlyFields = schema.fields.filter(f => f.readOnly).map(f => f.name);
       const violations = readOnlyFields.filter(
-        name => (dataDto.data as any)?.[name] !== undefined
+        name => (dataDto.data as Record<string, unknown>)?.[name] !== undefined
       );
       if (violations.length > 0) {
         throw new ValidationError(`Field(s) [${violations.join(', ')}] are read-only and cannot be modified directly.`);
@@ -647,7 +648,7 @@ export class DynamicTableService {
           if (conditionMet) {
             if (rule.scope === 'all') {
               const changedFields = Object.keys(dataDto.data || {}).filter(
-                key => JSON.stringify(currentData[key]) !== JSON.stringify((dataDto.data as any)[key])
+                key => JSON.stringify(currentData[key]) !== JSON.stringify((dataDto.data as Record<string, unknown>)[key])
               );
               if (changedFields.length > 0) {
                 throw new ValidationError(
@@ -656,8 +657,8 @@ export class DynamicTableService {
               }
             } else {
               const blockedAndChanged = (rule.scope as string[]).filter(
-                fieldName => (dataDto.data as any)?.[fieldName] !== undefined
-                  && JSON.stringify(currentData[fieldName]) !== JSON.stringify((dataDto.data as any)[fieldName])
+                fieldName => (dataDto.data as Record<string, unknown>)?.[fieldName] !== undefined
+                  && JSON.stringify(currentData[fieldName]) !== JSON.stringify((dataDto.data as Record<string, unknown>)[fieldName])
               );
               if (blockedAndChanged.length > 0) {
                 throw new ValidationError(
@@ -700,7 +701,7 @@ export class DynamicTableService {
     // the clean data object from afterWithId (minus id) before calling updateData.
     const beforeWithId = { ...(existingData.data as Record<string, unknown>), id: dataId };
     const afterWithId = { ...(mergedData as Record<string, unknown>), id: dataId };
-    await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'update', before: beforeWithId, after: afterWithId, repository: this.repository, isSystem }, 'beforeUpdate');
+    await this.runRules({ userId: table.userId, table, schema: table.schema as unknown as ITableSchema, operation: 'update', before: beforeWithId, after: afterWithId, repository: this.repository, isSystem }, 'beforeUpdate');
 
     // Wrap the main write + afterUpdate side-effects in a single transaction so that
     // a plugin failure (e.g. SalesPlugin stock/commission update) rolls back the record update.
@@ -709,7 +710,7 @@ export class DynamicTableService {
       // Extract the (possibly mutated) data from afterWithId, stripping the synthetic id field.
       const { id: _afterId, ...persistedData } = afterWithId;
       const record = await txRepo.updateData(dataId, persistedData);
-      await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'update', before: beforeWithId, after: afterWithId, repository: txRepo, isSystem }, 'afterUpdate');
+      await this.runRules({ userId: table.userId, table, schema: table.schema as unknown as ITableSchema, operation: 'update', before: beforeWithId, after: afterWithId, repository: txRepo, isSystem }, 'afterUpdate');
       return record;
     };
     // Reuse the caller's transaction when composing an atomic multi-write (options.tx); otherwise open our own.
@@ -791,7 +792,7 @@ export class DynamicTableService {
     }
     // Rules: beforeDelete runs outside the transaction (validation-focused, avoids long locks).
     const existing = await this.repository.findDataById(dataId);
-    await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'delete', before: existing?.data as any, after: null, repository: this.repository }, 'beforeDelete');
+    await this.runRules({ userId: table.userId, table, schema: table.schema as unknown as ITableSchema, operation: 'delete', before: existing?.data as Record<string, unknown> | null, after: null, repository: this.repository }, 'beforeDelete');
 
     // Wrap the main delete + cascade + afterDelete side-effects in a single transaction so that
     // a plugin failure rolls back the soft-delete and any cascade deletions.
@@ -804,7 +805,7 @@ export class DynamicTableService {
         await txRepo.deleteData(cascade.dataId);
       }
 
-      await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'delete', before: existing?.data as any, after: null, repository: txRepo }, 'afterDelete');
+      await this.runRules({ userId: table.userId, table, schema: table.schema as unknown as ITableSchema, operation: 'delete', before: existing?.data as Record<string, unknown> | null, after: null, repository: txRepo }, 'afterDelete');
     });
 
     kpiCacheService.invalidate(table.userId);
@@ -831,7 +832,7 @@ export class DynamicTableService {
     return table;
   }
 
-  private validateDataAgainstSchema(data: Record<string, any>, tableSchema: ITableSchema, isPartial = false) {
+  private validateDataAgainstSchema(data: Record<string, unknown>, tableSchema: ITableSchema, isPartial = false) {
     try {
       let schema = this.buildZodSchema(tableSchema);
       if (isPartial) schema = schema.partial();
@@ -849,7 +850,7 @@ export class DynamicTableService {
   private async runRules(ctx: RuleContext, phase: 'beforeCreate' | 'afterCreate' | 'beforeUpdate' | 'afterUpdate' | 'beforeDelete' | 'afterDelete') {
     const plugins = globalRuleRegistry.getApplicable(ctx);
     for (const p of plugins) {
-      const fn = (p as Record<string, (...args: unknown[]) => unknown>)[phase];
+      const fn = (p as unknown as Record<string, (...args: unknown[]) => unknown>)[phase];
       if (typeof fn === 'function') {
         await fn.call(p, ctx);
       }
@@ -857,13 +858,13 @@ export class DynamicTableService {
   }
 
   private buildZodSchema(tableSchema: ITableSchema): z.ZodObject<z.ZodRawShape> {
-    const shape: { [key: string]: z.ZodType<any, any> } = {};
+    const shape: { [key: string]: z.ZodTypeAny } = {};
     if (!tableSchema || !Array.isArray(tableSchema.fields)) {
       throw new ValidationError('Invalid table schema definition.');
     }
 
     for (const field of tableSchema.fields) {
-      let zodField: z.ZodType<any, any>;
+      let zodField: z.ZodTypeAny;
       // Normaliza tipos equivalentes
       const fieldType = (field.type === 'datetime') ? 'date' : field.type;
 
@@ -983,7 +984,7 @@ export class DynamicTableService {
   private async enforceNoOverlap(
     table: IDynamicTable,
     schema: ITableSchema,
-    data: Record<string, any>,
+    data: Record<string, unknown>,
     isSystem: boolean,
     excludeId?: string,
   ) {
@@ -1018,7 +1019,7 @@ export class DynamicTableService {
     }
   }
 
-  private async validateAdvancedRules(table: IDynamicTable, data: Record<string, any>, dataIdToExclude?: string) {
+  private async validateAdvancedRules(table: IDynamicTable, data: Record<string, unknown>, dataIdToExclude?: string) {
     const schema = table.schema as unknown as ITableSchema;
 
     for (const field of schema.fields) {

@@ -400,14 +400,14 @@ export const cashflowKpiProcessor: AnalyticsProcessor = async (context): Promise
   // ===========================================================================
   // TABLE SOURCES
   // ===========================================================================
-  const mainTableSource    = (table as any).presetKey || (table as any).internalName || params.tableId || 'sales';
+  const mainTableSource    = table.presetKey || table.internalName || params.tableId || 'sales';
   const expenseTableSource = params.expensesTableKey || 'expenses';
   const mixedTableSource   = 'mixed';
 
   return [
-    { name: 'Fluxo de Caixa Operacional', value: currentOperationalCashflow, previousValue: prevOperationalCashflow, recordIds: operationalCashflowIds, tableSource: mixedTableSource,    fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.operationalCashflow } })), timestamp: Date.now() } as any },
-    { name: 'Fluxo de Caixa Livre',       value: currentFreeCashflow,        previousValue: prevFreeCashflow,        recordIds: freeCashflowIds,        tableSource: mixedTableSource,    fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.freeCashflow        } })), timestamp: Date.now() } as any },
-    { name: 'Saldo de Caixa',             value: cashBalance,               previousValue: prevCashBalance,         recordIds: cashBalanceIds,         tableSource: mixedTableSource,    fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.cashBalance          } })), timestamp: Date.now() } as any },
+    { name: 'Fluxo de Caixa Operacional', value: currentOperationalCashflow, previousValue: prevOperationalCashflow, recordIds: operationalCashflowIds, tableSource: mixedTableSource,    fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.operationalCashflow } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Fluxo de Caixa Livre',       value: currentFreeCashflow,        previousValue: prevFreeCashflow,        recordIds: freeCashflowIds,        tableSource: mixedTableSource,    fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.freeCashflow        } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Saldo de Caixa',             value: cashBalance,               previousValue: prevCashBalance,         recordIds: cashBalanceIds,         tableSource: mixedTableSource,    fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.cashBalance          } as Record<string, unknown> })), timestamp: Date.now() } },
 
     { name: 'Contas a Receber Total',             value: stockReceivables,        recordIds: stockReceivablesIds,         tableSource: mainTableSource },
     { name: 'Contas a Receber Vencidas',          value: stockOverdueReceivables, recordIds: stockOverdueReceivablesIds,  tableSource: mainTableSource },
@@ -417,7 +417,7 @@ export const cashflowKpiProcessor: AnalyticsProcessor = async (context): Promise
     { name: 'Contas a Pagar Vencidas',            value: stockOverduePayables,    recordIds: stockOverduePayablesIds,     tableSource: expenseTableSource },
     { name: 'Prazo Médio de Pagamento (dias)',     value: currentAvgPaymentPeriod, previousValue: prevAvgPaymentPeriod,   recordIds: currentPaidIds,     tableSource: expenseTableSource },
 
-    { name: 'Índice de Liquidez Corrente', value: currentLiquidityRatio, previousValue: prevLiquidityRatio, recordIds: [...stockReceivablesIds, ...stockPayablesIds], tableSource: mixedTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.liquidity } })), timestamp: Date.now() } as any },
-    { name: 'Índice de Solvência',         value: solvencyIndex,         previousValue: prevSolvencyIndex,  recordIds: [...stockReceivablesIds, ...stockPayablesIds], tableSource: mixedTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.solvency  } })), timestamp: Date.now() } as any },
+    { name: 'Índice de Liquidez Corrente', value: currentLiquidityRatio, previousValue: prevLiquidityRatio, recordIds: [...stockReceivablesIds, ...stockPayablesIds], tableSource: mixedTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.liquidity } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Índice de Solvência',         value: solvencyIndex,         previousValue: prevSolvencyIndex,  recordIds: [...stockReceivablesIds, ...stockPayablesIds], tableSource: mixedTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.solvency  } as Record<string, unknown> })), timestamp: Date.now() } },
   ];
 };

@@ -28,16 +28,20 @@ const excludeStatuses: string[] = ['Cancelled'];
 
 interface SaleRecord {
   id: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
   data: Record<string, any>;
   status: string;
   paymentStatus: string;
   amount: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
   rawAmount: any;
   date: Date | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
   rawDate: any;
   periodKey: string | null;
   included: boolean;
   reason: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
   dateDebug?: any;
 }
 
@@ -158,6 +162,7 @@ async function diagnoseSales() {
     console.log('🔍 Processando vendas...\n');
 
     for (const row of salesData) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
       const data = (row.data as Record<string, any>) || {};
       const rowStatus = String(data[statusField] || '');
       const rowPaymentStatus = String(data[paymentStatusField] || '');

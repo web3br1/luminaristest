@@ -15,7 +15,7 @@ function pctFor(value: string | undefined): number {
 }
 
 /** BANT qualification bars (Budget / Authority / Need / Timing). */
-export function BantBars({ data }: { data: Record<string, any> }) {
+export function BantBars({ data }: { data: Record<string, unknown> }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {ITEMS.map((it) => {

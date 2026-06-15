@@ -7,7 +7,7 @@ export const SALE_KEYS = {
 };
 
 /** Resolve a Sale row by id (global PK lookup; ids are workspace-unique CUIDs). */
-export async function findSaleById(ctx: RuleContext, saleId: string): Promise<{ id: string; data: any } | null> {
+export async function findSaleById(ctx: RuleContext, saleId: string): Promise<{ id: string; data: Record<string, unknown> } | null> {
   const row = await ctx.repository.findDataById(String(saleId));
-  return row ? { id: row.id, data: row.data } : null;
+  return row ? { id: row.id, data: (row.data as Record<string, unknown>) ?? {} } : null;
 }

@@ -1,9 +1,9 @@
 import type { DynamicTable, DynamicTableData } from 'generated/prisma';
 
 // Base interface for the DynamicTable model, extending the Prisma generated type
-export interface IDynamicTable extends Omit<DynamicTable, 'schema'> {
+export interface IDynamicTable extends Omit<DynamicTable, 'schema' | 'internalName'> {
   schema: ITableSchema;
-  internalName?: string;
+  internalName?: string | null;
   presetKey?: string;
 }
 

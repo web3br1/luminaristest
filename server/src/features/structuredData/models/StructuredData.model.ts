@@ -21,7 +21,7 @@ export interface SheetData {
 export type StructuredDataValue = 
   | (string | number | null)[][] 
   | SheetData[] 
-  | Record<string, any>;
+  | Record<string, unknown>;
 
 /**
  * Interface para representar um dado estruturado no domínio da aplicação
@@ -172,7 +172,7 @@ export function toStructuredData(prismaStructuredData: PrismaStructuredData): IS
       }
       // Se for um objeto JSON, mantemos como está
       else if (typeof prismaStructuredData.data === 'object' && prismaStructuredData.data !== null) {
-        data = prismaStructuredData.data as Record<string, any>;
+        data = prismaStructuredData.data as Record<string, unknown>;
       }
     }
   } catch (error) {

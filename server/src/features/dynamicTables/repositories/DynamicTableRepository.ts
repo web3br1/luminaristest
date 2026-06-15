@@ -21,6 +21,7 @@ export class DynamicTableRepository implements IDynamicTableRepository {
         name: data.name,
         internalName: data.internalName,
         category: data.category,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: JSON fields require any cast at persistence boundary
         schema: data.schema as any, // Prisma expects JsonValue
       },
     });
@@ -80,10 +81,11 @@ export class DynamicTableRepository implements IDynamicTableRepository {
     await prisma.dynamicTable.deleteMany({ where: { userId } });
   }
 
-  async createData(tableId: string, data: Record<string, any>): Promise<IDynamicTableData> {
+  async createData(tableId: string, data: Record<string, unknown>): Promise<IDynamicTableData> {
     return prisma.dynamicTableData.create({
       data: {
         dynamicTableId: tableId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: JSON fields require any cast at persistence boundary
         data: data as any, // Prisma expects JsonValue
       },
     });
@@ -146,9 +148,10 @@ export class DynamicTableRepository implements IDynamicTableRepository {
     }
   }
 
-  async updateData(dataId: string, data: Record<string, any>): Promise<IDynamicTableData> {
+  async updateData(dataId: string, data: Record<string, unknown>): Promise<IDynamicTableData> {
     return prisma.dynamicTableData.update({
       where: { id: dataId },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: JSON fields require any cast at persistence boundary
       data: { data: data as any }, // Prisma expects JsonValue
     });
   }
@@ -198,6 +201,7 @@ export class DynamicTableRepository implements IDynamicTableRepository {
     const updatedTable = await prisma.dynamicTable.update({
       where: { id: tableId },
       data: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: JSON fields require any cast at persistence boundary
         schema: data.schema as any, // Prisma expects JsonValue
       },
     });
@@ -342,7 +346,7 @@ export class DynamicTableRepository implements IDynamicTableRepository {
     );
     return rows;
   }
-  async getDataByTableId(tableId: string, userId: string): Promise<any[]> {
+  async getDataByTableId(tableId: string, userId: string): Promise<Record<string, unknown>[]> {
     // Primeiro, verifique se a tabela pertence ao usuário para garantir a permissão.
     const table = await prisma.dynamicTable.findFirst({
       where: {

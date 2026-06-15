@@ -20,14 +20,14 @@ import { getTemplate } from '../core';
  */
 export function mapConfigurationToProcessorParams(
   config: AnalyticsConfiguration
-): Record<string, any> {
+): Record<string, unknown> {
   const template = getTemplate(config.templateKey);
   if (!template) {
     throw new Error(`Template '${config.templateKey}' not found`);
   }
 
   // Start with template defaults
-  const params: Record<string, any> = {
+  const params: Record<string, unknown> = {
     ...template.defaultParams,
   };
 

@@ -287,8 +287,9 @@ class AnalyticsService {
     }
 
     // 3. Check dependencies in pipeline source
-    if (config.templateKey === 'aggregatePipeline' && params.pipeline?.source?.kind === 'presetTable') {
-      const depTable = params.pipeline.source.key.replace('@@PRESET_TABLE_KEY::', '');
+    const pipelineCfg = params.pipeline as { source?: { kind: string; key: string } } | undefined;
+    if (config.templateKey === 'aggregatePipeline' && pipelineCfg?.source?.kind === 'presetTable') {
+      const depTable = (pipelineCfg.source?.key || '').replace('@@PRESET_TABLE_KEY::', '');
       if (!userTableMap.has(depTable)) {
         return false;
       }

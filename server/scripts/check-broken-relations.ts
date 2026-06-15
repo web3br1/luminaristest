@@ -42,7 +42,9 @@ async function main(): Promise<void> {
   const broken: BrokenRelation[] = [];
 
   for (const table of allTables) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
     const schema = table.schema as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dev diagnostic script
     const fields: any[] = Array.isArray(schema?.fields) ? schema.fields : [];
 
     for (const field of fields) {

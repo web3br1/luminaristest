@@ -4,7 +4,7 @@ import type { ISchemaField } from '../../../features/dynamicTables/models/Dynami
 
 interface IPreset {
   key: string;
-  tables: Record<string, any>;
+  tables: Record<string, unknown>;
 }
 
 /**
@@ -62,20 +62,22 @@ export class TableExtractor {
     
     // Extrai as tabelas do objeto do preset
     const customizableTables: ICustomizableTable[] = Object.entries(preset.tables)
-      .map(([tableKey, tableSchema]: [string, any]) => {
+      .map(([tableKey, tableSchema]: [string, unknown]) => {
         // Verifica se a tabela tem as informações necessárias
         if (!tableSchema) return null;
-        
+        const ts = tableSchema as Record<string, unknown>;
+
         // Deriva o nome e descrição a partir do schema da tabela
-        const name = tableSchema.label || this.formatTableName(tableKey);
-        const description = tableSchema.description || `Tabela de ${name}`;
-        
+        const name = (ts.label as string | undefined) || this.formatTableName(tableKey);
+        const description = (ts.description as string | undefined) || `Tabela de ${name}`;
+
         // Extrai corretamente os campos do schema da tabela
         let fields = [];
-        
+        const tsSchema = ts.schema as Record<string, unknown> | undefined;
+
         // Verifica se temos campos no schema (estrutura correta dos presets)
-        if (tableSchema.schema && tableSchema.schema.fields && Array.isArray(tableSchema.schema.fields)) {
-          fields = tableSchema.schema.fields.map((field: ISchemaField) => ({
+        if (tsSchema && tsSchema.fields && Array.isArray(tsSchema.fields)) {
+          fields = tsSchema.fields.map((field: ISchemaField) => ({
             name: field.name,
             label: field.label || field.name,
             type: field.type || 'string',

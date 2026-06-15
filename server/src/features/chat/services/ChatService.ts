@@ -157,12 +157,13 @@ Pergunta Reformulada:
             const toolResult = result as { status?: string; proposalId?: string };
             if (toolResult.status === 'PROPOSED') {
               const proposal = await this.agentService.getProposal(toolResult.proposalId!);
+              if (!proposal) throw new Error('Proposal not found');
               return {
                 answer: `Entendido! Estou propondo a seguinte ação na tabela **${proposal.tableName}**. Por favor, confirme os detalhes no modal abaixo para prosseguir.`,
                 type: 'ACTION_PROPOSAL',
                 proposal: {
                   id: proposal.id,
-                  action: proposal.action,
+                  action: proposal.action as 'CREATE' | 'UPDATE' | 'DELETE',
                   tableName: proposal.tableName,
                   tableLabel: proposal.tableLabel,
                   data: proposal.data

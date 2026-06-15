@@ -6,7 +6,7 @@ export interface Task {
   priority: 'Low' | 'Medium' | 'High' | 'Urgent' | null;
   createdAt: string;
   updatedAt: string;
-  [key: string]: any; // Permite outras propriedades dinâmicas
+  [key: string]: unknown; // Permite outras propriedades dinâmicas
 }
 
 export const TaskStatus = {

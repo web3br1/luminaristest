@@ -13,7 +13,7 @@ export async function postChat(req: Request, res: Response) {
     if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });
 
     const chatService = getFactory().getChatService();
-    const response = await chatService.generateResponse({ ...parse.data, user: ctx as any });
+    const response = await chatService.generateResponse({ ...parse.data, user: ctx });
     return res.json(response);
   } catch (error) {
     return handleApiError(error, res);

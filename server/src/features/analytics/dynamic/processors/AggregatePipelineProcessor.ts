@@ -55,7 +55,7 @@ function getField(obj: Record<string, unknown>, path: string, opts?: { deriveIte
   let cur = obj;
   for (const p of parts) {
     if (cur == null) return undefined;
-    cur = cur[p];
+    cur = cur[p] as Record<string, unknown>;
   }
   return cur;
 }
@@ -89,7 +89,7 @@ function formatPeriod(dateStr: string | Date | null, period: 'day' | 'week' | 'm
 }
 
 function applyFilters(
-  row: Record<string, any>,
+  row: Record<string, unknown>,
   filters: PipelineSpec['filters'],
   deriveItemType: boolean
 ): boolean {
@@ -130,7 +130,7 @@ function applyFilters(
 }
 
 function makeGroupKey(
-  row: Record<string, any>,
+  row: Record<string, unknown>,
   dimensions: Dimension[] | undefined,
   deriveItemType: boolean
 ): string {
@@ -141,13 +141,13 @@ function makeGroupKey(
     if (d.type === 'field') {
       parts.push(String(getField(row, d.field, { deriveItemType }) ?? ''));
     } else if (d.type === 'period') {
-      parts.push(formatPeriod(getField(row, d.dateField, { deriveItemType }), d.period));
+      parts.push(formatPeriod(getField(row, d.dateField, { deriveItemType }) as string | Date | null, d.period));
     }
   }
   return parts.join('|');
 }
 
-function computeMeasure(row: Record<string, any>, m: Measure): number {
+function computeMeasure(row: Record<string, unknown>, m: Measure): number {
   switch (m.type) {
     case 'sum':
       return Number(getField(row, m.field) || 0);
@@ -270,7 +270,7 @@ export const aggregatePipelineProcessor: AnalyticsProcessor = async (
   }
 
   // Handle joins
-  const rightMaps: Record<string, Map<string, any>> = {};
+  const rightMaps: Record<string, Map<string, Record<string, unknown>>> = {};
   const joins: JoinRef[] = (compiled.joins || []) as JoinRef[];
 
   if (joins.length > 0 && fetchByPresetTableKey) {
@@ -282,7 +282,7 @@ export const aggregatePipelineProcessor: AnalyticsProcessor = async (
   }
 
   // Build denormalized records with original IDs
-  const denorm: Array<Record<string, any> & { __originalId?: string }> = rows.map((r) => ({
+  const denorm: Array<Record<string, unknown> & { __originalId?: string }> = rows.map((r) => ({
     ...r.data,
     __originalId: r.id,
   }));
@@ -306,7 +306,7 @@ export const aggregatePipelineProcessor: AnalyticsProcessor = async (
   const filtered = denorm.filter((r) => applyFilters(r, compiled.filters, deriveItemType));
 
   // Group
-  const groups = new Map<string, { rows: Array<Record<string, any> & { __originalId?: string }> }>();
+  const groups = new Map<string, { rows: Array<Record<string, unknown> & { __originalId?: string }> }>();
   for (const r of filtered) {
     const gk = makeGroupKey(r, compiled.dimensions, deriveItemType);
     if (!groups.has(gk)) groups.set(gk, { rows: [] });

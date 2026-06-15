@@ -32,9 +32,9 @@ export const CommissionsPlugin: RulePlugin = {
         return tableMatches(ctx.table, { categories: ['finance'], internalNames: [SCHEMA_KEYS.COMMISSIONS], names: ['Commissions', 'commissions', 'Comissões'] });
     },
     async beforeCreate(ctx) {
-        await autoStampPaidAt(ctx, ctx.after as any);
+        await autoStampPaidAt(ctx, ctx.after ?? {});
     },
     async beforeUpdate(ctx) {
-        await autoStampPaidAt(ctx, ctx.after as any, ctx.before as any);
+        await autoStampPaidAt(ctx, ctx.after ?? {}, ctx.before ?? {});
     },
 };

@@ -32,7 +32,7 @@ export interface NoShowPayload {
   previousStageId?: string;
 }
 
-type ApiResult<T = any> = { success: boolean; data: T };
+type ApiResult<T = unknown> = { success: boolean; data: T };
 
 export interface ChartDataPoint {
   name: string;

@@ -1,6 +1,7 @@
 import { logger } from '../../../lib/logger';
 import { ICustomizableTable } from '../models/InterviewTypes';
 import { IFieldModification, IField } from './Types';
+import type { ISchemaField } from '../../dynamicTables/models/DynamicTable.model';
 
 /**
  * Aplica as modificações de campo em uma determinada tabela (funcionalidade).
@@ -24,7 +25,7 @@ export class FieldUpdater {
         };
       }
 
-      let updatedFields = [...(table.fields || [])];
+      let updatedFields: IField[] = [...(table.fields || [])] as unknown as IField[];
       let modificationsMade = false;
 
       logger.info(`[FieldUpdater] Aplicando ${modifications.length} modificações à tabela ${table.key}`);
@@ -78,7 +79,7 @@ export class FieldUpdater {
       return {
         updatedTable: {
           ...table,
-          fields: updatedFields,
+          fields: updatedFields as unknown as ISchemaField[],
         },
         modified: modificationsMade
       };

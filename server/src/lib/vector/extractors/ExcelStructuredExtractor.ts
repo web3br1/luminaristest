@@ -4,7 +4,7 @@ import * as ExcelJS from 'exceljs';
 export interface SheetStructured {
   name: string;
   headers: Array<{ key: string; title: string; type: string }>;
-  data: any[][];
+  data: unknown[][];
 }
 
 /**
@@ -17,23 +17,24 @@ export interface SheetStructured {
  * @param cell - The cell object from ExcelJS.
  * @returns The displayable value of the cell.
  */
-function getCellValue(cell: any): any {
+function getCellValue(cell: unknown): unknown {
   if (cell === null || cell === undefined) {
     return null;
   }
 
   if (typeof cell === 'object') {
+    const obj = cell as Record<string, unknown>;
     // Handle formula results
-    if (cell.formula && cell.result !== undefined) {
-      return cell.result;
+    if (obj.formula && obj.result !== undefined) {
+      return obj.result;
     }
     // Handle rich text
-    if (cell.richText && Array.isArray(cell.richText)) {
-      return cell.richText.map((rt: any) => rt.text).join('');
+    if (obj.richText && Array.isArray(obj.richText)) {
+      return (obj.richText as Array<{ text: string }>).map((rt) => rt.text).join('');
     }
     // Handle hyperlinks
-    if (cell.hyperlink && cell.text) {
-      return cell.text;
+    if (obj.hyperlink && obj.text) {
+      return obj.text;
     }
   }
 
@@ -51,16 +52,23 @@ function slugify(text: string): string {
     .replace(/__+/g, '_'); // Replace multiple _ with single _
 }
 
-function inferType(values: any[]): 'NUMBER' | 'DATE' | 'TEXT' {
+function inferType(values: unknown[]): 'NUMBER' | 'DATE' | 'TEXT' {
   const defined = values.filter(v => v !== null && v !== undefined && v !== '');
   if (defined.length === 0) return 'TEXT';
 
   // Check for numbers (including strings that are valid numbers)
-  const areNumbers = defined.every(v => typeof v === 'number' || !isNaN(Number(v.toString().replace(',', '.'))));
+  const areNumbers = defined.every(v => {
+    if (typeof v === 'number') return true;
+    const str = (v as { toString(): string }).toString().replace(',', '.');
+    return !isNaN(Number(str));
+  });
   if (areNumbers) return 'NUMBER';
 
   // Check for dates (including strings that can be parsed as dates)
-  const areDates = defined.every(v => v instanceof Date || !isNaN(Date.parse(v.toString())));
+  const areDates = defined.every(v => {
+    if (v instanceof Date) return true;
+    return !isNaN(Date.parse((v as { toString(): string }).toString()));
+  });
   if (areDates) return 'DATE';
 
   return 'TEXT';
@@ -73,7 +81,7 @@ function inferType(values: any[]): 'NUMBER' | 'DATE' | 'TEXT' {
  * @returns A promise that resolves to an object containing the structured data for all sheets.
  */
 export async function extractStructuredDataFromExcel(
-  fileBuffer: any // Usando 'any' para garantir compatibilidade com diferentes tipos de buffer
+  fileBuffer: Buffer | ArrayBuffer
 ): Promise<{ sheets: SheetStructured[] }> {
   const workbook = new ExcelJS.Workbook();
   try {
@@ -88,7 +96,7 @@ export async function extractStructuredDataFromExcel(
   workbook.eachSheet((worksheet, sheetId) => {
     // Get all rows, including empty ones, as an array of arrays.
     // `getSheetValues` is 1-based and can have empty rows at the start.
-    const rows = worksheet.getSheetValues() as any[][];
+    const rows = worksheet.getSheetValues() as unknown[][];
     if (!rows || rows.length < 2) {
       return; // Skip empty or header-only sheets
     }
@@ -109,7 +117,7 @@ export async function extractStructuredDataFromExcel(
     const headerValues = (rows[headerRowIndex] || []).slice(1); // 1-based, so skip first null element
     const dataRows = rows.slice(headerRowIndex + 1);
 
-    const headers = headerValues.map((titleCell: any, index: number) => {
+    const headers = headerValues.map((titleCell, index: number) => {
       const title = getCellValue(titleCell);
       const headerTitle = title ? title.toString() : `Column ${index + 1}`;
       return {

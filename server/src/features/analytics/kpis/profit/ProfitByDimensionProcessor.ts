@@ -178,7 +178,7 @@ export const profitByDimensionProcessor: AnalyticsProcessor = async (context): P
   const prevTotalCosts = addMoney(addMoney(prevVariableCostTotal, prevFixedCostTotal), prevTaxesTotal);
   const prevTotalRevenue = Array.from(prevRevenueByDimension.values()).reduce((sum, v) => addMoney(sum, v), 0);
 
-  const metricMode: 'profit' | 'cost' | 'margin' = (params.metricMode as any) || 'profit';
+  const metricMode: 'profit' | 'cost' | 'margin' = (params.metricMode as 'profit' | 'cost' | 'margin') || 'profit';
 
   const result: ChartDataPoint[] = [];
 

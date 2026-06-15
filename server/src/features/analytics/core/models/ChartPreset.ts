@@ -32,7 +32,7 @@ export interface ChartPreset {
    * - statusField: Field name for status filtering
    * - excludeStatuses: Array of statuses to exclude
    */
-  params?: Record<string, any>;
+  params?: Record<string, unknown>;
   /**
    * Chart display options (colors, currency, etc.)
    */

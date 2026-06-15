@@ -18,7 +18,7 @@
  */
 import type { DynamicTable } from 'generated/prisma';
 import { Prisma } from 'generated/prisma';
-import type { IDynamicTable, IDynamicTableData, ITableSchema } from '../models/DynamicTable.model';
+import type { IDynamicTable, IDynamicTableData, ITableSchema, ISchemaField } from '../models/DynamicTable.model';
 import type { CreateDynamicTableDtoType, UpdateDynamicTableDtoType, UpdateDynamicTableSchemaDtoType } from '../dtos/DynamicTable.dto';
 import type { IDynamicTableRepository } from './IDynamicTableRepository';
 
@@ -44,6 +44,7 @@ export class TransactionalDynamicTableRepository implements IDynamicTableReposit
         name: data.name,
         internalName: data.internalName,
         category: data.category,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: JSON fields require any cast at persistence boundary
         schema: data.schema as any,
       },
     });
@@ -88,6 +89,7 @@ export class TransactionalDynamicTableRepository implements IDynamicTableReposit
   async updateTableSchema(tableId: string, data: UpdateDynamicTableSchemaDtoType): Promise<IDynamicTable> {
     const row = await this.tx.dynamicTable.update({
       where: { id: tableId },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: JSON fields require any cast at persistence boundary
       data: { schema: data.schema as any },
     });
     return this.toDomainTable(row);
@@ -103,10 +105,11 @@ export class TransactionalDynamicTableRepository implements IDynamicTableReposit
 
   // ── Data operations ─────────────────────────────────────────────────────────
 
-  async createData(tableId: string, data: Record<string, any>): Promise<IDynamicTableData> {
+  async createData(tableId: string, data: Record<string, unknown>): Promise<IDynamicTableData> {
     return this.tx.dynamicTableData.create({
       data: {
         dynamicTableId: tableId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: JSON fields require any cast at persistence boundary
         data: data as any,
       },
     });
@@ -165,9 +168,10 @@ export class TransactionalDynamicTableRepository implements IDynamicTableReposit
     }
   }
 
-  async updateData(dataId: string, data: Record<string, any>): Promise<IDynamicTableData> {
+  async updateData(dataId: string, data: Record<string, unknown>): Promise<IDynamicTableData> {
     return this.tx.dynamicTableData.update({
       where: { id: dataId },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: JSON fields require any cast at persistence boundary
       data: { data: data as any },
     });
   }
@@ -218,6 +222,7 @@ export class TransactionalDynamicTableRepository implements IDynamicTableReposit
       whereConditions.push(Prisma.sql`id != ${excludeId}`);
     }
     const whereClause = Prisma.join(whereConditions, ' AND ');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: $queryRaw not exposed on TransactionClient type
     const result: [{ count: bigint }] = await (this.tx as any).$queryRaw(
       Prisma.sql`SELECT COUNT(*) as count FROM "dynamic_table_data" WHERE ${whereClause}`
     );
@@ -246,6 +251,7 @@ export class TransactionalDynamicTableRepository implements IDynamicTableReposit
       where.push(Prisma.sql`id != ${excludeId}`);
     }
     const whereClause = Prisma.join(where, ' AND ');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: $queryRaw not exposed on TransactionClient type
     const result: [{ count: bigint }] = await (this.tx as any).$queryRaw(
       Prisma.sql`SELECT COUNT(*) as count FROM "dynamic_table_data" WHERE ${whereClause}`
     );
@@ -254,6 +260,7 @@ export class TransactionalDynamicTableRepository implements IDynamicTableReposit
 
   async findRowsByFieldValue(tableId: string, fieldName: string, value: string): Promise<IDynamicTableData[]> {
     const jsonFieldPath = `$.${fieldName}`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: $queryRaw not exposed on TransactionClient type
     const rows: IDynamicTableData[] = await (this.tx as any).$queryRaw(
       Prisma.sql`
         SELECT * FROM "dynamic_table_data"
@@ -294,6 +301,7 @@ export class TransactionalDynamicTableRepository implements IDynamicTableReposit
   ): Promise<IDynamicTableData[]> {
     const jsonScalarPath = `$.${fieldName}`;
     const likePattern = `%"${targetId}"%`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: $queryRaw not exposed on TransactionClient type
     const rows: IDynamicTableData[] = await (this.tx as any).$queryRaw(
       Prisma.sql`
         SELECT *

@@ -310,25 +310,25 @@ export const costKpiProcessor: AnalyticsProcessor = async (context): Promise<Cha
   const prevOperationalTotal = addMoney(addMoney(prevAdminTotal, prevMaintenanceTotal), prevVariableTotal);
 
   // Determine table source
-  const mainTableSource = (table as any).presetKey || params.tableId || 'expenses';
+  const mainTableSource = table.presetKey || params.tableId || 'expenses';
 
   // (series already declared above for avg computation)
 
   // Return all KPIs with recordIds, tableSource and fullRecords (for sparklines)
   return [
-    { name: 'Custo Fixo Total', value: fixedTotal, previousValue: prevFixedTotal, recordIds: fixedIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.fixed } })), timestamp: Date.now() } as any },
+    { name: 'Custo Fixo Total', value: fixedTotal, previousValue: prevFixedTotal, recordIds: fixedIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.fixed } as Record<string, unknown> })), timestamp: Date.now() } },
     { name: 'Custo Fixo Médio Mensal', value: fixedAvgMonthly, recordIds: fixedIds, tableSource: mainTableSource },
-    { name: 'Participação dos Custos Fixos (%)', value: fixedSharePct, previousValue: prevFixedSharePct, recordIds: overallIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.fixed / s.total) * 100 : 0 } })), timestamp: Date.now() } as any },
-    { name: 'Custo Variável Total', value: variableTotal, previousValue: prevVariableTotal, recordIds: variableIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.variable } })), timestamp: Date.now() } as any },
+    { name: 'Participação dos Custos Fixos (%)', value: fixedSharePct, previousValue: prevFixedSharePct, recordIds: overallIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.fixed / s.total) * 100 : 0 } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Custo Variável Total', value: variableTotal, previousValue: prevVariableTotal, recordIds: variableIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.variable } as Record<string, unknown> })), timestamp: Date.now() } },
     { name: 'Custo Variável Médio por Atendimento', value: variableCostPerAppointment, previousValue: prevVariableCostPerAppointment, recordIds: variableIds, tableSource: mainTableSource },
-    { name: 'Participação dos Custos Variáveis (%)', value: variableSharePct, previousValue: prevVariableSharePct, recordIds: overallIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.variable / s.total) * 100 : 0 } })), timestamp: Date.now() } as any },
-    { name: 'Despesas Operacionais Totais', value: operationalTotal, previousValue: prevOperationalTotal, recordIds: operationalIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.admin + s.maintenance + s.variable } })), timestamp: Date.now() } as any },
-    { name: 'Despesas Administrativas (%)', value: adminSharePct, previousValue: prevAdminSharePct, recordIds: adminIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.admin / s.total) * 100 : 0 } })), timestamp: Date.now() } as any },
-    { name: 'Despesas de Manutenção', value: maintenanceTotal, previousValue: prevMaintenanceTotal, recordIds: maintenanceIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.maintenance } })), timestamp: Date.now() } as any },
+    { name: 'Participação dos Custos Variáveis (%)', value: variableSharePct, previousValue: prevVariableSharePct, recordIds: overallIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.variable / s.total) * 100 : 0 } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Despesas Operacionais Totais', value: operationalTotal, previousValue: prevOperationalTotal, recordIds: operationalIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.admin + s.maintenance + s.variable } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Despesas Administrativas (%)', value: adminSharePct, previousValue: prevAdminSharePct, recordIds: adminIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.admin / s.total) * 100 : 0 } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Despesas de Manutenção', value: maintenanceTotal, previousValue: prevMaintenanceTotal, recordIds: maintenanceIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.maintenance } as Record<string, unknown> })), timestamp: Date.now() } },
     { name: 'Despesas Não Recorrentes', value: nonRecurringTotal, previousValue: prevNonRecurringTotal, recordIds: nonRecurringIds, tableSource: mainTableSource },
-    { name: 'Impostos Totais Pagos', value: taxesTotal, previousValue: prevTaxesTotal, recordIds: taxesIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.taxes } })), timestamp: Date.now() } as any },
-    { name: 'Custo Total', value: overallTotal, previousValue: prevOverallTotal, recordIds: overallIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total } })), timestamp: Date.now() } as any },
+    { name: 'Impostos Totais Pagos', value: taxesTotal, previousValue: prevTaxesTotal, recordIds: taxesIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.taxes } as Record<string, unknown> })), timestamp: Date.now() } },
+    { name: 'Custo Total', value: overallTotal, previousValue: prevOverallTotal, recordIds: overallIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total } as Record<string, unknown> })), timestamp: Date.now() } },
     { name: 'Custo por Dia Útil', value: costPerBusinessDay, previousValue: prevCostPerBusinessDay, recordIds: overallIds, tableSource: mainTableSource },
-    { name: 'Custo Não Planejado (%)', value: unplannedSharePct, previousValue: prevUnplannedSharePct, recordIds: unplannedIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.unplanned / s.total) * 100 : 0 } })), timestamp: Date.now() } as any },
+    { name: 'Custo Não Planejado (%)', value: unplannedSharePct, previousValue: prevUnplannedSharePct, recordIds: unplannedIds, tableSource: mainTableSource, fullRecords: { records: series.map(s => ({ id: s.name, data: { value: s.total > 0 ? (s.unplanned / s.total) * 100 : 0 } as Record<string, unknown> })), timestamp: Date.now() } },
   ];
 };

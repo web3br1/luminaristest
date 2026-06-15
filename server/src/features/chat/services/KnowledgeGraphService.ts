@@ -58,7 +58,7 @@ export class KnowledgeGraphService {
                         options: f.options,
                         relation: f.relation ? {
                             targetTable: f.relation.targetTable,
-                            displayField: f.relation.displayField
+                            displayField: (f.relation as { targetTable: string; displayField?: string }).displayField ?? ''
                         } : undefined
                     }))
                 })),
@@ -84,7 +84,7 @@ export class KnowledgeGraphService {
 
             return graphData;
         } catch (error: unknown) {
-            logger.error(`Failed to sync Knowledge Graph for user ${userId}`, error);
+            logger.error(`Failed to sync Knowledge Graph for user ${userId}`, { error });
             throw new AppError('Failed to synchronize knowledge graph', 500, 'KNOWLEDGE_GRAPH_SYNC_ERROR');
         }
     }
@@ -104,7 +104,7 @@ export class KnowledgeGraphService {
             return this.syncGraph(userId);
         } catch (error: unknown) {
             if (error instanceof AppError) throw error;
-            logger.error(`Failed to retrieve Knowledge Graph for user ${userId}`, error);
+            logger.error(`Failed to retrieve Knowledge Graph for user ${userId}`, { error });
             throw new AppError('Failed to retrieve knowledge graph', 500, 'KNOWLEDGE_GRAPH_FETCH_ERROR');
         }
     }

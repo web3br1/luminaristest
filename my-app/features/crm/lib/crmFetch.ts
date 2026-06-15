@@ -2,7 +2,7 @@ import { DynamicTableService } from '../../../lib/services/dynamic-table.service
 
 export interface DynamicRow {
   id: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -28,10 +28,10 @@ async function ensureDefaultPipelineAndStages(ctx: RuleContext, unitId: string) 
     unitId,
     name: 'Pipeline Padrão',
     isDefault: true,
-  } as any);
+  });
 
   // Cria estágios
-  const stages = [
+  const stages: Array<{ name: string; order: number; defaultWinProbability: number; type: string }> = [
     { name: 'Sem Contato', order: 1, defaultWinProbability: 10, type: 'init' },
     { name: 'Reunião Agendada', order: 2, defaultWinProbability: 30, type: 'meeting' },
     { name: 'Proposta Enviada', order: 3, defaultWinProbability: 60, type: 'proposal' },
@@ -42,9 +42,9 @@ async function ensureDefaultPipelineAndStages(ctx: RuleContext, unitId: string) 
       pipelineId: pipeline.id,
       name: s.name,
       order: s.order,
-      type: (s as any).type,
+      type: s.type,
       defaultWinProbability: s.defaultWinProbability,
-    } as any);
+    });
   }
 }
 
@@ -55,7 +55,7 @@ export const LeadsSeedOnUnitPlugin: RulePlugin = {
     return tableMatches(ctx.table, { categories: ['business'], internalNames: ['units'], names: ['Units'] });
   },
   async afterCreate(ctx) {
-    const unitId = String((ctx.after as any)?.id || '');
+    const unitId = String(ctx.after?.id || '');
     if (!unitId) return;
     await ensureDefaultPipelineAndStages(ctx, unitId);
   },

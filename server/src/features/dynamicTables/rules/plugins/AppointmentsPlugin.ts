@@ -20,10 +20,10 @@ export const AppointmentsPlugin: RulePlugin = {
   supports(ctx) {
     return tableMatches(ctx.table, { categories: ['planning'], internalNames: ['appointments'], names: ['Appointments'] });
   },
-  async beforeCreate(ctx) { await validateAppointment(ctx, ctx.after as any); },
+  async beforeCreate(ctx) { await validateAppointment(ctx, ctx.after ?? {}); },
   async beforeUpdate(ctx) {
-    await validateAppointment(ctx, ctx.after as any, ctx.before as any);
-    await validateCompletionTiming(ctx, ctx.after as any, ctx.before as any);
+    await validateAppointment(ctx, ctx.after ?? {}, ctx.before ?? {});
+    await validateCompletionTiming(ctx, ctx.after ?? {}, ctx.before ?? {});
   },
 };
 
@@ -31,8 +31,8 @@ export const AppointmentsPlugin: RulePlugin = {
  * Validate appointment core fields, temporal consistency and basic coherence with optional service and employee rules.
  */
 async function validateAppointment(ctx: RuleContext, after: Record<string, unknown>, before?: Record<string, unknown>) {
-  const startAt = new Date(after?.startAt);
-  const endAt = new Date(after?.endAt);
+  const startAt = new Date(after?.startAt as string | number | Date | undefined);
+  const endAt = new Date(after?.endAt as string | number | Date | undefined);
   if (!(isFinite(startAt.getTime()) && isFinite(endAt.getTime()))) {
     throw new ValidationError('Agendamento inválido: datas/hora são obrigatórias.');
   }
@@ -84,7 +84,7 @@ async function validateServiceDuration(ctx: RuleContext, serviceId: string, star
   const serviceTable = await findTableByName(ctx, 'services', 'services', 'services', 'Services');
   if (!serviceTable) return true;
   const srv = await ctx.repository.findDataById(String(serviceId));
-  const durationMin = Number((srv?.data as any)?.duration || 0);
+  const durationMin = Number((srv?.data as Record<string, unknown>)?.duration || 0);
   if (!durationMin) return true;
   const diffMin = Math.round((endAt.getTime() - startAt.getTime()) / 60000);
   return Math.abs(diffMin - durationMin) <= 5; // allow 5 min tolerance
@@ -97,7 +97,7 @@ async function assertWithinEmployeeHours(ctx: RuleContext, employeeId: string, s
   const employeesTable = await findTableByName(ctx, 'people', 'employees', 'Employees', 'employees');
   if (!employeesTable) return;
   const emp = await ctx.repository.findDataById(String(employeeId));
-  const schedule = (emp?.data as any)?.workSchedule;
+  const schedule = (emp?.data as Record<string, unknown>)?.workSchedule;
   if (!schedule) return;
   const weekday = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][startAt.getDay()];
   const day = schedule?.[weekday];
@@ -128,7 +128,7 @@ async function validateCompletionTiming(ctx: RuleContext, after: Record<string, 
   if (prev === next) return;
   if (next === 'Completed' && !ctx.isSystem) {
     // Completion must be in the past or present.
-    const endAt = new Date(after?.endAt || before?.endAt);
+    const endAt = new Date((after?.endAt ?? before?.endAt) as string | number | Date | undefined);
     if (!isFinite(endAt.getTime()) || endAt > new Date()) {
       throw new ValidationError('Não é possível concluir um agendamento que ainda não terminou.');
     }

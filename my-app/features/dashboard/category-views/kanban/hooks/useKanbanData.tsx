@@ -19,7 +19,7 @@ export function useKanbanData(tables: IDynamicTable[]) {
 
     const [aggregatedData, setAggregatedData] = useState<Task[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [schemaMap, setSchemaMap] = useState<Record<string, any>>({});
+    const [schemaMap, setSchemaMap] = useState<Record<string, unknown>>({});
     const [error, setError] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
@@ -33,7 +33,7 @@ export function useKanbanData(tables: IDynamicTable[]) {
         setError(null);
         try {
             const results: Task[] = [];
-            const newSchemaMap: Record<string, any> = {};
+            const newSchemaMap: Record<string, unknown> = {};
 
             await Promise.all(kanbanTables.map(async (table) => {
                 const [tableData, tableRecords] = await Promise.all([

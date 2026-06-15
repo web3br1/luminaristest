@@ -96,7 +96,7 @@ export async function executeCustomKpisHandler(req: Request, res: Response) {
       return res.status(404).json({ success: false, error: `Table not found: ${tableId}` });
     }
 
-    const columns: ColumnDescriptor[] = (table.schema?.fields ?? []) as ColumnDescriptor[];
+    const columns: ColumnDescriptor[] = (table.schema?.fields ?? []) as unknown as ColumnDescriptor[];
 
     // -------------------------------------------------------------------
     // 3. Per-KPI field existence validation

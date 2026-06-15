@@ -2,7 +2,7 @@ import { DynamicTableService } from '../../dynamicTables/services/DynamicTableSe
 import { UserContext } from '../../../lib/authUtils';
 import logger from '../../../lib/logger';
 import { IActionProposalRepository } from '../repositories/IActionProposalRepository';
-import { ActionProposal } from 'generated/prisma';
+import { ActionProposal, Prisma } from 'generated/prisma';
 import OpenAI from 'openai';
 
 export interface ActionProposalData {
@@ -117,7 +117,7 @@ export class LuminarisAgentService {
                     id: table.id,
                     name: table.name,
                     category: table.category,
-                    fields: (table.schema as Record<string, unknown>)['fields']
+                    fields: (table.schema as unknown as Record<string, unknown>)['fields']
                 };
             }
 
@@ -125,8 +125,8 @@ export class LuminarisAgentService {
                 const data = await this.dynamicTableService.getAllTableData(user, args.tableId as string);
                 let filtered = data;
                 if (args.filters) {
-                    filtered = data.filter((row: { id: string; data: Record<string, unknown> }) => {
-                        return Object.entries(args.filters as Record<string, unknown>).every(([key, val]) => (row.data)[key] === val);
+                    filtered = data.filter((row) => {
+                        return Object.entries(args.filters as Record<string, unknown>).every(([key, val]) => (row.data as Record<string, unknown>)?.[key] === val);
                     });
                 }
                 return filtered.slice(0, 10);
@@ -144,7 +144,7 @@ export class LuminarisAgentService {
                     tableId: table.id,
                     tableName: table.name,
                     tableLabel: table.name,
-                    data: creationData
+                    data: creationData as unknown as Prisma.InputJsonValue
                 });
                 return {
                     status: 'PROPOSED',
@@ -165,7 +165,7 @@ export class LuminarisAgentService {
                     tableId: table.id,
                     tableName: table.name,
                     tableLabel: table.name,
-                    data: { ...updateData, id: args.recordId as string }
+                    data: { ...updateData, id: args.recordId as string } as unknown as Prisma.InputJsonValue
                 });
                 return { status: 'PROPOSED', proposalId: proposal.id };
             }
@@ -187,17 +187,19 @@ export class LuminarisAgentService {
 
         try {
             if (proposal.action === 'CREATE') {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: JSON fields require any cast at persistence boundary
                 const result = await this.dynamicTableService.createTableData(user, proposal.tableId, { data: proposal.data as any });
                 await this.proposalRepository.delete(proposalId);
                 return { success: true, result };
             } else if (proposal.action === 'UPDATE') {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: JSON fields require any cast at persistence boundary
                 const { id, ...data } = proposal.data as any;
                 const result = await this.dynamicTableService.updateTableData(user, id, { data });
                 await this.proposalRepository.delete(proposalId);
                 return { success: true, result };
             }
         } catch (error: unknown) {
-            logger.error(`Failed to execute proposal ${proposalId}`, error);
+            logger.error(`Failed to execute proposal ${proposalId}`, { error });
             throw error;
         }
     }

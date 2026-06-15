@@ -75,7 +75,7 @@ export const multiTableCalculationProcessor: AnalyticsProcessor = async (context
   }
 
   // Fetch data from all tables with IDs
-  const tableData: Record<string, Array<Record<string, any> & { __originalId?: string }>> = {};
+  const tableData: Record<string, Array<Record<string, unknown> & { __originalId?: string }>> = {};
   const tableRowMaps: Record<string, Map<string, string>> = {}; // Map row index to original ID
 
   for (const [alias, tableKey] of Object.entries(tables)) {

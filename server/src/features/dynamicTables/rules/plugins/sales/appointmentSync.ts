@@ -30,7 +30,7 @@ export async function assertServiceAppointmentsReady(ctx: RuleContext, items: Ar
       continue; // Optional appointment: if absent and not required, skip validation
     }
     const appt = await ctx.repository.findDataById(apptId);
-    const status = String((appt?.data as any)?.status || '');
+    const status = String((appt?.data as Record<string, unknown>)?.status || '');
     if (!(status === 'Completed' || status === 'No-Show')) {
       throw new ValidationError('Agendamento do serviço deve estar "Completed" ou "No-Show" para finalizar a venda.');
     }
@@ -45,7 +45,7 @@ export async function validateServiceAppointmentCoherence(ctx: RuleContext, item
   if (!apptId) throw new ValidationError('Serviço requer um agendamento válido (appointmentId).');
   const appt = await ctx.repository.findDataById(apptId);
   if (!appt) throw new ValidationError('Agendamento não encontrado para o appointmentId informado.');
-  const a = (appt.data || {}) as any;
+  const a = (appt.data || {}) as Record<string, unknown>;
   const svcOk = !itemData?.serviceId || String(a.serviceId || '') === String(itemData.serviceId || '');
   const empOk = !itemData?.responsibleEmployeeId || String(a.responsibleEmployeeId || '') === String(itemData.responsibleEmployeeId || '');
   const unitOk = !saleUnitId || String(a.unitId || '') === String(saleUnitId || '');
@@ -64,9 +64,9 @@ export async function cancelLinkedAppointmentsIfScheduled(ctx: RuleContext, item
     if (!apptId) continue;
     const appt = await ctx.repository.findDataById(apptId);
     if (!appt) continue;
-    const status = String((appt?.data as any)?.status || '');
+    const status = String((appt?.data as Record<string, unknown>)?.status || '');
     if (status === 'Scheduled') {
-      const currentData = (appt?.data as any) || {};
+      const currentData = (appt?.data as Record<string, unknown>) || {};
       await ctx.repository.updateData(apptId, Object.assign({}, currentData, { status: 'Cancelled' }));
     }
   }
@@ -82,14 +82,14 @@ export async function autoCreateAppointmentForServiceItem(
   ctx: RuleContext,
   itemData: Record<string, unknown>,
   saleUnitId: string,
-  sale: { id: string; data: any } | null
+  sale: { id: string; data: Record<string, unknown> } | null
 ): Promise<string> {
   const apptTableId = await findAppointmentsTable(ctx);
   if (!apptTableId) {
     throw new ValidationError('Tabela de agendamentos (Appointments) não encontrada para criação automática.');
   }
 
-  const saleData = (sale?.data as any) || {};
+  const saleData = (sale?.data as Record<string, unknown>) ?? {};
   const unitId = saleUnitId || String(saleData.unitId || '');
   if (!unitId) {
     throw new ValidationError('Não foi possível determinar a unidade da venda para criar o agendamento.');
@@ -118,7 +118,7 @@ export async function autoCreateAppointmentForServiceItem(
   const start = new Date(now.getTime() + 60 * 60 * 1000);
   const end = new Date(start.getTime() + 60 * 60 * 1000);
 
-  const payload: any = {
+  const payload: Record<string, unknown> = {
     unitId,
     serviceId,
     responsibleEmployeeId,
@@ -131,7 +131,7 @@ export async function autoCreateAppointmentForServiceItem(
   };
 
   const created = await ctx.repository.createData(apptTableId, payload);
-  const id = (created as any)?.id || created;
+  const id = (created as Record<string, unknown>)?.id || created;
   if (!id) {
     throw new ValidationError('Falha ao criar agendamento automático para o serviço.');
   }
