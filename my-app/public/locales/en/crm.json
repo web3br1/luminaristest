@@ -1,0 +1,85 @@
+{
+  "common": {
+    "loading": "Loading…"
+  },
+  "nav": {
+    "overview": "Overview",
+    "pipeline": "Pipeline",
+    "contacts": "Contacts",
+    "accounts": "Accounts",
+    "proposals": "Proposals",
+    "activities": "Activities",
+    "meetings": "Meetings",
+    "analytics": "Analytics"
+  },
+  "analytics": {
+    "title": "CRM — Analytics",
+    "subtitle": "Funnel, conversion and qualification KPIs"
+  },
+  "overview": {
+    "title": "CRM — Overview",
+    "subtitle": "Condensed version of Leads 360",
+    "open_pipeline": "Open Pipeline",
+    "hot_leads": "Hottest leads",
+    "empty": "No leads found."
+  },
+  "kpi": {
+    "total": "Total Leads",
+    "open": "Open",
+    "won": "Won",
+    "pipeline_value": "Pipeline Value",
+    "win_rate": "Win Rate"
+  },
+  "pipeline": {
+    "title": "Pipeline",
+    "subtitle": "Funnel management by stage",
+    "back": "← Overview",
+    "no_stages": "No stages configured.",
+    "empty_stage": "No records"
+  },
+  "detail": {
+    "back": "← Pipeline",
+    "score": "Score",
+    "advance": "Advance to",
+    "last_stage": "Last stage",
+    "bant": "BANT Qualification",
+    "budget": "Budget",
+    "authority": "Authority",
+    "need": "Need",
+    "timing": "Timing",
+    "contact": "Contact",
+    "phone": "Phone",
+    "status": "Status",
+    "not_found": "Lead not found."
+  },
+  "contacts": {
+    "title": "Contacts",
+    "name": "Name",
+    "phone": "Phone",
+    "job": "Job Title",
+    "role": "Role",
+    "empty": "No contacts. Install the CRM module to get started."
+  },
+  "accounts": {
+    "title": "Accounts",
+    "name": "Company",
+    "segment": "Segment",
+    "size": "Size",
+    "city": "City",
+    "empty": "No accounts. Install the CRM module to get started."
+  },
+  "proposals": {
+    "title": "Proposals",
+    "amount": "Amount",
+    "win": "Win %",
+    "eta": "Close date",
+    "empty": "No proposals yet."
+  },
+  "activities": {
+    "title": "Activities",
+    "empty": "No activities recorded."
+  },
+  "meetings": {
+    "title": "Meetings"
+  }
+}

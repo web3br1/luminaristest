@@ -13,6 +13,7 @@ import reportRoutes from './reports';
 import docsRoutes from './docs';
 import analyticsRoutes from './analytics';
 import analyticsDefinitionsRoutes from './analyticsDefinitions';
+import crmRoutes from './crm';
 
 const router = Router();
 
@@ -50,6 +51,7 @@ router.use('/reports', reportRoutes);
 router.use('/docs', docsRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/analytics/definitions', analyticsDefinitionsRoutes);
+router.use('/crm', crmRoutes);
 
 export { router };
 

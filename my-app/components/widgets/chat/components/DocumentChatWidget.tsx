@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useChatInstance } from '../hooks/UseChatInstance';
-import { useChatMessages } from '../hooks/UseChatMessages';
-import { useChatInput } from '../hooks/UseChatInput';
+import { useChatInstance } from '../hooks/useChatInstance';
+import { useChatMessages } from '../hooks/useChatMessages';
+import { useChatInput } from '../hooks/useChatInput';
 import { useChatInstances } from '../hooks/UseChatInstances';
 
 // Importar subcomponentes

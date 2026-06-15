@@ -33,6 +33,8 @@ import { UserService } from '../features/users/services/UserService';
 import { DynamicTableService } from '../features/dynamicTables/services/DynamicTableService';
 import { LuminarisAgentService } from '../features/chat/services/LuminarisAgentService';
 import { KnowledgeGraphService } from '../features/chat/services/KnowledgeGraphService';
+import { CrmPipelineService } from '../features/crm/services/CrmPipelineService';
+import { CrmAnalyticsService } from '../features/crm/services/CrmAnalyticsService';
 
 // Lib - External Services
 import { OpenAIService as ChatOpenAIService } from './openai/OpenAIService';
@@ -96,6 +98,8 @@ export class ApplicationFactory {
     dynamicTable: DynamicTableService;
     luminarisAgent: LuminarisAgentService;
     knowledgeGraph: KnowledgeGraphService;
+    crmPipeline: CrmPipelineService;
+    crmAnalytics: CrmAnalyticsService;
   };
 
   private constructor() {
@@ -151,6 +155,16 @@ export class ApplicationFactory {
       this.repositories.actionProposal
     );
 
+    const crmPipelineService = new CrmPipelineService(
+      dynamicTableService,
+      this.repositories.dynamicTable
+    );
+
+    const crmAnalyticsService = new CrmAnalyticsService(
+      dynamicTableService,
+      this.repositories.dynamicTable
+    );
+
     this.services = {
       chat: new ChatService(
         embeddingOpenAIService,
@@ -185,6 +199,8 @@ export class ApplicationFactory {
       dynamicTable: dynamicTableService,
       luminarisAgent: luminarisAgentService,
       knowledgeGraph: knowledgeGraphService,
+      crmPipeline: crmPipelineService,
+      crmAnalytics: crmAnalyticsService,
     };
   }
 
@@ -207,6 +223,8 @@ export class ApplicationFactory {
   public getDynamicTableService = (): DynamicTableService => this.services.dynamicTable;
   public getLuminarisAgentService = (): LuminarisAgentService => this.services.luminarisAgent;
   public getKnowledgeGraphService = (): KnowledgeGraphService => this.services.knowledgeGraph;
+  public getCrmPipelineService = (): CrmPipelineService => this.services.crmPipeline;
+  public getCrmAnalyticsService = (): CrmAnalyticsService => this.services.crmAnalytics;
 
   // Repository Getters
   public getChatInstanceRepository = (): IChatInstanceRepository => this.repositories.chatInstance;

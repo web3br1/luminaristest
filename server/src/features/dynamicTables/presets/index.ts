@@ -1,5 +1,6 @@
 import { CoreSystemPreset } from './systems/CoreSystemPreset';
 import BeautySalonPreset from './systems/BeautySalonPreset';
+import CrmModulePreset from './systems/CrmModulePreset';
 import { ITableSchema } from '../models/DynamicTable.model';
 import type { AnalyticsConfiguration } from '@/features/analytics/core/models/AnalyticsConfiguration';
 import { DynamicTableCategory } from '../models/TableCategories';
@@ -18,6 +19,9 @@ export { CoreSystemPreset };
 export const tablePresetSuites = {
   services: {
     beautySalon: BeautySalonPreset,
+  },
+  sales: {
+    crmModule: CrmModulePreset,
   },
 };
 

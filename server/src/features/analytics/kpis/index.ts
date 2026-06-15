@@ -20,6 +20,7 @@ import './cost';
 import './profit';
 import './cashflow';
 import './sales';
+import './crm';
 
 // Re-export for convenience
 export * from './revenue';
@@ -27,4 +28,5 @@ export * from './cost';
 export * from './profit';
 export * from './cashflow';
 export * from './sales';
+export * from './crm';
 

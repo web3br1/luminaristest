@@ -14,6 +14,7 @@ import { KnowledgeGraphService } from '../../chat/services/KnowledgeGraphService
 import { kpiCacheService } from '../../analytics/services/KpiCacheService';
 import prisma from '../../../lib/prisma';
 import { TransactionalDynamicTableRepository } from '../repositories/TransactionalDynamicTableRepository';
+import { Prisma } from 'generated/prisma';
 
 export class DynamicTableService {
   private repository: IDynamicTableRepository;
@@ -477,7 +478,7 @@ export class DynamicTableService {
     await this._deleteTable(tableId);
   }
 
-  async createTableData(user: UserContext, tableId: string, dataDto: CreateDynamicTableDataDtoType, options?: { isSystem?: boolean }) {
+  async createTableData(user: UserContext, tableId: string, dataDto: CreateDynamicTableDataDtoType, options?: { isSystem?: boolean; tx?: Prisma.TransactionClient }) {
     const table = await this.getTableById(user, tableId);
     if (!this.policy.canManageData(user, table)) {
       throw new ForbiddenError('You do not have permission to add data to this table.');
@@ -498,17 +499,37 @@ export class DynamicTableService {
 
     // Wrap the main write + afterCreate side-effects in a single transaction so that
     // a plugin failure (e.g. SalesPlugin stock update) rolls back the record creation.
-    const created = await prisma.$transaction(async (tx) => {
+    const writeCreate = async (tx: Prisma.TransactionClient) => {
       const txRepo = new TransactionalDynamicTableRepository(tx);
       const record = await txRepo.createData(tableId, validatedData);
       // Include created id in 'after' context so plugins can reference the new entry
       const afterWithId = { ...validatedData, id: record.id } as any;
       await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'create', before: null, after: afterWithId, repository: txRepo, isSystem }, 'afterCreate');
       return record;
-    });
+    };
+    // Reuse the caller's transaction when composing an atomic multi-write (options.tx); otherwise open our own.
+    const created = options?.tx ? await writeCreate(options.tx) : await prisma.$transaction(writeCreate);
 
     kpiCacheService.invalidate(table.userId);
     return created;
+  }
+
+  /**
+   * Run a callback inside a single Prisma transaction. Pass the provided `tx`
+   * into createTableData/updateTableData via `options.tx` so multiple writes
+   * compose atomically (all-or-nothing) — used by orchestration services to
+   * avoid app-level compensation.
+   *
+   * LIMITATION: the create/update VALIDATIONS (schema, relations, advanced rules,
+   * overlap, beforeX plugins) run against committed state via `this.repository`
+   * (non-tx), so a later write cannot validate against a row created by an
+   * earlier write IN THE SAME tx. Safe for independent or snapshot-style
+   * composed writes (e.g. the CRM pipeline: proposal create + lead snapshot
+   * update). Do NOT compose writes whose validation must see a prior in-tx row
+   * until validations are made tx-aware.
+   */
+  public async runInTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return prisma.$transaction(fn);
   }
 
   public async getTableData(user: UserContext, tableId: string, page: number = 1, limit: number = 50): Promise<{ data: import('../models/DynamicTable.model').IDynamicTableData[]; total: number; page: number; limit: number; totalPages: number }> {
@@ -580,7 +601,7 @@ export class DynamicTableService {
     return results;
   }
 
-  async updateTableData(user: UserContext, dataId: string, dataDto: UpdateDynamicTableDataDtoType, options?: { isSystem?: boolean }) {
+  async updateTableData(user: UserContext, dataId: string, dataDto: UpdateDynamicTableDataDtoType, options?: { isSystem?: boolean; tx?: Prisma.TransactionClient }) {
     const table = await this.findTableForData(user, dataId);
     if (!this.policy.canManageData(user, table)) {
       throw new ForbiddenError('You do not have permission to update data in this table.');
@@ -683,14 +704,16 @@ export class DynamicTableService {
 
     // Wrap the main write + afterUpdate side-effects in a single transaction so that
     // a plugin failure (e.g. SalesPlugin stock/commission update) rolls back the record update.
-    const updated = await prisma.$transaction(async (tx) => {
+    const writeUpdate = async (tx: Prisma.TransactionClient) => {
       const txRepo = new TransactionalDynamicTableRepository(tx);
       // Extract the (possibly mutated) data from afterWithId, stripping the synthetic id field.
       const { id: _afterId, ...persistedData } = afterWithId;
       const record = await txRepo.updateData(dataId, persistedData);
       await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'update', before: beforeWithId, after: afterWithId, repository: txRepo, isSystem }, 'afterUpdate');
       return record;
-    });
+    };
+    // Reuse the caller's transaction when composing an atomic multi-write (options.tx); otherwise open our own.
+    const updated = options?.tx ? await writeUpdate(options.tx) : await prisma.$transaction(writeUpdate);
 
     kpiCacheService.invalidate(table.userId);
     return updated;
