@@ -57,6 +57,7 @@ server/src/features/analytics/kpis/index.ts
 11. `referenceDate`: `const now = params.referenceDate ? new Date(params.referenceDate) : new Date()`
 12. Clampar inputs com domínio conhecido antes de qualquer aritmética — ex.: percentuais via `Math.min(100, Math.max(0, value))`. Não confie só na validação upstream: dados legados/corrompidos passam pelo processor. É house-style (`cost`/`revenue` já clampam).
 13. Em cross-fetch (`fetchByPresetTableKey`), NÃO engula erro com `.catch(() => null)` silencioso — logue com `logger.warn` (incluindo a presetTableKey e o erro) antes de degradar para vazio.
+14. Centralize constantes: arrays de ordem de status (`['Draft','Sent',…]`), moedas e sentinelas (ex.: `999` p/ etapa sem `order`) vão num módulo de constantes do feature (`server/src/features/<x>/constants.ts`), não hardcoded e duplicados no processor. Para `.indexOf` aceitar string, use `[...CONST] as string[]`.
 
 ### Template
 

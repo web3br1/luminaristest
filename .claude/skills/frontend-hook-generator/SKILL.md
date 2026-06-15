@@ -53,6 +53,8 @@ my-app/lib/api/api-client.ts
    ```
 5. Retornar: `{ data, isLoading, error, refetch }`
 6. **Paginação (DynamicTable):** `GET /dynamic-tables/:id/data` retorna **no máximo 50 linhas por padrão** (cap 200). Hooks que alimentam KPIs/listas/boards precisam buscar **todas as páginas** — senão a view trunca silenciosamente em 50 (KPIs e contagens erradas com volume). Use um helper de fetch-all que itera `page` até `totalPages` (`limit=200`). Referência: `my-app/features/crm/lib/crmFetch.ts` (`fetchAllRows`).
+7. **Type-safety (sem `any` local):** tipe objetos de tabela/resposta do service com interfaces locais mínimas (ex.: `interface DynTable { id: string; internalName?: string; schema?: unknown }`) em vez de `any`/`any[]`. No `catch`, use `catch (e)` (`e: unknown`) com narrowing — `e instanceof Error ? e.message : 'Falha…'`. Exceção: o `Record<string, any>` dos dados dinâmicos da DynamicTable é contrato do engine e fica.
+8. **Memoize dados derivados:** `filter`/`sort`/`group`/`find`/`reduce` sobre listas no corpo do hook DEVEM ir em `useMemo([deps])` — sem isso recalculam a cada render (inclusive em updates de context não relacionados). Mesma regra do `frontend-page-generator`.
 
 ### State hook
 
@@ -78,3 +80,5 @@ cd my-app && npx tsc --noEmit
 - Não faça fetch no render — sempre dentro de `useEffect` ou handler
 - Não nomeie o hook sem o prefixo `use`
 - **Não confie no page-size default ao ler DynamicTable** — a API retorna só 50 linhas; pagine (fetch-all) ou os KPIs/contagens ficam errados com volume. Sempre teste a view com >50 registros.
+- Não use `any`/`any[]` para tabelas ou respostas de service — defina interfaces locais; `catch (e: any)` → `catch (e)` com narrowing por `unknown`.
+- Não calcule dados derivados (`filter`/`sort`/`group`/`find`) sem `useMemo([deps])` no corpo do hook.

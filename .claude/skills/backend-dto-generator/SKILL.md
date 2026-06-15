@@ -51,7 +51,8 @@ server/src/features/users/models/User.model.ts
 6. Type guards: `export function is<Resource>Dto(obj: unknown): obj is <Resource>Dto { return <Resource>Schema.safeParse(obj).success }`
 7. Mensagens de erro inline (ex: `'Name cannot exceed 100 characters'`)
 8. Update schema: todos os campos com `.optional()`
-9. Obrigatoriedade condicional (campo exigido depende do valor de outro campo): enforce no schema, nunca no service. Duas opções:
+9. Restrições de domínio: campos monetários/quantidade onde `0` ou negativo é inválido usam `.positive()` (ou `.nonnegative()`); não deixe o `z.number()` padrão aceitar valores sem sentido de negócio (ex.: proposta com `amount: 0`).
+10. Obrigatoriedade condicional (campo exigido depende do valor de outro campo): enforce no schema, nunca no service. Duas opções:
    - `.superRefine()` quando quiser manter o shape plano (não quebra consumidores que esperam o tipo achatado):
      ```ts
      export const RescheduleSchema = z
