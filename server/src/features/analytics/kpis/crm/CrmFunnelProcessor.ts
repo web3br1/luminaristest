@@ -1,4 +1,5 @@
 import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
+import { logger } from '../../../../lib/logger';
 
 /**
  * CRM conversion funnel — number of leads per pipeline stage, ordered.
@@ -10,7 +11,10 @@ export const crmFunnelProcessor: AnalyticsProcessor = async (context) => {
   const { rows } = context;
 
   const stagesRes = context.fetchByPresetTableKey
-    ? await context.fetchByPresetTableKey('leadStages').catch(() => null)
+    ? await context.fetchByPresetTableKey('leadStages').catch((e) => {
+        logger.warn('crmFunnelProcessor: failed to fetch leadStages, degrading gracefully', { error: String(e) });
+        return null;
+      })
     : null;
   const stageMeta = new Map<string, { name: string; order: number }>();
   for (const s of stagesRes?.rows ?? []) {

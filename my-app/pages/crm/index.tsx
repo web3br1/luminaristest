@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
@@ -17,9 +17,13 @@ function CrmOverviewInner() {
   const router = useRouter();
   const { loading, error, leads, kpis } = useCrmData();
 
-  const hotLeads = [...leads]
-    .sort((a, b) => Number(b.data?.score ?? 0) - Number(a.data?.score ?? 0))
-    .slice(0, 6);
+  const hotLeads = useMemo(
+    () =>
+      [...leads]
+        .sort((a, b) => Number(b.data?.score ?? 0) - Number(a.data?.score ?? 0))
+        .slice(0, 6),
+    [leads],
+  );
 
   const currency = (n: number) => `R$ ${n.toLocaleString('pt-BR')}`;
 

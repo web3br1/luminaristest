@@ -46,8 +46,14 @@ function CrmPipelineInner() {
     [stages, activePipelineId],
   );
 
-  const leadsByStage = (stageId: string): CrmRecord[] =>
-    leads.filter((l) => String(l.data?.stageId ?? '') === stageId);
+  const leadsByStageMap = useMemo(() => {
+    const m = new Map<string, CrmRecord[]>();
+    for (const l of leads) {
+      const sid = String(l.data?.stageId ?? '');
+      (m.get(sid) ?? m.set(sid, []).get(sid)!).push(l);
+    }
+    return m;
+  }, [leads]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
@@ -97,7 +103,7 @@ function CrmPipelineInner() {
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-4">
           {orderedStages.map((stage) => {
-            const stageLeads = leadsByStage(stage.id);
+            const stageLeads = leadsByStageMap.get(stage.id) ?? [];
             return (
               <div key={stage.id} className="w-72 shrink-0">
                 <div className="mb-2 flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2.5 dark:border-white/5 dark:bg-neutral-800/50">

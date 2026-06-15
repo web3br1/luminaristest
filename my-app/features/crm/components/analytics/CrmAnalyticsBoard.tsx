@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useCrmAnalytics } from '../../hooks/useCrmAnalytics';
 import { CrmKpiCard } from '../CrmKpiCard';
 import { CrmBarChart } from './CrmBarChart';
@@ -26,8 +26,9 @@ function ChartPanel({ title, children }: { title: string; children: React.ReactN
 
 export function CrmAnalyticsBoard() {
   const { datePreset, setDatePreset, data, loading, error } = useCrmAnalytics();
-  const card = (n: string) => data.cards.find((c) => c.name === n)?.value ?? 0;
-  const newCard = data.cards.find((c) => c.name === 'newLeads');
+  const cardMap = useMemo(() => new Map(data.cards.map((c) => [c.name, c])), [data.cards]);
+  const card = (n: string) => cardMap.get(n)?.value ?? 0;
+  const newCard = cardMap.get('newLeads');
   const newTone =
     newCard && newCard.previousValue != null
       ? newCard.value >= newCard.previousValue

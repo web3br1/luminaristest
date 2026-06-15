@@ -34,20 +34,20 @@ export interface NoShowPayload {
 
 type ApiResult<T = any> = { success: boolean; data: T };
 
-export interface ChartPoint {
+export interface ChartDataPoint {
   name: string;
   value: number;
   previousValue?: number;
 }
 
 export interface CrmAnalyticsBundle {
-  cards: ChartPoint[];
-  funnel: ChartPoint[];
-  source: ChartPoint[];
-  status: ChartPoint[];
-  bant: ChartPoint[];
-  proposals: ChartPoint[];
-  activities: ChartPoint[];
+  cards: ChartDataPoint[];
+  funnel: ChartDataPoint[];
+  source: ChartDataPoint[];
+  status: ChartDataPoint[];
+  bant: ChartDataPoint[];
+  proposals: ChartDataPoint[];
+  activities: ChartDataPoint[];
 }
 
 export type CrmDatePreset = 'today' | 'thisWeek' | 'thisMonth' | 'last30Days' | 'lastMonth' | 'thisYear';

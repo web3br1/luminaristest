@@ -24,8 +24,8 @@ function ActivitiesInner() {
   const { loading, error, rows } = useCrmTable('leadActivities');
 
   const sorted = [...rows].sort((a, b) => {
-    const ta = new Date(String((a as any).updatedAt ?? (a as any).createdAt ?? 0)).getTime();
-    const tb = new Date(String((b as any).updatedAt ?? (b as any).createdAt ?? 0)).getTime();
+    const ta = new Date(String(a.updatedAt ?? a.createdAt ?? 0)).getTime();
+    const tb = new Date(String(b.updatedAt ?? b.createdAt ?? 0)).getTime();
     return tb - ta;
   });
 
@@ -49,7 +49,7 @@ function ActivitiesInner() {
           {sorted.map((act) => {
             const d = act.data ?? {};
             const type = String(d.type ?? 'note');
-            const when = (act as any).updatedAt ?? (act as any).createdAt;
+            const when = act.updatedAt ?? act.createdAt;
             return (
               <li key={act.id} className="relative">
                 <span className={`absolute -left-[27px] top-1.5 h-3 w-3 rounded-full ${TYPE_DOT[type] ?? 'bg-gray-400'}`} />

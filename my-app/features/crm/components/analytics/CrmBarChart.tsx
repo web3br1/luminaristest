@@ -1,11 +1,11 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import type { ChartPoint } from '../../../../lib/services/crm.service';
+import type { ChartDataPoint } from '../../../../lib/services/crm.service';
 
 const PALETTE = ['#3b82f6', '#14b8a6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#ef4444', '#6366f1'];
 
 interface CrmBarChartProps {
-  data: ChartPoint[];
+  data: ChartDataPoint[];
   color?: string;
   multicolor?: boolean;
   formatValue?: (v: number) => string;

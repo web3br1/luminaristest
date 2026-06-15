@@ -1,10 +1,10 @@
 import React from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import type { ChartPoint } from '../../../../lib/services/crm.service';
+import type { ChartDataPoint } from '../../../../lib/services/crm.service';
 
 const PALETTE = ['#3b82f6', '#14b8a6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#ef4444', '#6366f1'];
 
-export function CrmPieChart({ data, donut = true }: { data: ChartPoint[]; donut?: boolean }) {
+export function CrmPieChart({ data, donut = true }: { data: ChartDataPoint[]; donut?: boolean }) {
   const total = data.reduce((s, d) => s + (Number(d.value) || 0), 0) || 1;
   return (
     <div>

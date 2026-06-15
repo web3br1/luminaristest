@@ -10,6 +10,7 @@ import { useCrmTable } from '../hooks/useCrmTable';
 
 interface CalendarEvent {
   id: string;
+  leadId: string;
   title: string;
   start: string;
   end: string;
@@ -31,7 +32,7 @@ export function MeetingsCalendar() {
     const cancelled = new Set<string>();
     for (const a of activities) {
       if (String(a.data?.type ?? '') !== 'meeting_cancelled') continue;
-      const when = a.data?.payload?.scheduledAt ?? a.data?.scheduledAt ?? (a as any).updatedAt ?? (a as any).createdAt;
+      const when = a.data?.payload?.scheduledAt ?? a.data?.scheduledAt ?? a.updatedAt ?? a.createdAt;
       if (!when) continue;
       cancelled.add(`${String(a.data?.leadId ?? '')}|${new Date(String(when)).toISOString()}`);
     }
@@ -40,17 +41,17 @@ export function MeetingsCalendar() {
       .filter((a) => String(a.data?.type ?? '') === 'meeting')
       .map((a) => {
         const leadId = String(a.data?.leadId ?? '');
-        const when = a.data?.payload?.when ?? a.data?.when ?? (a as any).updatedAt ?? (a as any).createdAt;
+        const when = a.data?.payload?.when ?? a.data?.when ?? a.updatedAt ?? a.createdAt;
         const startIso = new Date(String(when)).toISOString();
         const endIso = new Date(new Date(startIso).getTime() + 60 * 60 * 1000).toISOString();
         return { id: a.id, leadId, title: `Reunião - ${nameById.get(leadId) ?? 'Lead'}`, start: startIso, end: endIso };
       })
       .filter((ev) => {
         const isFuture = new Date(ev.start).getTime() >= Date.now();
-        const isCancelled = cancelled.has(`${(ev as any).leadId}|${ev.start}`);
+        const isCancelled = cancelled.has(`${ev.leadId}|${ev.start}`);
         return isFuture && !isCancelled;
       })
-      .map(({ id, title, start, end }) => ({ id, title, start, end }));
+      .map(({ id, leadId, title, start, end }) => ({ id, leadId, title, start, end }));
   }, [activities, leads]);
 
   return (

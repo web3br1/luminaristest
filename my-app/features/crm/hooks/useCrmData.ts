@@ -5,6 +5,8 @@ import { fetchAllRows } from '../lib/crmFetch';
 export interface CrmRecord {
   id: string;
   data: Record<string, any>;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CrmKpis {

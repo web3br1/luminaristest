@@ -33,12 +33,29 @@ export const CreateProposalSchema = z.object({
   estimatedCloseDate: z.string().optional(),
 });
 
-export const RecordNoShowSchema = z.object({
-  leadId: z.string().min(1),
-  option: z.enum(['reschedule', 'revert']),
-  rescheduleAt: z.string().datetime().optional(),
-  previousStageId: z.string().optional(),
-});
+export const RecordNoShowSchema = z
+  .object({
+    leadId: z.string().min(1),
+    option: z.enum(['reschedule', 'revert']),
+    rescheduleAt: z.string().datetime().optional(),
+    previousStageId: z.string().optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.option === 'reschedule' && !val.rescheduleAt) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rescheduleAt'],
+        message: 'rescheduleAt é obrigatório quando option=reschedule',
+      });
+    }
+    if (val.option === 'revert' && !val.previousStageId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['previousStageId'],
+        message: 'previousStageId é obrigatório quando option=revert',
+      });
+    }
+  });
 
 export type AdvanceStageInput = z.infer<typeof AdvanceStageSchema>;
 export type CreateProposalInput = z.infer<typeof CreateProposalSchema>;

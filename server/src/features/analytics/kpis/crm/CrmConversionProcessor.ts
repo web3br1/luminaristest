@@ -34,7 +34,7 @@ export const crmConversionProcessor: AnalyticsProcessor = (context) => {
     const amount = DataSanitizer.extractCurrency(d.latestProposalAmount);
     if (status === 'Open' && amount > 0) {
       pipelineValue = addMoney(pipelineValue, amount);
-      const wp = Number(d.latestProposalWinProbability ?? 0);
+      const wp = Math.min(100, Math.max(0, Number(d.latestProposalWinProbability ?? 0)));
       if (Number.isFinite(wp) && wp > 0) forecast = addMoney(forecast, amount * (wp / 100));
     }
     if (status === 'Won' && amount > 0) {
