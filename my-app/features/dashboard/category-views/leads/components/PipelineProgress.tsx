@@ -1,13 +1,14 @@
 'use client';
 
 import React from 'react';
+import type { IDynamicTableData } from '@/features/dashboard/components/shared/dynamic-tables.client';
 
 interface PipelineProgressProps {
-  pipelineStages: any[];
+  pipelineStages: IDynamicTableData[];
   currentStageId: string;
   currentStageIndex: number;
   stageProgressLabel: string;
-  nextStage: any | null;
+  nextStage: IDynamicTableData | null;
   onNoShow: () => void;
   onAdvanceNext: () => void;
 }
@@ -19,7 +20,7 @@ export default function PipelineProgress({ pipelineStages, currentStageId, curre
 
         {/* Stages List */}
         <div className="flex-1 overflow-x-auto custom-scrollbar flex items-center gap-2 pb-2 lg:pb-0">
-          {pipelineStages.map((st: any, idx: number) => {
+          {pipelineStages.map((st, idx) => {
             const sid = String(st.id);
             const isCurrent = sid === currentStageId;
             const isDone = currentStageIndex >= 0 && idx < currentStageIndex;

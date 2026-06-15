@@ -11,7 +11,7 @@ export interface DocumentResponseDto {
     status: DocumentStatus;
     documentPurpose: DocumentPurpose;
     summary: string | null;
-    contextJson: any;
+    contextJson: Record<string, unknown> | null;
     uploadDate: string | Date;
     processingDate: string | Date | null;
     processingError: string | null;

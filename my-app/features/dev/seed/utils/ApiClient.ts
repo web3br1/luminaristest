@@ -22,14 +22,14 @@ export class ApiClient {
         return body?.data || [];
     }
 
-    async postRow(tableId: string, data: any, tableNameForLog: string = 'Unknown'): Promise<string> {
+    async postRow(tableId: string, data: Record<string, unknown>, tableNameForLog: string = 'Unknown'): Promise<string> {
         const res = await fetch(`${this.baseUrl}/dynamic-tables/${tableId}/data`, {
             method: 'POST',
             headers: this.headers,
             body: JSON.stringify({ data }),
         });
 
-        let body: any = {};
+        let body: Record<string, unknown> = {};
         try { body = await res.json(); } catch (e) { }
 
         if (!res.ok) {
@@ -42,7 +42,7 @@ export class ApiClient {
         return id;
     }
 
-    async putRow(tableId: string, dataId: string, data: any, tableNameForLog: string = 'Unknown'): Promise<void> {
+    async putRow(tableId: string, dataId: string, data: Record<string, unknown>, tableNameForLog: string = 'Unknown'): Promise<void> {
         const res = await fetch(`${this.baseUrl}/dynamic-tables/${tableId}/data/${dataId}`, {
             method: 'PUT',
             headers: this.headers,
@@ -50,7 +50,7 @@ export class ApiClient {
         });
 
         if (!res.ok) {
-            let body: any = {};
+            let body: Record<string, unknown> = {};
             try { body = await res.json(); } catch (e) { }
             this.logError(tableNameForLog, data, body, res.status);
             throw new Error(`[${tableNameForLog}] Falha ao atualizar: ${this.getErrorMsg(body)}`);
@@ -60,24 +60,25 @@ export class ApiClient {
     // Helper to find existing record by a unique field
     async findExisting(tableId: string, field: string, value: string): Promise<any | null> {
         const rows = await this.getRows(tableId);
-        return rows.find((r: any) => {
+        return rows.find((r) => {
             const val = r.data?.[field] || r[field];
             return String(val).toLowerCase() === String(value).toLowerCase();
         }) || null;
     }
 
-    private getErrorMsg(body: any): string {
+    private getErrorMsg(body: unknown): string {
         try {
-            if (body?.details) return JSON.stringify(body.details, null, 2);
-            if (body?.error) return typeof body.error === 'object' ? JSON.stringify(body.error, null, 2) : body.error;
-            if (body?.message) return body.message;
+            const b = body as Record<string, unknown>;
+            if (b?.details) return JSON.stringify(b.details, null, 2);
+            if (b?.error) return typeof b.error === 'object' ? JSON.stringify(b.error, null, 2) : String(b.error);
+            if (b?.message) return String(b.message);
             return JSON.stringify(body, null, 2); // Dump entire body if nothing else matches
         } catch (e) {
             return `Erro ao processar resposta de erro: ${e}`;
         }
     }
 
-    private logError(table: string, payload: any, responseBody: any, status: number) {
+    private logError(table: string, payload: Record<string, unknown>, responseBody: unknown, status: number) {
         console.error(`\n🔴 [SEED ERROR] Table: ${table} (Status: ${status})`);
         console.error('📦 Payload enviado:', JSON.stringify(payload, null, 2));
         console.error('❌ Resposta do servidor:', JSON.stringify(responseBody, null, 2));

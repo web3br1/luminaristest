@@ -117,8 +117,8 @@ export class VectorRepository implements IVectorRepository {
       endTimer({ success: true });
       
     } catch (error) {
-      const errorBody = (error instanceof Error && 'cause' in error) ? (error as any).cause : error;
-      logger.error('Falha no upsert de pontos vetoriais', { 
+      const errorBody = (error instanceof Error && 'cause' in error) ? (error as { cause?: unknown }).cause : error;
+      logger.error('Falha no upsert de pontos vetoriais', {
         error: error instanceof Error ? error.message : 'Erro desconhecido',
         errorBody: JSON.stringify(errorBody, null, 2),
         pointsCount: points.length,
@@ -171,9 +171,13 @@ export class VectorRepository implements IVectorRepository {
       // If specific document IDs are provided, add them as a must-nested-should
       // so only chunks from those documents are returned.
       if (documentIds && documentIds.length > 0) {
-        // Cast to any to allow nested filter objects that Qdrant supports but our
-        // minimal local QdrantFilter type doesn't model (must-inside-must nesting).
-        (qdrantFilter as any).must = [
+        // Qdrant supports nested filter objects (must-inside-must nesting with a
+        // should sub-clause) that our minimal QdrantFilter type doesn't model.
+        // We rebuild the filter as a fully typed nested structure here.
+        type NestedMustElement =
+          | QdrantCondition
+          | { should: QdrantCondition[] };
+        const nestedMust: NestedMustElement[] = [
           { key: 'userId', match: { value: userId } },
           {
             should: documentIds.map(id => ({
@@ -182,6 +186,7 @@ export class VectorRepository implements IVectorRepository {
             })),
           },
         ];
+        (qdrantFilter as { must: NestedMustElement[] }).must = nestedMust;
       }
 
       const searchParams: SearchRequest = {
@@ -210,7 +215,7 @@ export class VectorRepository implements IVectorRepository {
         vector: Array.isArray(point.vector) ? (point.vector as number[]) : [],
       }));
     } catch (error) {
-      const errorBody = (error instanceof Error && 'cause' in error) ? (error as any).cause : error;
+      const errorBody = (error instanceof Error && 'cause' in error) ? (error as { cause?: unknown }).cause : error;
       logger.error('Falha na busca filtrada de vetores', {
         error: error instanceof Error ? error.message : 'Erro desconhecido',
         errorBody: JSON.stringify(errorBody, null, 2),
@@ -303,7 +308,7 @@ export class VectorRepository implements IVectorRepository {
         
         return {
           id: point.id,
-          version: (point as any).version || 0,
+          version: (point as { version?: number }).version || 0,
           score: point.score || 0,
           payload: point.payload || {},
           vector
@@ -372,10 +377,10 @@ export class VectorRepository implements IVectorRepository {
           logger.debug('Resposta do Qdrant retrieve', { 
             collection: COLLECTION_NAME,
             pointsCount: pointsInfo.length,
-            sampleIds: pointsInfo.slice(0, 3).map((p: any) => p.id)
+            sampleIds: pointsInfo.slice(0, 3).map((p: { id: string | number }) => p.id)
           });
 
-          const existingBatchPoints = pointsInfo.map((p: any) => p.id);
+          const existingBatchPoints = pointsInfo.map((p: { id: string | number }) => p.id);
           const existingBatchSet = new Set(existingBatchPoints);
 
           batch.forEach(id => {
@@ -604,16 +609,16 @@ export class VectorRepository implements IVectorRepository {
         }
         return {
           id: point.id,
-          version: (point as any).version || 0,
+          version: (point as { version?: number }).version || 0,
           score: 0, // Não há pontuação em consultas de scroll
           payload: point.payload || {},
           vector
         };
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       // Serializa o objeto de erro completo para garantir que todos os detalhes sejam capturados
-      const fullErrorString = JSON.stringify(error, Object.getOwnPropertyNames(error), 2);
+      const fullErrorString = JSON.stringify(error, Object.getOwnPropertyNames(error as object), 2);
 
       logger.error('Falha ao buscar pontos por ID do documento', {
         error: errorMessage,

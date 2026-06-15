@@ -29,7 +29,7 @@ export interface IDynamicTableRepository {
   deleteAllDataByUserId(userId: string): Promise<void>;
 
   // Métodos para validação avançada
-  countByFieldValue(tableId: string, fieldName: string, value: any, excludeId?: string): Promise<number>;
+  countByFieldValue(tableId: string, fieldName: string, value: unknown, excludeId?: string): Promise<number>;
   countOverlaps(
     tableId: string,
     startField: string,

@@ -130,19 +130,17 @@ export async function getDrillDownData(req: Request, res: Response) {
 
     // Optional: map to return only specific fields to save bandwidth
     if (fields.length > 0) {
-      filteredData = filteredData.map((row: any) => {
-        const slicedData: Record<string, any> = {};
+      filteredData = filteredData.map((row) => {
+        const slicedData: Record<string, unknown> = {};
         for (const field of fields) {
-          if (row.data && (row.data as Record<string, any>)[field] !== undefined) {
-             slicedData[field] = (row.data as Record<string, any>)[field];
+          if (row.data && (row.data as Record<string, unknown>)[field] !== undefined) {
+             slicedData[field] = (row.data as Record<string, unknown>)[field];
           }
         }
         return {
-          id: row.id,
-          data: slicedData,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt
-        } as any;
+          ...row,
+          data: slicedData as typeof row.data,
+        };
       });
     }
 

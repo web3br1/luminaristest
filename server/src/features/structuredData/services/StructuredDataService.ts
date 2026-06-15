@@ -171,9 +171,9 @@ export class StructuredDataService {
 
     // Garantimos que o tipo de dados está correto para o banco
     const safeData: (string | number | null)[][] = Array.isArray(structuredContent.data)
-      ? structuredContent.data.map((row: any[]) => 
-          Array.isArray(row) ? row.map((cell: any) => 
-            cell === undefined ? null : cell
+      ? structuredContent.data.map((row: unknown[]) =>
+          Array.isArray(row) ? row.map((cell: unknown) =>
+            cell === undefined ? null : cell as string | number | null
           ) : []
         )
       : [];

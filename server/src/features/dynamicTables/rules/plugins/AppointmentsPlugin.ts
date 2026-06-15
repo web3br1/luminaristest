@@ -30,7 +30,7 @@ export const AppointmentsPlugin: RulePlugin = {
 /**
  * Validate appointment core fields, temporal consistency and basic coherence with optional service and employee rules.
  */
-async function validateAppointment(ctx: RuleContext, after: any, before?: any) {
+async function validateAppointment(ctx: RuleContext, after: Record<string, unknown>, before?: Record<string, unknown>) {
   const startAt = new Date(after?.startAt);
   const endAt = new Date(after?.endAt);
   if (!(isFinite(startAt.getTime()) && isFinite(endAt.getTime()))) {
@@ -122,7 +122,7 @@ async function assertWithinEmployeeHours(ctx: RuleContext, employeeId: string, s
  * states) and the validity of status values are now enforced declaratively by
  * AppointmentsModule.schema.lifecycle and the field's `options`.
  */
-async function validateCompletionTiming(ctx: RuleContext, after: any, before?: any) {
+async function validateCompletionTiming(ctx: RuleContext, after: Record<string, unknown>, before?: Record<string, unknown>) {
   const prev = String(before?.status || 'Scheduled');
   const next = String(after?.status || prev);
   if (prev === next) return;

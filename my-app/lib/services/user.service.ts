@@ -1,6 +1,8 @@
 import { apiClient } from '../api/api-client';
 import { IUser, UpdateUserDto } from '../../types/User';
 
+interface PaginationMetadata { page: number; limit: number; total: number; hasMore?: boolean; totalPages?: number; totalCount?: number }
+
 /**
  * User Management Service (Client-side).
  */
@@ -8,8 +10,8 @@ export const UserService = {
   /**
    * Fetches a paginated list of users.
    */
-  async getUsers(page: number, limit: number): Promise<{ data: IUser[], pagination: any }> {
-    return apiClient.get<{ data: IUser[], pagination: any }>(`/users?page=${page}&limit=${limit}`);
+  async getUsers(page: number, limit: number): Promise<{ data: IUser[], pagination: PaginationMetadata }> {
+    return apiClient.get<{ data: IUser[], pagination: PaginationMetadata }>(`/users?page=${page}&limit=${limit}`);
   },
 
   /**
@@ -24,7 +26,7 @@ export const UserService = {
    */
   async updateProfile(userId: string, data: Partial<UpdateUserDto>): Promise<IUser> {
     const response = await apiClient.put<{ success: boolean; data?: IUser; id?: string }>(`/users/${userId}`, data);
-    return (response as any).data || response;
+    return (response as { data?: IUser[] }).data || response;
   },
 
   /**
@@ -32,7 +34,7 @@ export const UserService = {
    */
   async getUserById(userId: string): Promise<IUser> {
     const response = await apiClient.get<{ data: IUser } | IUser>(`/users/${userId}`);
-    return (response as any).data || response;
+    return (response as { data?: IUser[] }).data || response;
   },
 
   /**
@@ -46,7 +48,7 @@ export const UserService = {
    * Specialized method to change user role (ADMIN test feature).
    */
   async changeRole(userId: string, role: string): Promise<IUser> {
-    return this.updateProfile(userId, { role } as any);
+    return this.updateProfile(userId, { role });
   },
 
   /**

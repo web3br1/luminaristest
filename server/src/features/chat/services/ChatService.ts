@@ -99,9 +99,9 @@ Pergunta Reformulada:
           type: 'TEXT',
           sourceDocuments: []
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
-          answer: `Houve um erro ao executar a operação: ${error.message}`,
+          answer: `Houve um erro ao executar a operação: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
           type: 'TEXT',
           sourceDocuments: []
         };
@@ -121,7 +121,7 @@ Pergunta Reformulada:
       const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
         { role: 'system', content: wrapSystemPrompt(AGENT_SYSTEM_PROMPT, user.id) },
         { role: 'system', content: knowledgeGraphPrompt },
-        ...(history || []).map(h => ({ role: h.role, content: h.content } as any)),
+        ...(history || []).map(h => ({ role: h.role, content: h.content } as OpenAI.Chat.Completions.ChatCompletionMessageParam)),
         { role: 'user', content: query }
       ];
 
@@ -137,10 +137,10 @@ Pergunta Reformulada:
         if (!response) break;
 
         if (response.tool_calls && response.tool_calls.length > 0) {
-          messages.push(response as any);
+          messages.push(response as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam);
 
           for (const toolCall of response.tool_calls) {
-            let toolArgs: any;
+            let toolArgs: Record<string, unknown>;
             try {
               toolArgs = JSON.parse(toolCall.function.arguments);
             } catch (parseError) {
@@ -151,11 +151,12 @@ Pergunta Reformulada:
               user,
               toolCall.function.name,
               toolArgs
-            );
+            ) as { status?: string; proposalId?: string } | unknown;
 
             // Se for uma proposta, interrompemos e retornamos para o frontend
-            if (result.status === 'PROPOSED') {
-              const proposal = await (this.agentService as any).getProposal(result.proposalId);
+            const toolResult = result as { status?: string; proposalId?: string };
+            if (toolResult.status === 'PROPOSED') {
+              const proposal = await this.agentService.getProposal(toolResult.proposalId!);
               return {
                 answer: `Entendido! Estou propondo a seguinte ação na tabela **${proposal.tableName}**. Por favor, confirme os detalhes no modal abaixo para prosseguir.`,
                 type: 'ACTION_PROPOSAL',
@@ -174,7 +175,7 @@ Pergunta Reformulada:
               role: 'tool',
               tool_call_id: toolCall.id,
               content: JSON.stringify(result)
-            } as any);
+            } as { role: 'tool'; tool_call_id: string; content: string });
           }
           // Após processar ferramentas, o loop continua para o LLM gerar o texto final baseado nos resultados
           // Mas precisamos enviar o histórico atualizado para o LLM
@@ -240,7 +241,7 @@ Pergunta Reformulada:
       sourceDocuments: searchResults.map(result => ({
         id: String(result.id),
         score: result.score,
-        payload: result.payload as any
+        payload: result.payload as { documentId: string; userId: string; textContent: string; fileName: string; chunkId: string; index: number }
       })),
     };
   }

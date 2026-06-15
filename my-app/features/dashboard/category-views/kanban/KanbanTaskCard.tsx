@@ -42,8 +42,8 @@ function KanbanTaskCard({ task, tableId, tableSchema, onSuccess, isOverlay, onCl
           tableSchema={tableSchema}
           record={{
             id: task.id,
-            data: task as any,
-          } as any}
+            data: task,
+          }}
           onSuccess={onSuccess}
         />
       </div>
@@ -62,7 +62,7 @@ function KanbanTaskCard({ task, tableId, tableSchema, onSuccess, isOverlay, onCl
       {relationLookups && (
         <div className="flex flex-wrap gap-2 mt-3">
           {Object.entries(relationLookups).map(([fieldName, map]) => {
-            const value = (task as any)[fieldName];
+            const value = task[fieldName as keyof typeof task];
             if (!value) return null;
 
             const displayValue = map.get(String(value));

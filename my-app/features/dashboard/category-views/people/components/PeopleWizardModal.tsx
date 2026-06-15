@@ -270,8 +270,7 @@ function renderWizardField(
     const isWorkSchedule = (field.type === 'json' && /workSchedule|schedule|horario/i.test(field.name));
     const isTextarea = field.type === 'textarea' || (field.type === 'string' && /^(description|descri(ç|c)ao|observa(c|ç)oes|observacoes|notes?|summary|resumo)$/i.test(String(field.name || '')));
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let FieldComponent: any = InputField;
+    let FieldComponent: React.ComponentType<{ name: string; value: unknown; onChange: (name: string, value: unknown) => void; className: string; [key: string]: unknown }> = InputField;
     if (isCurrency) FieldComponent = CurrencyField;
     else if (isWorkSchedule) FieldComponent = WorkScheduleField;
     else if (isTextarea) FieldComponent = TextareaField;

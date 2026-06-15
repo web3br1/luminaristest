@@ -51,8 +51,8 @@ export class SeedAppointments {
                 __isSystem: true
             }, 'Appointments');
             return newApptId;
-        } catch (error: any) {
-            console.warn(`[SeedAppointments] ⚠️ Skipped: ${error.message}`);
+        } catch (error: unknown) {
+            console.warn(`[SeedAppointments] ⚠️ Skipped: ${error instanceof Error ? error.message : String(error)}`);
             return null;
         }
     }

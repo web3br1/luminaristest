@@ -32,7 +32,7 @@ export interface IDocument {
   /** AI-generated summary, se disponível */
   summary: string | null;
   /** JSON estruturado do processamento via AI */
-  contextJson: any;
+  contextJson: Record<string, unknown> | null;
   /** Timestamp when the document was created */
   createdAt: Date;
   /** Timestamp when the document was last updated */
@@ -65,7 +65,7 @@ export interface DocumentCreateInput {
 export interface DocumentUpdateInput {
   status: DocumentStatus;
   summary: string | null;
-  contextJson?: any;
+  contextJson?: Record<string, unknown> | null;
   processingDate: Date | null;
   processingError: string | null;
   textContent?: string;

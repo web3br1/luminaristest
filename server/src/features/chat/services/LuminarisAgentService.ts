@@ -3,6 +3,7 @@ import { UserContext } from '../../../lib/authUtils';
 import logger from '../../../lib/logger';
 import { IActionProposalRepository } from '../repositories/IActionProposalRepository';
 import { ActionProposal } from 'generated/prisma';
+import OpenAI from 'openai';
 
 export interface ActionProposalData {
     id: string;
@@ -10,7 +11,7 @@ export interface ActionProposalData {
     tableId: string;
     tableName: string;
     tableLabel: string;
-    data: any;
+    data: Record<string, unknown>;
     userId: string;
 }
 
@@ -23,8 +24,8 @@ export class LuminarisAgentService {
     /**
      * Generates a list of OpenAI Tools based on the user's available tables.
      */
-    async getTools(userId: string): Promise<any[]> {
-        const tools: any[] = [
+    async getTools(userId: string): Promise<OpenAI.Chat.Completions.ChatCompletionTool[]> {
+        const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             {
                 type: 'function',
                 function: {
@@ -101,7 +102,7 @@ export class LuminarisAgentService {
     /**
      * Handles a tool call from the LLM.
      */
-    async handleToolCall(user: UserContext, functionName: string, args: any): Promise<any> {
+    async handleToolCall(user: UserContext, functionName: string, args: Record<string, unknown>): Promise<unknown> {
         logger.info(`Agent Tool Call: ${functionName}`, { userId: user.userId, args });
 
         switch (functionName) {
@@ -111,38 +112,39 @@ export class LuminarisAgentService {
             }
 
             case 'get_table_schema': {
-                const table = await this.dynamicTableService.getTableById(user, args.tableId);
+                const table = await this.dynamicTableService.getTableById(user, args.tableId as string);
                 return {
                     id: table.id,
                     name: table.name,
                     category: table.category,
-                    fields: (table.schema as any).fields
+                    fields: (table.schema as Record<string, unknown>)['fields']
                 };
             }
 
             case 'query_table_data': {
-                const data = await this.dynamicTableService.getAllTableData(user, args.tableId);
+                const data = await this.dynamicTableService.getAllTableData(user, args.tableId as string);
                 let filtered = data;
                 if (args.filters) {
-                    filtered = data.filter((row: any) => {
-                        return Object.entries(args.filters).every(([key, val]) => (row.data as any)[key] === val);
+                    filtered = data.filter((row: { id: string; data: Record<string, unknown> }) => {
+                        return Object.entries(args.filters as Record<string, unknown>).every(([key, val]) => (row.data)[key] === val);
                     });
                 }
                 return filtered.slice(0, 10);
             }
 
             case 'request_record_creation': {
-                if (!args.data || Object.keys(args.data).length === 0) {
+                const creationData = args.data as Record<string, unknown> | undefined;
+                if (!creationData || Object.keys(creationData).length === 0) {
                     return { error: 'ERRO: Você deve fornecer o objeto "data" com os campos preenchidos. Não posso criar uma proposta vazia.' };
                 }
-                const table = await this.dynamicTableService.getTableById(user, args.tableId);
+                const table = await this.dynamicTableService.getTableById(user, args.tableId as string);
                 const proposal = await this.proposalRepository.create({
                     userId: user.userId,
                     action: 'CREATE',
                     tableId: table.id,
                     tableName: table.name,
                     tableLabel: table.name,
-                    data: args.data
+                    data: creationData
                 });
                 return {
                     status: 'PROPOSED',
@@ -152,17 +154,18 @@ export class LuminarisAgentService {
             }
 
             case 'request_record_update': {
-                if (!args.data || Object.keys(args.data).length === 0) {
+                const updateData = args.data as Record<string, unknown> | undefined;
+                if (!updateData || Object.keys(updateData).length === 0) {
                     return { error: 'ERRO: Você deve fornecer os campos para atualização no argumento "data".' };
                 }
-                const table = await this.dynamicTableService.getTableById(user, args.tableId);
+                const table = await this.dynamicTableService.getTableById(user, args.tableId as string);
                 const proposal = await this.proposalRepository.create({
                     userId: user.userId,
                     action: 'UPDATE',
                     tableId: table.id,
                     tableName: table.name,
                     tableLabel: table.name,
-                    data: { ...args.data, id: args.recordId }
+                    data: { ...updateData, id: args.recordId as string }
                 });
                 return { status: 'PROPOSED', proposalId: proposal.id };
             }
@@ -193,7 +196,7 @@ export class LuminarisAgentService {
                 await this.proposalRepository.delete(proposalId);
                 return { success: true, result };
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error(`Failed to execute proposal ${proposalId}`, error);
             throw error;
         }

@@ -49,7 +49,7 @@ function DocumentListPage() {
     try {
       const { data } = await DocumentService.getDocuments();
       setDocuments(data);
-    } catch (e: any) {
+    } catch (e) {
       setError(resolveErrorMessage(e, t));
     } finally {
       setLoading(false);

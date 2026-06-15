@@ -10,7 +10,7 @@
  *  - 'system'     → internal infrastructure; never navigable by end-users.
  */
 
-import type { IDynamicTable } from '../../../components/shared/dynamic-tables.client';
+import type { IDynamicTable, ITableSchema } from '../../../components/shared/dynamic-tables.client';
 
 export type TablePresentation = 'standalone' | 'embedded' | 'system';
 
@@ -19,7 +19,7 @@ export type TablePresentation = 'standalone' | 'embedded' | 'system';
  * Defaults to 'standalone' when the field is absent (non-breaking).
  */
 export function getTablePresentation(table: IDynamicTable): TablePresentation {
-  const p = (table.schema as any)?.ui?.presentation;
+  const p = (table.schema as ITableSchema)?.ui?.presentation;
   if (p === 'embedded' || p === 'system') return p;
   return 'standalone';
 }

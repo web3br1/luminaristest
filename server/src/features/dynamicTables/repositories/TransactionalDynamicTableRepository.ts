@@ -152,7 +152,7 @@ export class TransactionalDynamicTableRepository implements IDynamicTableReposit
   async *findDataBatchStreamByTableId(tableId: string, batchSize: number = 1000): AsyncGenerator<IDynamicTableData[]> {
     let lastCursorId: string | undefined = undefined;
     while (true) {
-      const batch: any[] = await this.tx.dynamicTableData.findMany({
+      const batch: IDynamicTableData[] = await this.tx.dynamicTableData.findMany({
         where: { dynamicTableId: tableId, deletedAt: null },
         take: batchSize,
         skip: lastCursorId ? 1 : 0,
@@ -207,7 +207,7 @@ export class TransactionalDynamicTableRepository implements IDynamicTableReposit
     return dataEntry?.dynamicTable ? this.toDomainTable(dataEntry.dynamicTable) : null;
   }
 
-  async countByFieldValue(tableId: string, fieldName: string, value: any, excludeId?: string): Promise<number> {
+  async countByFieldValue(tableId: string, fieldName: string, value: unknown, excludeId?: string): Promise<number> {
     const jsonFieldPath = `$.${fieldName}`;
     const whereConditions: Prisma.Sql[] = [
       Prisma.sql`"dynamicTableId" = ${tableId}`,
@@ -278,9 +278,9 @@ export class TransactionalDynamicTableRepository implements IDynamicTableReposit
     const result: IDynamicTable[] = [];
     for (const row of rows) {
       const table = this.toDomainTable(row);
-      const fields = (table.schema?.fields || []) as any[];
+      const fields = (table.schema?.fields || []) as ISchemaField[];
       const hasReference = fields.some(
-        (f: any) => f?.type === 'relation' && f?.relation?.targetTable === targetTableId
+        (f: ISchemaField) => f?.type === 'relation' && f?.relation?.targetTable === targetTableId
       );
       if (hasReference) result.push(table);
     }

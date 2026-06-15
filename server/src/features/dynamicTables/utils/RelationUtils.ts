@@ -59,7 +59,7 @@ export function formatRelatedDisplayValue(record: IDynamicTableData | null, disp
   const data = record.data as Record<string, any>;
   
   // Se o displayField não estiver presente, tenta usar um campo padrão
-  let displayValue: any;
+  let displayValue: unknown;
   
   if (data[displayField] !== undefined) {
     displayValue = data[displayField];

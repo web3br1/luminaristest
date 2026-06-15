@@ -120,7 +120,7 @@ export function KanbanCardDetailModal({
         });
     };
 
-    const handleExtraFieldChange = (name: string, value: any) => {
+    const handleExtraFieldChange = (name: string, value: unknown) => {
         handleUpdateTask({ [name]: value });
         setEditingFieldName(null);
     };
@@ -259,7 +259,7 @@ export function KanbanCardDetailModal({
                                         <h3 className="font-bold text-gray-800 dark:text-gray-100 uppercase tracking-tight text-sm mb-4">Informações Detalhadas</h3>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-black/5 dark:bg-white/5 p-4 rounded-lg">
                                             {extraFields.map((field: ISchemaField) => {
-                                                const value = (task as any)[field.name];
+                                                const value = task[field.name as keyof typeof task];
                                                 const isEditing = editingFieldName === field.name;
 
                                                 return (
@@ -365,7 +365,14 @@ export function KanbanCardDetailModal({
     );
 }
 
-function SidebarButton({ icon: Icon, label, onClick, className = '' }: any) {
+interface SidebarButtonProps {
+    icon: React.ComponentType<{ className?: string; size?: number }>;
+    label: string;
+    onClick?: () => void;
+    className?: string;
+}
+
+function SidebarButton({ icon: Icon, label, onClick, className = '' }: SidebarButtonProps) {
     return (
         <button
             onClick={onClick}
@@ -377,7 +384,7 @@ function SidebarButton({ icon: Icon, label, onClick, className = '' }: any) {
     );
 }
 
-function renderFieldValue(field: ISchemaField, value: any, relationLookups?: RelationLookups) {
+function renderFieldValue(field: ISchemaField, value: unknown, relationLookups?: RelationLookups) {
     if (value === null || value === undefined || value === '') return <span className="opacity-40 italic font-normal">Vazio</span>;
 
     if (field.type === 'relation') {

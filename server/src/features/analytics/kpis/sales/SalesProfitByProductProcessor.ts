@@ -147,7 +147,7 @@ export const salesProfitByProductOverTimeProcessor: AnalyticsProcessor = async (
     }
 
     // Resolve date + payment status
-    let dateVal: any;
+    let dateVal: string | number | Date | null = null;
     let paymentStatusOk = true;
 
     if (headerById) {
@@ -210,7 +210,7 @@ export const salesProfitByProductOverTimeProcessor: AnalyticsProcessor = async (
   // ============================================================================
   // BUILD OUTPUT — sorted YYYY-MM series, all 12 months present
   // ============================================================================
-  const mainTableSource = (table as any).presetKey || (table as any).internalName || params.tableId || 'saleItems';
+  const mainTableSource = table.presetKey || table.internalName || params.tableId || 'saleItems';
 
   const sortedEntries = Array.from(historyMap.entries())
     .sort(([a], [b]) => a.localeCompare(b));

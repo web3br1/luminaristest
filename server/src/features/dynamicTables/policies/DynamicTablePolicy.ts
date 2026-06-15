@@ -1,5 +1,5 @@
 import type { UserContext } from '../../../lib/authUtils';
-import { IDynamicTable } from '../models/DynamicTable.model';
+import { IDynamicTable, ITableSchema } from '../models/DynamicTable.model';
 import { IDynamicTablePolicy } from './IDynamicTablePolicy';
 import { Role } from '../../users/models/User.model';
 
@@ -28,7 +28,7 @@ export class DynamicTablePolicy implements IDynamicTablePolicy {
   // System tables (e.g. analyticsDefinitions) are read-only for end-users — only internal
   // system processes (isSystem = true) are authorised to write to them.
   canManageData(user: UserContext, table: IDynamicTable): boolean {
-    const presentation = (table.schema as any)?.ui?.presentation;
+    const presentation = (table.schema as ITableSchema)?.ui?.presentation;
     if (presentation === 'system') return false;
     return user.id === table.userId;
   }

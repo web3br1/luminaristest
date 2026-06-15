@@ -92,8 +92,8 @@ export function useAiInterview() {
         router.push('/dashboard');
       }, 2000);
 
-    } catch (err: any) {
-      setCreationError(err.message || 'Ocorreu um erro inesperado.');
+    } catch (err) {
+      setCreationError((err instanceof Error ? err.message : String(err)) || 'Ocorreu um erro inesperado.');
       setIsCreating(false);
     }
   }

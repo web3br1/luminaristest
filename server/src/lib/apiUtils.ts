@@ -1,5 +1,6 @@
-type NextApiRequest = any;
-type NextApiResponse = any;
+import type { Request, Response } from 'express';
+type NextApiRequest = Request;
+type NextApiResponse = Response;
 import { ZodError, ZodIssue } from 'zod';
 import { AppError, ValidationError, UnauthorizedError, ForbiddenError, NotFoundError } from './errors';
 
@@ -9,7 +10,7 @@ import { AppError, ValidationError, UnauthorizedError, ForbiddenError, NotFoundE
 interface StandardApiErrorResponse {
   code: string;
   message: string;
-  details?: { [key: string]: string[] | undefined } | Record<string, any> | ZodIssue[];
+  details?: { [key: string]: string[] | undefined } | Record<string, unknown> | ZodIssue[];
 }
 
 /**
@@ -89,7 +90,7 @@ export function sendMethodNotAllowedError(req: NextApiRequest, res: NextApiRespo
   handleApiError(new AppError(message, 405, 'METHOD_NOT_ALLOWED'), res);
 }
 
-export function sendBadRequestError(res: NextApiResponse, message: string = 'Bad Request', details?: any) {
+export function sendBadRequestError(res: NextApiResponse, message: string = 'Bad Request', details?: Record<string, unknown>) {
   const error = new ValidationError(message, details);
   // Even though it's a ValidationError, its code is already 'VALIDATION_ERROR'. 
   // If a more generic BAD_REQUEST is needed, a new error class or direct AppError could be used.
@@ -108,7 +109,7 @@ export function sendNotFoundError(res: NextApiResponse, message: string = 'Resou
   handleApiError(new NotFoundError(message), res);
 }
 
-export function sendInternalServerError(res: NextApiResponse, error: any, message: string = 'Internal Server Error') {
+export function sendInternalServerError(res: NextApiResponse, error: unknown, message: string = 'Internal Server Error') {
    console.error("Internal Server Error (explicit call):", error); // Log the original error
    handleApiError(new AppError(message, 500, 'INTERNAL_SERVER_ERROR'), res);
 } 

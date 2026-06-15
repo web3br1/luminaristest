@@ -9,16 +9,18 @@ import ChartRenderer from '@/features/dashboard/category-views/finance/component
 import GoldKpiWidgetView from './GoldKpiWidgetView';
 import type { ChartDataPoint, ChartPreset } from '@/features/dashboard/category-views/finance/types';
 
+type AnalyticsConfig = { chartKey?: string; kpiName?: string | null; [key: string]: unknown };
+
 interface AnalyticsWidgetProps {
     id: string;
     onClose?: () => void;
-    initialConfig?: any;
-    onConfigChange?: (config: any) => void;
+    initialConfig?: AnalyticsConfig;
+    onConfigChange?: (config: AnalyticsConfig) => void;
 }
 
 export default function AnalyticsWidget({ id, onClose, initialConfig, onConfigChange }: AnalyticsWidgetProps) {
     const { t } = useTranslation(['common', 'analytics']);
-    const [config, setConfig] = useState<any>(initialConfig || {});
+    const [config, setConfig] = useState<AnalyticsConfig>(initialConfig || {});
     // Start configuring if no chartKey is present
     const [isConfiguring, setIsConfiguring] = useState(!initialConfig?.chartKey);
 

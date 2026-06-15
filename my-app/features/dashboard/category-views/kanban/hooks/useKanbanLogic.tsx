@@ -6,11 +6,12 @@ import { DynamicTableService } from '../../../../../lib/services/dynamic-table.s
 import { arrayMove } from '@dnd-kit/sortable';
 import { SortOption, sortRecords } from '../../shared/SortSelect';
 import type { Task, TaskStatus } from '../../../../../types/Task.types';
+import type { ISchemaField, ITableSchema } from '../../../components/shared/dynamic-tables.client';
 
 interface UseKanbanLogicProps {
     tasks: Task[];
     activeTabId: string;
-    schema: any; // Schema of the active table
+    schema: ITableSchema | null; // Schema of the active table
     onTabChangeCallback?: (tabId: string) => void;
     refetch: () => void;
 }
@@ -33,10 +34,10 @@ export function useKanbanLogic({ tasks, activeTabId, schema, onTabChangeCallback
     // --- Columns Extraction ---
     const columns = useMemo(() => {
         let cols: { title: string; status: string }[] = [];
-        const statusField = schema?.fields?.find((f: any) => f.name === 'status');
+        const statusField = schema?.fields?.find((f: ISchemaField) => f.name === 'status');
 
         if (statusField && statusField.type === 'select' && statusField.options && statusField.options.length > 0) {
-            cols = statusField.options.map((option: any) => {
+            cols = statusField.options.map((option) => {
                 if (typeof option === 'string') { return { title: option, status: option }; }
                 return { title: option.label, status: option.value };
             });

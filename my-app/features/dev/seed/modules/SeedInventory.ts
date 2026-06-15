@@ -11,7 +11,7 @@ export class SeedInventory {
         this.gen = gen;
     }
 
-    async seedProductUnits(productUnitsId: string, products: any[], units: string[]) {
+    async seedProductUnits(productUnitsId: string, products: Array<string | { id: string }>, units: string[]) {
         console.log('[SeedInventory] Syncing Product Units...');
 
         // Wait for auto-creation plugins to settle (essential race condition mitigation)
@@ -22,7 +22,7 @@ export class SeedInventory {
         for (const prod of products) {
             const prodId = typeof prod === 'string' ? prod : prod.id;
             for (const uId of units) {
-                let entry = existing.find((e: any) =>
+                let entry = existing.find((e) =>
                     String(e.data?.productId) === String(prodId) &&
                     String(e.data?.unitId) === String(uId)
                 );
@@ -56,7 +56,7 @@ export class SeedInventory {
                 // Idempotency: Check if we already seeded this (simplistic check)
                 // Ideally we check if stock is already high enough
                 const unitsData = await this.api.getRows(productUnitsId);
-                const entry = unitsData.find((u: any) => u.data?.productId === prod.id && u.data?.unitId === uId);
+                const entry = unitsData.find((u) => (u as Record<string, any>).data?.productId === prod.id && (u as Record<string, any>).data?.unitId === uId);
                 const currentStock = Number(entry?.data?.stock || 0);
 
                 if (currentStock >= prod.initialStock) {
@@ -85,7 +85,7 @@ export class SeedInventory {
             if (prod.salePrice) {
                 const allUnits = await this.api.getRows(productUnitsId);
                 for (const uId of units) {
-                    const entry = allUnits.find((u: any) => u.data?.productId === prod.id && u.data?.unitId === uId);
+                    const entry = allUnits.find((u) => (u as Record<string, any>).data?.productId === prod.id && (u as Record<string, any>).data?.unitId === uId);
                     if (entry && Number(entry.data?.salePrice || 0) !== prod.salePrice) {
                         await this.api.putRow(productUnitsId, entry.id, { ...entry.data, salePrice: prod.salePrice }, 'Product Units');
                     }
@@ -106,7 +106,7 @@ export class SeedInventory {
         let attempts = 0;
         while (attempts < 5) {
             const rows = await this.api.getRows(tableId);
-            const entry = rows.find((r: any) => r.data?.productId === prodId && r.data?.unitId === uId);
+            const entry = rows.find((r) => (r as Record<string, any>).data?.productId === prodId && (r as Record<string, any>).data?.unitId === uId);
 
             if (!entry) {
                 console.warn(`[SeedInventory] Missing Product Unit for ${prodId} in ${uId}!`);

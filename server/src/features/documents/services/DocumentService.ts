@@ -208,10 +208,10 @@ export class DocumentService {
     const hits = await this.vectorRepository.searchVectors(queryVector, userContext.id, limit);
     const results: Array<{ document: IDocument; chunkText: string; score: number }> = [];
     for (const hit of hits) {
-      const payload = hit.payload as any;
-      const doc = await this.repository.findById(payload.documentId);
+      const payload = hit.payload as Record<string, unknown>;
+      const doc = await this.repository.findById(payload.documentId as string);
       if (!doc) continue;
-      results.push({ document: doc, chunkText: payload.textContent, score: hit.score });
+      results.push({ document: doc, chunkText: payload.textContent as string, score: hit.score });
     }
     return results;
   }

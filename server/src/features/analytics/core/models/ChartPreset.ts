@@ -48,7 +48,7 @@ export interface ChartPreset {
     // Important fields configuration
     importantFields?: Record<string, string[]>; // KPI name -> array de campos importantes
     defaultImportantFields?: string[]; // Campos padrão para todos os KPIs deste chart
-    [key: string]: any; // Allow other options
+    [key: string]: unknown; // Allow other options
   };
 }
 

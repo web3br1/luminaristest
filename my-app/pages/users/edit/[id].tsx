@@ -39,7 +39,7 @@ interface UserUpdatePayload extends Partial<IUser> {
 interface ApiErrorResponse {
   message: string;
   code?: string;
-  details?: any[];
+  details?: Array<{ field?: string; message?: string }>;
 }
 
 interface EditUserPageProps extends WithTranslation {
@@ -198,7 +198,7 @@ function EditUserPageComponent({ t, i18n, ...props }: EditUserPageProps) {
     }
 
     try {
-      const updatedUser = await UserService.updateProfile(userId, updatePayload as any);
+      const updatedUser = await UserService.updateProfile(userId, updatePayload);
 
       if (!updatedUser) {
         throw new Error(t('userEditInvalidResponseData', 'Invalid data structure in API response'));

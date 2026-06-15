@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface ChartData {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface DashboardDataContextType {

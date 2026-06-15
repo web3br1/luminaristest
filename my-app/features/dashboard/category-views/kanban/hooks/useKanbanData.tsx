@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { IDynamicTable } from '../../../components/shared/dynamic-tables.client';
+import type { IDynamicTable, ISchemaField } from '../../../components/shared/dynamic-tables.client';
 import { DynamicTableService } from '../../../../../lib/services/dynamic-table.service';
 import { Task } from '../../../../../types/Task.types';
 
@@ -54,7 +54,7 @@ export function useKanbanData(tables: IDynamicTable[]) {
                     let defaultStatus = 'todo';
                     const schema = newSchemaMap[table.id];
                     if (schema && schema.fields) {
-                        const statusField = schema.fields.find((f: any) => f.name === 'status');
+                        const statusField = schema.fields.find((f: ISchemaField) => f.name === 'status');
                         if (statusField && statusField.options && statusField.options.length > 0) {
                             defaultStatus = typeof statusField.options[0] === 'string'
                                 ? statusField.options[0]
@@ -62,7 +62,7 @@ export function useKanbanData(tables: IDynamicTable[]) {
                         }
                     }
 
-                    records.forEach((record: any) => {
+                    records.forEach((record) => {
                         const data = record.data || {};
                         results.push({
                             ...data, // Preserve all dynamic fields from the backend

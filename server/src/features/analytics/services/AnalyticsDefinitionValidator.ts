@@ -66,8 +66,8 @@ export function validateAnalyticsDefinition(
               errors.push(`Source table '${tableKey}' not found`);
             }
           } else if (compiled.source.kind === 'tableId') {
-            const tableId = (compiled.source as any).id;
-            const schemaExists = Array.from(tableSchemas.values()).some(s => (s as any).id === tableId || (s as any).key === tableId);
+            const tableId = (compiled.source as { id?: string }).id;
+            const schemaExists = Array.from(tableSchemas.values()).some(s => (s as { id?: string; key?: string }).id === tableId || (s as { id?: string; key?: string }).key === tableId);
             if (!schemaExists) {
               errors.push(`Table with ID '${tableId}' not found`);
             }

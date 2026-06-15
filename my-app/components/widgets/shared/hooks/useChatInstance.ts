@@ -16,7 +16,7 @@ export interface BackendMessage {
     role: 'USER' | 'ASSISTANT';
     chatInstanceId: string;
     createdAt: string;
-    metadata?: any; // Para armazenar metadados da proposta se necessário
+    metadata?: Record<string, unknown>; // Para armazenar metadados da proposta se necessário
 }
 
 export interface Message {
@@ -30,7 +30,7 @@ export interface Message {
         action: 'CREATE' | 'UPDATE' | 'DELETE';
         tableName: string;
         tableLabel: string;
-        data: any;
+        data: Record<string, unknown>;
     };
 }
 

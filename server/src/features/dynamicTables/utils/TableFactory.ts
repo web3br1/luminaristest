@@ -25,9 +25,9 @@ interface IModuleConfig {
  * @returns Um objeto contendo a definição da tabela pronta para ser usada em um preset.
  */
 export function createTableFromModule(
-  baseModule: any,
+  baseModule: unknown,
   config: IModuleConfig = {}
-): { name: string; category: DynamicTableCategory; schema: ITableSchema; meta?: any; analytics?: any[] } {
+): { name: string; category: DynamicTableCategory; schema: ITableSchema; meta?: Record<string, unknown>; analytics?: unknown[] } {
   // Clonar profundamente para evitar mutações no objeto original do módulo
   const newModule = JSON.parse(JSON.stringify(baseModule));
 

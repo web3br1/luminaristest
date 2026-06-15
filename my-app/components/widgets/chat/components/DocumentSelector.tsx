@@ -44,8 +44,8 @@ export function DocumentSelector({ onSelectionChange }: DocumentSelectorProps) {
           throw new Error('Formato de dados inválido da API de documentos.');
         }
         setDocuments(responseData.data);
-      } catch (err: any) {
-        setError(err.message || 'Ocorreu um erro desconhecido ao buscar documentos.');
+      } catch (err) {
+        setError((err instanceof Error ? err.message : String(err)) || 'Ocorreu um erro desconhecido ao buscar documentos.');
         setDocuments([]); // Garante que documents seja um array em caso de erro
       }
       setIsLoading(false);

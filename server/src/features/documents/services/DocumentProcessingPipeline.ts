@@ -194,7 +194,7 @@ export class DocumentProcessingPipeline {
     }
 
     // Build vector points and upsert in batches of 10
-    const vectorPoints: Array<{ id: string; payload: any; vector: number[] }> = [];
+    const vectorPoints: Array<{ id: string; payload: Record<string, unknown>; vector: number[] }> = [];
     for (let j = 0; j < chunkRecords.length; j++) {
       const { id: chunkId, text: chunkText, index } = chunkRecords[j];
       vectorPoints.push({

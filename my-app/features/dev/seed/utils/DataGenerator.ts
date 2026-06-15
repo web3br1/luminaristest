@@ -1,4 +1,23 @@
 
+interface GeneratedProduct {
+    name: string;
+    brand: string;
+    category: string;
+    sku: string;
+    salePrice: number;
+    costPrice: number;
+    minStock: number;
+}
+
+interface GeneratedService {
+    name: string;
+    category: string;
+    basePrice: number;
+    duration: number;
+    price: number;
+    cost: number;
+}
+
 export class DataGenerator {
     // Deterministic seed for "randomness" (simple LCG)
     private seed: number;
@@ -81,7 +100,7 @@ export class DataGenerator {
         return ['Shampoo', 'Condicionador', 'Máscara', 'Finalizador', 'Coloração', 'Tratamento', 'Styling'];
     }
 
-    generateProducts(count: number): any[] {
+    generateProducts(count: number): GeneratedProduct[] {
         const adj = ['Hidratante', 'Reparador', 'Nutritivo', 'Reconstrução', 'Matizador', 'Detox', 'Volume', 'Cachos', 'Liso', 'Brilho', 'Antiqueda', 'Anticaspa'];
         const types = ['Expert', 'Intense', 'Premium', 'Gold', 'Silver', 'Therapy', 'Care', 'Control', 'Defense', 'Force'];
 
@@ -109,7 +128,7 @@ export class DataGenerator {
         return ['Cabelo', 'Unhas', 'Estética', 'Depilação', 'Barba', 'Sobrancelhas', 'Maquiagem', 'Massagem'];
     }
 
-    generateServices(count: number): any[] {
+    generateServices(count: number): GeneratedService[] {
         const services = [
             { name: 'Corte Feminino', category: 'Cabelo', basePrice: 120, duration: 60 },
             { name: 'Corte Masculino', category: 'Cabelo', basePrice: 70, duration: 30 },

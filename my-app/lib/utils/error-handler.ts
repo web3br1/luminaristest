@@ -11,14 +11,14 @@ export function resolveErrorMessage(err: unknown, t: TFunction): string {
     if (typeof err === 'string') return err;
     
     if (typeof err === 'object') {
-      const anyErr: any = err;
-      
+      const anyErr = err as Record<string, unknown>;
+
       // Standard backend error response format: { success, error: string }
       if (anyErr.error && typeof anyErr.error === 'string') return anyErr.error;
-      
+
       // Axios-style or standard JS error message: { message: string }
       if (anyErr.message && typeof anyErr.message === 'string') return anyErr.message;
-      
+
       // Raw error details as JSON fallback
       if (anyErr.details) return JSON.stringify(anyErr.details);
     }

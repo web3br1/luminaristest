@@ -74,7 +74,7 @@ export async function updateLayout(req: Request, res: Response) {
       });
     }
 
-    const updated = await getFactory().getDashboardLayoutService().updateLayout(id, updateData as any, ctx);
+    const updated = await getFactory().getDashboardLayoutService().updateLayout(id, updateData, ctx);
     return res.status(200).json({ success: true, data: updated });
   } catch (error) {
     return handleApiError(error, res);

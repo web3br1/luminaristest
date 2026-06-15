@@ -8,7 +8,7 @@ import DashboardTrendChart from './DashboardTrendChart';
 import DashboardPieChart from './DashboardPieChart';
 import DashboardBarComparison from './DashboardBarComparison';
 import { useAnalyticsData } from '../../../hooks/analytics/useAnalyticsData';
-import type { ChartPreset, ChartData } from '../../../types';
+import type { ChartPreset, ChartData, DatePreset } from '../../../types';
 import { useTranslation } from 'next-i18next';
 
 type TimePeriod = 'year' | 'month' | 'week';
@@ -155,7 +155,7 @@ export default function AnalyticsDashboard({ presetKey, tables }: AnalyticsDashb
                         {/* Time Filter */}
                         <select
                             value={datePreset}
-                            onChange={(e) => setDatePreset(e.target.value as any)}
+                            onChange={(e) => setDatePreset(e.target.value as DatePreset)}
                             className="px-4 py-2 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition-all"
                         >
                             <option value="today">Hoje</option>

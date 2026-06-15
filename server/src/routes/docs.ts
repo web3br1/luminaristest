@@ -29,7 +29,7 @@ const options: swaggerJSDoc.Options = {
 };
 
 // Prefer static OpenAPI if present, otherwise fallback to JSDoc generated
-let specs: any = null;
+let specs: object | null = null;
 try {
   const candidates = [
     path.resolve(process.cwd(), 'public', 'openapi.json'),

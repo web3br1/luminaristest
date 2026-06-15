@@ -7,7 +7,7 @@ import { FieldIntentParser } from './FieldIntentParser';
 import { FieldUpdater } from './FieldUpdater';
 import { promptConfig } from './PromptConfig';
 import { FieldPresetMatcher } from './FieldPresetMatcher';
-import { IFieldCustomizationResult } from './Types';
+import { IFieldCustomizationResult, IFieldModification } from './Types';
 import { StateManager } from '../CustomizationService/StateManager';
 
 /**
@@ -198,7 +198,7 @@ export class FieldCustomizationService {
    * @param existingFields Campos existentes na tabela atual
    * @returns Modificações processadas e mensagem atualizada
    */
-  private async processFieldModifications(modifications: any[], existingFields: ISchemaField[]) {
+  private async processFieldModifications(modifications: IFieldModification[], existingFields: ISchemaField[]) {
     // Resultado final a ser retornado
     let processedResult = {
       modifications: [...modifications],

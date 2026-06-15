@@ -19,7 +19,7 @@ async function findCommissionsTable(ctx: RuleContext): Promise<string | null> {
  */
 export async function materializeCommissions(
   ctx: RuleContext,
-  items: Array<{ id: string; data: any }>,
+  items: Array<{ id: string; data: Record<string, unknown> }>,
   prevStatus: string,
   nextStatus: string
 ): Promise<void> {

@@ -15,7 +15,7 @@ async function findAppointmentsTable(ctx: RuleContext): Promise<string | null> {
 /**
  * For service items, require that linked appointments are Completed or No-Show when finalizing a sale.
  */
-export async function assertServiceAppointmentsReady(ctx: RuleContext, items: Array<{ id: string; data: any }>) {
+export async function assertServiceAppointmentsReady(ctx: RuleContext, items: Array<{ id: string; data: Record<string, unknown> }>) {
   const apptTable = await findAppointmentsTable(ctx);
   if (!apptTable) return; // no scheduling in system
   for (const it of items) {
@@ -38,7 +38,7 @@ export async function assertServiceAppointmentsReady(ctx: RuleContext, items: Ar
 }
 
 /** Ensure the linked appointment matches service/employee/unit when required by item. */
-export async function validateServiceAppointmentCoherence(ctx: RuleContext, itemData: any, saleUnitId: string) {
+export async function validateServiceAppointmentCoherence(ctx: RuleContext, itemData: Record<string, unknown>, saleUnitId: string) {
   const apptTableId = await findAppointmentsTable(ctx);
   if (!apptTableId) return;
   const apptId = String(itemData?.appointmentId || '');
@@ -54,7 +54,7 @@ export async function validateServiceAppointmentCoherence(ctx: RuleContext, item
   if (!unitOk) throw new ValidationError('Agendamento pertence a outra unidade da venda.');
 }
 
-export async function cancelLinkedAppointmentsIfScheduled(ctx: RuleContext, items: Array<{ id: string; data: any }>) {
+export async function cancelLinkedAppointmentsIfScheduled(ctx: RuleContext, items: Array<{ id: string; data: Record<string, unknown> }>) {
   const apptTableId = await findAppointmentsTable(ctx);
   if (!apptTableId) return;
   for (const it of items) {
@@ -80,7 +80,7 @@ export async function cancelLinkedAppointmentsIfScheduled(ctx: RuleContext, item
  */
 export async function autoCreateAppointmentForServiceItem(
   ctx: RuleContext,
-  itemData: any,
+  itemData: Record<string, unknown>,
   saleUnitId: string,
   sale: { id: string; data: any } | null
 ): Promise<string> {

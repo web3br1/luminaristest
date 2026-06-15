@@ -18,6 +18,7 @@ import {
   validateKpiDefinition,
   type ColumnDescriptor,
 } from '@/features/analytics/schemas/KpiSchema';
+import type { IDynamicTable } from '@/features/dynamicTables/models/DynamicTable.model';
 import { executeCustomKpis } from '@/features/analytics/engine/CustomKpiExecutor';
 
 // ---------------------------------------------------------------------------
@@ -84,7 +85,7 @@ export async function executeCustomKpisHandler(req: Request, res: Response) {
     // 2. Fetch table and its schema columns
     // -------------------------------------------------------------------
     const service = getFactory().getDynamicTableService();
-    let table: any;
+    let table: IDynamicTable | undefined;
     try {
       table = await service.getTableById(ctx, tableId);
     } catch {
@@ -121,7 +122,7 @@ export async function executeCustomKpisHandler(req: Request, res: Response) {
     // 4. Fetch table data
     // -------------------------------------------------------------------
     const rawRows = await service.getAllTableData(ctx, tableId);
-    const rows = rawRows.map((r: any) => ({
+    const rows = rawRows.map((r) => ({
       id: String(r.id),
       data: (r.data && typeof r.data === 'object' && !Array.isArray(r.data)
         ? r.data

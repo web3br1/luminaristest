@@ -53,11 +53,11 @@ export class UnauthorizedError extends AppError {
  */
 export class ValidationError extends AppError {
   // Holds the flattened Zod error details
-  public readonly details: { [key: string]: string[] | undefined } | Record<string, any> | null; // Broader type for details
+  public readonly details: { [key: string]: string[] | undefined } | Record<string, unknown> | null; // Broader type for details
 
   constructor(
     message: string = 'Validation failed',
-    details: { [key: string]: string[] | undefined } | Record<string, any> | null = null // Broader type for details
+    details: { [key: string]: string[] | undefined } | Record<string, unknown> | null = null // Broader type for details
   ) {
     super(message, 400, 'VALIDATION_ERROR'); // Use 400 Bad Request for validation errors
     this.details = details;

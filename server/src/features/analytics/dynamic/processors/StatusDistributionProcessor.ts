@@ -6,26 +6,26 @@
  */
 
 import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
-import type { ISchemaField } from '@/features/dynamicTables/models/DynamicTable.model';
+import type { ISchemaField, ITableSchema } from '@/features/dynamicTables/models/DynamicTable.model';
 
 function findStatusField(
-  schema: any,
+  schema: ITableSchema,
   hints?: { preferFieldNames?: string[]; maxOptions?: number }
 ): ISchemaField | null {
   const prefer = (hints?.preferFieldNames || ['status']).map((s) => s.toLowerCase());
   const candidates = (schema?.fields || []).filter(
-    (f: any) => f.type === 'select' && Array.isArray(f.options) && f.options.length > 0
+    (f: ISchemaField) => f.type === 'select' && Array.isArray(f.options) && f.options.length > 0
   );
 
   // Prefer explicit names
   const preferred = candidates.find(
-    (f: any) => prefer.includes(f.name.toLowerCase()) || /status$/i.test(f.name)
+    (f: ISchemaField) => prefer.includes(f.name.toLowerCase()) || /status$/i.test(f.name)
   );
   if (preferred) return preferred;
 
   // Fallback: first reasonable select field
   const maxOpts = hints?.maxOptions ?? 10;
-  return candidates.find((f: any) => f.options && f.options.length <= maxOpts) || null;
+  return candidates.find((f: ISchemaField) => f.options && f.options.length <= maxOpts) || null;
 }
 
 export const statusDistributionProcessor: AnalyticsProcessor = (context): ChartDataPoint[] => {
@@ -38,7 +38,7 @@ export const statusDistributionProcessor: AnalyticsProcessor = (context): ChartD
 
   if (params.statusField) {
     const name = String(params.statusField);
-    field = (schema?.fields || []).find((f: any) => String(f.name) === name) || null;
+    field = (schema?.fields || []).find((f: ISchemaField) => String(f.name) === name) || null;
     if (!field || field.type !== 'select') {
       field = null;
     }

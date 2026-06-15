@@ -3,7 +3,7 @@ import { ActionProposal } from 'generated/prisma';
 import { IActionProposalRepository } from './IActionProposalRepository';
 
 export class ActionProposalRepository implements IActionProposalRepository {
-    async create(data: any): Promise<ActionProposal> {
+    async create(data: Omit<ActionProposal, 'id' | 'createdAt' | 'updatedAt'>): Promise<ActionProposal> {
         return prisma.actionProposal.create({
             data: {
                 userId: data.userId,

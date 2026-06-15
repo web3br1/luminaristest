@@ -20,7 +20,7 @@ export class SeedSales {
             date?: string,
             status?: 'Draft' | 'Finalized' | 'Cancelled',
             paymentStatus?: 'Paid' | 'Pending',
-            items: any[]
+            items: Array<{ unitPrice: number; quantity?: number; [key: string]: unknown }>
         }
     ) {
         // 1. Create Draft

@@ -17,7 +17,7 @@ import { useColumnSort } from '../../shared/hooks/useColumnSort';
 import { MdArrowUpward, MdArrowDownward, MdUnfoldMore } from 'react-icons/md';
 import type { SortOption } from '../../shared/SortSelect';
 import { CustomizeColumnsPanel } from '../../../shared/components/CustomizeColumnsPanel';
-import { isTableSchema } from '../../../components/shared/dynamic-tables.client';
+import { isTableSchema, type ITableSchema } from '../../../components/shared/dynamic-tables.client';
 import type {
     DynamicRecord,
     ProductData,
@@ -221,7 +221,7 @@ export function ProductsTable({
                                 productTableId={productTableId}
                                 productSchema={productSchema}
                                 inventoryTableId={inventoryTableId}
-                                inventorySchema={inventorySchema?.schema as any}
+                                inventorySchema={inventorySchema?.schema as ITableSchema}
                                 onProductEdit={onProductEdit}
                                 onInventoryEdit={onInventoryEdit}
                                 isWidgetMode={isWidgetMode}

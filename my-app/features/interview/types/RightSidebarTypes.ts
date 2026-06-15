@@ -7,7 +7,7 @@ export interface ITableField {
 }
 
 export interface ITable {
-  conversationHistory: any[];
+  conversationHistory: Array<{ role: string; content: string }>;
   key: string;
   name: string;
   description: string;

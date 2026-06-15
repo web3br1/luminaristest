@@ -94,7 +94,7 @@ interface UseDashboardGridReturn {
   setLayout: (newItems: DashboardGridItem[]) => void;
   addWidget: (type: string, position?: { x: number; y: number }) => boolean;
   removeWidget: (itemId: string) => void;
-  updateWidgetConfig: (itemId: string, config: any) => void;
+  updateWidgetConfig: (itemId: string, config: Record<string, unknown>) => void;
 }
 
 function useDashboardGrid({
@@ -142,7 +142,7 @@ function useDashboardGrid({
     });
   }, []);
 
-  const updateWidgetConfig = useCallback(function updateWidgetConfig(itemId: string, config: any) {
+  const updateWidgetConfig = useCallback(function updateWidgetConfig(itemId: string, config: Record<string, unknown>) {
     dispatch({
       type: ItemActionType.UPDATE_WIDGET_CONFIG,
       payload: { itemId, config }

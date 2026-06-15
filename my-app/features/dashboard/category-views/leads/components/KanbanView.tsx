@@ -1,10 +1,11 @@
 'use client';
 
 import { useTranslation } from 'next-i18next';
+import type { IDynamicTableData } from '@/features/dashboard/components/shared/dynamic-tables.client';
 
 interface KanbanViewProps {
-  cols: any[];
-  filteredLeads: any[];
+  cols: IDynamicTableData[];
+  filteredLeads: IDynamicTableData[];
   ownerMap: Record<string, string>;
   selectedUnitId: string | null;
   hasLeadsSchema: boolean;
@@ -19,7 +20,7 @@ interface KanbanViewProps {
   filterAuthority: string; setFilterAuthority: (v: string) => void;
   filterNeed: string; setFilterNeed: (v: string) => void;
   filterTiming: string; setFilterTiming: (v: string) => void;
-  showFilters: boolean; setShowFilters: (v: any) => void;
+  showFilters: boolean; setShowFilters: (v: boolean) => void;
   activePipelineId: string | null;
 }
 
@@ -47,7 +48,7 @@ export default function KanbanView(props: KanbanViewProps) {
 
       <div className="flex items-center gap-2">
         <button
-          onClick={() => setShowFilters((s: boolean) => !s)}
+          onClick={() => setShowFilters(!showFilters)}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${showFilters ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-white/10'}`}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
@@ -81,7 +82,7 @@ export default function KanbanView(props: KanbanViewProps) {
     </div>
   ) : null;
 
-  const applyFilters = (arr: any[]) => arr.filter((r: any) => {
+  const applyFilters = (arr: IDynamicTableData[]) => arr.filter((r) => {
     const d = r.data || {};
     if (filterName && !String(d.leadName || '').toLowerCase().includes(filterName.toLowerCase())) return false;
     if (filterSource && !String(d.source || '').toLowerCase().includes(filterSource.toLowerCase())) return false;
@@ -112,9 +113,9 @@ export default function KanbanView(props: KanbanViewProps) {
       </div>
 
       <div className="flex gap-6 flex-1 min-h-0 pb-4 custom-scrollbar overflow-x-auto">
-        {cols.map((stage: any) => {
+        {cols.map((stage) => {
           const sid = String(stage.id);
-          const stageLeads = applyFilters(filteredLeads).filter((r: any) => String((r.data || {}).stageId || '') === sid);
+          const stageLeads = applyFilters(filteredLeads).filter((r) => String((r.data || {}).stageId || '') === sid);
           return (
             <div key={sid} className="flex-1 min-w-[320px] max-w-[450px] flex flex-col h-full bg-gray-100/40 dark:bg-white/[0.02] backdrop-blur-xl rounded-3xl border border-gray-200 dark:border-white/5 overflow-hidden">
               <div className="p-5 flex justify-between items-center border-b border-gray-200/50 dark:border-white/5">
@@ -126,7 +127,7 @@ export default function KanbanView(props: KanbanViewProps) {
               </div>
 
               <div className="flex-1 flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar pr-2">
-                {stageLeads.map((r: any) => {
+                {stageLeads.map((r) => {
                   const d = r.data || {};
                   const ownerNameCard = props.ownerMap[String((d.assigneeId ?? d.ownerId) || '')] || '—';
                   const score = Number(d.score || 0);

@@ -39,7 +39,7 @@ const CONFIG = {
 
 // Mecanismo para prevenir chamadas simultâneas
 class RequestLock {
-  private static locks = new Map<string, Promise<any>>();
+  private static locks = new Map<string, Promise<unknown>>();
 
   static async acquire<T>(key: string, fn: () => Promise<T>): Promise<T> {
     // Verificar se já existe um lock para esta chave
@@ -277,7 +277,7 @@ export class OpenAIService {
   public async extractStructuredData(
     textContent: string,
     useFallback = false
-  ): Promise<any | null> {
+  ): Promise<unknown> {
     const estimatedTokens = this.estimateTokenCount(textContent);
     logger.info(`Extracting structured data. Estimated tokens: ${estimatedTokens}`);
     this.verifyTokenLimit(estimatedTokens);

@@ -40,7 +40,7 @@ const findActivitiesTable = (ctx: RuleContext) => resolveTable(ctx, { internalNa
  * - Timing: Long/Medium/Short/Urgent mapped to 20/40/70/100
  * Returns an integer in [0, 100].
  */
-function calcScore(after: any): number {
+function calcScore(after: Record<string, unknown>): number {
   let score = 0;
   const weights = { budget: 0.25, authority: 0.25, need: 0.25, timing: 0.25 };
   // Budget pode chegar como number (1..n) ou string ('Low'|'Medium'|'High')
@@ -143,9 +143,9 @@ export const LeadsPlugin: RulePlugin = {
           if (stagesTable) {
             const stages = await ctx.repository.findRowsByFieldValue(stagesTable.id, 'pipelineId', effectivePipelineId);
             const list = stages
-              .sort((a: any, b: any) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
-            const idxPrev = list.findIndex((s: any) => String(s.id) === prevStageId);
-            const idxNext = list.findIndex((s: any) => String(s.id) === nextStageId);
+              .sort((a, b) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
+            const idxPrev = list.findIndex((s) => String(s.id) === prevStageId);
+            const idxNext = list.findIndex((s) => String(s.id) === nextStageId);
             if (idxPrev >= 0 && idxNext >= 0) {
               const prevType = String(((list[idxPrev].data as any) || {}).type || '').toLowerCase();
               const movingForward = idxNext === idxPrev + 1;
@@ -231,9 +231,9 @@ export const LeadsPlugin: RulePlugin = {
           // for stages of the same pipeline, since prev/next always share it).
           const effectivePipelineId = String((ctx.after as any)?.pipelineId || (ctx.before as any)?.pipelineId || '');
           const list = (await ctx.repository.findRowsByFieldValue(stagesTable.id, 'pipelineId', effectivePipelineId))
-            .sort((a: any, b: any) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
-          const idxPrev = list.findIndex((s: any) => String(s.id) === prevStage);
-          const idxNext = list.findIndex((s: any) => String(s.id) === nextStage);
+            .sort((a, b) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
+          const idxPrev = list.findIndex((s) => String(s.id) === prevStage);
+          const idxNext = list.findIndex((s) => String(s.id) === nextStage);
           if (prevType === 'meeting' && idxNext === idxPrev - 1) {
             // Padrão ouro: limpar agendamento anterior para evitar resíduos
             (ctx.after as any).nextActionAt = null;
@@ -338,7 +338,7 @@ async function upsertLatestProposalSnapshot(ctx: RuleContext, leadId: string) {
   const list = await ctx.repository.findRowsByFieldValue(proposalsTable.id, 'leadId', String(leadId));
   if (list.length === 0) return;
   // pega a mais recente por updatedAt|createdAt
-  const latest = list.sort((a: any, b: any) => new Date((b as any).updatedAt || (b as any).createdAt).getTime() - new Date((a as any).updatedAt || (a as any).createdAt).getTime())[0];
+  const latest = list.sort((a, b) => new Date((b as any).updatedAt || (b as any).createdAt).getTime() - new Date((a as any).updatedAt || (a as any).createdAt).getTime())[0];
   const patch = {
     latestProposalAmount: (latest.data as any)?.amount,
     latestProposalCurrency: (latest.data as any)?.currency,
@@ -389,7 +389,7 @@ async function findFirstStageForPipeline(ctx: RuleContext, pipelineId: string): 
   if (!stagesTable) return null;
   const list = await ctx.repository.findRowsByFieldValue(stagesTable.id, 'pipelineId', String(pipelineId));
   if (list.length === 0) return null;
-  list.sort((a: any, b: any) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
+  list.sort((a, b) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
   return String(list[0].id);
 }
 

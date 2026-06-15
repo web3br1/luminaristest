@@ -14,7 +14,7 @@
 import type { RulePlugin, RuleContext } from '../RuleTypes';
 import { tableMatches } from '../shared/tableFinder';
 
-async function autoStampPaidAt(_ctx: RuleContext, after: any, before?: any) {
+async function autoStampPaidAt(_ctx: RuleContext, after: Record<string, unknown>, before?: Record<string, unknown>) {
     const status = String(after?.status || 'Pending');
     const prevStatus = String(before?.status || 'Pending');
     if (status === 'Paid' && prevStatus !== 'Paid' && !after?.paidAt) {

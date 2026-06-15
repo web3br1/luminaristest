@@ -31,8 +31,9 @@ function SetupDashboardPage() {
           router.replace('/dashboard');
           return;
         }
-      } catch (err: any) { 
-        if (err?.statusCode === 401 || err?.statusCode === 403 || err?.message?.includes('401') || err?.message?.includes('403') || err?.error === 'Unauthorized') {
+      } catch (err) {
+        const errRec = err as Record<string, unknown>;
+        if (errRec?.statusCode === 401 || errRec?.statusCode === 403 || (err instanceof Error && (err.message.includes('401') || err.message.includes('403'))) || errRec?.error === 'Unauthorized') {
           router.replace('/users/login');
           return;
         }
@@ -93,7 +94,7 @@ function SetupDashboardPage() {
                     ].map((tab) => (
                       <button
                         key={tab.id}
-                        onClick={() => setMode(tab.id as any)}
+                        onClick={() => setMode(tab.id as 'quick' | 'totalControl' | 'aiInterview')}
                         className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all duration-200 ${mode === tab.id
                           ? 'bg-white dark:bg-neutral-800 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
                           : 'text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-neutral-800'

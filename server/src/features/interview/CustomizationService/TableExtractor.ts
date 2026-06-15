@@ -1,5 +1,6 @@
 import { logger } from '../../../lib/logger';
 import { ICustomizableTable } from '../models/InterviewTypes';
+import type { ISchemaField } from '../../../features/dynamicTables/models/DynamicTable.model';
 
 interface IPreset {
   key: string;
@@ -74,7 +75,7 @@ export class TableExtractor {
         
         // Verifica se temos campos no schema (estrutura correta dos presets)
         if (tableSchema.schema && tableSchema.schema.fields && Array.isArray(tableSchema.schema.fields)) {
-          fields = tableSchema.schema.fields.map((field: any) => ({
+          fields = tableSchema.schema.fields.map((field: ISchemaField) => ({
             name: field.name,
             label: field.label || field.name,
             type: field.type || 'string',

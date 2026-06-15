@@ -18,7 +18,7 @@ export async function listMessages(req: Request, res: Response) {
 
     const parsed = QueryParamsSchema.parse({ ...req.query, instanceId: req.query.instanceId });
     const svc = getFactory().getChatMessageService();
-    const result = await svc.getMessagesByInstance(parsed.instanceId, ctx as any, parsed.page, parsed.limit);
+    const result = await svc.getMessagesByInstance(parsed.instanceId, ctx, parsed.page, parsed.limit);
     return res.status(200).json({ success: true, data: result.data, total: result.total, page: result.page, limit: result.limit, totalPages: result.totalPages });
   } catch (error) {
     return handleApiError(error, res);
@@ -34,7 +34,7 @@ export async function createMessage(req: Request, res: Response) {
     if (!body.success) return res.status(400).json({ success: false, error: body.error.format() });
 
     const svc = getFactory().getChatMessageService();
-    const newMessage = await svc.createMessage(body.data, ctx as any);
+    const newMessage = await svc.createMessage(body.data, ctx);
     return res.status(201).json({ success: true, data: newMessage });
   } catch (error) {
     return handleApiError(error, res);

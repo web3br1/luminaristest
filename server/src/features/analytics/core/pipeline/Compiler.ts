@@ -33,7 +33,7 @@ export function validateDimensions(dimensions?: Dimension[]): void {
         throw new Error('Period dimension requires dateField and period');
       }
     } else {
-      throw new Error(`Unsupported dimension: ${(d as any).type}`);
+      throw new Error(`Unsupported dimension: ${(d as { type?: unknown }).type}`);
     }
   }
 }
@@ -61,7 +61,7 @@ export function validateMeasures(measures: Measure[]): void {
         }
         break;
       default:
-        throw new Error(`Unsupported measure type: ${(m as any).type}`);
+        throw new Error(`Unsupported measure type: ${(m as { type?: unknown }).type}`);
     }
   }
 }

@@ -5,13 +5,18 @@ import { getCookie } from 'cookies-next';
 import { MonoIcon } from './icons';
 import { formatDayLabel } from './utils';
 import { DynamicTableService } from '../../../../../lib/services/dynamic-table.service';
+import type { IDynamicTableData } from '@/features/dashboard/components/shared/dynamic-tables.client';
+
+type ActivityFilterKey = 'all' | 'note' | 'meeting' | 'proposal' | 'stage_change' | 'call' | 'email';
+
+type ActivityRow = IDynamicTableData & { updatedAt?: string; createdAt?: string };
 
 interface LeadTimelineProps {
-  activities: any[];
-  activityFilter: 'all' | 'note' | 'meeting' | 'proposal' | 'stage_change' | 'call' | 'email';
-  setActivityFilter: (k: any) => void;
+  activities: ActivityRow[];
+  activityFilter: ActivityFilterKey;
+  setActivityFilter: (k: ActivityFilterKey) => void;
   ownerMap: Record<string, string>;
-  stages: any[];
+  stages: IDynamicTableData[];
   activitiesTableId?: string | null;
   leadId?: string | null;
   onRefresh?: () => void;
@@ -49,7 +54,7 @@ export default function LeadTimeline({ activities, activityFilter, setActivityFi
       setNoteText('');
       setComposerOpen(false);
       onRefresh?.();
-    } catch (e: any) {
+    } catch (_e) {
       // Erro já notificado automaticamente pelo apiClient.
     } finally {
       setPostingNote(false);
@@ -114,10 +119,10 @@ export default function LeadTimeline({ activities, activityFilter, setActivityFi
           { k: 'meeting', label: 'Eventos', ic: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
           { k: 'proposal', label: 'Negócios', ic: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
           { k: 'stage_change', label: 'Fluxo', ic: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4' },
-        ].map((it: any) => (
+        ].map((it) => (
           <button
             key={it.k}
-            onClick={() => setActivityFilter(it.k as any)}
+            onClick={() => setActivityFilter(it.k as ActivityFilterKey)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activityFilter === it.k ? 'bg-white dark:bg-neutral-800 text-blue-600 dark:text-blue-400 border-gray-200 dark:border-white/10 shadow-sm' : 'bg-transparent text-gray-400 border-transparent hover:text-gray-600'}`}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={it.ic} /></svg>
@@ -134,11 +139,11 @@ export default function LeadTimeline({ activities, activityFilter, setActivityFi
           </div>
         ) : (
           <ul className="space-y-6 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100 dark:before:bg-neutral-800/50">
-            {activities.filter((a: any) => activityFilter === 'all' ? true : String((a.data || {}).type || '') === activityFilter).map((a: any, idx: number, arr: any[]) => {
+            {activities.filter((a) => activityFilter === 'all' ? true : String((a.data || {}).type || '') === activityFilter).map((a, idx, arr) => {
               const ad = a.data || {};
               const when = new Date(a.updatedAt || a.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
               const type = String(ad.type || '').toLowerCase();
-              const colors: any = {
+              const colors: Record<string, string> = {
                 stage_change: 'bg-indigo-500',
                 proposal: 'bg-blue-500',
                 meeting: 'bg-emerald-500',
@@ -151,8 +156,8 @@ export default function LeadTimeline({ activities, activityFilter, setActivityFi
 
               let title = String(ad.message || '');
               if (type === 'stage_change') {
-                const prevName = (stages.find((s: any) => String(s.id) === String(ad?.payload?.prevStage || ad?.prevStageId || ''))?.data || {}).name || 'Início';
-                const nextName = (stages.find((s: any) => String(s.id) === String(ad?.payload?.nextStage || ad?.nextStageId || ''))?.data || {}).name || 'Final';
+                const prevName = (stages.find((s) => String(s.id) === String(ad?.payload?.prevStage || ad?.prevStageId || ''))?.data || {}).name || 'Início';
+                const nextName = (stages.find((s) => String(s.id) === String(ad?.payload?.nextStage || ad?.nextStageId || ''))?.data || {}).name || 'Final';
                 title = `Transição de etapa: ${prevName} → ${nextName}`;
               }
 

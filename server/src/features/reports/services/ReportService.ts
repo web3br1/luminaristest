@@ -17,7 +17,7 @@ export interface GenerateReportRequest {
 
 export interface GenerateReportResponse {
   response: string;
-  chartData?: any[];
+  chartData?: Array<{ [key: string]: unknown }>;
 }
 
 // Definição da ferramenta "Function Calling" para a OpenAI

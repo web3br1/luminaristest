@@ -180,7 +180,7 @@ export async function uploadDocument(req: Request, res: Response) {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-    const file = (req as any).file as Express.Multer.File | undefined;
+    const file = (req as Request & { file?: Express.Multer.File }).file;
     if (!file) {
       return res.status(400).json({ success: false, error: 'File is required (field name: file)' });
     }
@@ -252,15 +252,15 @@ export async function qdrantStatus(req: Request, res: Response) {
     if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
     const countResponse = await qdrant.api().countPoints({ collection_name: 'documents' });
-    const count = (countResponse.data as any)?.result?.count || 0;
+    const count = (countResponse.data as { result?: { count?: number } })?.result?.count ?? 0;
 
     const sampleResponse = await qdrant.api().getPoints({
       collection_name: 'documents',
       ids: [],
       with_payload: true,
       with_vector: false,
-    } as any);
-    const sample = (sampleResponse.data as any)?.result || [];
+    } as Parameters<ReturnType<typeof qdrant.api>['getPoints']>[0]);
+    const sample = (sampleResponse.data as { result?: unknown[] })?.result ?? [];
 
     return res.status(200).json({ success: true, data: { count, sample } });
   } catch (error) {
@@ -295,7 +295,7 @@ export async function computeTokenCost(req: Request, res: Response) {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-    const file = (req as any).file as Express.Multer.File | undefined;
+    const file = (req as Request & { file?: Express.Multer.File }).file;
     if (!file) return res.status(400).json({ success: false, error: 'No file uploaded' });
 
     const data = file.buffer;

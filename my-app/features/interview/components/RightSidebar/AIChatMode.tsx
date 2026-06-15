@@ -49,25 +49,31 @@ function AIChatMode({ tableData, sessionId: externalSessionId, onSaveChanges, on
   }, [messages]);
 
   // Função para processar os dados da resposta da API
-  const processApiResponse = (data: any) => {
+  const processApiResponse = (data: unknown) => {
+    const response = data as {
+      sessionId?: string;
+      conversationHistory?: IAiMessage[];
+      modified?: boolean;
+      table?: ITable;
+    };
     // Atualizar sessionId se a API retornar um novo
-    if (data.sessionId) {
-      setInternalSessionId(data.sessionId);
-      console.log(`[AIChatMode] Sessão atualizada: ${data.sessionId}`);
+    if (response.sessionId) {
+      setInternalSessionId(response.sessionId);
+      console.log(`[AIChatMode] Sessão atualizada: ${response.sessionId}`);
     }
-    
+
     // Atualizar o histórico de mensagens com os dados da API
-    if (data.conversationHistory) {
-      const historyWithDates = data.conversationHistory.map((msg: IAiMessage) => ({
+    if (response.conversationHistory) {
+      const historyWithDates = response.conversationHistory.map((msg: IAiMessage) => ({
         ...msg,
         timestamp: new Date(msg.timestamp),
       }));
       setMessages(historyWithDates);
     }
-    
+
     // Se a tabela foi modificada, atualize-a
-    if (data.modified) {
-      onSaveChanges(data.table);
+    if (response.modified && response.table) {
+      onSaveChanges(response.table);
     }
   };
 

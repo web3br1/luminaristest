@@ -9,7 +9,7 @@ class MyDocument extends Document {
   render() {
     // Acessar locale das props, com fallback para o defaultLocale se não estiver definido (ex: build time)
     // O defaultLocale é 'en' conforme next.config.js
-    const currentLocale = (this.props as any).__NEXT_DATA__.locale || 'en'; 
+    const currentLocale = (this.props as { __NEXT_DATA__?: { locale?: string } }).__NEXT_DATA__?.locale || 'en';
 
     return (
       <Html lang={currentLocale}> {/* Use o locale dinâmico aqui */}

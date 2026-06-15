@@ -18,7 +18,7 @@ export interface DashboardGridItem {
   static?: boolean;
   isDraggable?: boolean;
   isResizable?: boolean;
-  widgetConfig?: any;
+  widgetConfig?: Record<string, unknown>;
 }
 
 export interface DashboardLayout {
@@ -79,7 +79,7 @@ export interface ItemAction {
     droppedY?: number;
     newLayout?: DashboardGridItem[];
     itemId?: string;
-    config?: any;
+    config?: Record<string, unknown>;
     layoutItems?: DashboardGridItem[];
   };
 }

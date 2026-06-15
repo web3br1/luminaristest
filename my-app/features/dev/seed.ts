@@ -16,9 +16,9 @@ export async function runDevSeed(tables: IDynamicTable[], setMsg: (m: string) =>
     // EXECUTE THE GOLDEN PATH
     await service.run();
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[SEED FATAL]', err);
-    setMsg(`ERRO FATAL: ${err.message}`);
+    setMsg(`ERRO FATAL: ${err instanceof Error ? err.message : String(err)}`);
     // Re-throw to ensure the UI knows it failed if it catches
     throw err;
   }

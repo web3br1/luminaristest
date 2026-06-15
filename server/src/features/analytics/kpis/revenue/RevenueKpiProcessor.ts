@@ -512,7 +512,7 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
   // Campaign distribution already collected in main loop (no 2nd pass needed)
 
   // Determine table source
-  const mainTableSource = (table as any).presetKey || params.tableId || 'sales';
+  const mainTableSource = table.presetKey || params.tableId || 'sales';
 
   // Return all KPIs with recordIds and tableSource
   return [

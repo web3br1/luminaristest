@@ -7,6 +7,7 @@
 
 import type { AnalyticsProcessor, ChartDataPoint, TableDataRow } from '../../core';
 import { addMoney } from '../../utils/CurrencyUtils';
+import type { ISchemaField } from '@/features/dynamicTables/models/DynamicTable.model';
 
 type PeriodMode = 'month' | 'year';
 
@@ -38,7 +39,7 @@ export const profitByDimensionProcessor: AnalyticsProcessor = async (context): P
   // Resolve relationship field to display names (e.g., customerId -> customer name)
   let dimensionNameMap: Map<string, string> | null = null;
   if (schema?.fields) {
-    const dimensionFieldSchema = schema.fields.find((f: any) => f.name === dimensionField);
+    const dimensionFieldSchema = schema.fields.find((f: ISchemaField) => f.name === dimensionField);
     if (dimensionFieldSchema?.type === 'relation' && dimensionFieldSchema.relation?.targetTable) {
       try {
         const targetTableRef = String(dimensionFieldSchema.relation.targetTable);

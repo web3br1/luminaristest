@@ -12,7 +12,7 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'next-i18next';
 import { MdInfo, MdKeyboardArrowRight } from 'react-icons/md';
-import { isTableSchema } from '../../../components/shared/dynamic-tables.client';
+import { isTableSchema, type ITableSchema } from '../../../components/shared/dynamic-tables.client';
 import { UnitStockRow } from './UnitStockRow';
 import { RelationCell } from '../../shared/components/RelationCell';
 import { RowActionsCell } from '../../shared/components/RowActionsCell';
@@ -251,7 +251,7 @@ export function ProductRow({
                     unit={unit}
                     stockData={productInventory[unit.id]}
                     inventoryTableId={inventoryTableId}
-                    inventorySchema={inventorySchema?.schema as any}
+                    inventorySchema={inventorySchema?.schema as ITableSchema}
                     onEditSuccess={onInventoryEdit}
                     isWidgetMode={isWidgetMode}
                     orderedCols={orderedCols}

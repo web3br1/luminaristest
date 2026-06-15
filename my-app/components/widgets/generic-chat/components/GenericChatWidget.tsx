@@ -10,6 +10,14 @@ import { CommandConfirmationModal } from './CommandConfirmationModal';
 const FLOATING_CHAT_WIDGET_ID = 'floating-generic-chat';
 const LAST_CHAT_COOKIE = 'last_generic_chat_id';
 
+interface ProposalState {
+    id: string;
+    action: 'CREATE' | 'UPDATE' | 'DELETE';
+    tableName: string;
+    tableLabel: string;
+    data: Record<string, unknown>;
+}
+
 const DEBUG = true;
 function log(...args: unknown[]) {
     if (DEBUG) console.log('[GenericChatWidget]', ...args);
@@ -29,7 +37,7 @@ function GenericChatWidget({
     const { t } = useTranslation('common');
     const [inputValue, setInputValue] = useState('');
     const [renameValue, setRenameValue] = useState('');
-    const [proposalToConfirm, setProposalToConfirm] = useState<any>(null);
+    const [proposalToConfirm, setProposalToConfirm] = useState<ProposalState | null>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
     // LAZY INITIALIZATION: lê o cookie ANTES de criar o estado

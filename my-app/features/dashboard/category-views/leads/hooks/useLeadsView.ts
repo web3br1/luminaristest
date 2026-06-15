@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { DynamicTableService } from '../../../../../lib/services/dynamic-table.service';
-import { useTableData, IDynamicTable, isTableSchema } from '../../../components/shared/dynamic-tables.client';
+import { useTableData, IDynamicTable, IDynamicTableData, isTableSchema } from '../../../components/shared/dynamic-tables.client';
 import { useLeadActions } from './useLeadActions';
 
 export type LeadTab = 'kanban' | 'manage' | 'meetings';
@@ -32,17 +32,18 @@ export function useLeadsView(tables: IDynamicTable[]) {
 
     const { table: leadsTableData, records: leads, refetch } = useTableData(leadsTable?.id || '');
 
-    const unitField = isTableSchema(leadsTableData?.schema) ? (leadsTableData!.schema.fields as any[]).find(f => f.name === 'unitId') : null;
+    const unitField = isTableSchema(leadsTableData?.schema) ? leadsTableData!.schema.fields.find(f => f.name === 'unitId') : null;
     const unitTableId = unitField?.relation?.targetTable;
     const fallbackUnitTableId = useMemo(() => (tables.find(t => t.internalName === 'units' || t.name === 'Units')?.id) || null, [tables]);
 
     const [unitOptions, setUnitOptions] = useState<Array<{ id: string; name: string }>>([]);
-    const [pipelines, setPipelines] = useState<any[]>([]);
-    const [stages, setStages] = useState<any[]>([]);
+    const [pipelines, setPipelines] = useState<IDynamicTableData[]>([]);
+    const [stages, setStages] = useState<IDynamicTableData[]>([]);
     const [activePipelineId, setActivePipelineId] = useState<string | null>(null);
     const [ownerMap, setOwnerMap] = useState<Record<string, string>>({});
     const [unitMap, setUnitMap] = useState<Record<string, string>>({});
-    const [activities, setActivities] = useState<any[]>([]);
+    type ActivityRow = IDynamicTableData & { updatedAt?: string; createdAt?: string };
+    const [activities, setActivities] = useState<ActivityRow[]>([]);
 
     // Stage transition states
     const [showStageModal, setShowStageModal] = useState<null | 'meeting' | 'proposal'>(null);
@@ -52,7 +53,7 @@ export function useLeadsView(tables: IDynamicTable[]) {
     const [propCurrency, setPropCurrency] = useState<string>('BRL');
     const [propWinProb, setPropWinProb] = useState<string>('');
     const [savingStage, setSavingStage] = useState(false);
-    const [pendingNextStage, setPendingNextStage] = useState<any | null>(null);
+    const [pendingNextStage, setPendingNextStage] = useState<IDynamicTableData | null>(null);
 
     // Activity states
     const [activityFilter, setActivityFilter] = useState<'all' | 'note' | 'meeting' | 'proposal' | 'stage_change' | 'call' | 'email'>('all');
@@ -68,9 +69,10 @@ export function useLeadsView(tables: IDynamicTable[]) {
         if (!activitiesTable?.id) return;
         try {
             const body = await DynamicTableService.getTableData(activitiesTable.id).catch(() => ({}));
-            const rows = Array.isArray(body?.data) ? body.data : [];
-            const filtered = rows.filter((row: any) => String((row.data || {}).leadId || '') === String(leadId))
-                .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
+            type ActivityRow = IDynamicTableData & { updatedAt?: string; createdAt?: string };
+            const rows = (Array.isArray(body?.data) ? body.data : []) as ActivityRow[];
+            const filtered = rows.filter((row) => String((row.data || {}).leadId || '') === String(leadId))
+                .sort((a, b) => new Date(b.updatedAt || b.createdAt || '').getTime() - new Date(a.updatedAt || a.createdAt || '').getTime());
             setActivities(filtered);
         } catch { setActivities([]); }
     }, [activitiesTable?.id]);
@@ -86,14 +88,14 @@ export function useLeadsView(tables: IDynamicTable[]) {
         fetchActivities
     );
 
-    const advanceToNextStage = useCallback(async (leadId: string, stage: any, payload?: any) => {
+    const advanceToNextStage = useCallback(async (leadId: string, stage: IDynamicTableData, payload?: Record<string, unknown> | { meetingAt?: string; amount?: number; currency?: string; winProbability?: number }) => {
         setSavingStage(true);
         try {
             await coreAdvance(leadId, stage, payload);
             setShowStageModal(null);
             setPendingNextStage(null);
             setMeetingAt(''); setPropAmountInput(''); setPropAmountValue(null); setPropCurrency('BRL'); setPropWinProb('');
-        } catch (e: any) {
+        } catch (_e) {
             // Erro já notificado automaticamente pelo apiClient.
         } finally {
             setSavingStage(false);
@@ -116,17 +118,17 @@ export function useLeadsView(tables: IDynamicTable[]) {
             const targetId = unitTableId || fallbackUnitTableId;
             if (!targetId) return;
             const body = await DynamicTableService.getTableData(targetId).catch(() => ({}));
-            const rows = Array.isArray(body?.data) ? body.data : [];
-            setUnitOptions(rows.map((r: any) => ({ id: String(r.id), name: String((r.data || {}).name || r.id) })));
+            const rows = (Array.isArray(body?.data) ? body.data : []) as IDynamicTableData[];
+            setUnitOptions(rows.map((r) => ({ id: String(r.id), name: String((r.data || {}).name || r.id) })));
             // Auto selecionar última unidade usada
             const last = typeof window !== 'undefined' ? window.localStorage.getItem('leads:lastUnitId') : null;
-            if (last && rows.some((r: any) => String(r.id) === last)) setSelectedUnitId(last);
+            if (last && rows.some((r) => String(r.id) === last)) setSelectedUnitId(last);
         })();
     }, [unitTableId, fallbackUnitTableId]);
 
     const filteredLeads = useMemo(() => {
-        if (!selectedUnitId) return [] as any[];
-        return (leads || []).filter((r: any) => String((r.data || {}).unitId || '') === String(selectedUnitId));
+        if (!selectedUnitId) return [];
+        return (leads || []).filter((r) => String((r.data || {}).unitId || '') === String(selectedUnitId));
     }, [leads, selectedUnitId]);
 
     // Carregar pipelines e estágios ao selecionar unidade
@@ -135,15 +137,15 @@ export function useLeadsView(tables: IDynamicTable[]) {
             if (!selectedUnitId) { setPipelines([]); setStages([]); setActivePipelineId(null); return; }
             if (pipelinesTable?.id) {
                 const pb = await DynamicTableService.getTableData(pipelinesTable.id).catch(() => ({}));
-                const allPipes = Array.isArray(pb?.data) ? pb.data : [];
-                const unitPipes = allPipes.filter((r: any) => String((r.data || {}).unitId || '') === String(selectedUnitId));
+                const allPipes = (Array.isArray(pb?.data) ? pb.data : []) as IDynamicTableData[];
+                const unitPipes = allPipes.filter((r) => String((r.data || {}).unitId || '') === String(selectedUnitId));
                 setPipelines(unitPipes);
-                const def = unitPipes.find((r: any) => (r.data || {}).isDefault) || unitPipes[0] || null;
+                const def = unitPipes.find((r) => (r.data || {}).isDefault) || unitPipes[0] || null;
                 setActivePipelineId(def ? String(def.id) : null);
             }
             if (stagesTable?.id) {
                 const sb = await DynamicTableService.getTableData(stagesTable.id).catch(() => ({}));
-                const allStages = Array.isArray(sb?.data) ? sb.data : [];
+                const allStages = (Array.isArray(sb?.data) ? sb.data : []) as IDynamicTableData[];
                 setStages(allStages);
             }
         })();
@@ -154,14 +156,14 @@ export function useLeadsView(tables: IDynamicTable[]) {
         (async () => {
             try {
                 if (!leadsTableData || !isTableSchema(leadsTableData.schema)) return;
-                const fields = (leadsTableData.schema.fields || []) as any[];
+                const fields = leadsTableData.schema.fields || [];
                 const ownerField = fields.find(f => (f.name === 'assigneeId' || f.name === 'ownerId') && f.type === 'relation');
                 const unitFieldLocal = fields.find(f => f.name === 'unitId' && f.type === 'relation');
                 if (ownerField?.relation?.targetTable) {
                     const b = await DynamicTableService.getTableData(ownerField.relation.targetTable).catch(() => ({}));
-                    const rows = Array.isArray(b?.data) ? b.data : [];
+                    const rows = (Array.isArray(b?.data) ? b.data : []) as IDynamicTableData[];
                     const m: Record<string, string> = {};
-                    rows.forEach((row: any) => {
+                    rows.forEach((row) => {
                         const d = row?.data || {};
                         const first = String(d.firstName || '').trim();
                         const last = String(d.lastName || '').trim();
@@ -173,9 +175,9 @@ export function useLeadsView(tables: IDynamicTable[]) {
                 }
                 if (unitFieldLocal?.relation?.targetTable) {
                     const b = await DynamicTableService.getTableData(unitFieldLocal.relation.targetTable).catch(() => ({}));
-                    const rows = Array.isArray(b?.data) ? b.data : [];
+                    const rows = (Array.isArray(b?.data) ? b.data : []) as IDynamicTableData[];
                     const m: Record<string, string> = {};
-                    rows.forEach((row: any) => { const d = row?.data || {}; m[String(row.id)] = String(d.name || row.id); });
+                    rows.forEach((row) => { const d = row?.data || {}; m[String(row.id)] = String(d.name || row.id); });
                     setUnitMap(m);
                 }
             } catch { }

@@ -3,7 +3,7 @@ export class DataSanitizer {
    * Safely extracts a numeric float value from a potentially dirty dynamic string.
    * Handles various currency formats: "R$ 1.500,00", "$1,500.50", "1500", "1,500.00".
    */
-  static extractCurrency(value: any): number {
+  static extractCurrency(value: unknown): number {
     if (value === null || value === undefined) return 0;
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
     

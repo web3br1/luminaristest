@@ -157,20 +157,20 @@ export default function LeadsView({ tables }: LeadsViewProps) {
       return (
         <MeetingsCalendar
           selectedUnitId={selectedUnitId}
-          activitiesTable={activitiesTable as any}
-          filteredLeads={filteredLeads as any}
+          activitiesTable={activitiesTable}
+          filteredLeads={filteredLeads}
           onOpenLead={(leadId) => { setSelectedLeadId(leadId); setActiveTab('manage'); }}
         />
       );
     }
     if (activeTab === 'kanban') {
       const cols = (stages || [])
-        .filter((s: any) => String((s.data || {}).pipelineId || '') === String(activePipelineId))
-        .sort((a: any, b: any) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
+        .filter((s) => String((s.data || {}).pipelineId || '') === String(activePipelineId))
+        .sort((a, b) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
       return (
         <KanbanView
-          cols={cols as any}
-          filteredLeads={filteredLeads as any}
+          cols={cols}
+          filteredLeads={filteredLeads}
           ownerMap={ownerMap}
           selectedUnitId={selectedUnitId}
           hasLeadsSchema={!!leadsTableData}
@@ -182,7 +182,7 @@ export default function LeadsView({ tables }: LeadsViewProps) {
       );
     }
     // manage
-    const current = ((selectedLeadId ? filteredLeads.filter((r: any) => String(r.id) === selectedLeadId) : filteredLeads) || [])[0];
+    const current = ((selectedLeadId ? filteredLeads.filter((r) => String(r.id) === selectedLeadId) : filteredLeads) || [])[0];
     if (!current) {
       return (
         <div className="p-6 text-sm text-gray-600 dark:text-gray-300">{t('database:leads.select_lead_placeholder', 'Selecione um lead no Kanban para gerenciar.')}</div>
@@ -193,10 +193,10 @@ export default function LeadsView({ tables }: LeadsViewProps) {
     const unitName = unitMap[String(d.unitId || '')] || '—';
     const leadPipelineId = String(d.pipelineId || activePipelineId || '');
     const pipelineStages = (stages || [])
-      .filter((s: any) => String((s.data || {}).pipelineId || '') === leadPipelineId)
-      .sort((a: any, b: any) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
+      .filter((s) => String((s.data || {}).pipelineId || '') === leadPipelineId)
+      .sort((a, b) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
     const currentStageId = String(d.stageId || '');
-    const currentStageIndex = pipelineStages.findIndex((s: any) => String(s.id) === currentStageId);
+    const currentStageIndex = pipelineStages.findIndex((s) => String(s.id) === currentStageId);
     const nextStage = currentStageIndex >= 0 && currentStageIndex < pipelineStages.length - 1 ? pipelineStages[currentStageIndex + 1] : null;
     const stageProgressLabel = pipelineStages.length > 0 && currentStageIndex >= 0 ? t('database:leads.stage_progress', { current: currentStageIndex + 1, total: pipelineStages.length }) : '';
     return (
@@ -204,7 +204,7 @@ export default function LeadsView({ tables }: LeadsViewProps) {
         <ManageHeader leadData={d} ownerName={ownerName} activitiesCount={activities.length} onOpenOptions={() => setShowDeleteStep(1)} />
 
         <PipelineProgress
-          pipelineStages={pipelineStages as any}
+          pipelineStages={pipelineStages}
           currentStageId={currentStageId}
           currentStageIndex={currentStageIndex}
           stageProgressLabel={stageProgressLabel}
@@ -285,11 +285,11 @@ export default function LeadsView({ tables }: LeadsViewProps) {
           try {
             const token = getCookie('auth_token');
             const headers: HeadersInit = { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) };
-            const lead = (filteredLeads || []).find((l: any) => String(l.id) === String(selectedLeadId));
-            const ld = (lead?.data || {}) as any;
+            const lead = (filteredLeads || []).find((l) => String(l.id) === String(selectedLeadId));
+            const ld = (lead?.data || {}) as Record<string, unknown>;
             const leadPipelineId2 = String(ld.pipelineId || '');
-            const list = (stages || []).filter((s: any) => String((s.data || {}).pipelineId || '') === leadPipelineId2).sort((a: any, b: any) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
-            const idx = list.findIndex((s: any) => String(s.id) === String(ld.stageId || ''));
+            const list = (stages || []).filter((s) => String((s.data || {}).pipelineId || '') === leadPipelineId2).sort((a, b) => Number((a.data || {}).order || 0) - Number((b.data || {}).order || 0));
+            const idx = list.findIndex((s) => String(s.id) === String(ld.stageId || ''));
             const prev = idx > 0 ? list[idx - 1] : null;
             if (prev && leadsTable?.id) {
               await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/dynamic-tables/${leadsTable.id}/data/${selectedLeadId}`, { method: 'PUT', headers, body: JSON.stringify({ data: { stageId: String(prev.id), noShow: true } }) });
@@ -308,7 +308,7 @@ export default function LeadsView({ tables }: LeadsViewProps) {
         }}
         confirmText={deleteConfirmText}
         setConfirmText={setDeleteConfirmText}
-        leadName={String(((filteredLeads.find((L: any) => String(L.id) === String(selectedLeadId))?.data || {}).leadName) || '')}
+        leadName={String(((filteredLeads.find((L) => String(L.id) === String(selectedLeadId))?.data || {}).leadName) || '')}
       />
       <ProposalStageModal
         isOpen={showStageModal === 'proposal' && !!pendingNextStage && !!selectedLeadId}

@@ -4,6 +4,7 @@ import { handleApiError } from '../lib/apiUtils';
 import { getFactory } from '@/lib/factory';
 import { getUserContextFromRequest } from '@/lib/authUtils';
 import { z } from 'zod';
+import { CreateUserSchema, UpdateUserSchema } from '@/features/users/dtos/UserDto';
 
 export const getUsers = async (req: Request, res: Response) => {
   try {
@@ -58,14 +59,6 @@ export const getUserById = async (req: Request, res: Response) => {
   }
 };
 
-const CreateUserSchema = z.object({
-  name: z.string().optional().default(''),
-  username: z.string().min(3),
-  email: z.string().email(),
-  password: z.string().min(6),
-  role: z.enum(['USER', 'ADMIN']).optional(),
-});
-
 export const createUser = async (req: Request, res: Response) => {
   try {
     const parse = CreateUserSchema.safeParse(req.body);
@@ -74,20 +67,12 @@ export const createUser = async (req: Request, res: Response) => {
     const actor = getUserContextFromRequest(req); // public signup when unauthenticated
 
     const service = getFactory().getUserService();
-    const created = await service.createUser(parse.data as any, actor);
+    const created = await service.createUser(parse.data, actor);
     return res.status(201).json({ success: true, data: created });
   } catch (error) {
     return handleApiError(error, res);
   }
 };
-
-const UpdateUserSchema = z.object({
-  name: z.string().optional(),
-  username: z.string().min(3).optional(),
-  email: z.string().email().optional(),
-  password: z.string().min(6).optional(),
-  role: z.enum(['USER', 'ADMIN']).optional(),
-});
 
 export const updateUser = async (req: Request, res: Response) => {
   try {
@@ -98,7 +83,7 @@ export const updateUser = async (req: Request, res: Response) => {
     const actor = getUserContextFromRequest(req);
     const service = getFactory().getUserService();
     // Use parse.data directly - any undefined fields are omitted
-    const updated = await service.updateUser(id, parse.data as any, actor);
+    const updated = await service.updateUser(id, parse.data, actor);
 
     return res.json(updated);
   } catch (error) {

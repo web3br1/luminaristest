@@ -1,3 +1,5 @@
+import { ISchemaField } from '../../dynamicTables/models/DynamicTable.model';
+
 /**
  * Tipos compartilhados entre InterviewService e CustomizationService
  */
@@ -47,13 +49,13 @@ export interface IInterviewTurnResult {
  * Interface para representar uma tabela que pode ser customizada
  */
 export interface ICustomizableTable {
-  conversationHistory: any[];
+  conversationHistory: Array<{ role: string; content: string }>;
   name: string;          // Nome amigável da tabela (ex: "Clientes")
   key: string;           // Identificador único (ex: "customers")
   description: string;   // Descrição breve (ex: "Cadastro de clientes")
   isSelected: boolean;   // Se está selecionada na customização
   isCore: boolean;       // Se é uma tabela essencial que não pode ser removida
-  fields?: any[];        // Campos da tabela quando disponíveis (do preset real)
+  fields?: ISchemaField[];        // Campos da tabela quando disponíveis (do preset real)
 }
 
 /**

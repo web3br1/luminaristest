@@ -3,6 +3,8 @@ import { useRouter } from 'next/router';
 import { getCookie } from 'cookies-next';
 import { useAuth } from '../../../lib/context/AuthContext';
 import { apiClient } from '../../../lib/api/api-client';
+interface PresetsResponse { [key: string]: unknown }
+
 // Local lightweight types for frontend-only usage
 interface ISchemaField { name: string; label?: string; type: string; required?: boolean }
 interface ITableSchema { fields: ISchemaField[] }
@@ -70,7 +72,7 @@ export default function TotalControlSetup() {
     async function fetchPresets() {
       setIsLoading(true);
       try {
-        const body = (await apiClient.get('/dashboard/presets')) as any;
+        const body = (await apiClient.get('/dashboard/presets')) as PresetsResponse;
         setPresets(body.data || []);
       } catch (err: any) {
         setError(err.message);
@@ -96,7 +98,7 @@ export default function TotalControlSetup() {
     try {
       const body = (await apiClient.get(`/dashboard/presets/${selectedPreset.key}`).catch((err: any) => {
           throw new Error(err?.error || err?.message || 'Não foi possível carregar os detalhes do preset.');
-      })) as any;
+      })) as PresetsResponse;
       const presetData: IPresetDetails = body.data;
       setPresetDetails(presetData);
 
@@ -115,8 +117,8 @@ export default function TotalControlSetup() {
 
       setCurrentStep('customizing_preset');
 
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsFetchingDetails(false);
     }
@@ -180,15 +182,16 @@ export default function TotalControlSetup() {
         addedFields: newCustomFields,
       };
 
-      await apiClient.post('/dashboard/create', payload).catch((err: any) => {
-        throw new Error(err?.error || err?.message || 'Falha ao criar o dashboard customizado.');
+      await apiClient.post('/dashboard/create', payload).catch((err) => {
+        const errRec = err as Record<string, unknown>;
+        throw new Error((errRec?.error as string) || (err instanceof Error ? err.message : String(err)) || 'Falha ao criar o dashboard customizado.');
       });
 
       // 2. Redirecionar para o dashboard em caso de sucesso
       router.push('/dashboard');
 
-    } catch (err: any) {
-      setError(err.message || 'Ocorreu um erro inesperado.');
+    } catch (err) {
+      setError((err instanceof Error ? err.message : String(err)) || 'Ocorreu um erro inesperado.');
     } finally {
       setIsCreating(false);
     }

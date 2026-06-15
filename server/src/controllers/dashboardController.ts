@@ -15,16 +15,16 @@ const CustomCreationSchema = z.object({
   mode: z.literal('custom'),
   presetKey: z.string().min(1, 'presetKey é obrigatório'),
   removedTables: z.array(z.string()).optional(),
-  addedFields: z.record(z.string(), z.array(z.any())).optional(),
+  addedFields: z.record(z.string(), z.array(z.unknown())).optional(),
 });
 
 const UnifiedCreationSchema = z.union([QuickCreationSchema, CustomCreationSchema]);
 
 import { UnauthorizedError, ValidationError } from '@/lib/errors';
-import { ISchemaField } from '@/features/dynamicTables/models/DynamicTable.model';
+import { ISchemaField, ITableSchema } from '@/features/dynamicTables/models/DynamicTable.model';
 import { getPresetByKey } from '@/features/dynamicTables/presets/PresetManager';
-import { CoreSystemPreset, tablePresetSuites, PresetSuite } from '@/features/dynamicTables/presets';
-import { DYNAMIC_TABLE_CATEGORY_CONFIG } from '@/features/dynamicTables/models/TableCategories';
+import { CoreSystemPreset, tablePresetSuites, PresetSuite, PresetTableDefinition } from '@/features/dynamicTables/presets';
+import { DYNAMIC_TABLE_CATEGORY_CONFIG, DynamicTableCategoryConfig } from '@/features/dynamicTables/models/TableCategories';
 import { presetService } from '@/features/dynamicTables/services/PresetService';
 import { CreateDynamicTableDto } from '@/features/dynamicTables/dtos/DynamicTable.dto';
 
@@ -55,18 +55,18 @@ export async function createDashboard(req: Request, res: Response) {
       });
     }
 
-    if ((payload as any).mode === 'custom') {
+    if (payload.mode === 'custom') {
       return await handleCustomCreation(
         ctx.id,
-        (payload as any).presetKey,
-        (payload as any).removedTables || [],
-        (payload as any).addedFields || {},
+        payload.presetKey,
+        payload.removedTables || [],
+        payload.addedFields || {},
         res
       );
     } else {
       return await handleQuickCreation(
         ctx.id,
-        (payload as any).suiteKey,
+        payload.suiteKey,
         res
       );
     }
@@ -79,13 +79,13 @@ async function handleCustomCreation(
   userId: string,
   presetKey: string,
   removedTables: string[],
-  addedFields: Record<string, ISchemaField[]>,
+  addedFields: Record<string, unknown[]>,
   res: Response
 ) {
   try {
     const originalPreset = await getPresetByKey(presetKey);
 
-    const finalTablesConfig: Record<string, any> = {
+    const finalTablesConfig: Record<string, PresetTableDefinition> = {
       ...CoreSystemPreset.tables,
       ...originalPreset.tables,
     };
@@ -112,7 +112,7 @@ async function handleCustomCreation(
         if (finalTablesConfig[tableKey] && fields.length > 0) {
           const tableSchema = finalTablesConfig[tableKey].schema;
           if (tableSchema) {
-            tableSchema.fields.push(...fields);
+            tableSchema.fields.push(...(fields as ISchemaField[]));
           }
         }
       }
@@ -127,7 +127,7 @@ async function handleCustomCreation(
 
     const service = getFactory().getDynamicTableService();
 
-    const finalPayload: { tables: Record<string, any> } = { tables: {} };
+    const finalPayload: { tables: Record<string, PresetTableDefinition & { internalName: string }> } = { tables: {} };
     for (const internalName in finalTablesConfig) {
       const tableData = finalTablesConfig[internalName];
       finalPayload.tables[internalName] = {
@@ -197,10 +197,10 @@ async function handleQuickCreation(
     };
 
     // Validate analytics configurations if present
-    const analyticsConfigs = (selectedPreset as any).analytics;
+    const analyticsConfigs = (selectedPreset as { analytics?: unknown[] }).analytics;
     if (Array.isArray(analyticsConfigs) && analyticsConfigs.length > 0) {
       const { validateConfigurations } = await import('@/features/analytics/services/AnalyticsValidator');
-      const tableSchemas = new Map<string, any>();
+      const tableSchemas = new Map<string, ITableSchema>();
 
       // Build schema map from preset tables
       for (const [key, table] of Object.entries(mergedPreset.tables)) {
@@ -310,7 +310,7 @@ export async function getDashboardSidebar(req: Request, res: Response) {
             i18nKey: categoryConfig.i18nKey,
             icon: categoryConfig.icon,
             count: countsMap.get(categoryConfig.key) || 0,
-          } as any;
+          } satisfies DynamicTableCategoryConfig & { count: number };
         }
 
         // Virtual category (e.g., 'sales'): derive count from source categories and name matching
@@ -327,7 +327,7 @@ export async function getDashboardSidebar(req: Request, res: Response) {
           i18nKey: categoryConfig.i18nKey,
           icon: categoryConfig.icon,
           count,
-        } as any;
+        } satisfies DynamicTableCategoryConfig & { count: number };
       });
 
     return res.status(200).json({ success: true, data: sidebarData });

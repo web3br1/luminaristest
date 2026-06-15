@@ -42,7 +42,7 @@ export function useRelationLookups(schema: ITableSchema | null) {
                         const data = body.data || [];
 
                         const map = new Map<string, string>();
-                        data.forEach((record: any) => {
+                        data.forEach((record) => {
                             map.set(String(record.id), formatRelatedDisplayValue(record));
                         });
 

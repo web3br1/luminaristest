@@ -2,7 +2,7 @@ import { logger } from './logger';
 
 interface MetricOptions {
   success: boolean;
-  [key: string]: any;
+  [key: string]: string | number | boolean | undefined;
 }
 
 export class Metrics {

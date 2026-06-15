@@ -4,6 +4,7 @@ import React from 'react';
 import { useTranslation } from 'next-i18next';
 import { DndContext, closestCenter, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { Task } from '../../../../types/Task.types';
+import type { IDynamicTable } from '../../components/shared/dynamic-tables.client';
 import KanbanColumn from './KanbanColumn';
 import KanbanTaskCard from './KanbanTaskCard';
 import { useKanbanLogic } from './hooks/useKanbanLogic';
@@ -18,13 +19,13 @@ import CategoryTabs from '../shared/components/CategoryTabs';
 import { useFilterPersistence } from '../shared/hooks/useFilterPersistence';
 
 interface InternalKanbanViewProps {
-    tables: any[];
+    tables: IDynamicTable[];
     tasks: Task[];
     activeTabId: string;
     setActiveTabId: (id: string) => void;
-    schemaByTableId: Record<string, any>;
+    schemaByTableId: Record<string, unknown>;
     isLoading: boolean;
-    error: any;
+    error: Error | null;
     refetch: () => void;
 }
 

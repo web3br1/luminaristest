@@ -10,7 +10,7 @@ export interface CommandConfirmationModalProps {
         action: 'CREATE' | 'UPDATE' | 'DELETE';
         tableName: string;
         tableLabel: string;
-        data: any;
+        data: Record<string, unknown>;
     };
 }
 

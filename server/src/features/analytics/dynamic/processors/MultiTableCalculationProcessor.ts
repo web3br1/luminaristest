@@ -5,7 +5,7 @@
  * Allows formulas like "sales - expenses" to calculate net profit.
  */
 
-import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
+import type { AnalyticsProcessor, ChartDataPoint, TableDataRow } from '../../core';
 import { evaluateExpression } from '../../core/engine/ExpressionEvaluator';
 
 interface MultiTableParams {
@@ -79,7 +79,7 @@ export const multiTableCalculationProcessor: AnalyticsProcessor = async (context
   const tableRowMaps: Record<string, Map<string, string>> = {}; // Map row index to original ID
 
   for (const [alias, tableKey] of Object.entries(tables)) {
-    let rows: any[] = [];
+    let rows: TableDataRow[] = [];
 
     if (tableKey.startsWith('@@PRESET_TABLE_KEY::')) {
       if (!fetchByPresetTableKey) {

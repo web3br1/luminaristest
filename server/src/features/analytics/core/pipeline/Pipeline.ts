@@ -33,7 +33,7 @@ export type FilterOp = 'eq' | 'ne' | 'in' | 'nin' | 'gt' | 'gte' | 'lt' | 'lte';
 export type Filter = {
   field: string;
   op: FilterOp;
-  value: any;
+  value: unknown;
 };
 
 /**

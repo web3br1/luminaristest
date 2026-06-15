@@ -9,6 +9,9 @@ import { analyticsService } from '../services/AnalyticsService';
 import type { AnalyticsPresetGroup, ChartPreset } from '../core/models/ChartPreset';
 import { getFactory } from '@/lib/factory';
 import { getProcessor, type TableDataRow, type ChartDataPoint } from '../core';
+import type { UserContext } from '@/types/UserContext';
+import type { IDynamicTable, ITableSchema, ISchemaField, IFieldRelation } from '@/features/dynamicTables/models/DynamicTable.model';
+import type { DynamicTableService } from '@/features/dynamicTables/services/DynamicTableService';
 
 // Import to register all processors and templates
 import '../dynamic';
@@ -16,7 +19,12 @@ import '../kpis';
 
 export type ChartDataSeries = { name: string; value: number }[];
 
-function userContextFromHeaders(req: Request) {
+/** Extended context used internally by the analytics resolver (adds timeZone from request headers). */
+interface AnalyticsUserContext extends UserContext {
+  timeZone: string;
+}
+
+function userContextFromHeaders(req: Request): AnalyticsUserContext {
   const id = String(req.headers['x-user-id'] || '');
   return {
     id,
@@ -26,16 +34,16 @@ function userContextFromHeaders(req: Request) {
     email: req.headers['x-user-email'] ? String(req.headers['x-user-email']) : undefined,
     name: req.headers['x-user-name'] ? String(req.headers['x-user-name']) : undefined,
     timeZone: req.headers['x-user-timezone'] ? String(req.headers['x-user-timezone']) : 'UTC',
-  } as any;
+  } as AnalyticsUserContext;
 }
 
 /**
  * Resolves preset table keys (e.g., '@@PRESET_TABLE_KEY::sales') to actual table IDs.
  */
 async function resolveTableId(
-  user: any,
+  user: AnalyticsUserContext,
   presetTableKey: string,
-  allTables: any[]
+  allTables: IDynamicTable[]
 ): Promise<string | null> {
   if (!presetTableKey.startsWith('@@PRESET_TABLE_KEY::')) {
     return presetTableKey;
@@ -47,7 +55,7 @@ async function resolveTableId(
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '');
 
-  const table = allTables.find((t: any) => {
+  const table = allTables.find((t) => {
     if (t.internalName === key) return true;
     const kn = normalize(key);
     const nameMatch = normalize(t.name) === kn;
@@ -63,26 +71,26 @@ async function resolveTableId(
  */
 async function resolveRelationFields(
   records: TableDataRow[],
-  schema: any,
-  service: any,
-  user: any,
-  allTables: any[]
+  schema: ITableSchema,
+  service: DynamicTableService,
+  user: AnalyticsUserContext,
+  allTables: IDynamicTable[]
 ): Promise<TableDataRow[]> {
   if (!schema || !schema.fields || records.length === 0) return records;
   
   const normalize = (s: string) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const isCuidOrUuid = (val: any) => 
+  const isCuidOrUuid = (val: unknown) =>
     typeof val === 'string' && (val.length >= 20 || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
 
   // Identify relation fields
-  const relationFields = schema.fields.filter((f: any) => f.type === 'relation');
+  const relationFields = schema.fields.filter((f: ISchemaField) => f.type === 'relation');
   
   // Smart Fallback: Detect fields ending in 'Id' that look like IDs but aren't relations
   const sampleData = records.slice(0, 5);
   const potentialIds = new Set<string>();
   sampleData.forEach(r => {
     Object.entries(r.data).forEach(([k, v]) => {
-      if (k.endsWith('Id') && isCuidOrUuid(v) && !relationFields.find((rf: any) => rf.name === k)) {
+      if (k.endsWith('Id') && isCuidOrUuid(v) && !relationFields.find((rf) => rf.name === k)) {
         potentialIds.add(k);
       }
     });
@@ -93,19 +101,22 @@ async function resolveRelationFields(
     const targetTableKey = pid.slice(0, -2); // customerId -> customer
     relationFields.push({
       name: pid,
+      label: pid,
+      type: 'relation',
+      required: false,
       relation: { targetTable: `@@PRESET_TABLE_KEY::${targetTableKey}` }
-    });
+    } as ISchemaField);
   }
 
   if (relationFields.length === 0) return records;
-  
+
   const relationMaps: Record<string, Map<string, string>> = {};
-  
+
   for (const field of relationFields) {
     const targetTableRef = field.relation?.targetTable;
     if (!targetTableRef) continue;
-    
-    const displayField = field.relation.displayField || 'name';
+
+    const displayField = (field.relation as IFieldRelation & { displayField?: string }).displayField || 'name';
     
     // Resolve targetTable to tableId
     let targetTableId = await resolveTableId(user, targetTableRef, allTables);
@@ -126,8 +137,10 @@ async function resolveRelationFields(
       for (const relRow of relatedRows) {
         const id = String(relRow.id);
         // Priority: displayField from metadata -> name -> title -> description -> first string field -> ID
-        const data = relRow.data || {};
-        const displayValue = data[displayField] || data.name || data.title || data.label || data.description || id;
+        const data = (relRow.data && typeof relRow.data === 'object' && !Array.isArray(relRow.data)
+          ? relRow.data
+          : {}) as Record<string, unknown>;
+        const displayValue = data[displayField] ?? data['name'] ?? data['title'] ?? data['label'] ?? data['description'] ?? id;
         lookup.set(id, String(displayValue));
       }
       
@@ -185,15 +198,15 @@ function shouldIncludeFullData(records: TableDataRow[]): boolean {
  */
 async function fetchRecordsForDataPoint(
   dataPoint: ChartDataPoint,
-  mainTable: any,
-  service: any,
-  user: any,
-  allTables: any[]
+  mainTable: IDynamicTable,
+  service: DynamicTableService,
+  user: AnalyticsUserContext,
+  allTables: IDynamicTable[]
 ): Promise<TableDataRow[]> {
   const recordIds = dataPoint.recordIds || [];
   if (recordIds.length === 0) return [];
   
-  const tableSource = dataPoint.tableSource || (mainTable as any).presetKey || (mainTable as any).internalName || 'sales';
+  const tableSource = dataPoint.tableSource || mainTable.presetKey || mainTable.internalName || 'sales';
   const allRecords: TableDataRow[] = [];
   
   // Resolver tabelas (similar ao resolveChartDetails)
@@ -205,7 +218,7 @@ async function fetchRecordsForDataPoint(
     // mainTable já tem o ID resolvido, usar diretamente
     if (mainTable.id) {
       tablesToFetch.push({
-        key: (mainTable as any).presetKey || (mainTable as any).internalName || 'sales',
+        key: mainTable.presetKey || mainTable.internalName || 'sales',
         tableId: mainTable.id,
         name: mainTable.name || 'Vendas',
       });
@@ -214,7 +227,7 @@ async function fetchRecordsForDataPoint(
     // @@TABLE_SELF@@ significa usar a tabela principal do contexto
     if (mainTable.id) {
       tablesToFetch.push({
-        key: (mainTable as any).presetKey || (mainTable as any).internalName || 'sales',
+        key: mainTable.presetKey || mainTable.internalName || 'sales',
         tableId: mainTable.id,
         name: mainTable.name || 'Vendas',
       });
@@ -225,14 +238,14 @@ async function fetchRecordsForDataPoint(
     if (!tableSource.startsWith('@@PRESET_TABLE_KEY::') && !tableSource.startsWith('@@')) {
       tableSourceToResolve = `@@PRESET_TABLE_KEY::${tableSource}`;
     }
-    
+
     const resolvedTableId = await resolveTableId(user, tableSourceToResolve, allTables);
     if (resolvedTableId) {
       try {
         const resolvedTable = await service.getTableById(user, resolvedTableId);
         if (resolvedTable) {
           tablesToFetch.push({
-            key: (resolvedTable as any).presetKey || (resolvedTable as any).internalName || tableSource,
+            key: resolvedTable.presetKey || resolvedTable.internalName || tableSource,
             tableId: resolvedTableId,
             name: resolvedTable.name || tableSource,
           });
@@ -243,11 +256,11 @@ async function fetchRecordsForDataPoint(
       }
     }
   }
-  
+
   // Se não encontrou tabelas, usar a tabela principal
   if (tablesToFetch.length === 0) {
     tablesToFetch.push({
-      key: (mainTable as any).presetKey || (mainTable as any).internalName || 'sales',
+      key: mainTable.presetKey || mainTable.internalName || 'sales',
       tableId: mainTable.id,
       name: mainTable.name || 'Vendas',
     });
@@ -345,7 +358,7 @@ export async function resolveChartData(
   if (hasFieldMappings) {
     for (const [paramKey, fieldName] of Object.entries(chart.params || {})) {
       if (['statusField', 'amountField', 'dateField', 'paymentStatusField'].includes(paramKey)) {
-        const fieldExists = table.schema.fields.some((f: any) => f.name === fieldName);
+        const fieldExists = table.schema.fields.some((f: ISchemaField) => f.name === fieldName);
         if (!fieldExists && typeof fieldName === 'string') {
           return {
             chart,
@@ -368,19 +381,19 @@ export async function resolveChartData(
     // Create an async generator for optimized stream reading
     async function* getTableStream() {
       for await (const batch of service.getTableDataStream(user, tableId as string)) {
-        yield batch.map((r: any) => ({
+        yield batch.map((r) => ({
           id: r.id,
-          data: r.data || {},
+          data: (r.data && typeof r.data === 'object' && !Array.isArray(r.data) ? r.data : {}) as Record<string, unknown>,
         })) as TableDataRow[];
       }
     }
 
     const data = await processor({
       table,
-      schema: table.schema as any,
-      rows: rows.map((r: any) => ({
+      schema: table.schema,
+      rows: rows.map((r) => ({
         id: r.id,
-        data: r.data || {},
+        data: (r.data && typeof r.data === 'object' && !Array.isArray(r.data) ? r.data : {}) as Record<string, unknown>,
       })) as TableDataRow[],
       streamRows: getTableStream,
       params: processorParams,
@@ -390,7 +403,7 @@ export async function resolveChartData(
         if (!keyToResolve.startsWith('@@PRESET_TABLE_KEY::') && !keyToResolve.startsWith('@@')) {
           keyToResolve = `@@PRESET_TABLE_KEY::${keyToResolve}`;
         }
-        
+
         const otherTableId = await resolveTableId(user, keyToResolve, allTables);
         if (!otherTableId) {
           throw new Error(`Table not found for key: ${presetTableKey}`);
@@ -399,8 +412,8 @@ export async function resolveChartData(
         const otherRowsRaw = await service.getAllTableData(user, otherTableId);
         return {
           table: other,
-          schema: other.schema as any,
-          rows: otherRowsRaw.map((r: any) => ({ id: r.id, data: r.data || {} })) as TableDataRow[],
+          schema: other.schema,
+          rows: otherRowsRaw.map((r) => ({ id: r.id, data: (r.data && typeof r.data === 'object' && !Array.isArray(r.data) ? r.data : {}) as Record<string, unknown> })) as TableDataRow[],
         };
       },
       fetchByTableId: async (tid: string) => {
@@ -408,8 +421,8 @@ export async function resolveChartData(
         const otherRowsRaw = await service.getAllTableData(user, tid);
         return {
           table: other,
-          schema: other.schema as any,
-          rows: otherRowsRaw.map((r: any) => ({ id: r.id, data: r.data || {} })) as TableDataRow[],
+          schema: other.schema,
+          rows: otherRowsRaw.map((r) => ({ id: r.id, data: (r.data && typeof r.data === 'object' && !Array.isArray(r.data) ? r.data : {}) as Record<string, unknown> })) as TableDataRow[],
         };
       },
     });
@@ -447,8 +460,8 @@ export async function resolveChartData(
     }
 
     return { chart, data };
-  } catch (error: any) {
-    return { chart, data: [], error: error.message || 'Error executing processor' };
+  } catch (error: unknown) {
+    return { chart, data: [], error: error instanceof Error ? error.message : 'Error executing processor' };
   }
 }
 
@@ -550,22 +563,22 @@ export async function resolveChartDetails(
   const table = await service.getTableById(user, resolvedTableId);
   const allRows = await service.getAllTableData(user, resolvedTableId);
 
-  const processorParams: Record<string, any> = {
+  const processorParams: Record<string, unknown> = {
     ...chart.params,
     tableId: resolvedTableId,
     timeZone: user.timeZone || 'UTC',
   };
 
   let recordIds: string[] = [];
-  let dataPoint: any = null;
+  let dataPoint: ChartDataPoint | null = null;
 
   try {
     const data = await processor({
       table,
-      schema: table.schema as any,
-      rows: allRows.map((r: any) => ({
+      schema: table.schema,
+      rows: allRows.map((r) => ({
         id: r.id,
-        data: r.data || {},
+        data: (r.data && typeof r.data === 'object' && !Array.isArray(r.data) ? r.data : {}) as Record<string, unknown>,
       })) as TableDataRow[],
       params: processorParams,
       fetchByPresetTableKey: async (presetTableKey: string) => {
@@ -574,7 +587,7 @@ export async function resolveChartDetails(
         if (!keyToResolve.startsWith('@@PRESET_TABLE_KEY::') && !keyToResolve.startsWith('@@')) {
           keyToResolve = `@@PRESET_TABLE_KEY::${keyToResolve}`;
         }
-        
+
         const otherTableId = await resolveTableId(user, keyToResolve, allTables);
         if (!otherTableId) {
           throw new Error(`Table not found for key: ${presetTableKey}`);
@@ -583,8 +596,8 @@ export async function resolveChartDetails(
         const otherRowsRaw = await service.getAllTableData(user, otherTableId);
         return {
           table: other,
-          schema: other.schema as any,
-          rows: otherRowsRaw.map((r: any) => ({ id: r.id, data: r.data || {} })) as TableDataRow[],
+          schema: other.schema,
+          rows: otherRowsRaw.map((r) => ({ id: r.id, data: (r.data && typeof r.data === 'object' && !Array.isArray(r.data) ? r.data : {}) as Record<string, unknown> })) as TableDataRow[],
         };
       },
       fetchByTableId: async (tid: string) => {
@@ -592,15 +605,15 @@ export async function resolveChartDetails(
         const otherRowsRaw = await service.getAllTableData(user, tid);
         return {
           table: other,
-          schema: other.schema as any,
-          rows: otherRowsRaw.map((r: any) => ({ id: r.id, data: r.data || {} })) as TableDataRow[],
+          schema: other.schema,
+          rows: otherRowsRaw.map((r) => ({ id: r.id, data: (r.data && typeof r.data === 'object' && !Array.isArray(r.data) ? r.data : {}) as Record<string, unknown> })) as TableDataRow[],
         };
       },
     });
 
     // Find the data point and extract recordIds and tableSource
     dataPoint = dataPointName
-      ? data.find((dp) => dp.name === dataPointName)
+      ? (data.find((dp) => dp.name === dataPointName) ?? null)
       : data.length === 1
         ? data[0]
         : null;
@@ -618,7 +631,7 @@ export async function resolveChartDetails(
       // Remove duplicates
       recordIds = [...new Set(recordIds)];
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       recordsByTable: {},
       total: 0,
@@ -627,7 +640,7 @@ export async function resolveChartDetails(
       totalPages: 0,
       importantFields: chart.options?.importantFields,
       defaultImportantFields: chart.options?.defaultImportantFields,
-      error: error.message || 'Error executing processor',
+      error: error instanceof Error ? error.message : 'Error executing processor',
     };
   }
 
@@ -650,7 +663,7 @@ export async function resolveChartDetails(
   // If no tableSource from dataPoint, try to get from table or params
   if (!tableSource) {
     // Try to get from table's presetKey or internalName
-    tableSource = (table as any).presetKey || (table as any).internalName || processorParams.tableId || 'sales';
+    tableSource = table.presetKey || table.internalName || String(processorParams.tableId ?? '') || 'sales';
   }
   
   // Map table sources to actual table keys/IDs
@@ -658,16 +671,16 @@ export async function resolveChartDetails(
   
   if (tableSource === 'mixed') {
     // For mixed, identify all related tables from params
-    const mainTableId = await resolveTableId(user, processorParams.tableId || '', allTables);
+    const mainTableId = await resolveTableId(user, String(processorParams.tableId ?? ''), allTables);
     if (mainTableId) {
       const mainTable = await service.getTableById(user, mainTableId);
       tablesToFetch.push({
-        key: (mainTable as any).presetKey || (mainTable as any).internalName || 'sales',
+        key: mainTable.presetKey || mainTable.internalName || 'sales',
         tableId: mainTableId,
         name: mainTable.name || 'Vendas',
       });
     }
-    
+
     // Add expense table if available
     const costSourceTableKey = processorParams.costSourceTableKey as string | undefined;
     const expensesTableKey = processorParams.expensesTableKey as string | undefined;
@@ -678,7 +691,7 @@ export async function resolveChartDetails(
         if (expenseTableId) {
           const expenseTable = await service.getTableById(user, expenseTableId);
           tablesToFetch.push({
-            key: (expenseTable as any).presetKey || (expenseTable as any).internalName || 'expenses',
+            key: expenseTable.presetKey || expenseTable.internalName || 'expenses',
             tableId: expenseTableId,
             name: expenseTable.name || 'Despesas',
           });
@@ -692,12 +705,12 @@ export async function resolveChartDetails(
     if (!tableSource.startsWith('@@PRESET_TABLE_KEY::') && !tableSource.startsWith('@@')) {
       tableSourceToResolve = `@@PRESET_TABLE_KEY::${tableSource}`;
     }
-    
+
     const resolvedTableId = await resolveTableId(user, tableSourceToResolve, allTables);
     if (resolvedTableId) {
       const resolvedTable = await service.getTableById(user, resolvedTableId);
       tablesToFetch.push({
-        key: (resolvedTable as any).presetKey || (resolvedTable as any).internalName || tableSource,
+        key: resolvedTable.presetKey || resolvedTable.internalName || tableSource,
         tableId: resolvedTableId,
         name: resolvedTable.name || tableSource,
       });
@@ -709,7 +722,7 @@ export async function resolveChartDetails(
     // Use the already resolved table ID from the beginning of the function
     if (resolvedTableId) {
       tablesToFetch.push({
-        key: (table as any).presetKey || (table as any).internalName || 'sales',
+        key: table.presetKey || table.internalName || 'sales',
         tableId: resolvedTableId,
         name: table.name || 'Vendas',
       });
@@ -717,7 +730,7 @@ export async function resolveChartDetails(
   }
 
   // Collect table schemas for frontend
-  const tableSchemas: Record<string, any> = {};
+  const tableSchemas: Record<string, ITableSchema> = {};
   for (const tableInfo of tablesToFetch) {
     const table = await service.getTableById(user, tableInfo.tableId);
     if (table && table.schema) {
@@ -737,7 +750,7 @@ export async function resolveChartDetails(
       if (recordIds.includes(row.id)) {
         // Ensure data is a Record<string, any>
         const rowData = row.data && typeof row.data === 'object' && !Array.isArray(row.data)
-          ? (row.data as Record<string, any>)
+          ? (row.data as Record<string, unknown>)
           : {};
         matchingRecords.push({
           id: row.id,

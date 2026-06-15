@@ -12,12 +12,13 @@ import type { AnalyticsProcessor, AnalyticsProcessorContext, ChartDataPoint, Tab
 import type { CompiledPipeline, Dimension, Measure, PipelineSpec, JoinRef } from '../../core/pipeline/Pipeline';
 import { compilePipeline } from '../../core/pipeline/Compiler';
 import { evaluateExpression } from '../../core/engine/ExpressionEvaluator';
+import type { ISchemaField } from '@/features/dynamicTables/models/DynamicTable.model';
 
 // =============================================================================
 // HELPERS
 // =============================================================================
 
-function getField(obj: any, path: string, opts?: { deriveItemType?: boolean }): any {
+function getField(obj: Record<string, unknown>, path: string, opts?: { deriveItemType?: boolean }): unknown {
   if (!obj || !path) return undefined;
 
   // Optional computed "itemType" derived from productId/serviceId
@@ -59,7 +60,7 @@ function getField(obj: any, path: string, opts?: { deriveItemType?: boolean }): 
   return cur;
 }
 
-function formatPeriod(dateStr: any, period: 'day' | 'week' | 'month' | 'quarter' | 'year'): string {
+function formatPeriod(dateStr: string | Date | null, period: 'day' | 'week' | 'month' | 'quarter' | 'year'): string {
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return 'Unknown';
 
@@ -104,10 +105,10 @@ function applyFilters(
         if (v === f.value) return false;
         break;
       case 'in':
-        if (!Array.isArray(f.value) || !f.value.some((x: any) => x === v)) return false;
+        if (!Array.isArray(f.value) || !f.value.some((x: unknown) => x === v)) return false;
         break;
       case 'nin':
-        if (Array.isArray(f.value) && f.value.some((x: any) => x === v)) return false;
+        if (Array.isArray(f.value) && f.value.some((x: unknown) => x === v)) return false;
         break;
       case 'gt':
         if (!(Number(v) > Number(f.value))) return false;
@@ -229,7 +230,7 @@ export const aggregatePipelineProcessor: AnalyticsProcessor = async (
   if (sourceSchema?.fields && compiled.dimensions) {
     for (const dim of compiled.dimensions) {
       if (dim.type === 'field') {
-        const field = sourceSchema.fields.find((f: any) => f.name === dim.field);
+        const field = sourceSchema.fields.find((f: ISchemaField) => f.name === dim.field);
         if (field?.type === 'relation' && field.relation?.targetTable) {
           try {
             const targetTableRef = String(field.relation.targetTable);
@@ -387,7 +388,7 @@ export const aggregatePipelineProcessor: AnalyticsProcessor = async (
       .filter((id): id is string => typeof id === 'string' && id.length > 0);
 
     // Determine table source - prioritize sourcePresetKey, then source table's presetKey/internalName, then fallback
-    const mainTableSource = sourcePresetKey || (sourceTable as any).presetKey || (sourceTable as any).internalName || params.tableId || 'sales';
+    const mainTableSource = sourcePresetKey || sourceTable?.presetKey || sourceTable?.internalName || params.tableId || 'sales';
 
     results.push({
       name: displayName,

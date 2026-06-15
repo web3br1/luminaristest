@@ -5,7 +5,7 @@ import type { UserContext } from '../../../lib/authUtils';
 import { IDynamicTableRepository } from '../repositories/IDynamicTableRepository';
 import { IDynamicTablePolicy } from '../policies/IDynamicTablePolicy';
 import { CreateDynamicTableDtoType, UpdateDynamicTableDtoType, CreateDynamicTableDataDtoType, UpdateDynamicTableDataDtoType, UpdateDynamicTableSchemaDtoType } from '../dtos/DynamicTable.dto';
-import { IDynamicTable, ITableSchema } from '../models/DynamicTable.model';
+import { IDynamicTable, IDynamicTableData, ITableSchema } from '../models/DynamicTable.model';
 import { DynamicTableCategory } from '../models/TableCategories';
 import { NotFoundError, ForbiddenError, ValidationError } from '../../../lib/errors';
 import { globalRuleRegistry } from '../rules/RuleRegistry';
@@ -141,9 +141,9 @@ export class DynamicTableService {
         if (
           field.type === 'relation' &&
           field.relation?.targetTable === deletedTableId &&
-          !(field.relation as any).broken
+          !field.relation?.broken
         ) {
-          (field.relation as any).broken = true;
+          if (field.relation) field.relation.broken = true;
           dirty = true;
         }
       }
@@ -172,7 +172,7 @@ export class DynamicTableService {
           if (!targetId) {
             throw new ValidationError(`Não foi possível resolver a relação do campo '${field.name}' para a tabela '${targetKey}'.`);
           }
-          (field.relation as any).targetTable = targetId as any;
+          if (field.relation) field.relation.targetTable = String(targetId);
         }
       }
     }
@@ -230,7 +230,7 @@ export class DynamicTableService {
     const existingData = await this.repository.findAllDataByTableId(tableId);
     for (const row of existingData) {
       try {
-        this.validateDataAgainstSchema(row.data as any, data.schema as unknown as ITableSchema);
+        this.validateDataAgainstSchema(row.data as Record<string, unknown>, data.schema as unknown as ITableSchema);
       } catch (err) {
         throw new ValidationError('Schema update would invalidate existing data. Aborting update.', { dataId: row.id });
       }
@@ -275,7 +275,7 @@ export class DynamicTableService {
     const excludesTables = new Map<string, string[]>();
 
     for (const key of tableKeys) {
-      const def: any = preset.tables[key];
+      const def: Record<string, unknown> = preset.tables[key];
       const meta = def?.meta || {};
       (meta.providesCapabilities || []).forEach((c: string) => provides.add(c));
       if (Array.isArray(meta.requiresCapabilities) && meta.requiresCapabilities.length > 0) {
@@ -489,7 +489,7 @@ export class DynamicTableService {
     // isSystem is derived from the call context only — never from the client payload.
     // Strip __isSystem from the data before validation to ensure it is never stored.
     const isSystem = !!(options?.isSystem);
-    const sanitizedData = { ...(dataDto.data as any) };
+    const sanitizedData = { ...(dataDto.data as Record<string, unknown>) };
     delete sanitizedData.__isSystem;
     const validatedData = this.validateDataAgainstSchema(sanitizedData, table.schema as unknown as ITableSchema);
     await this.validateAdvancedRules(table, validatedData);
@@ -503,7 +503,7 @@ export class DynamicTableService {
       const txRepo = new TransactionalDynamicTableRepository(tx);
       const record = await txRepo.createData(tableId, validatedData);
       // Include created id in 'after' context so plugins can reference the new entry
-      const afterWithId = { ...validatedData, id: record.id } as any;
+      const afterWithId = { ...validatedData, id: record.id };
       await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'create', before: null, after: afterWithId, repository: txRepo, isSystem }, 'afterCreate');
       return record;
     };
@@ -611,7 +611,7 @@ export class DynamicTableService {
     // isSystem is derived from the call context only — never from the client payload.
     // Strip __isSystem from the data before validation to ensure it is never stored.
     const isSystem = !!(options?.isSystem);
-    const sanitizedDataDto = { ...(dataDto.data as any) };
+    const sanitizedDataDto = { ...(dataDto.data as Record<string, unknown>) };
     delete sanitizedDataDto.__isSystem;
     dataDto = { ...dataDto, data: sanitizedDataDto };
     const schema = table.schema as unknown as ITableSchema;
@@ -698,8 +698,8 @@ export class DynamicTableService {
     // afterWithId is intentionally mutable: plugins that write to ctx.after (e.g. GoalsPlugin,
     // LeadsPlugin computing derived fields) will have their changes persisted because we extract
     // the clean data object from afterWithId (minus id) before calling updateData.
-    const beforeWithId = { ...(existingData.data as any), id: dataId } as any;
-    const afterWithId = { ...mergedData as any, id: dataId } as any;
+    const beforeWithId = { ...(existingData.data as Record<string, unknown>), id: dataId };
+    const afterWithId = { ...(mergedData as Record<string, unknown>), id: dataId };
     await this.runRules({ userId: table.userId, table, schema: table.schema as any, operation: 'update', before: beforeWithId, after: afterWithId, repository: this.repository, isSystem }, 'beforeUpdate');
 
     // Wrap the main write + afterUpdate side-effects in a single transaction so that
@@ -741,7 +741,7 @@ export class DynamicTableService {
       if (relationFields.length === 0) continue;
 
       // Query only rows that actually reference this dataId — no full table scan
-      let referencingRows: any[] = [];
+      let referencingRows: IDynamicTableData[] = [];
       for (const field of relationFields) {
         const rows = await this.repository.findRowsReferencingId(t.id, field.name, dataId);
         for (const row of rows) {
@@ -768,7 +768,7 @@ export class DynamicTableService {
         if (constraint.type === 'RESTRICT_IF_AGGREGATE' && constraint.aggregate) {
           let aggregateValue = 0;
           for (const row of referencingRows) {
-            const val = Number((row.data as any)?.[constraint.aggregate.field]) || 0;
+            const val = Number((row.data as Record<string, unknown>)?.[constraint.aggregate.field]) || 0;
             aggregateValue += val;
           }
           let shouldRestrict = false;
@@ -849,14 +849,14 @@ export class DynamicTableService {
   private async runRules(ctx: RuleContext, phase: 'beforeCreate' | 'afterCreate' | 'beforeUpdate' | 'afterUpdate' | 'beforeDelete' | 'afterDelete') {
     const plugins = globalRuleRegistry.getApplicable(ctx);
     for (const p of plugins) {
-      const fn = (p as any)[phase];
+      const fn = (p as Record<string, (...args: unknown[]) => unknown>)[phase];
       if (typeof fn === 'function') {
         await fn.call(p, ctx);
       }
     }
   }
 
-  private buildZodSchema(tableSchema: ITableSchema): z.ZodObject<any> {
+  private buildZodSchema(tableSchema: ITableSchema): z.ZodObject<z.ZodRawShape> {
     const shape: { [key: string]: z.ZodType<any, any> } = {};
     if (!tableSchema || !Array.isArray(tableSchema.fields)) {
       throw new ValidationError('Invalid table schema definition.');
@@ -1093,7 +1093,7 @@ export class DynamicTableService {
         conditionMet = actualCondValue !== condValue;
       } else if (op === 'in') {
         const arr = Array.isArray(condValue) ? condValue : [condValue];
-        conditionMet = arr.includes(actualCondValue as any);
+        conditionMet = (arr as unknown[]).includes(actualCondValue);
       }
 
       if (conditionMet) {

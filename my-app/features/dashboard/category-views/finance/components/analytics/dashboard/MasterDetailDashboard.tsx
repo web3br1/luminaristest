@@ -18,6 +18,16 @@ import KpiDrillDownDrawer from './KpiDrillDownDrawer';
 import { formatKpiDisplayValue, getTrend } from './kpiUtils';
 import { useFormatCurrency } from '@/lib/context/CurrencyContext';
 
+interface ChartOptions {
+    metricDisplay?: Record<string, string>;
+    metricChartTypes?: Record<string, string>;
+    metricAnalysis?: Record<string, string>;
+    metricFormats?: Record<string, string>;
+    metricDescriptions?: Record<string, string>;
+    metricIdealTargets?: Record<string, number>;
+    metricHigherIsBetter?: Record<string, boolean>;
+}
+
 interface MasterDetailDashboardProps {
     presetKey?: string;
     tables?: unknown[];
@@ -40,7 +50,7 @@ interface FlatKpiItem {
     parentPreset: ChartPreset;
     section: string;
     isTemporal?: boolean;
-    fullRecords?: { records: any[] };
+    fullRecords?: { records: Array<{ value?: number; [key: string]: unknown }> };
     recordIds?: string[];
     tableSource?: string;
 }
@@ -87,13 +97,13 @@ function flattenKpis(presetGroups: AnalyticsPresetGroup[], chartData: Record<str
                         name: metricName,
                         value: item.value,
                         previousValue: item.previousValue,
-                        displayMode: ((opts as any).metricDisplay || {})[metricName] || 'card',
-                        chartType: ((opts as any).metricChartTypes || {})[metricName] || chart.type || 'bar',
-                        analysisKind: ((opts as any).metricAnalysis || {})[metricName] || 'snapshot',
-                        format: ((opts as any).metricFormats || {})[metricName] || 'number',
-                        description: ((opts as any).metricDescriptions || {})[metricName] || '',
-                        idealTarget: ((opts as any).metricIdealTargets || {})[metricName],
-                        higherIsBetter: ((opts as any).metricHigherIsBetter || {})[metricName] ?? true,
+                        displayMode: ((opts as ChartOptions).metricDisplay || {})[metricName] || 'card',
+                        chartType: ((opts as ChartOptions).metricChartTypes || {})[metricName] || chart.type || 'bar',
+                        analysisKind: ((opts as ChartOptions).metricAnalysis || {})[metricName] || 'snapshot',
+                        format: ((opts as ChartOptions).metricFormats || {})[metricName] || 'number',
+                        description: ((opts as ChartOptions).metricDescriptions || {})[metricName] || '',
+                        idealTarget: ((opts as ChartOptions).metricIdealTargets || {})[metricName],
+                        higherIsBetter: ((opts as ChartOptions).metricHigherIsBetter || {})[metricName] ?? true,
                         currency, parentKey: chart.key, parentPreset: chart, section, isTemporal,
                         fullRecords: item.fullRecords, recordIds: item.recordIds, tableSource: item.tableSource,
                     });
@@ -195,14 +205,17 @@ export default function MasterDetailDashboard({ presetKey }: MasterDetailDashboa
                 return <SpeedometerChart value={selectedKpi.value} title={selectedKpi.name} idealTarget={selectedKpi.idealTarget} higherIsBetter={selectedKpi.higherIsBetter} />;
             }
             if (selectedKpi.analysisKind !== 'snapshot' && selectedKpi.fullRecords?.records && selectedKpi.fullRecords.records.length > 0) {
-                const records = selectedKpi.fullRecords.records.map((r: { id: string; data?: { value?: number } }) => ({ name: r.id, value: r.data?.value ?? 0 }));
+                const records = selectedKpi.fullRecords.records.map((r) => {
+                    const rec = r as { id?: string; data?: { value?: number } };
+                    return { name: rec.id ?? '', value: rec.data?.value ?? 0 };
+                });
                 if (selectedKpi.chartType === 'donut' || selectedKpi.chartType === 'pie') {
                     return <PieDonutChart data={records} title={selectedKpi.name} isDonut={selectedKpi.chartType === 'donut'} colors={[...CHART_COLORS.soft] as string[]} currency={selectedKpi.currency} isComposition={true} />;
                 }
                 if (['line', 'area', 'bar'].includes(selectedKpi.chartType)) {
                     return <BarLineAreaChart data={records} title={selectedKpi.name} chartType={selectedKpi.chartType as 'bar' | 'line' | 'area'} colors={[...CHART_COLORS.primary]} currency={selectedKpi.currency} isTemporal={true} />;
                 }
-                return <div className="p-6"><div className="bg-gray-50 dark:bg-neutral-900/50 rounded-xl p-6"><Sparkline data={records.map((d: any) => d.value)} height={120} showTrend={true} /></div></div>;
+                return <div className="p-6"><div className="bg-gray-50 dark:bg-neutral-900/50 rounded-xl p-6"><Sparkline data={records.map((d) => d.value)} height={120} showTrend={true} /></div></div>;
             }
             return null;
         }

@@ -3,6 +3,7 @@ import type { DynamicTable, DynamicTableData } from 'generated/prisma';
 // Base interface for the DynamicTable model, extending the Prisma generated type
 export interface IDynamicTable extends Omit<DynamicTable, 'schema'> {
   schema: ITableSchema;
+  internalName?: string;
   presetKey?: string;
 }
 
@@ -22,6 +23,7 @@ export interface IFieldValidation {
 export interface IFieldRelation {
   targetTable: string;
   allowMultiple?: boolean;
+  broken?: boolean;
 }
 
 export interface IFieldSchema {
@@ -30,7 +32,7 @@ export interface IFieldSchema {
   type: 'string' | 'number' | 'boolean' | 'date' | 'relation';
   required: boolean;
   unique: boolean;
-  defaultValue?: any;
+  defaultValue?: unknown;
   validation?: IFieldValidation;
   relation?: IFieldRelation;
 }
@@ -49,7 +51,7 @@ export interface ISchemaField {
   regex?: string;
   required: boolean;
   unique?: boolean;
-  defaultValue?: any;
+  defaultValue?: unknown;
   hidden?: boolean;
   validation?: {
     minLength?: number;
@@ -218,5 +220,6 @@ export interface ITableSchema {
    */
   ui?: {
     presentation?: 'standalone' | 'embedded' | 'system';
+    [key: string]: unknown;
   };
 }

@@ -28,12 +28,15 @@ export interface IField {
 export interface IFieldModification {
   /** Tipo de modificação a ser aplicada */
   action: 'add' | 'remove' | 'update';
-  
+
   /** Propriedades do campo (utilizado em add/update) */
   field: IField;
-  
+
   /** Nome original do campo (usado em update/remove) */
   originalFieldName?: string;
+
+  /** Descrição do campo, usada para busca de preset (gerada pela IA) */
+  fieldDescription?: string;
 }
 
 /**
@@ -51,7 +54,7 @@ export interface IStructuredAiResponse {
  * Interface para o resultado da customização de campos
  */
 export interface IFieldCustomizationResult {
-  conversationHistory: any[];
+  conversationHistory: Array<{ role: string; content: string }>;
   /** Tabela atualizada com as modificações aplicadas */
   updatedTable: ICustomizableTable;
   

@@ -97,6 +97,7 @@ app.use('*', (req, res) => {
 });
 
 // Error handler
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- express error handler
 app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', error);
   res.status(500).json({

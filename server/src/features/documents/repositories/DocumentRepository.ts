@@ -1,6 +1,8 @@
 import prisma from '../../../lib/prisma';
-import { IDocument, DocumentCreateInput, DocumentUpdateInput } from '../models/Document.model';
+import { IDocument, DocumentCreateInput, DocumentUpdateInput, DocumentStatus, DocumentPurpose } from '../models/Document.model';
 import { IDocumentRepository } from './IDocumentRepository';
+import type { Document as PrismaDocument } from 'generated/prisma';
+import { ProcessingStatus as PrismaProcessingStatus, DocumentPurpose as PrismaDocumentPurpose, Prisma } from 'generated/prisma';
 
 /**
  * Prisma implementation of the Document repository.
@@ -62,9 +64,9 @@ graph LR
     const updated = await prisma.document.update({
       where: { id },
       data: {
-        status: data.status,
+        status: data.status as unknown as PrismaProcessingStatus,
         summary: data.summary,
-        ...(data.contextJson !== undefined && { contextJson: data.contextJson }),
+        ...(data.contextJson !== undefined && { contextJson: data.contextJson as unknown as Prisma.InputJsonValue }),
         processingDate: data.processingDate,
         processingError: data.processingError,
         ...(data.textContent !== undefined && { textContent: data.textContent }),
@@ -117,7 +119,7 @@ graph LR
     });
   }
 
-  private toDomain(prismaDocument: any): IDocument {
+  private toDomain(prismaDocument: PrismaDocument): IDocument {
     return {
       id: prismaDocument.id,
       userId: prismaDocument.userId,
@@ -126,10 +128,10 @@ graph LR
       fileSize: prismaDocument.fileSize,
       textContent: prismaDocument.textContent,
       mimeType: prismaDocument.mimeType,
-      status: prismaDocument.status,
-      documentPurpose: prismaDocument.documentPurpose,
+      status: prismaDocument.status as unknown as DocumentStatus,
+      documentPurpose: prismaDocument.documentPurpose as unknown as DocumentPurpose,
       summary: prismaDocument.summary,
-      contextJson: prismaDocument.contextJson || {},
+      contextJson: (prismaDocument.contextJson ?? null) as Record<string, unknown> | null,
       uploadDate: prismaDocument.uploadDate,
       processingDate: prismaDocument.processingDate,
       processingError: prismaDocument.processingError,

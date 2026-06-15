@@ -8,11 +8,12 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import ptLocale from '@fullcalendar/core/locales/pt-br';
 import { DynamicTableService } from '../../../../../lib/services/dynamic-table.service';
+import type { IDynamicTable, IDynamicTableData } from '@/features/dashboard/components/shared/dynamic-tables.client';
 
 interface MeetingsCalendarProps {
   selectedUnitId: string | null;
-  activitiesTable: any | null;
-  filteredLeads: any[];
+  activitiesTable: IDynamicTable | null;
+  filteredLeads: IDynamicTableData[];
   onOpenLead: (leadId: string) => void;
   onStatsChange?: (loading: boolean, count: number) => void;
 }
@@ -26,28 +27,29 @@ export default function MeetingsCalendar({ selectedUnitId, activitiesTable, filt
       try {
         if (!selectedUnitId || !activitiesTable?.id) { setMeetings([]); onStatsChange?.(false, 0); return; }
         setLoading(true); onStatsChange?.(true, 0);
+        type CalRow = IDynamicTableData & { updatedAt?: string; createdAt?: string };
         const b = await DynamicTableService.getTableData(activitiesTable.id).catch(()=>({}));
-        const rows = Array.isArray(b?.data) ? b.data : [];
+        const rows = (Array.isArray(b?.data) ? b.data : []) as CalRow[];
         const cancelledMap = new Map<string, Set<string>>();
-        rows.filter((row:any)=> String((row.data||{}).type||'')==='meeting_cancelled').forEach((row:any)=>{
+        rows.filter((row)=> String((row.data||{}).type||'')==='meeting_cancelled').forEach((row)=>{
           const d = row.data||{}; const lid = String(d.leadId||'');
-          const when = String((d.payload?.scheduledAt) || d.scheduledAt || row.updatedAt || row.createdAt);
+          const when = String((d.payload as Record<string, unknown>)?.scheduledAt || d.scheduledAt || row.updatedAt || row.createdAt);
           const iso = new Date(when).toISOString();
           if (!cancelledMap.has(lid)) cancelledMap.set(lid, new Set());
           cancelledMap.get(lid)!.add(iso);
         });
-        const unitLeadIds = new Set((filteredLeads||[]).map((l:any)=> String(l.id)));
-        const onlyMeetings = rows.filter((row:any)=> String((row.data||{}).type||'')==='meeting' && unitLeadIds.has(String((row.data||{}).leadId||'')));
-        const byDate = onlyMeetings.map((row:any) => {
+        const unitLeadIds = new Set((filteredLeads||[]).map((l)=> String(l.id)));
+        const onlyMeetings = rows.filter((row)=> String((row.data||{}).type||'')==='meeting' && unitLeadIds.has(String((row.data||{}).leadId||'')));
+        const byDate = onlyMeetings.map((row) => {
           const d = row.data || {};
           const leadId = String(d.leadId||'');
-          const when = String((d.payload?.when) || d.when || row.updatedAt || row.createdAt);
+          const when = String((d.payload as Record<string, unknown>)?.when || d.when || row.updatedAt || row.createdAt);
           const startIso = new Date(when).toISOString();
           const endIso = new Date(new Date(startIso).getTime() + 60*60*1000).toISOString();
-          const lead = (filteredLeads||[]).find((l:any)=> String(l.id)===leadId);
+          const lead = (filteredLeads||[]).find((l)=> String(l.id)===leadId);
           const leadName = String((lead?.data||{}).leadName || 'Lead');
           return { id: String(row.id), leadId, title: `Reunião - ${leadName}`, start: startIso, end: endIso };
-        }).filter((ev:any)=>{
+        }).filter((ev)=>{
           const isFuture = new Date(ev.start).getTime() >= Date.now();
           const cset = cancelledMap.get(String(ev.leadId));
           const cancelled = cset ? cset.has(ev.start) : false;
@@ -57,9 +59,9 @@ export default function MeetingsCalendar({ selectedUnitId, activitiesTable, filt
       } catch { setMeetings([]); onStatsChange?.(false, 0); }
       finally { setLoading(false); }
     })();
-  }, [selectedUnitId, activitiesTable?.id, JSON.stringify(filteredLeads?.map((l:any)=>l.id))]);
+  }, [selectedUnitId, activitiesTable?.id, JSON.stringify(filteredLeads?.map((l)=>l.id))]);
 
-  function renderMeetingEventContent(eventInfo: any) {
+  function renderMeetingEventContent(eventInfo: { event: { title: string }; view: { type: string } }) {
     const viewType = String(eventInfo?.view?.type || '');
     const isTimeGrid = viewType.startsWith('timeGrid');
     if (isTimeGrid) {
@@ -103,9 +105,9 @@ export default function MeetingsCalendar({ selectedUnitId, activitiesTable, filt
           nowIndicator={true}
           navLinks={true}
           dayMaxEventRows={3}
-          moreLinkContent={(arg: any) => `+${Number(arg?.num)||0} mais`}
+          moreLinkContent={(arg: { num?: number }) => `+${Number(arg?.num)||0} mais`}
           eventClick={(info) => {
-            const leadId = String((info.event.extendedProps as any)?.leadId || '');
+            const leadId = String((info.event.extendedProps as { leadId?: string })?.leadId || '');
             if (leadId) { onOpenLead(leadId); }
           }}
           eventContent={renderMeetingEventContent}

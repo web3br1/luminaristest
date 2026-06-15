@@ -5,6 +5,6 @@ import { ITableSchema } from '../models/DynamicTable.model';
  * @param schema - O objeto a ser verificado.
  * @returns `true` se o objeto for um ITableSchema válido, caso contrário `false`.
  */
-export function isTableSchema(schema: any): schema is ITableSchema {
+export function isTableSchema(schema: unknown): schema is ITableSchema {
   return schema !== null && typeof schema === 'object' && Array.isArray((schema as ITableSchema).fields);
 }

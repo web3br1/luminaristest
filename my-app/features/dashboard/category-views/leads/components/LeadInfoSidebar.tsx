@@ -4,7 +4,7 @@ import React from 'react';
 import { renderBantIcon } from './utils';
 
 interface LeadInfoSidebarProps {
-  data: any;
+  data: Record<string, unknown>;
 }
 
 export function ContactItem({ icon, label, value }: { icon: string, label: string, value: string }) {
@@ -52,7 +52,7 @@ export default function LeadInfoSidebar({ data: d }: LeadInfoSidebarProps) {
             <div key={item.key} className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{item.label}</span>
               <div className="scale-90 origin-right">
-                {renderBantIcon(String(d[item.key] || ''), item.type as any)}
+                {renderBantIcon(String(d[item.key] || ''), item.type as 'budget' | 'authority' | 'need' | 'timing')}
               </div>
             </div>
           ))}

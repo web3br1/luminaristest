@@ -14,7 +14,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'next-i18next';
 import Link from 'next/link';
-import type { IDynamicTable } from '../../components/shared/dynamic-tables.client';
+import type { IDynamicTable, ITableSchema } from '../../components/shared/dynamic-tables.client';
 import FloatingActionButton from '../../components/shared/FloatingActionButton';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { MdFolder, MdTableChart } from 'react-icons/md';
@@ -208,7 +208,7 @@ export default function GenericTabbedView({
                         <FloatingActionButton
                             tableId={table.id}
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            tableSchema={schema as any}
+                            tableSchema={schema as ITableSchema}
                             onSuccess={refetch}
                             modalTitle={t('common:new_record', 'New Record')}
                         >

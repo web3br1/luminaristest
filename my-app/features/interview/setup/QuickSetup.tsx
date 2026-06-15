@@ -6,6 +6,8 @@ import { useTranslation } from 'next-i18next';
 import { FiCheck, FiCpu, FiMonitor, FiActivity } from 'react-icons/fi';
 import { apiClient } from '../../../lib/api/api-client';
 
+interface PresetsResponse { [key: string]: unknown }
+
 interface Preset {
   category: string;
   key: string;
@@ -45,11 +47,11 @@ export default function QuickSetup() {
     async function verifyAndLoad() {
       setIsLoading(true);
       try {
-        const body = (await apiClient.get('/dashboard/presets')) as any;
+        const body = (await apiClient.get('/dashboard/presets')) as PresetsResponse;
         setPresets(body.data || []);
 
-      } catch (err: any) {
-        setError(err.message || 'Ocorreu um erro inesperado ao carregar os modelos.');
+      } catch (err) {
+        setError((err instanceof Error ? err.message : String(err)) || 'Ocorreu um erro inesperado ao carregar os modelos.');
       } finally {
         setIsLoading(false);
       }
@@ -68,8 +70,8 @@ export default function QuickSetup() {
 
       router.push('/dashboard');
 
-    } catch (err: any) {
-      setError(err.message || 'Ocorreu um erro inesperado ao criar a dashboard.');
+    } catch (err) {
+      setError((err instanceof Error ? err.message : String(err)) || 'Ocorreu um erro inesperado ao criar a dashboard.');
     } finally {
       setIsCreating(false);
     }

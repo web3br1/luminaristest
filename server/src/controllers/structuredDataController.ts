@@ -17,7 +17,7 @@ export async function getStructuredDataByDocument(req: Request, res: Response) {
     if (!documentId) return res.status(400).json({ success: false, error: 'Document ID is required' });
 
     const service = getFactory().getStructuredDataService();
-    const structuredData = await service.getByDocumentId(ctx as any, documentId);
+    const structuredData = await service.getByDocumentId(ctx, documentId);
     return res.status(200).json({ success: true, data: structuredData });
   } catch (error) {
     return handleApiError(error, res);

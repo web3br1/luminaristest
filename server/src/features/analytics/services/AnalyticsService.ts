@@ -17,6 +17,7 @@ import { getFactory } from '@/lib/factory';
 import { logger } from '@/lib/logger';
 import type { IDynamicTable, ITableSchema } from '../../dynamicTables/models/DynamicTable.model';
 import type { PresetTableDefinition, PresetSuite } from '../../dynamicTables/presets';
+import type { UserContext } from '@/types/UserContext';
 
 /**
  * Extended preset suite type that includes key and analytics properties.
@@ -49,14 +50,6 @@ interface AnalyticsDefinitionRow {
   data?: AnalyticsDefinitionData;
 }
 
-/**
- * User context for service calls.
- */
-interface UserContext {
-  id: string;
-  userId: string;
-}
-
 class AnalyticsService {
   /**
    * Async: merges system-level, table-level, and CORE (DB) analytics.
@@ -80,7 +73,7 @@ class AnalyticsService {
     const userTableSchemas = new Map<string, ITableSchema>();
 
     for (const t of allTables) {
-      const internalName = (t as any).internalName || (t as any).presetKey || t.name;
+      const internalName = t.internalName || t.presetKey || t.name;
       if (internalName) {
         userTableMap.set(internalName, t.id);
         userTableSchemas.set(internalName, t.schema as ITableSchema);
@@ -92,7 +85,7 @@ class AnalyticsService {
 
     // Load CORE definitions (analyticsDefinitions) if present
     const coreTable = allTables.find(
-      (t: IDynamicTable) => (t as any).internalName === 'analyticsDefinitions' || t.name === 'Analytics Definitions'
+      (t: IDynamicTable) => t.internalName === 'analyticsDefinitions' || t.name === 'Analytics Definitions'
     );
 
     if (!coreTable) {
@@ -102,8 +95,8 @@ class AnalyticsService {
 
     // Create minimal user context for getTableData call
     // Note: getTableData requires full UserContext but we only have userId
-    // Using type assertion as this is an internal service call
-    const userContext = { id: userId, userId } as any;
+    // Using a partial cast as this is an internal service call with only userId available
+    const userContext = { id: userId, userId } as UserContext;
     const defs = await dtService.getAllTableData(userContext, coreTable.id);
 
     // Convert CORE definitions (pipeline) to ChartPreset
@@ -418,7 +411,7 @@ class AnalyticsService {
   ): Promise<AnalyticsPresetGroup[]> {
     const dtService = getFactory().getDynamicTableService();
     // getTableById and getTableData require a context that has at least the user ID
-    const userContext = { id: userId, userId } as any;
+    const userContext = { id: userId, userId } as UserContext;
 
     try {
       const table = await dtService.getTableById(userContext, tableId);

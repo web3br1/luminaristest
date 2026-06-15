@@ -26,7 +26,7 @@ class ApiClient {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'x-user-timezone': timezone,
-      ...((customHeaders as any) || {}),
+      ...(customHeaders || {}),
     };
 
     if (token) {
@@ -49,7 +49,7 @@ class ApiClient {
       });
 
       const bodyText = await response.text();
-      let result: any;
+      let result: unknown;
 
       try {
         result = bodyText ? JSON.parse(bodyText) : {};
@@ -81,7 +81,7 @@ class ApiClient {
     return this.request<T>(path, { ...options, method: 'GET' });
   }
 
-  public post<T>(path: string, body: any, options?: RequestInit): Promise<T> {
+  public post<T>(path: string, body: Record<string, unknown>, options?: RequestInit): Promise<T> {
     return this.request<T>(path, {
       ...options,
       method: 'POST',
@@ -89,7 +89,7 @@ class ApiClient {
     });
   }
 
-  public put<T>(path: string, body: any, options?: RequestInit): Promise<T> {
+  public put<T>(path: string, body: Record<string, unknown>, options?: RequestInit): Promise<T> {
     return this.request<T>(path, {
       ...options,
       method: 'PUT',
@@ -101,7 +101,7 @@ class ApiClient {
     return this.request<T>(path, { ...options, method: 'DELETE' });
   }
 
-  public patch<T>(path: string, body: any, options?: RequestInit): Promise<T> {
+  public patch<T>(path: string, body: Record<string, unknown>, options?: RequestInit): Promise<T> {
     return this.request<T>(path, {
       ...options,
       method: 'PATCH',

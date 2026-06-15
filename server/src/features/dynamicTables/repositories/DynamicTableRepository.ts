@@ -1,6 +1,6 @@
 import prisma from '../../../lib/prisma';
 import type { DynamicTable, DynamicTableData } from 'generated/prisma';
-import { IDynamicTable, IDynamicTableData, ITableSchema } from '../models/DynamicTable.model';
+import { IDynamicTable, IDynamicTableData, ITableSchema, ISchemaField } from '../models/DynamicTable.model';
 import { CreateDynamicTableDtoType, UpdateDynamicTableDtoType, UpdateDynamicTableSchemaDtoType } from '../dtos/DynamicTable.dto';
 import { Prisma } from 'generated/prisma';
 import { IDynamicTableRepository } from './IDynamicTableRepository';
@@ -130,7 +130,7 @@ export class DynamicTableRepository implements IDynamicTableRepository {
     let lastCursorId: string | undefined = undefined;
 
     while (true) {
-      const batch: any[] = await prisma.dynamicTableData.findMany({
+      const batch: IDynamicTableData[] = await prisma.dynamicTableData.findMany({
         where: { dynamicTableId: tableId, deletedAt: null },
         take: batchSize,
         skip: lastCursorId ? 1 : 0,
@@ -204,7 +204,7 @@ export class DynamicTableRepository implements IDynamicTableRepository {
     return this.toDomainTable(updatedTable);
   }
 
-  async countByFieldValue(tableId: string, fieldName: string, value: any, excludeId?: string): Promise<number> {
+  async countByFieldValue(tableId: string, fieldName: string, value: unknown, excludeId?: string): Promise<number> {
     // O caminho do campo JSON é construído dinamicamente, mas `fieldName` é validado
     // contra nosso schema, então é seguro.
     const jsonFieldPath = `$.${fieldName}`;
@@ -308,8 +308,8 @@ export class DynamicTableRepository implements IDynamicTableRepository {
     const result: IDynamicTable[] = [];
     for (const row of rows) {
       const table = this.toDomainTable(row);
-      const fields = (table.schema?.fields || []) as any[];
-      const hasReference = fields.some((f: any) => f?.type === 'relation' && f?.relation?.targetTable === targetTableId);
+      const fields = (table.schema?.fields || []) as ISchemaField[];
+      const hasReference = fields.some((f: ISchemaField) => f?.type === 'relation' && f?.relation?.targetTable === targetTableId);
       if (hasReference) {
         result.push(table);
       }

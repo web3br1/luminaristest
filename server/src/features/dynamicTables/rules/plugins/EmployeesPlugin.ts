@@ -11,7 +11,7 @@ import { ValidationError } from '../../../../lib/errors';
 import { tableMatches } from '../shared/tableFinder';
 
 /** Returns true when the schedule contains at least one day with start and end. */
-function hasAtLeastOneWorkDay(schedule: any): boolean {
+function hasAtLeastOneWorkDay(schedule: unknown): boolean {
   if (!schedule || typeof schedule !== 'object') return false;
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   for (const d of days) {
@@ -28,7 +28,7 @@ function hasAtLeastOneWorkDay(schedule: any): boolean {
  * Core employee validation combining unit assignment vs. schedule availability,
  * mandatory e-mail, and per-day schedule consistency checks.
  */
-async function validateEmployee(ctx: RuleContext, after: any) {
+async function validateEmployee(ctx: RuleContext, after: Record<string, unknown>) {
   const unitId = String(after?.unitId || '').trim();
   const schedule = after?.workSchedule;
   const ok = Boolean(unitId) || hasAtLeastOneWorkDay(schedule);

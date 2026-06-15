@@ -13,7 +13,7 @@ import { UserService } from '../../lib/services/user.service';
 import { resolveErrorMessage } from '../../lib/utils/error-handler';
 
 // MODIFIED: getServerSideProps refactored
-export async function getServerSideProps(context: GetServerSidePropsContext): Promise<GetServerSidePropsResult<Record<string, any>>> {
+export async function getServerSideProps(context: GetServerSidePropsContext): Promise<GetServerSidePropsResult<Record<string, unknown>>> {
   const { locale } = context;
   return {
     props: {

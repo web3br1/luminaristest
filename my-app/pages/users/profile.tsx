@@ -45,7 +45,7 @@ type UserProfileUpdatePayload = Partial<Omit<UpdateUserDto, 'role'> & { username
 interface ApiErrorResponse {
   message: string;
   code?: string;
-  details?: any[];
+  details?: Array<{ field?: string; message?: string }>;
 }
 
 // Mock subscription data
@@ -259,8 +259,8 @@ function UserProfilePage(props: InferGetServerSidePropsType<typeof getServerSide
     );
   }
 
-  const memberSince = (actor as any).createdAt
-    ? new Date((actor as any).createdAt).toLocaleDateString(router.locale, { year: 'numeric', month: 'long', day: 'numeric' })
+  const memberSince = (actor as IUser & { createdAt?: string }).createdAt
+    ? new Date((actor as IUser & { createdAt?: string }).createdAt!).toLocaleDateString(router.locale, { year: 'numeric', month: 'long', day: 'numeric' })
     : '—';
 
   const planStyle = PLAN_COLORS[currentPlan] || PLAN_COLORS.free;

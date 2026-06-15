@@ -54,7 +54,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   }
 
   try {
-    const payload = verifyToken(token) as any;
+    const payload = verifyToken(token);
 
     // Inject user context headers for downstream handlers
     req.headers['x-user-id'] = String(payload.id || payload.userId || '');
@@ -89,8 +89,8 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     }
 
     next();
-  } catch (err: any) {
-    console.error(`[authMiddleware] 401: Invalid or expired token for ${method} ${pathname}. Error: ${err.message}`);
+  } catch (err: unknown) {
+    console.error(`[authMiddleware] 401: Invalid or expired token for ${method} ${pathname}. Error: ${err instanceof Error ? err.message : String(err)}`);
     res.status(401).json({ code: 'UNAUTHORIZED', message: 'Invalid or expired token' });
   }
 }

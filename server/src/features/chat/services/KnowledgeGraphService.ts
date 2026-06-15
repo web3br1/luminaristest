@@ -1,6 +1,7 @@
 import { ActionProposalRepository } from '../repositories/ActionProposalRepository';
 import { IKnowledgeGraphRepository } from '../repositories/IKnowledgeGraphRepository';
 import { IDynamicTableRepository } from '../../dynamicTables/repositories/IDynamicTableRepository';
+import { ITableSchema, ISchemaField } from '../../dynamicTables/models/DynamicTable.model';
 import { AppError } from '../../../lib/errors';
 import logger from '../../../lib/logger';
 
@@ -49,7 +50,7 @@ export class KnowledgeGraphService {
                     name: t.name,
                     label: t.name,
                     category: t.category,
-                    fields: (t.schema as any).fields.map((f: any) => ({
+                    fields: (t.schema as ITableSchema).fields.map((f: ISchemaField) => ({
                         name: f.name,
                         label: f.label,
                         type: f.type,
@@ -66,7 +67,7 @@ export class KnowledgeGraphService {
 
             // Extract relations
             for (const table of tables) {
-                for (const field of (table.schema as any).fields) {
+                for (const field of (table.schema as ITableSchema).fields) {
                     if (field.type === 'relation' && field.relation) {
                         graphData.relations.push({
                             sourceTable: table.id,
@@ -82,7 +83,7 @@ export class KnowledgeGraphService {
             await this.repository.upsert(userId, graphData);
 
             return graphData;
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error(`Failed to sync Knowledge Graph for user ${userId}`, error);
             throw new AppError('Failed to synchronize knowledge graph', 500, 'KNOWLEDGE_GRAPH_SYNC_ERROR');
         }
@@ -101,7 +102,7 @@ export class KnowledgeGraphService {
 
             // If not found, sync it for the first time
             return this.syncGraph(userId);
-        } catch (error: any) {
+        } catch (error: unknown) {
             if (error instanceof AppError) throw error;
             logger.error(`Failed to retrieve Knowledge Graph for user ${userId}`, error);
             throw new AppError('Failed to retrieve knowledge graph', 500, 'KNOWLEDGE_GRAPH_FETCH_ERROR');
