@@ -234,6 +234,22 @@ cd server && npx jest --testPathPattern="<ResourceName>" --passWithNoTests
 cd server && npx tsc --noEmit
 ```
 
+## Frontend test suite (Vitest + Testing Library)
+
+O `my-app` **tem runner** (Vitest + Testing Library, React 19, jsdom) — config em `my-app/vitest.config.ts` (alias `@`→raiz, `globals`, setup com `@testing-library/jest-dom`), rodar com `npm test` (`vitest run`). Gere testes frontend para hooks, componentes presentational e libs puras.
+
+- **Hooks** (`useX`): `renderHook` + `waitFor` de `@testing-library/react`; mocke o módulo de service que o hook importa. Cubra happy-path + erro/vazio + mudança de input que re-dispara fetch.
+- **Componentes presentational**: `render` + `screen.getByText/role`; asserte conteúdo e variações de prop (tone/variante/fallback de status desconhecido).
+- **Libs puras** (ex.: paginação `fetchAllRows`): mocke a dependência de service e teste a lógica (acumular páginas, guard de limite, degradação para `[]`).
+
+Gotchas (aprendidos no CRM):
+- **`import React from 'react'`** no topo dos testes `.tsx` — o transform de teste usa JSX runtime clássico (sem isso, `React is not defined`).
+- **`vi.mock` com FÁBRICA que retorna objeto FRESCO por chamada** (`mockImplementation(() => Promise.resolve(freshObj()))`); `mockResolvedValue(sharedObj)` compartilha a MESMA referência entre chamadas e pode causar bugs (ex.: spread auto-referencial → stack overflow).
+- **Caminho do `vi.mock` é resolvido relativo ao arquivo de teste** (mesmo módulo que o SUT importa, recontado a partir de `__tests__/`).
+- **`vi.clearAllMocks()` em `beforeEach`**.
+
+Required check (frontend): `cd my-app && npx vitest run`. Arquivos: `my-app/**/__tests__/*.test.ts(x)`.
+
 ## Anti-patterns
 
 - **Não use `jest.mock()` em KPI processors** — eles são funções puras que recebem rows; chamar diretamente com dados mock é mais fiel ao runtime
