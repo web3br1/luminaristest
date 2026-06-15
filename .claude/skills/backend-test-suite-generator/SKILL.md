@@ -247,6 +247,7 @@ Gotchas (aprendidos no CRM):
 - **`vi.mock` com FÁBRICA que retorna objeto FRESCO por chamada** (`mockImplementation(() => Promise.resolve(freshObj()))`); `mockResolvedValue(sharedObj)` compartilha a MESMA referência entre chamadas e pode causar bugs (ex.: spread auto-referencial → stack overflow).
 - **Caminho do `vi.mock` é resolvido relativo ao arquivo de teste** (mesmo módulo que o SUT importa, recontado a partir de `__tests__/`).
 - **`vi.clearAllMocks()` em `beforeEach`**.
+- **⚠️ Adicionar o runner pode QUEBRAR `next build`/`tsc` do app** (bug silencioso — `vitest run` fica verde, mas o typecheck de produção não): o `tsconfig` do app puxa `vitest.config.ts` (não resolve `@vitejs/plugin-react` sob `moduleResolution:node`) e os arquivos de teste (matchers `toBeInTheDocument`/`toHaveClass` do jest-dom desconhecidos no escopo do app). **Sempre rode `npx tsc --noEmit` (app) após adicionar o runner.** Fix: no `tsconfig.json` do app, `exclude` os arquivos de teste + `vitest.config.ts`/`vitest.setup.ts` (typecheck de produção só); crie `tsconfig.vitest.json` (`extends` + `moduleResolution:bundler` + `types:["vitest/globals","node"]`, `include` tests + setup) e um script `test:types`. Cast `react() as any` no plugin resolve o clash de versão de Plugin vite↔vitest.
 
 Required check (frontend): `cd my-app && npx vitest run`. Arquivos: `my-app/**/__tests__/*.test.ts(x)`.
 
