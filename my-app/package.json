@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:types": "tsc -p tsconfig.vitest.json --noEmit"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
