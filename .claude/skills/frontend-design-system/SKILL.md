@@ -116,7 +116,7 @@ my-app/features/<module>/components/ui/*.tsx    ← NEW (kit on-brand do módulo
 ```bash
 cd my-app && npx tsc --noEmit
 ```
-Verificação visual: subir o preview, navegar a tela e **comparar lado a lado** com uma tela existente (ex: leads legado). Tirar screenshot.
+Verificação visual: subir o preview e navegar a tela. **Use um build de produção** (`cd my-app && npx next build && npx next start`) — o `next dev` tem hidratação não-determinística e pode travar telas atrás de `withAuth` no gate "Authenticating…" (ver `frontend-page-generator`). Confirme as superfícies por **estilos computados** com `preview_inspect`, não por screenshot: superfície dark on-brand = `backgroundColor: rgb(23,23,23)` (neutral-900), borda `rgb(38,38,38)` (neutral-800), card `borderRadius: 16px` (rounded-2xl). `zinc-900` renderiza `rgb(24,24,27)` — se aparecer esse valor, é off-brand.
 
 ## Anti-patterns
 

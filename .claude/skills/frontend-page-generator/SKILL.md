@@ -70,11 +70,13 @@ cd my-app && npx next lint
 Páginas atrás de `withAuth` mostram um gate "Authenticating…" até o `AuthContext` resolver no cliente. Se a tela **fica presa nesse gate** ao verificar:
 
 1. **`tsc` verde + build/SSR 200 não garantem render** — o que renderiza é a **hidratação** do cliente. Cheque o console do browser.
-2. **Crash do dev-overlay do Next 15.x** (`handleStaticIndicator` em msg `isrManifest` do HMR) aborta o bootstrap antes da hidratação. Fix: `devIndicators: false` no `next.config.js` (já aplicado neste projeto — não remova).
+2. **Crash do dev-overlay do Next 15.x** (`handleStaticIndicator` em msg `isrManifest` do HMR) aborta o bootstrap antes da hidratação. `devIndicators: false` no `next.config.js` **mitiga, mas NÃO resolve** — a hidratação do `next dev` continua não-determinística (já observado: a tela trava "Authenticating…" em TODAS as rotas, inclusive `/`, com `reactMounted:false` e ZERO erro no console — os `useEffect` nunca disparam).
 3. **Bundle de dev pesado** (`_app` puxa FullCalendar/recharts/dnd-kit/grid-layout) pode travar o renderer headless. Mantenha libs pesadas em `dynamic(ssr:false)` no caminho da página, fora do `_app`.
-4. **Prova visual garantida quando a hidratação está instável:** sirva um HTML estático em `my-app/public/<x>-mockup.html` usando as MESMAS classes do componente (sem React/auth) e tire o screenshot — depois remova o arquivo. Técnica usada para validar o reskin do CRM.
+4. **✅ CORREÇÃO definitiva — verifique contra um BUILD DE PRODUÇÃO, não o dev:** `cd my-app && npx next build && npx next start`. A produção (sem HMR/dev-overlay) **hidrata de forma limpa e confiável** onde o `next dev` falha — comprovado: a mesma tela que travava no dev renderizou 192 atividades / 36 reuniões reais, com `pageCalledAuthMe:true` e locale-sync (`/pt/...`) funcionando. Prefira prod para qualquer prova visual de tela atrás de `withAuth`.
+5. **Auth no headless (prod ou dev):** as páginas leem o cookie **não-httpOnly** `auth_token`. Minte um JWT com o `JWT_SECRET` do `server/.env` para o usuário da seed (`testuser@luminaris.test`) — payload `{ id, username, role }`, HS256 — e faça `document.cookie='auth_token=<jwt>; path=/'` antes de navegar. Dispensa senha/login UI.
+6. **Verifique por `preview_inspect`/`preview_snapshot`, NÃO por `preview_screenshot`:** estilos computados (`backgroundColor: rgb(23,23,23)` = neutral-900; `borderRadius: 16px` = rounded-2xl) e a árvore de acessibilidade são **prova mais precisa** de cor/raio/conteúdo do que um bitmap — e a captura bitmap pode estourar timeout no headless. Use o screenshot só como complemento.
 
-> Hierarquia de verificação: `tsc < build/SSR (200) < hidratação < interatividade`. Cada nível esconde defeitos do anterior.
+> Hierarquia de verificação: `tsc < build/SSR (200) < hidratação (use PROD) < interatividade`. Cada nível esconde defeitos do anterior. Para hidratação confiável, `next build && next start` — nunca conclua "trava" só com base no `next dev`.
 
 ## Anti-patterns
 
