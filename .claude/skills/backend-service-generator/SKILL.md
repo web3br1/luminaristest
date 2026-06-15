@@ -58,6 +58,7 @@ Variante legítima de Service que **NÃO segue o checklist CRUD padrão**. Não 
 - Ainda é **agnóstico a HTTP** (recebe `actor: IUser | null`, nunca `req`/`res`).
 - Ainda usa **`NotFoundError`** quando a tabela/preset não está instalado (ex.: `findTableByInternalName` retorna `null`).
 - Escreve via `dynamicTableService.createTableData(user, tableId, { data })` / `updateTableData(user, dataId, { data })`. **Atenção:** `updateTableData`/`deleteTableData` recebem o **`dataId` do registro** (resolvem a tabela internamente), enquanto `createTableData`/`getTableData` recebem o **`tableId`**.
+- **Atomicidade em escritas múltiplas:** operações que fazem **mais de uma escrita** (ex.: `create` numa tabela + `update` em outra) **DEVEM ser atômicas**. Preferencialmente use um **boundary transacional do `DynamicTableService`** (se existir); na ausência dele, faça **compensação app-level**: se um passo posterior falhar, **desfaça/delete o que já foi criado** (ex.: `deleteTableData` do registro recém-criado) antes de **re-lançar** o erro. **Nunca** deixe escrita parcial silenciosa — o estado final deve ser "tudo aplicado" ou "nada aplicado".
 - Registra no factory normalmente (mas sem repo/policy próprios).
 
 Referência: `server/src/features/crm/services/CrmPipelineService.ts`, `CrmAnalyticsService.ts`.

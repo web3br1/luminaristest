@@ -49,6 +49,7 @@ my-app/public/locales/en/common.json
 7. Head: `<Head><title>X | Luminaris</title></Head>`
 8. Se namespace i18n novo: criar `my-app/public/locales/en/<resource>.json` e `pt/<resource>.json`
 9. **Estilização: aplicar a skill `frontend-design-system`** (tokens `neutral`/`lumi-*`, gradient header, font-black) — não deixe a página com Tailwind genérico
+10. **Dados derivados memoizados:** todo dado DERIVADO no corpo do render (`filter`/`sort`/`group`/`find`/`reduce` sobre listas, lookups repetidos, agregações) DEVE ser envolvido em `useMemo(() => ..., [deps])` com as dependências corretas. Sem isso, recalcula a cada render — inclusive em updates de context não relacionados — com custo O(n) ou O(n log n). Vale tanto para páginas quanto para hooks de dados.
 
 ## Files usually created or changed
 
@@ -84,3 +85,4 @@ Páginas atrás de `withAuth` mostram um gate "Authenticating…" até o `AuthCo
 - Não acesse `localStorage` ou `document` no SSR — guard com `typeof window !== 'undefined'`
 - Não esqueça `serverSideTranslations` — sem isso i18n quebra em produção
 - Não importe componentes pesados diretamente — use `dynamic()` com `ssr: false`
+- Não calcule dados derivados (`filter`/`sort`/`group`/`find`/`reduce`/lookups) direto no render sem `useMemo([deps])` — recalcula a cada render (inclusive em context updates) com custo O(n)/O(n log n); memoize em páginas e em hooks de dados

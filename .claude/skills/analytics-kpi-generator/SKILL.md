@@ -55,6 +55,8 @@ server/src/features/analytics/kpis/index.ts
 9. Retornar: `ChartDataPoint[]` com `{ name, value, previousValue?, recordIds, tableSource, fullRecords? }`
 10. `tableSource`: `(table as any).presetKey || params.tableId || '<category>'`
 11. `referenceDate`: `const now = params.referenceDate ? new Date(params.referenceDate) : new Date()`
+12. Clampar inputs com domínio conhecido antes de qualquer aritmética — ex.: percentuais via `Math.min(100, Math.max(0, value))`. Não confie só na validação upstream: dados legados/corrompidos passam pelo processor. É house-style (`cost`/`revenue` já clampam).
+13. Em cross-fetch (`fetchByPresetTableKey`), NÃO engula erro com `.catch(() => null)` silencioso — logue com `logger.warn` (incluindo a presetTableKey e o erro) antes de degradar para vazio.
 
 ### Template
 
@@ -101,3 +103,5 @@ cd server && npx jest features/analytics/kpis/<category> --passWithNoTests
 - Não ignore valores nulos/NaN — sempre validar com `Number.isFinite()` antes de acumular
 - Não esqueça períodos: current window + previous window para cálculo de `previousValue`
 - Não hardcode nomes de campos — sempre via `params.<field> || 'defaultFieldName'`
+- Não confie só na validação upstream para inputs com domínio conhecido — clampe antes da aritmética (ex.: percentuais para `[0, 100]` via `Math.min`/`Math.max`), pois dados legados/corrompidos passam pelo processor (cost/revenue já clampam)
+- Não engula erro de cross-fetch (`fetchByPresetTableKey`) com `.catch(() => null)` silencioso — logue com `logger.warn` antes de degradar para vazio
