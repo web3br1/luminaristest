@@ -38,21 +38,10 @@ export class CrmPipelineService {
     // Fail fast if the CRM module is not installed for this user.
     await this.resolveTableId(user, 'leads');
 
-    // TODO(Tier 2): substituir compensação por boundary transacional em DynamicTableService.
-    let createdProposalId: string | null = null;
-    if ((input.stageType || '').toLowerCase() === 'proposal' && input.amount != null) {
-      const proposalsTableId = await this.resolveTableId(user, 'leadProposals');
-      const proposal = await this.dynamicTableService.createTableData(user, proposalsTableId, {
-        data: {
-          leadId: input.leadId,
-          amount: input.amount,
-          currency: input.currency || 'BRL',
-          winProbability: input.winProbability ?? undefined,
-          status: 'Sent',
-        },
-      });
-      createdProposalId = proposal.id;
-    }
+    const proposalsTableId =
+      (input.stageType || '').toLowerCase() === 'proposal' && input.amount != null
+        ? await this.resolveTableId(user, 'leadProposals')
+        : null;
 
     const leadPatch: Record<string, unknown> = { stageId: input.stageId };
     if (input.meetingAt) leadPatch.nextActionAt = input.meetingAt;
@@ -62,21 +51,23 @@ export class CrmPipelineService {
       if (input.winProbability != null) leadPatch.latestProposalWinProbability = input.winProbability;
     }
 
-    // updateTableData resolves the parent table from the record id internally.
-    let updated;
-    try {
-      updated = await this.dynamicTableService.updateTableData(user, input.leadId, { data: leadPatch });
-    } catch (err) {
-      // Compensação app-level: remove a proposta órfã se o update do lead falhar.
-      if (createdProposalId) {
-        try {
-          await this.dynamicTableService.deleteTableData(user, createdProposalId);
-        } catch (cleanupErr) {
-          logger.warn('CRM advanceStage: falha ao compensar proposta órfã', { proposalId: createdProposalId, error: cleanupErr });
-        }
+    // Atomic: proposal create + lead update commit together or roll back together.
+    const updated = await this.dynamicTableService.runInTransaction(async (tx) => {
+      if (proposalsTableId) {
+        await this.dynamicTableService.createTableData(user, proposalsTableId, {
+          data: {
+            leadId: input.leadId,
+            amount: input.amount,
+            currency: input.currency || 'BRL',
+            winProbability: input.winProbability ?? undefined,
+            status: 'Sent',
+          },
+        }, { tx });
       }
-      throw err;
-    }
+      // updateTableData resolves the parent table from the record id internally.
+      return this.dynamicTableService.updateTableData(user, input.leadId, { data: leadPatch }, { tx });
+    });
+
     logger.info('CRM lead advanced stage', { leadId: input.leadId, stageId: input.stageId });
     return updated;
   }
@@ -84,19 +75,19 @@ export class CrmPipelineService {
   /** Create a standalone proposal and refresh the lead's latest-proposal snapshot. */
   async createProposal(user: UserContext, input: CreateProposalInput) {
     const proposalsTableId = await this.resolveTableId(user, 'leadProposals');
-    const proposal = await this.dynamicTableService.createTableData(user, proposalsTableId, {
-      data: {
-        leadId: input.leadId,
-        amount: input.amount,
-        currency: input.currency,
-        winProbability: input.winProbability ?? undefined,
-        estimatedCloseDate: input.estimatedCloseDate ?? undefined,
-        status: 'Draft',
-      },
-    });
 
-    // TODO(Tier 2): substituir compensação por boundary transacional em DynamicTableService.
-    try {
+    // Atomic: proposal create + lead snapshot update commit/rollback together.
+    return this.dynamicTableService.runInTransaction(async (tx) => {
+      const proposal = await this.dynamicTableService.createTableData(user, proposalsTableId, {
+        data: {
+          leadId: input.leadId,
+          amount: input.amount,
+          currency: input.currency,
+          winProbability: input.winProbability ?? undefined,
+          estimatedCloseDate: input.estimatedCloseDate ?? undefined,
+          status: 'Draft',
+        },
+      }, { tx });
       await this.dynamicTableService.updateTableData(user, input.leadId, {
         data: {
           latestProposalAmount: input.amount,
@@ -104,25 +95,17 @@ export class CrmPipelineService {
           latestProposalWinProbability: input.winProbability ?? undefined,
           latestProposalEtaClose: input.estimatedCloseDate ?? undefined,
         },
-      });
-    } catch (err) {
-      // Compensação app-level: remove a proposta recém-criada se o update do lead falhar.
-      try {
-        await this.dynamicTableService.deleteTableData(user, proposal.id);
-      } catch (cleanupErr) {
-        logger.warn('CRM createProposal: falha ao compensar proposta órfã', { proposalId: proposal.id, error: cleanupErr });
-      }
-      throw err;
-    }
-    return proposal;
+      }, { tx });
+      return proposal;
+    });
   }
 
   /** Record a no-show: log an activity and either reschedule or revert the lead's stage. */
   async recordNoShow(user: UserContext, input: RecordNoShowInput) {
     const activitiesTableId = await this.resolveTableId(user, 'leadActivities');
 
-    // TODO(Tier 2): substituir compensação por boundary transacional em DynamicTableService.
-    try {
+    // Atomic: activity log + optional lead stage/schedule update commit/rollback together.
+    await this.dynamicTableService.runInTransaction(async (tx) => {
       await this.dynamicTableService.createTableData(user, activitiesTableId, {
         data: {
           leadId: input.leadId,
@@ -130,21 +113,14 @@ export class CrmPipelineService {
           message: input.option === 'reschedule' ? 'No-show — meeting rescheduled' : 'No-show — stage reverted',
           payload: { when: input.rescheduleAt ?? undefined },
         },
-      });
+      }, { tx });
 
       if (input.option === 'reschedule' && input.rescheduleAt) {
-        await this.dynamicTableService.updateTableData(user, input.leadId, {
-          data: { nextActionAt: input.rescheduleAt },
-        });
+        await this.dynamicTableService.updateTableData(user, input.leadId, { data: { nextActionAt: input.rescheduleAt } }, { tx });
       } else if (input.option === 'revert' && input.previousStageId) {
-        await this.dynamicTableService.updateTableData(user, input.leadId, {
-          data: { stageId: input.previousStageId },
-        });
+        await this.dynamicTableService.updateTableData(user, input.leadId, { data: { stageId: input.previousStageId } }, { tx });
       }
-    } catch (err) {
-      logger.warn('CRM recordNoShow: falha ao registrar no-show', { leadId: input.leadId, option: input.option, error: err });
-      throw err;
-    }
+    });
 
     return { ok: true };
   }
