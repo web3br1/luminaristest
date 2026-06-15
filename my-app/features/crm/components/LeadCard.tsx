@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CrmRecord } from '../hooks/useCrmData';
 import { ScoreGauge } from './ui/ScoreGauge';
+import { DEFAULT_CURRENCY } from '../lib/constants';
 
 interface LeadCardProps {
   lead: CrmRecord;
@@ -25,7 +26,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
           ) : null}
           {d.latestProposalAmount != null ? (
             <p className="mt-2 text-xs font-bold text-gray-600 dark:text-gray-300">
-              {String(d.latestProposalCurrency ?? 'BRL')} {Number(d.latestProposalAmount).toLocaleString('pt-BR')}
+              {String(d.latestProposalCurrency ?? DEFAULT_CURRENCY)} {Number(d.latestProposalAmount).toLocaleString('pt-BR')}
             </p>
           ) : null}
         </div>

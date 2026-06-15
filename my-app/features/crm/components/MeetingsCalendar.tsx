@@ -7,6 +7,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import ptLocale from '@fullcalendar/core/locales/pt-br';
 import { useCrmTable } from '../hooks/useCrmTable';
+import { MEETING_DURATION_MS } from '../lib/constants';
 
 interface CalendarEvent {
   id: string;
@@ -43,7 +44,7 @@ export function MeetingsCalendar() {
         const leadId = String(a.data?.leadId ?? '');
         const when = a.data?.payload?.when ?? a.data?.when ?? a.updatedAt ?? a.createdAt;
         const startIso = new Date(String(when)).toISOString();
-        const endIso = new Date(new Date(startIso).getTime() + 60 * 60 * 1000).toISOString();
+        const endIso = new Date(new Date(startIso).getTime() + MEETING_DURATION_MS).toISOString();
         return { id: a.id, leadId, title: `Reunião - ${nameById.get(leadId) ?? 'Lead'}`, start: startIso, end: endIso };
       })
       .filter((ev) => {

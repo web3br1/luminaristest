@@ -17,8 +17,8 @@ export function useCrmAnalytics() {
     try {
       const res = await CrmService.getAnalytics(preset);
       setData(res?.data ?? EMPTY);
-    } catch (e: any) {
-      setError(e?.message || 'Falha ao carregar analytics do CRM');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha ao carregar analytics do CRM');
       setData(EMPTY);
     } finally {
       setLoading(false);

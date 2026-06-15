@@ -1,5 +1,6 @@
 import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
 import { logger } from '../../../../lib/logger';
+import { UNORDERED_STAGE_SENTINEL } from '../../../crm/constants';
 
 /**
  * CRM conversion funnel — number of leads per pipeline stage, ordered.
@@ -32,7 +33,7 @@ export const crmFunnelProcessor: AnalyticsProcessor = async (context) => {
   for (const [sid, c] of countByStageId) {
     const meta = stageMeta.get(sid);
     const name = meta?.name ?? 'Sem etapa';
-    const order = meta?.order ?? 999;
+    const order = meta?.order ?? UNORDERED_STAGE_SENTINEL;
     const cur = byName.get(name) ?? { value: 0, order };
     cur.value += c;
     cur.order = Math.min(cur.order, order);

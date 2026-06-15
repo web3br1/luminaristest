@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import type { GetServerSideProps, GetServerSidePropsContext } from 'next';
@@ -23,11 +23,11 @@ function ActivitiesInner() {
   const { t } = useTranslation('crm');
   const { loading, error, rows } = useCrmTable('leadActivities');
 
-  const sorted = [...rows].sort((a, b) => {
+  const sorted = useMemo(() => [...rows].sort((a, b) => {
     const ta = new Date(String(a.updatedAt ?? a.createdAt ?? 0)).getTime();
     const tb = new Date(String(b.updatedAt ?? b.createdAt ?? 0)).getTime();
     return tb - ta;
-  });
+  }), [rows]);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6">

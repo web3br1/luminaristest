@@ -1,4 +1,5 @@
 import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
+import { LEAD_STATUS_ORDER } from '../../../crm/constants';
 
 /** Leads grouped by acquisition source (for a pie/donut). */
 export const crmSourceProcessor: AnalyticsProcessor = (context) => {
@@ -15,7 +16,7 @@ export const crmSourceProcessor: AnalyticsProcessor = (context) => {
 
 /** Leads grouped by status (Open / Won / Lost / Disqualified). */
 export const crmStatusProcessor: AnalyticsProcessor = (context) => {
-  const order = ['Open', 'Won', 'Lost', 'Disqualified'];
+  const order: string[] = [...LEAD_STATUS_ORDER];
   const counts = new Map<string, number>();
   for (const r of context.rows) {
     const s = String(r.data?.status ?? 'Open');

@@ -8,6 +8,7 @@ import { useCrmTable } from '../../features/crm/hooks/useCrmTable';
 import { CrmNav } from '../../features/crm/components/CrmNav';
 import { RecordTable, type Column } from '../../features/crm/components/RecordTable';
 import { StatusBadge } from '../../features/crm/components/ui/StatusBadge';
+import { DEFAULT_CURRENCY } from '../../features/crm/lib/constants';
 
 function ProposalsInner() {
   const { t } = useTranslation('crm');
@@ -18,7 +19,7 @@ function ProposalsInner() {
       key: 'amount',
       label: t('proposals.amount', 'Valor'),
       render: (v, row) =>
-        v != null ? `${String(row.data?.currency ?? 'BRL')} ${Number(v).toLocaleString('pt-BR')}` : '—',
+        v != null ? `${String(row.data?.currency ?? DEFAULT_CURRENCY)} ${Number(v).toLocaleString('pt-BR')}` : '—',
     },
     {
       key: 'winProbability',

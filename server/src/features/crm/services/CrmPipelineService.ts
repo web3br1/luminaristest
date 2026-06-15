@@ -4,6 +4,7 @@ import logger from '../../../lib/logger';
 import type { DynamicTableService } from '../../dynamicTables/services/DynamicTableService';
 import type { IDynamicTableRepository } from '../../dynamicTables/repositories/IDynamicTableRepository';
 import type { AdvanceStageInput, CreateProposalInput, RecordNoShowInput } from '../dtos/CrmPipelineDto';
+import { DEFAULT_CURRENCY } from '../constants';
 
 /**
  * CrmPipelineService — server-side orchestration of CRM pipeline transitions.
@@ -47,7 +48,7 @@ export class CrmPipelineService {
     if (input.meetingAt) leadPatch.nextActionAt = input.meetingAt;
     if (input.amount != null) {
       leadPatch.latestProposalAmount = input.amount;
-      leadPatch.latestProposalCurrency = input.currency || 'BRL';
+      leadPatch.latestProposalCurrency = input.currency || DEFAULT_CURRENCY;
       if (input.winProbability != null) leadPatch.latestProposalWinProbability = input.winProbability;
     }
 
@@ -58,7 +59,7 @@ export class CrmPipelineService {
           data: {
             leadId: input.leadId,
             amount: input.amount,
-            currency: input.currency || 'BRL',
+            currency: input.currency || DEFAULT_CURRENCY,
             winProbability: input.winProbability ?? undefined,
             status: 'Sent',
           },

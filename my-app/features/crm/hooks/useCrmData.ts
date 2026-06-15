@@ -38,7 +38,13 @@ const EMPTY_KPIS: CrmKpis = {
   winRate: 0,
 };
 
-function resolveTable(tables: any[], internalName: string): any | null {
+interface DynTable {
+  id: string;
+  internalName?: string;
+  schema?: unknown;
+}
+
+function resolveTable(tables: DynTable[], internalName: string): DynTable | null {
   return tables.find((t) => t?.internalName === internalName) ?? null;
 }
 
@@ -80,14 +86,14 @@ export function useCrmData(): CrmData {
     setError(null);
     try {
       const tablesRes = await DynamicTableService.getTables();
-      const tables: any[] = tablesRes?.data ?? tablesRes ?? [];
+      const tables: DynTable[] = tablesRes?.data ?? tablesRes ?? [];
 
       const leadsTable = resolveTable(tables, 'leads');
       const stagesTable = resolveTable(tables, 'leadStages');
       const pipelinesTable = resolveTable(tables, 'leadPipelines');
       setLeadsTableId(leadsTable?.id ?? null);
 
-      const pull = async (table: any | null): Promise<CrmRecord[]> => {
+      const pull = async (table: DynTable | null): Promise<CrmRecord[]> => {
         if (!table?.id) return [];
         return (await fetchAllRows(table.id)) as CrmRecord[];
       };
@@ -101,8 +107,8 @@ export function useCrmData(): CrmData {
       setLeads(leadRows);
       setStages(stageRows);
       setPipelines(pipelineRows);
-    } catch (e: any) {
-      setError(e?.message || 'Falha ao carregar dados do CRM');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha ao carregar dados do CRM');
     } finally {
       setLoading(false);
     }

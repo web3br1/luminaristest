@@ -3,10 +3,16 @@ import { DynamicTableService } from '../../../lib/services/dynamic-table.service
 import { fetchAllRows } from '../lib/crmFetch';
 import type { CrmRecord } from './useCrmData';
 
+interface DynTable {
+  id: string;
+  internalName?: string;
+  schema?: unknown;
+}
+
 export interface CrmTableState {
   loading: boolean;
   error: string | null;
-  table: any | null;
+  table: DynTable | null;
   rows: CrmRecord[];
   reload: () => Promise<void>;
 }
@@ -19,7 +25,7 @@ export interface CrmTableState {
 export function useCrmTable(internalName: string): CrmTableState {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [table, setTable] = useState<any | null>(null);
+  const [table, setTable] = useState<DynTable | null>(null);
   const [rows, setRows] = useState<CrmRecord[]>([]);
 
   const reload = useCallback(async () => {
@@ -27,7 +33,7 @@ export function useCrmTable(internalName: string): CrmTableState {
     setError(null);
     try {
       const tablesRes = await DynamicTableService.getTables();
-      const tables: any[] = tablesRes?.data ?? tablesRes ?? [];
+      const tables: DynTable[] = tablesRes?.data ?? tablesRes ?? [];
       const t = tables.find((x) => x?.internalName === internalName) ?? null;
       setTable(t);
       if (!t?.id) {
@@ -35,8 +41,8 @@ export function useCrmTable(internalName: string): CrmTableState {
         return;
       }
       setRows((await fetchAllRows(t.id)) as CrmRecord[]);
-    } catch (e: any) {
-      setError(e?.message || 'Falha ao carregar dados');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha ao carregar dados');
     } finally {
       setLoading(false);
     }

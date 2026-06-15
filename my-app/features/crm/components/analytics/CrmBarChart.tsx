@@ -26,7 +26,7 @@ export function CrmBarChart({ data, color = '#3b82f6', multicolor = false, forma
         <Tooltip
           cursor={{ fill: 'rgba(148,163,184,0.08)' }}
           contentStyle={{ background: '#171717', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12, color: '#fff' }}
-          formatter={(v: any) => (formatValue ? formatValue(Number(v)) : v)}
+          formatter={(v: number | string) => (formatValue ? formatValue(Number(v)) : v)}
         />
         <Bar dataKey="value" radius={[6, 6, 0, 0]}>
           {data.map((_, i) => (

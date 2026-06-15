@@ -1,5 +1,6 @@
 import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
 import { logger } from '../../../../lib/logger';
+import { PROPOSAL_STATUS_ORDER } from '../../../crm/constants';
 
 /** Proposals grouped by status (cross-fetch from `leadProposals`). */
 export const crmProposalsByStatusProcessor: AnalyticsProcessor = async (context) => {
@@ -9,7 +10,7 @@ export const crmProposalsByStatusProcessor: AnalyticsProcessor = async (context)
         return null;
       })
     : null;
-  const order = ['Draft', 'Sent', 'Accepted', 'Rejected', 'Expired'];
+  const order: string[] = [...PROPOSAL_STATUS_ORDER];
   const counts = new Map<string, number>();
   for (const r of res?.rows ?? []) {
     const s = String(r.data?.status ?? 'Draft');

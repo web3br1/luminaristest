@@ -4,7 +4,7 @@ import type { CrmRecord } from '../hooks/useCrmData';
 export interface Column {
   key: string;
   label: string;
-  render?: (value: any, row: CrmRecord) => React.ReactNode;
+  render?: (value: unknown, row: CrmRecord) => React.ReactNode;
 }
 
 interface RecordTableProps {

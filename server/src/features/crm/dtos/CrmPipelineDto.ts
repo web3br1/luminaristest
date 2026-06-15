@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CURRENCIES, DEFAULT_CURRENCY } from '../constants';
 
 /** @openapi
  * components:
@@ -20,15 +21,15 @@ export const AdvanceStageSchema = z.object({
   stageId: z.string().min(1),
   stageType: z.string().optional(),
   meetingAt: z.string().datetime().optional(),
-  amount: z.number().min(0).optional(),
-  currency: z.enum(['BRL', 'USD', 'EUR']).optional(),
+  amount: z.number().positive().optional(),
+  currency: z.enum(CURRENCIES).optional(),
   winProbability: z.number().min(0).max(100).optional(),
 });
 
 export const CreateProposalSchema = z.object({
   leadId: z.string().min(1),
-  amount: z.number().min(0),
-  currency: z.enum(['BRL', 'USD', 'EUR']).default('BRL'),
+  amount: z.number().positive(),
+  currency: z.enum(CURRENCIES).default(DEFAULT_CURRENCY),
   winProbability: z.number().min(0).max(100).optional(),
   estimatedCloseDate: z.string().optional(),
 });
