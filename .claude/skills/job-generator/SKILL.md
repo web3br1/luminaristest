@@ -57,6 +57,7 @@ Quando o objetivo é estressar as telas (centenas de registros), use um script N
 - **Módulo selecionável:** se a tabela não existe para o usuário (preset não instalado), crie a `DynamicTable` sob demanda (`prisma.dynamicTable.create` com `internalName`, `category` válida e `schema`).
 - **Cubra a variabilidade que a view ramifica:** múltiplos status, scores, **múltiplos registros-pai** (ex: 2 pipelines, várias units) e datas futuras/passadas — é assim que se pega bug de view (ex: colunas duplicadas de Kanban) que dados happy-path escondem.
 - **Gotcha de ordenação:** a API de dynamic-tables retorna `orderBy: { createdAt: 'desc' }`; o `prisma.findMany` default difere. NÃO assuma que `[0]` é o mesmo registro nos dois — resolva por `id`/`internalName`, não por posição.
+- **⚠️ Bypassa validação/policy — guard de produção OBRIGATÓRIO:** Prisma direto pula schema-validation, rules/plugins e policy checks. No **topo** do script, aborte fora de dev: `if (process.env.NODE_ENV === 'production') throw new Error('seed de volume é dev-only');`. Logue cada operação (tabela criada, N inserts) para auditoria. Mantenha-o como **script standalone** (nunca como endpoint) e escopado a um `userId` resolvido por `--email`, para não criar relações cross-user.
 
 ## Files usually created or changed
 
