@@ -14,9 +14,9 @@ if (process.env.NODE_ENV !== 'production') {
 
 prisma.$connect().then(() => {
   return Promise.all([
-    prisma.$queryRawUnsafe('PRAGMA journal_mode = WAL'),   // returns a row — use queryRaw
-    prisma.$executeRawUnsafe('PRAGMA busy_timeout = 5000'),
-    prisma.$executeRawUnsafe('PRAGMA foreign_keys = ON'),
+    prisma.$queryRawUnsafe('PRAGMA journal_mode = WAL'),
+    prisma.$queryRawUnsafe('PRAGMA busy_timeout = 5000'),
+    prisma.$queryRawUnsafe('PRAGMA foreign_keys = ON'),
   ]);
 }).catch((err) => {
   console.error('[prisma] Failed to apply SQLite pragmas:', err);

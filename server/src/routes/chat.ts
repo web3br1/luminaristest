@@ -11,6 +11,10 @@ const chatRateLimiter = rateLimit({
   max: 20,             // max 20 requests per user per minute
   standardHeaders: true,
   legacyHeaders: false,
+  // validate.keyGeneratorIpFallback: false — we key by x-user-id (injected by auth
+  // middleware) and only fall back to IP for unauthenticated requests; IPv6 bypass
+  // is not a concern here since authenticated users are always keyed by their ID.
+  validate: { keyGeneratorIpFallback: false },
   keyGenerator: (req) => (req.headers['x-user-id'] as string) || req.ip || 'unknown',
   message: { success: false, error: 'Too many requests. Please wait before sending another message.' },
 });

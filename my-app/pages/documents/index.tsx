@@ -47,8 +47,14 @@ function DocumentListPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await DocumentService.getDocuments() as { data?: unknown[] };
-      setDocuments((result?.data || []) as typeof documents);
+      const result = await DocumentService.getDocuments() as { data?: { documents?: unknown[] } | unknown[] };
+      // Backend returns { success, data: { documents: [...], totalCount } }.
+      // Fall back to a bare array in case the endpoint shape changes.
+      const payload = result?.data;
+      const list = Array.isArray(payload)
+        ? payload
+        : (payload?.documents ?? []);
+      setDocuments(list as typeof documents);
     } catch (e) {
       setError(resolveErrorMessage(e, t));
     } finally {
