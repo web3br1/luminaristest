@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Luminaris — Relatório Consolidado (detalhado) · CRM & Skills</title>
+<style>
+  :root{
+    --bg:#f5f6f8;--surface:#fff;--surface-2:#fbfbfd;--ink:#0f1115;--ink-soft:#26303b;
+    --muted:#6b7280;--line:#e6e8ec;--line-soft:#eef0f4;
+    --primary:#2563eb;--primary-ink:#1d4ed8;--primary-bg:#eef3ff;
+    --emerald:#059669;--amber:#d97706;--rose:#e11d48;--violet:#7c3aed;
+    --radius:16px;--radius-lg:24px;--shadow:0 1px 2px rgba(16,24,40,.05),0 10px 30px rgba(16,24,40,.07);
+    --sidebar:300px;--nav-h:54px;--pag-h:62px;--code:#f1f3f7;--codeink:#334155;
+  }
+  [data-theme="dark"]{
+    --bg:#0b0d11;--surface:#14171d;--surface-2:#171b22;--ink:#f3f5f8;--ink-soft:#cdd4dd;
+    --muted:#8b93a1;--line:#262b33;--line-soft:#20242b;
+    --primary:#3b82f6;--primary-ink:#93c5fd;--primary-bg:#16203a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 34px rgba(0,0,0,.45);--code:#1b2027;--codeink:#cbd5e1;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;line-height:1.58;-webkit-font-smoothing:antialiased}
+  code{background:var(--code);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.84em;color:var(--codeink)}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:14px 16px;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.6px;color:var(--codeink);line-height:1.5;margin:14px 0}
+  pre code{background:none;border:none;padding:0;color:inherit}
+  a{color:var(--primary-ink)}
+
+  #progress{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--primary),var(--violet));z-index:60;transition:width .25s ease}
+  .topbar{position:fixed;top:0;left:0;right:0;height:var(--nav-h);display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 18px;background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:saturate(160%) blur(10px);border-bottom:1px solid var(--line);z-index:50}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:850;letter-spacing:-.01em;flex:0 0 auto}
+  .brand .logo{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--primary),var(--violet));display:grid;place-items:center;color:#fff;font-size:13px;font-weight:900}
+  .brand small{display:block;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .tb-title{flex:1;text-align:center;font-size:13px;font-weight:800;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tb-title b{color:var(--primary-ink);margin-right:8px}
+  .tb-actions{display:flex;gap:8px;flex:0 0 auto}
+  .iconbtn{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);font-size:12.5px;font-weight:700;cursor:pointer;transition:.15s}
+  .iconbtn:hover{border-color:var(--primary);color:var(--primary-ink);background:var(--primary-bg)}
+
+  .shell{display:grid;grid-template-columns:var(--sidebar) 1fr;padding-top:var(--nav-h)}
+  aside{position:sticky;top:var(--nav-h);align-self:start;height:calc(100vh - var(--nav-h));overflow-y:auto;border-right:1px solid var(--line);padding:18px 14px;background:var(--surface)}
+  .filter{position:relative;margin-bottom:14px}
+  .filter input{width:100%;height:38px;border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:0 12px 0 34px;color:var(--ink);font-size:13.5px;outline:none}
+  .filter input:focus{border-color:var(--primary);background:var(--surface)}
+  .filter svg{position:absolute;left:11px;top:11px;width:15px;height:15px;color:var(--muted)}
+  .navlabel{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:4px 8px 8px}
+  .nav>a{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;text-decoration:none;color:var(--ink-soft);font-weight:650;font-size:13.4px;border-left:2px solid transparent;transition:.12s;cursor:pointer}
+  .nav>a .num{flex:0 0 24px;height:24px;border-radius:7px;background:var(--surface-2);border:1px solid var(--line);display:grid;place-items:center;font-size:11px;font-weight:850;color:var(--muted)}
+  .nav>a:hover{background:var(--surface-2);color:var(--ink)}
+  .nav>a.active{background:var(--primary-bg);color:var(--primary-ink);border-left-color:var(--primary)}
+  .nav>a.active .num{background:var(--primary);border-color:var(--primary);color:#fff}
+  .nav>a.hidden{display:none}
+  .sub{margin:1px 0 5px 36px;padding-left:10px;border-left:1px solid var(--line);max-height:0;overflow:hidden;transition:max-height .35s ease}
+  .nav>a.active + .sub{max-height:460px}
+  .sub a{display:block;font-size:12.2px;padding:5px 9px;color:var(--muted);text-decoration:none;font-weight:600;cursor:pointer}
+  .sub a:hover{color:var(--primary-ink)}
+  .sidefoot{margin-top:18px;padding:12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);font-size:11.4px;color:var(--muted);line-height:1.7}
+  .sidefoot b{color:var(--ink-soft)} .sidefoot kbd{font:inherit;background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:0 5px;color:var(--ink-soft)}
+
+  main{min-width:0}
+  .stage{max-width:900px;margin:0 auto;padding:30px 34px calc(var(--pag-h) + 40px)}
+  .hero{position:relative;overflow:hidden;border-radius:var(--radius-lg);background:linear-gradient(135deg,#0b1020,#13204a 55%,#1e2f6b);color:#fff;padding:38px 36px;margin-bottom:24px}
+  .hero::before{content:"";position:absolute;width:360px;height:360px;border-radius:50%;background:#3b82f6;filter:blur(70px);opacity:.45;top:-150px;right:-110px}
+  .hero::after{content:"";position:absolute;width:280px;height:280px;border-radius:50%;background:#7c3aed;filter:blur(70px);opacity:.4;bottom:-140px;left:-80px}
+  .hero>*{position:relative;z-index:1}
+  .eyebrow{font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#93c5fd;margin:0 0 12px}
+  .hero h1{margin:0 0 10px;font-size:clamp(24px,3.6vw,36px);font-weight:850;letter-spacing:-.02em;line-height:1.1}
+  .hero p{margin:0;color:#cbd5e1;max-width:640px;font-size:15.5px}
+  .herometa{margin-top:20px;display:flex;flex-wrap:wrap;gap:9px}
+  .chip{display:inline-flex;gap:7px;align-items:center;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#e5edff;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:650}
+  .chip b{color:#fff;font-weight:850}
+
+  section.panel{display:none}
+  section.panel.active{display:block;animation:fade .32s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .seclabel{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--primary-ink);background:var(--primary-bg);border:1px solid color-mix(in srgb,var(--primary) 22%,transparent);padding:4px 12px;border-radius:999px;margin-bottom:12px}
+  h2{font-size:26px;font-weight:850;letter-spacing:-.02em;margin:8px 0 8px;line-height:1.2}
+  h3{position:relative;font-size:17.5px;font-weight:820;margin:36px 0 12px;padding-left:15px;scroll-margin-top:calc(var(--nav-h) + 12px);line-height:1.3}
+  h3::before{content:"";position:absolute;left:0;top:3px;bottom:3px;width:4px;border-radius:3px;background:linear-gradient(var(--primary),var(--violet))}
+  h4{position:relative;font-size:14px;font-weight:800;margin:24px 0 9px;color:var(--ink);padding-left:17px;letter-spacing:.005em}
+  h4::before{content:"";position:absolute;left:0;top:6px;width:8px;height:8px;border-radius:50%;background:var(--primary);opacity:.65}
+  p{margin:0 0 14px;color:var(--ink-soft);font-size:14.4px;line-height:1.72}
+  .lead{font-size:16.5px;line-height:1.66;color:var(--ink)}
+  .docmeta{border-left:3px solid var(--violet);background:color-mix(in srgb,var(--violet) 7%,var(--surface));border-radius:0 12px 12px 0;padding:13px 17px;margin:6px 0 20px;font-size:13.4px;color:var(--ink-soft)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px 22px;box-shadow:var(--shadow);margin:16px 0}
+  .card.tight{padding:12px 14px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  table{width:100%;border-collapse:collapse;font-size:13.4px;margin:6px 0;line-height:1.55}
+  th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:800;background:var(--surface-2)}
+  tbody tr:nth-child(even){background:color-mix(in srgb,var(--surface-2) 55%,transparent)}
+  tbody tr:hover{background:var(--primary-bg)}
+  tbody td:first-child{font-weight:650;color:var(--ink)}
+  tbody tr:last-child td{border-bottom:none}
+  ul.clean,ol.clean{margin:8px 0 14px;padding-left:22px}
+  ul.clean li,ol.clean li{margin:7px 0;color:var(--ink-soft);font-size:14.2px;line-height:1.66}
+  ul.clean li::marker{color:var(--primary)}
+  ol.clean li::marker{color:var(--primary-ink);font-weight:800}
+  .tag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-left:8px;vertical-align:middle}
+  .legend{display:flex;flex-wrap:wrap;gap:9px 16px;align-items:center;font-size:12px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 15px;margin:16px 0}
+  .legend b{color:var(--ink-soft);font-weight:800;text-transform:uppercase;font-size:10px;letter-spacing:.1em}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .cap{font-size:11.5px;color:var(--muted);margin:6px 2px 14px;font-style:italic}
+
+  /* ===== Contrato — visual ===== */
+  .ctindex{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0 28px}
+  .ctindex a{display:block;text-decoration:none;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:13px 14px;transition:.16s}
+  .ctindex a:hover{border-color:var(--primary);background:var(--primary-bg);transform:translateY(-2px);box-shadow:var(--shadow)}
+  .ctindex .s{font-size:20px;font-weight:850;color:var(--primary-ink);letter-spacing:-.02em;line-height:1}
+  .ctindex .t{font-size:12px;font-weight:800;color:var(--ink);margin-top:7px}
+  .ctindex .d{font-size:10.6px;color:var(--muted);margin-top:3px;line-height:1.45}
+  #contrato h3{font-size:18.5px;margin-top:34px;padding:14px 0 6px 16px;border-top:1px solid var(--line)}
+  #contrato h3:first-of-type{border-top:none;margin-top:18px}
+  #contrato h3::before{top:16px;bottom:auto;height:20px}
+  .chk li::after{content:"✓";position:absolute;left:3px;top:1px;font-size:11px;font-weight:900;color:var(--primary)}
+  @media (max-width:760px){.ctindex{grid-template-columns:repeat(2,1fr)}}
+
+  /* ===== Skills — detalhe (accordion) ===== */
+  .skd details{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin:9px 0;overflow:hidden;transition:.15s}
+  .skd details[open]{border-color:color-mix(in srgb,var(--primary) 35%,var(--line));box-shadow:var(--shadow)}
+  .skd summary{list-style:none;cursor:pointer;padding:13px 15px;display:flex;align-items:center;gap:11px;font-size:13.6px}
+  .skd summary::-webkit-details-marker{display:none}
+  .skd summary::before{content:"+";width:20px;height:20px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);display:grid;place-items:center;font-weight:900;color:var(--primary-ink);flex:0 0 auto;font-size:14px}
+  .skd details[open] summary::before{content:"–";background:var(--primary);color:#fff;border-color:var(--primary)}
+  .skd summary:hover{background:var(--surface-2)}
+  .skd summary .nm{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.7px;font-weight:800;color:var(--ink)}
+  .skd summary .ol{color:var(--muted);font-size:11.8px;font-weight:600;margin-left:auto;max-width:46%;text-align:right;line-height:1.35}
+  .skd summary .rk{flex:0 0 auto;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:999px;border:1px solid}
+  .rk-low{background:color-mix(in srgb,var(--emerald) 10%,transparent);color:#047857;border-color:color-mix(in srgb,var(--emerald) 26%,transparent)}
+  .rk-med{background:color-mix(in srgb,var(--amber) 11%,transparent);color:#b45309;border-color:color-mix(in srgb,var(--amber) 28%,transparent)}
+  .rk-high{background:color-mix(in srgb,var(--rose) 10%,transparent);color:#be123c;border-color:color-mix(in srgb,var(--rose) 26%,transparent)}
+  .skd .body{padding:6px 16px 16px}
+  .skd .body p{font-size:13.6px;line-height:1.66;margin:2px 0 10px;color:var(--ink-soft)}
+  .skd .body h5{font-size:10px;text-transform:uppercase;letter-spacing:.11em;color:var(--primary);font-weight:800;margin:15px 0 6px;border-top:1px solid var(--line-soft);padding-top:11px}
+  .skd .body ul{margin:4px 0 8px;padding-left:19px}
+  .skd .body li{margin:5px 0;font-size:13px;line-height:1.55;color:var(--ink-soft)}
+  .skd .meta{display:flex;flex-wrap:wrap;gap:7px 18px;font-size:12.4px;color:var(--muted);margin-top:6px}
+  .skd .meta b{color:var(--ink-soft)}
+  @media (max-width:760px){.skd summary{flex-wrap:wrap}.skd summary .ol{max-width:100%;text-align:left;margin-left:31px;width:100%}}
+  .chk{list-style:none;padding-left:2px;margin:8px 0 14px}
+  .chk li{position:relative;padding-left:26px;margin:6px 0;color:var(--ink-soft)}
+  .chk li::before{content:"";position:absolute;left:0;top:3px;width:15px;height:15px;border:1.5px solid var(--line);border-radius:4px;background:var(--surface-2)}
+  .callout{border-left:3px solid var(--primary);background:var(--primary-bg);border-radius:0 12px 12px 0;padding:13px 17px;margin:14px 0;font-size:13.8px;color:var(--ink-soft)}
+  .callout.warn{border-left-color:var(--amber);background:color-mix(in srgb,var(--amber) 9%,var(--surface))}
+  .callout.good{border-left-color:var(--emerald);background:color-mix(in srgb,var(--emerald) 9%,var(--surface))}
+  .callout.status{border-left-color:var(--emerald);background:color-mix(in srgb,var(--emerald) 8%,var(--surface));font-size:13.2px}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:10.5px;font-weight:800;border:1px solid;white-space:nowrap}
+  .b-p0{background:color-mix(in srgb,var(--rose) 10%,transparent);color:#be123c;border-color:color-mix(in srgb,var(--rose) 28%,transparent)}
+  .b-p1{background:color-mix(in srgb,var(--amber) 12%,transparent);color:#b45309;border-color:color-mix(in srgb,var(--amber) 30%,transparent)}
+  .b-p2{background:color-mix(in srgb,var(--violet) 10%,transparent);color:#6d28d9;border-color:color-mix(in srgb,var(--violet) 26%,transparent)}
+  .b-done{background:color-mix(in srgb,var(--emerald) 12%,transparent);color:#047857;border-color:color-mix(in srgb,var(--emerald) 30%,transparent)}
+  .b-pend{background:color-mix(in srgb,var(--muted) 14%,transparent);color:var(--muted);border-color:color-mix(in srgb,var(--muted) 30%,transparent)}
+  .b-eff{background:color-mix(in srgb,var(--primary) 10%,transparent);color:var(--primary-ink);border-color:color-mix(in srgb,var(--primary) 26%,transparent)}
+  .b-new{background:color-mix(in srgb,var(--emerald) 12%,transparent);color:#047857;border-color:color-mix(in srgb,var(--emerald) 30%,transparent)}
+  .b-mod{background:color-mix(in srgb,var(--amber) 12%,transparent);color:#b45309;border-color:color-mix(in srgb,var(--amber) 30%,transparent)}
+  .b-del{background:color-mix(in srgb,var(--rose) 10%,transparent);color:#be123c;border-color:color-mix(in srgb,var(--rose) 28%,transparent)}
+  [data-theme="dark"] .b-new{color:#34d399}[data-theme="dark"] .b-mod{color:#fbbf24}[data-theme="dark"] .b-del{color:#fb7185}
+  .farch{display:block;margin-top:4px;font-size:12px;color:var(--muted)}.farch b{color:var(--ink-soft);font-weight:700}
+  td .fp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.8px}
+  [data-theme="dark"] .b-p0{color:#fb7185}[data-theme="dark"] .b-p1{color:#fbbf24}[data-theme="dark"] .b-p2{color:#c4b5fd}[data-theme="dark"] .b-done{color:#34d399}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}
+  .d-done{background:var(--emerald)} .d-pend{background:var(--muted);opacity:.5}
+  .muted{color:var(--muted)} .small{font-size:12.3px}
+  hr{border:none;border-top:1px solid var(--line);margin:26px 0}
+  .filelist a{font-weight:700;text-decoration:none} .filelist a:hover{text-decoration:underline}
+
+  /* ===== PAGINAÇÃO ===== */
+  .pagination{position:fixed;bottom:0;left:var(--sidebar);right:0;height:var(--pag-h);display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:saturate(160%) blur(10px);border-top:1px solid var(--line);z-index:45}
+  .pagination button{height:38px;min-width:38px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);font-size:13px;font-weight:750;cursor:pointer;transition:.14s;display:inline-flex;align-items:center;gap:6px}
+  .pagination button:hover:not(:disabled){border-color:var(--primary);color:var(--primary-ink);background:var(--primary-bg)}
+  .pagination button:disabled{opacity:.35;cursor:default}
+  .pagination .pages{display:flex;gap:6px}
+  .pagination .pages button{min-width:36px;justify-content:center;padding:0;font-weight:800;color:var(--muted)}
+  .pagination .pages button.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .pagination .pages button.on:hover{color:#fff}
+  .pagination .edge{font-weight:800}
+
+  .overlay{position:fixed;inset:0;background:rgba(8,11,18,.6);backdrop-filter:blur(4px);z-index:80;display:none;place-items:center;padding:20px}
+  .overlay.show{display:grid}
+  .help{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:26px 28px;max-width:440px;width:100%;box-shadow:var(--shadow)}
+  .help h3{margin:0 0 16px;font-size:18px}
+  .krow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:14px;color:var(--ink-soft)}
+  .krow:last-child{border-bottom:none}
+  .krow kbd{font:inherit;font-size:11px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin-left:4px;color:var(--ink)}
+
+  @media (max-width:900px){
+    :root{--sidebar:0}
+    aside{display:none}.shell{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.brand small,.tb-title{display:none}
+    .pagination .pages button:not(.on){display:none}
+  }
+  @media print{
+    .topbar,#progress,aside,.pagination,.overlay{display:none!important}
+    .shell{grid-template-columns:1fr;padding-top:0}.stage{max-width:none;padding:20px}
+    section.panel{display:block!important;page-break-before:always}.card{box-shadow:none}
+    .hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<div class="topbar">
+  <div class="brand"><span class="logo">L</span><div>Luminaris<small>Relatório Detalhado</small></div></div>
+  <div class="tb-title" id="tbTitle"></div>
+  <div class="tb-actions">
+    <button class="iconbtn" id="btnTheme"><span id="themeIcon">☾</span></button>
+    <button class="iconbtn" id="btnHelp"><span>?</span></button>
+  </div>
+</div>
+
+<div class="shell">
+  <aside>
+    <div class="filter">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+      <input id="navFilter" type="text" placeholder="Filtrar seções…  ( / )">
+    </div>
+    <p class="navlabel">Documentos</p>
+    <div class="nav" id="nav">
+      <a data-sec="resumo" data-k="resumo capa overview"><span class="num">0</span>Resumo &amp; como ler</a>
+      <a data-sec="diagnostico" data-k="diagnóstico crm problemas veredicto"><span class="num">1</span>Diagnóstico do CRM</a>
+      <div class="sub"><a data-anchor="dg-base">Estado atual</a><a data-anchor="dg-tabela">Os 8 problemas</a><a data-anchor="dg-ver">Veredicto</a></div>
+      <a data-sec="contrato" data-k="contrato arquitetura qualidade"><span class="num">2</span>Contrato de Arquitetura</a>
+      <div class="sub"><a data-anchor="ct-0">§0 Reuse</a><a data-anchor="ct-1">§1 Qualidade</a><a data-anchor="ct-2">§2 Backend</a><a data-anchor="ct-3">§3 Frontend</a><a data-anchor="ct-4">§4 Design system</a><a data-anchor="ct-5">§5 Testes</a><a data-anchor="ct-6">§6 Verificação</a></div>
+      <a data-sec="plano" data-k="plano remediação roadmap salesforce"><span class="num">3</span>Plano + Roadmap</a>
+      <div class="sub"><a data-anchor="pl-status">Status execução</a><a data-anchor="pl-a">Parte A · Fases</a><a data-anchor="pl-b">Parte B · Salesforce</a><a data-anchor="pl-next">Próximos passos</a></div>
+      <a data-sec="spec" data-k="spec sdd fases assinaturas"><span class="num">4</span>Spec Executável (0–4)</a>
+      <div class="sub"><a data-anchor="sp-sig">Assinaturas canônicas</a><a data-anchor="sp-0">Fase 0</a><a data-anchor="sp-1">Fase 1</a><a data-anchor="sp-2">Fase 2</a><a data-anchor="sp-3">Fase 3</a><a data-anchor="sp-4">Fase 4</a></div>
+      <a data-sec="workflow" data-k="skills catálogo sistema backend frontend meta workflow"><span class="num">5</span>Sistema de Skills</a>
+      <div class="sub"><a data-anchor="sk-backend">Backend (camadas)</a><a data-anchor="sk-data">Dados &amp; analytics</a><a data-anchor="sk-frontend">Frontend</a><a data-anchor="sk-composite">Composição</a><a data-anchor="sk-meta">Meta-agentes</a><a data-anchor="sk-workflow">Workflow (novas)</a><a data-anchor="sk-detalhe">★ Detalhe por skill</a></div>
+      <a data-sec="codigo" data-k="mudanças código arquivos arquitetura changelog onde crm"><span class="num">6</span>Mudanças no código</a>
+      <div class="sub"><a data-anchor="cd-arch">CRM · arquitetura</a><a data-anchor="cd-crm">CRM por fase</a><a data-anchor="cd-skills">Skills &amp; contrato</a><a data-anchor="cd-commits">Commits</a></div>
+      <a data-sec="docs" data-k="documentos índice arquivos"><span class="num">7</span>Índice de documentos</a>
+    </div>
+    <div class="sidefoot"><b>Atalhos:</b> <kbd>←</kbd><kbd>→</kbd> paginar · <kbd>D</kbd> tema · <kbd>/</kbd> filtrar · <kbd>?</kbd> ajuda</div>
+  </aside>
+
+  <main>
+    <div class="stage">
+
+      <!-- 0 -->
+      <section class="panel" id="resumo">
+        <div class="hero">
+          <p class="eyebrow">Luminaris · Junho 2026 · Branch feature/crm-module</p>
+          <h1>Relatório Consolidado — CRM &amp; Sistema de Skills</h1>
+          <p>Versão detalhada: o conteúdo integral dos documentos de planejamento (diagnóstico, contrato de arquitetura, plano de remediação + gap Salesforce, spec executável das Fases 0–4) e das skills de workflow.</p>
+          <div class="herometa">
+            <span class="chip"><b>32</b> skills + <b>1</b> contrato</span>
+            <span class="chip">CRM Fases <b>0–4</b> entregues</span>
+            <span class="chip"><b>2</b> skills de workflow</span>
+          </div>
+        </div>
+        <p class="seclabel">Capa</p>
+        <h2>Resumo &amp; como ler este relatório</h2>
+        <p class="lead">Este documento reúne, <b>na íntegra</b>, os relatórios produzidos sobre o módulo CRM e o endurecimento do sistema de skills. Cada item da navegação é uma <b>view independente</b> — use as setas, a paginação ou a barra lateral para alternar entre documentos.</p>
+        <div class="legend">
+          <b>Legenda</b>
+          <span><span class="badge b-done">entregue</span> concluído</span>
+          <span><span class="badge b-pend">pendente</span> a fazer</span>
+          <span><span class="badge b-new">criado</span> arquivo novo</span>
+          <span><span class="badge b-mod">modificado</span></span>
+          <span><span class="badge b-del">deletado</span></span>
+          <span><span class="badge b-p0">P0</span> <span class="badge b-p1">P1</span> <span class="badge b-p2">P2</span> prioridade</span>
+          <span><span class="badge b-eff">S</span>/<span class="badge b-eff">M</span>/<span class="badge b-eff">L</span> esforço</span>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Seção</th><th>Documento de origem</th><th>Conteúdo</th></tr></thead>
+            <tbody>
+              <tr><td><b>1</b> Diagnóstico</td><td class="small muted">análise (conversa)</td><td>Os 8 problemas do CRM + veredicto skill-vs-implementador</td></tr>
+              <tr><td><b>2</b> Contrato</td><td class="small"><code>_ARCHITECTURE-CONTRACT.md</code></td><td>As 7 seções-gate de arquitetura &amp; qualidade, na íntegra</td></tr>
+              <tr><td><b>3</b> Plano</td><td class="small"><code>CRM_REMEDIATION_AND_ROADMAP.md</code></td><td>Parte A (Fases 0–6) + Parte B (gap Salesforce), na íntegra</td></tr>
+              <tr><td><b>4</b> Spec</td><td class="small"><code>PHASE_0_1_2_SPEC.md</code></td><td>Contrato executável (assinaturas + Fases 0–4), na íntegra</td></tr>
+              <tr><td><b>5</b> Workflow</td><td class="small">2 skills novas</td><td>Detalhe das skills de fluxo de trabalho Kanban</td></tr>
+              <tr><td><b>6</b> Código</td><td class="small muted">changeset real</td><td>Arquivos criados/modificados/deletados + justificativa arquitetural de cada mudança</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 1 -->
+      <section class="panel" id="diagnostico">
+        <p class="seclabel">Seção 1 · Análise</p>
+        <h2>Diagnóstico do CRM</h2>
+        <p>Resultado da auditoria de 3 frentes (implementação do CRM × padrões canônicos do projeto × o que as skills prescreviam).</p>
+        <h3 id="dg-base">Estado atual — linha de base factual</h3>
+        <h4>O que JÁ existe e funciona (backend)</h4>
+        <ul class="clean">
+          <li><b>Orquestração de pipeline</b> (<code>CrmPipelineService</code>, transacional): <code>advanceStage</code> (move o lead; se a etapa é <code>proposal</code> e há <code>amount</code>, cria a proposta + atualiza snapshot), <code>createProposal</code>, <code>recordNoShow</code> (reagenda/reverte).</li>
+          <li><b>Analytics</b> (<code>CrmAnalyticsService</code>): bundle de 7 processors sobre <code>leads</code> — funnel, conversão, fonte, status, BANT, propostas por status, atividades por tipo.</li>
+          <li><b>Modelo</b>: <code>crmAccounts</code>, <code>crmContacts</code> (com <code>accountId</code>/<code>leadId</code>/buying role), <code>leads</code> (BANT, <code>stageId</code>, snapshot de proposta, <code>status</code> Open/Won/Lost/Disqualified), <code>leadProposals</code>, <code>leadActivities</code>, <code>leadPipelines</code>, <code>leadStages</code>.</li>
+          <li><b>CRUD genérico</b> via endpoints de DynamicTable (<code>createTableData</code>/<code>updateTableData</code>/<code>deleteTableData</code>).</li>
+        </ul>
+        <h3 id="dg-tabela">O que está QUEBRADO (frontend)</h3>
+        <div class="card tight">
+        <table>
+          <thead><tr><th style="width:28px">#</th><th>Problema</th><th>Causa</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Tabelas (Contatos/Contas/Propostas) sem add/edit/delete inline, sem filtros, estilo fora do padrão</td><td><code>RecordTable.tsx</code> bespoke em vez de <code>GenericTable</code></td></tr>
+            <tr><td>2</td><td>Sem paginação (tabelas e atividades)</td><td><code>rows.map</code> direto, sem <code>StandardPagination</code></td></tr>
+            <tr><td>3</td><td>Views mudam de tamanho ao navegar</td><td>cada página fixa <code>max-w-*</code> próprio (3xl→7xl)</td></tr>
+            <tr><td>4</td><td>Atividades sem paginação, posição varia</td><td>timeline própria <code>max-w-3xl</code></td></tr>
+            <tr><td>5</td><td>Analytics fora do padrão</td><td><code>CrmKpiCard</code>/<code>CrmBarChart</code>/<code>CrmPieChart</code> próprios vs. <code>AnalyticsDashboard</code>/<code>ChartRenderer</code>/<code>DashboardKpiCard</code></td></tr>
+            <tr><td>6</td><td>Lead360 troca de tela em vez de modal</td><td><code>router.push('/crm/leads/[id]')</code></td></tr>
+            <tr><td>7</td><td>CRUD inexistente na UI</td><td>frontend nunca cabeou os endpoints</td></tr>
+            <tr><td>8</td><td>Pipeline reimplementa um Kanban estático</td><td><code>pipeline.tsx</code> ignora o <code>InternalKanbanView</code> canônico</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <h3 id="dg-ver">Veredicto: skill ou falha do implementador?</h3>
+        <div class="callout"><b>Maioria = falha do implementador</b> (não reusou canônicos descobríveis). As skills eram <b>omissas</b> — não erradas. <b>Exceções reais:</b> (a) <code>frontend-page-generator</code> <b>prescrevia ativamente</b> rota <code>[id].tsx</code> para detalhe; (b) <code>luminaris-reviewer</code> tinha contradição interna — mostrava <code>dark:bg-zinc-900</code> enquanto banía <code>zinc</code>.</div>
+      </section>
+
+      <!-- 2 -->
+      <section class="panel" id="contrato">
+        <p class="seclabel">Seção 2 · Documento integral</p>
+        <h2>Contrato de Arquitetura &amp; Qualidade de Código <span class="tag">_ARCHITECTURE-CONTRACT.md</span></h2>
+        <div class="docmeta"><b>Fonte única das regras cross-cutting.</b> Toda skill referencia este arquivo; encoda o que vale para qualquer código gerado. Cada skill adiciona o checklist da sua camada — nunca repete estas regras (evita drift, como o <code>zinc</code> que divergiu do <code>neutral</code>). O <code>luminaris-reviewer</code> valida contra exatamente estas regras.</div>
+
+        <div class="ctindex">
+          <a href="#ct-0"><div class="s">§0</div><div class="t">Reuse</div><div class="d">Reusar o canônico antes de recriar</div></a>
+          <a href="#ct-1"><div class="s">§1</div><div class="t">Qualidade</div><div class="d">no-<code>any</code> · tsc gate · imports reais</div></a>
+          <a href="#ct-2"><div class="s">§2</div><div class="t">Backend</div><div class="d">Camadas · DI · soft-delete · rota 3-toques</div></a>
+          <a href="#ct-3"><div class="s">§3</div><div class="t">Frontend</div><div class="d">Modal-não-rota · paginação · full-height</div></a>
+          <a href="#ct-4"><div class="s">§4</div><div class="t">Design system</div><div class="d">neutral≠zinc · rounded-2xl · badges</div></a>
+          <a href="#ct-5"><div class="s">§5</div><div class="t">Testes</div><div class="d">clearAllMocks · Empty Safety</div></a>
+          <a href="#ct-6"><div class="s">§6</div><div class="t">Verificação</div><div class="d">build prod · preview_inspect</div></a>
+        </div>
+
+        <h3 id="ct-0">§0 · Princípio-mestre: reuse antes de recriar</h3>
+        <p>Antes de escrever qualquer componente/classe/helper, <b>procure o canônico que o projeto já tem e reuse-o</b>. Paralelos bespoke produzem "módulos ilha" — causa-raiz da revisão reprovada do CRM.</p>
+        <div class="card tight">
+        <table>
+          <thead><tr><th>Necessidade</th><th>Canônico a reusar (NÃO recriar)</th></tr></thead>
+          <tbody>
+            <tr><td>Tabela de registros (CRUD inline)</td><td><code>GenericTable</code> + <code>GenericRow</code> + <code>RowActionsCell</code> (via <code>GenericTabbedView</code>)</td></tr>
+            <tr><td>Paginação</td><td><code>StandardPagination.tsx</code></td></tr>
+            <tr><td>Modal / detalhe de registro</td><td><code>components/ui/Modal.tsx</code> + estado local (padrão <code>KanbanCardDetailModal</code>)</td></tr>
+            <tr><td>Board/KPIs/charts de analytics</td><td><code>AnalyticsDashboard</code> + <code>DashboardKpiCard</code> + <code>ChartRenderer</code> + <code>GoldKpiWidgetView</code></td></tr>
+            <tr><td>Board de workflow (Kanban drag-drop)</td><td><code>InternalKanbanView</code> (+ <code>useKanbanLogic</code>, <code>KanbanCardDetailModal</code>); transição → <code>CrmPipelineService</code>. <b>Anti-exemplo: <code>pages/crm/pipeline.tsx</code>.</b></td></tr>
+            <tr><td>Erro de API · Erros tipados</td><td><code>handleApiError</code> (<code>lib/apiUtils</code>) · <code>lib/errors</code></td></tr>
+            <tr><td>Field presets · Money math</td><td><code>presets/fields/*</code> · <code>addMoney</code>/<code>DataSanitizer</code>/<code>DateUtils</code></td></tr>
+          </tbody>
+        </table>
+        </div>
+
+        <h3 id="ct-1">§1 · Qualidade de código universal</h3>
+        <ul class="chk">
+          <li><b>tsc limpo é gate, não meta</b> — <code>server</code> e <code>my-app</code> sem novos erros.</li>
+          <li><b>Zero <code>any</code> evitável</b> — interfaces locais ou <code>unknown</code> + narrowing. Exceção única: <code>Record&lt;string, any&gt;</code> dos dados dinâmicos. <code>catch (e)</code> com narrowing, nunca <code>catch (e: any)</code>.</li>
+          <li><b>Imports reais</b> (nunca inventados) · <b>nada de segredos</b> (via env).</li>
+          <li><b>Convenção de nomes</b> — PascalCase / <code>use&lt;X&gt;</code> / <code>I&lt;X&gt;</code>.</li>
+          <li><b>Sem lógica morta / TODO falso</b> · <b><code>logger.error(msg, { context })</code></b> (string primeiro).</li>
+        </ul>
+
+        <h3 id="ct-2">§2 · Arquitetura backend</h3>
+        <pre>Route → Controller → Service → Repository → Prisma
+                        ↘ Policy</pre>
+        <ul class="chk">
+          <li><b>Separação inviolável:</b> Route (só roteia) · Controller (Zod+actor+service+<code>handleApiError</code>, zero prisma/regra) · Service (regra+policy-first, zero prisma direto/Express) · Repository (único com <code>prisma.*</code>) · Policy (só <code>boolean</code>, zero throw/dados).</li>
+          <li><b>DI via Factory</b> (nunca <code>new Repository()</code>) · <b>Policy-first</b> antes de dados.</li>
+          <li><b>Erros tipados</b> de <code>lib/errors</code> · <b>cross-tenant = <code>NotFoundError</code></b> (anti-enumeration).</li>
+          <li><b>Soft-delete universal</b> (finds com <code>deletedAt: null</code>; nunca <code>.delete()</code>) · <b><code>findAll</code> com <code>$transaction([findMany, count])</code></b>.</li>
+          <li><b>Validação Zod no controller</b> · <b>actor <code>IUser | null</code></b> · <b>tipos de <code>'generated/prisma'</code></b>.</li>
+          <li><b>Resposta <code>{ success, data }</code></b> · <b>registro de rota = 3 toques</b> (index + <code>protectedApiPaths</code> + OpenAPI — senão 401 silencioso).</li>
+          <li><b>Domínios DynamicTable</b> — orquestra <code>DynamicTableService</code>, resolve por <code>internalName</code>.</li>
+          <li><b>Money</b> — <code>addMoney()</code>; <code>previousValue = count&gt;0 ? total/count : undefined</code>; single-pass · <b>escritas de chat</b> retornam <code>{ status: 'PROPOSED' }</code>.</li>
+        </ul>
+
+        <h3 id="ct-3">§3 · Arquitetura frontend</h3>
+        <ul class="chk">
+          <li><b>Pages Router + auth guard</b> + <code>getServerSideProps</code>/<code>serverSideTranslations</code>.</li>
+          <li><b>Service layer</b> (nunca <code>fetch</code> direto; tipos locais; zero <code>any</code>).</li>
+          <li><b>Reuse canônicos</b> (§0) · <b>detalhe = MODAL, não rota</b>.</li>
+          <li><b>Paginação ao ler DynamicTable</b> (API máx. 50; fetch-all até <code>totalPages</code>; validar &gt;50).</li>
+          <li><b><code>useMemo([deps])</code></b> em dados derivados · <b>container full-height</b> (sem <code>max-w-*</code> divergente).</li>
+          <li><b>Dynamic imports</b> p/ libs pesadas · <b>SSR-safe</b> · <b>views agrupadas filtram pelo pai ativo</b> · resolver por <code>internalName</code> · <b>i18n</b> sem hardcode.</li>
+        </ul>
+
+        <h3 id="ct-4">§4 · Design system</h3>
+        <ul class="chk">
+          <li><b><code>neutral-*</code>, NUNCA <code>zinc-*</code></b> (grep deve ser vazio); borda dark = <code>dark:border-neutral-800</code>.</li>
+          <li><b>Cards = <code>rounded-2xl</code>/<code>3xl</code></b>; inputs/botões = <code>rounded-xl</code>. Wrappers de libs/listas/timeline também são cards.</li>
+          <li><b>Tipografia</b> — <code>font-semibold</code> corpo / <code>font-black</code> ênfase; labels <code>text-[10px] uppercase tracking-widest</code>.</li>
+          <li><b>Badges</b> <code>color/10</code>+<code>color/20</code>+<code>color-600</code> · <b>paleta</b> blue/emerald/rose/amber.</li>
+        </ul>
+
+        <h3 id="ct-5">§5 · Testes</h3>
+        <ul class="chk">
+          <li><b><code>beforeEach(() =&gt; jest.clearAllMocks())</code></b> · floats com <b><code>toBeCloseTo(v, 2)</code></b>.</li>
+          <li><b><code>referenceDate</code> fixo</b> · cross-tenant <b><code>NotFoundError</code></b> · <b><code>buildService(overrides?)</code></b> · KPI <b>Empty Safety</b> (0, nunca <code>NaN</code>).</li>
+        </ul>
+
+        <h3 id="ct-6">§6 · Hierarquia de verificação</h3>
+        <pre>tsc &lt; build/SSR (200) &lt; hidratação (use PROD) &lt; interatividade</pre>
+        <ul class="chk">
+          <li>Telas atrás de <code>withAuth</code> → <b>build de produção</b>; cor/raio por <b>estilos computados</b> (on-brand = <code>rgb(23,23,23)</code>; <code>zinc-900</code> = <code>rgb(24,24,27)</code> off-brand); rodar testes da feature.</li>
+        </ul>
+        <div class="callout warn"><b>Anti-omissão:</b> antes de "pronto", confirme que nenhum item aplicável ficou sem resposta. Skill omissa → <b>o contrato prevalece</b>.</div>
+      </section>
+
+      <!-- 3 -->
+      <section class="panel" id="plano">
+        <p class="seclabel">Seção 3 · Documento integral</p>
+        <h2>Plano de Remediação + Roadmap (gap vs. Salesforce) <span class="tag">CRM_REMEDIATION_AND_ROADMAP.md</span></h2>
+        <div class="docmeta"><b>Parte A</b> = plano para corrigir o CRM (skills endurecidas + contrato). <b>Parte B</b> = lacunas vs. Salesforce Sales Cloud, priorizadas. Baseado na auditoria de <code>feature/crm-module</code>.</div>
+        <div class="callout status" id="pl-status"><b>Status (2026-06-16):</b> Fases <b>0–4 implementadas e verificadas</b> (tsc limpo; <code>next build</code> OK; SSR das 9 rotas CRM = 200; revisão adversarial passou após correções). Bespoke removidos: <code>RecordTable</code>, <code>CrmKpiCard</code>, <code>CrmBarChart</code>, <code>CrmPieChart</code>, <code>CrmAnalyticsBoard</code>. <b>Pendentes:</b> Fase 5 (polimento DS/i18n) e Fase 6 (verificação interativa). Follow-ups: <code>useTableRelationLookups</code> trunca relação em 50; badge ▼ vazio em cards <code>flat</code>.</div>
+        <p>Princípio: <b>reusar canônicos, não recriar</b>. Backend praticamente não muda; o trabalho é quase todo frontend.</p>
+
+        <h3 id="pl-a">Parte A — Plano de Remediação</h3>
+        <h4>Decisão arquitetural (Fase 0)</h4>
+        <ul class="clean">
+          <li><b>Opção A (recomendada): <code>CrmLayout</code> shell.</b> Layout full-height envolvendo todas as telas + <code>CrmNav</code> como abas — container consistente sem sacrificar as telas ricas.</li>
+          <li><b>Opção B:</b> integrar como category-view (<code>GenericTabbedView</code>) — mais consistente, mas força as telas ricas num molde tabular.</li>
+        </ul>
+        <div class="card">
+          <div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)"><div style="flex:0 0 70px;font-weight:850;color:var(--primary-ink)">Fase 0</div><div><div style="font-weight:800"><span class="dot d-done"></span>Fundação (<code>CrmLayout</code>) <span class="badge b-done">entregue</span> <span class="badge b-eff">S</span></div><div class="small muted">Remover <code>max-w-*</code> divergentes. Resolve #3, #4.</div></div></div>
+          <div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)"><div style="flex:0 0 70px;font-weight:850;color:var(--primary-ink)">Fase 1</div><div><div style="font-weight:800"><span class="dot d-done"></span>Tabelas sobre <code>GenericTable</code> + CRUD <span class="badge b-done">entregue</span> <span class="badge b-eff">M</span></div><div class="small muted">Add/edit/delete inline, filtros, paginação 25/pg. Deletar <code>RecordTable</code>. Resolve #1, #2, #7.</div></div></div>
+          <div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)"><div style="flex:0 0 70px;font-weight:850;color:var(--primary-ink)">Fase 2</div><div><div style="font-weight:800"><span class="dot d-done"></span>Pipeline no Kanban + Lead360 modal <span class="badge b-done">entregue</span> <span class="badge b-eff">M</span></div><div class="small muted">Drag-end → <code>advanceStage</code> (mini-modal na etapa "proposal"); clique → modal. Resolve #6, #8.</div></div></div>
+          <div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)"><div style="flex:0 0 70px;font-weight:850;color:var(--primary-ink)">Fase 3</div><div><div style="font-weight:800"><span class="dot d-done"></span>Atividades + Reuniões <span class="badge b-done">entregue</span> <span class="badge b-eff">S</span></div><div class="small muted">Timeline com <code>StandardPagination</code>; calendário on-brand. Resolve #4.</div></div></div>
+          <div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)"><div style="flex:0 0 70px;font-weight:850;color:var(--primary-ink)">Fase 4</div><div><div style="font-weight:800"><span class="dot d-done"></span>Analytics canônico <span class="badge b-done">entregue</span> <span class="badge b-eff">M</span></div><div class="small muted">Bundle via <code>DashboardKpiCard</code> + <code>ChartRenderer</code>. Deletar bespoke. Resolve #5.</div></div></div>
+          <div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)"><div style="flex:0 0 70px;font-weight:850;color:var(--primary-ink)">Fase 5</div><div><div style="font-weight:800"><span class="dot d-pend"></span>Polimento DS + i18n <span class="badge b-pend">pendente</span> <span class="badge b-eff">S</span></div></div></div>
+          <div style="display:flex;gap:14px;padding:12px 0"><div style="flex:0 0 70px;font-weight:850;color:var(--primary-ink)">Fase 6</div><div><div style="font-weight:800"><span class="dot d-pend"></span>Verificação (gate §6) <span class="badge b-pend">pendente</span> <span class="badge b-eff">S</span></div><div class="small muted">build prod + <code>preview_inspect</code>; &gt;50 reg.; &gt;1 pipeline; <code>luminaris-reviewer</code>.</div></div></div>
+        </div>
+
+        <h3 id="pl-b">Parte B — Gap vs. Salesforce</h3>
+        <h4>Objetos centrais — presença</h4>
+        <div class="card tight">
+        <table>
+          <thead><tr><th>Objeto Salesforce</th><th>Luminaris hoje</th><th>Lacuna</th></tr></thead>
+          <tbody>
+            <tr><td>Lead</td><td>✅ <code>leads</code> (BANT)</td><td>Falta conversão Lead→(Account+Contact+Opportunity)</td></tr>
+            <tr><td>Account</td><td>✅ <code>crmAccounts</code></td><td>Sem hierarquia de contas</td></tr>
+            <tr><td>Contact</td><td>✅ <code>crmContacts</code></td><td>Sem contact roles</td></tr>
+            <tr><td>Opportunity</td><td>⚠️ híbrido em <code>leads</code>+<code>leadProposals</code></td><td><b>Não é objeto de 1ª classe</b></td></tr>
+            <tr><td>Activity</td><td>⚠️ <code>leadActivities</code> (log)</td><td>Sem task/event, reminders/due, owner</td></tr>
+            <tr><td>Campaign · Product/Quote</td><td>❌ · ❌</td><td>Ausentes (P1)</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <h4><span class="badge b-p0">P0</span> Esperado num CRM básico</h4>
+        <ol class="clean">
+          <li><b>Conversão de Lead</b> → cria/associa Account+Contact+Opportunity. <span class="muted">(M)</span></li>
+          <li><b>Opportunity como objeto de 1ª classe</b> — separar negociação de qualificação. <span class="muted">(L)</span></li>
+          <li><b>Owner / atribuição</b> por vendedor (hoje só <code>userId</code> tenant). <span class="muted">(M)</span></li>
+          <li><b>Atividades como tarefas reais</b> (Task <code>dueDate</code>/<code>status</code>/<code>owner</code>; Event). <span class="muted">(M)</span></li>
+          <li><b>List views salvas + edição inline + ações em massa.</b> <span class="muted">(M)</span></li>
+          <li><b>Notas &amp; anexos</b> por registro. <span class="muted">(S)</span></li>
+        </ol>
+        <h4><span class="badge b-p1">P1</span> Diferencial competitivo</h4>
+        <ol class="clean" start="7">
+          <li><b>Campanhas + ROI</b> <span class="muted">(M)</span> · <b>Produtos/Price Books/Quotes</b> <span class="muted">(L)</span> · <b>Forecasting</b> (backend já calcula ponderado) <span class="muted">(M)</span></li>
+          <li><b>Scoring automático</b> <span class="muted">(M)</span> · <b>Roteamento/filas</b> <span class="muted">(M)</span> · <b>Dedupe</b> <span class="muted">(M)</span></li>
+          <li><b>Email integrado</b> <span class="muted">(L)</span> · <b>Relatórios self-service</b> <span class="muted">(L)</span> · <b>Activity timeline unificada</b> <span class="muted">(M)</span></li>
+        </ol>
+        <h4><span class="badge b-p2">P2</span> Enterprise</h4>
+        <ol class="clean" start="16">
+          <li><b>Automação declarativa</b> (Flows/validation/approval) <span class="muted">(L)</span> · <b>Permissões granulares</b> (sharing rules/FLS) <span class="muted">(L)</span></li>
+          <li><b>Territórios/team selling</b> <span class="muted">(L)</span> · <b>Audit trail por campo</b> <span class="muted">(M)</span> · <b>Web-to-Lead/import</b> <span class="muted">(M)</span></li>
+          <li><b>Multi-moeda avançada</b> <span class="muted">(M)</span> · <b>Path/guidance</b> <span class="muted">(S–M)</span> · <b>App mobile/PWA</b> <span class="muted">(L)</span></li>
+        </ol>
+        <div class="callout good"><b>Já de graça na arquitetura:</b> custom objects/fields (DynamicTable) · automação parcial (rules engine + ActionProposal) · analytics extensível · soft-delete + tenancy.</div>
+
+        <h3 id="pl-next">Próximos passos</h3>
+        <ol class="clean">
+          <li>Aprovar <b>Opção A</b> (CrmLayout) + separação <b>Lead vs Opportunity</b>.</li>
+          <li>Pipeline (2a): <b>generalizar</b> o Kanban (L) vs. <b><code>CrmPipelineBoard</code> pragmático</b> (M, recomendado).</li>
+          <li>Executar Parte A · priorizar a fila P0.</li>
+        </ol>
+      </section>
+
+      <!-- 4 -->
+      <section class="panel" id="spec">
+        <p class="seclabel">Seção 4 · Documento integral</p>
+        <h2>Spec Executável — SDD (Fases 0–4) <span class="tag">PHASE_0_1_2_SPEC.md</span></h2>
+        <div class="docmeta">Contrato spec-driven. Cada assinatura foi <b>ground-truthed contra o código real</b> (2026-06-16). Implementadores DEVEM ler o contrato + a skill antes de gerar. Critérios de aceite são gates.</div>
+
+        <h3 id="sp-sig">Assinaturas canônicas (verificadas — NÃO reinventar)</h3>
+        <h4>Frontend service — <code>DynamicTableService</code></h4>
+        <ul class="clean small"><li><code>createRecord</code>/<code>updateRecord</code>/<code>deleteRecord</code> (soft) — <code>payload = { data }</code>; <code>getTableData</code>, <code>getRecordById</code>, <code>getTables</code>; <code>options?: { successMessage?: string | null }</code></li></ul>
+        <h4>CRM transition — <code>CrmService</code></h4>
+        <ul class="clean small"><li><code>advanceStage({ leadId, stageId, stageType?, meetingAt?, amount?, currency?, winProbability? })</code> → <code>POST /api/crm/pipeline/advance</code>; <code>createProposal</code>; <code>recordNoShow</code></li></ul>
+        <h4>Stack de tabela canônico</h4>
+        <ul class="clean small">
+          <li><b><code>GenericTabbedView</code></b> — orquestra data+filter+sort+paginação(25/pg)+CRUD. <b>Wrapper a reusar na Fase 1.</b></li>
+          <li><code>useGenericData</code> → <code>{ records, table, schema, isLoading, error, refetch, relationLookups, deleteRecord }</code>; + <code>GenericTable</code>/<code>RowActionsCell</code>/<code>GenericFilterBar</code>/<code>StandardPagination</code>/<code>FloatingActionButton</code>/<code>EditRecordButton</code>/<code>ConfirmDeleteModal</code></li>
+        </ul>
+        <h4>Primitivos do Kanban canônico</h4>
+        <ul class="clean small">
+          <li><b><code>InternalKanbanView</code></b> — <code>DndContext</code> + <code>PointerSensor</code>(8px) + <code>DragOverlay</code>; colunas do campo <code>status</code>; drag-end persiste via <code>updateRecord(tableId, id, { data: { status } })</code> otimista + rollback.</li>
+          <li><code>KanbanColumn</code> (<code>useDroppable</code>), <code>SortableTaskItem</code> (<code>useSortable</code>), <code>KanbanCardDetailModal</code>, <code>useKanbanLogic</code> · <b>Modal</b> (portal, focus trap, esc, click-outside)</li>
+        </ul>
+        <div class="callout"><b>Backend (Fase 2) — já completo, NÃO regenerar:</b> <code>CrmPipelineService.advanceStage</code>, <code>CrmPipelineDto</code> (<code>AdvanceStageSchema</code>: leadId, stageId, stageType?, meetingAt?, amount?, currency? BRL|USD|EUR, winProbability? 0-100), <code>crmController</code>, <code>routes/crm.ts</code>, factory, teste. Verificado presente + transacional.</div>
+
+        <h3 id="sp-0">Fase 0 — <code>CrmLayout</code> shell</h3>
+        <p class="small"><b>Build:</b> <code>CrmLayout.tsx</code> → container <code>flex h-full flex-col</code> + <code>&lt;CrmNav /&gt;</code> uma vez + área scrollável. Sem <code>max-w-*</code>. Rewire 8 páginas + <code>leads/[id]</code> (remover wrapper próprio + CrmNav; envolver em <code>&lt;CrmLayout&gt;</code>).</p>
+        <ul class="chk small"><li><code>tsc</code> limpo · sem <code>max-w-*</code> · <code>grep zinc-</code> vazio · CrmNav 1× · 8 abas + lead detail renderizam</li></ul>
+
+        <h3 id="sp-1">Fase 1 — Tabelas on <code>GenericTable</code></h3>
+        <p class="small"><b>Build:</b> <code>CrmTableScreen.tsx</code> resolve o <code>IDynamicTable</code> por <code>internalName</code> (nunca <code>[0]</code>) e renderiza <code>&lt;GenericTabbedView tables={[table]} … /&gt;</code>. Reescrever 3 páginas; deletar <code>RecordTable.tsx</code>.</p>
+        <ul class="chk small"><li><code>tsc</code> limpo · Add/edit/delete(soft) nas 3 tabelas · filtros + paginação (validar &gt;50) · <code>RecordTable</code> deletado · visual idêntico ao dashboard</li></ul>
+
+        <h3 id="sp-2">Fase 2 — Pipeline (Kanban) + Lead360 modal</h3>
+        <p class="small"><b>Build (pragmático):</b> <code>CrmPipelineBoard.tsx</code> reusa o setup dnd-kit; colunas = <code>leadStages</code> filtradas pelo pipeline ativo + seletor. <code>handleDragEnd</code>: move otimista → resolve <code>stageType</code> → <code>advanceStage</code> → rollback no erro. Se <code>proposal</code> → modal de captura de <code>amount</code> antes. <code>Lead360Modal.tsx</code> reusa o conteúdo do <code>leads/[id]</code>.</p>
+        <ul class="chk small"><li><code>tsc</code> limpo · arrastar chama <code>advanceStage</code> e persiste; rollback · etapa <code>proposal</code> → modal coleta <code>amount</code> · clique abre modal (sem rota) · validar &gt;1 pipeline · sem board estático</li></ul>
+
+        <h3 id="sp-3">Fase 3 — Atividades (paginação) + Reuniões</h3>
+        <p class="small"><b>Build:</b> em <code>activities.tsx</code>, <code>itemsPerPage=25</code>, <code>paginatedSorted = sorted.slice(...)</code> + <code>&lt;StandardPagination/&gt;</code>; reset ao encolher. Meetings: só rotear strings PT por <code>t()</code>.</p>
+        <ul class="chk small"><li><code>tsc</code> limpo · timeline ≤25/pg (validar &gt;50) · calendário card <code>rounded-2xl</code> neutral sem strings hardcoded</li></ul>
+
+        <h3 id="sp-4">Fase 4 — Analytics nas folhas canônicas</h3>
+        <p class="small"><b>Abordagem (adapter):</b> ler <code>ChartRenderer</code> e decidir (A) <code>ChartPreset</code> sintético — preferido; ou (B) delegates <code>BarLineAreaChart</code>/<code>PieDonutChart</code>. <code>CrmAnalyticsDashboard.tsx</code> = seletor de período + grid de <code>DashboardKpiCard</code> + grid de charts. KPI adapter: <code>change</code>/<code>trend</code> de <code>previousValue</code>. Deletar 4 bespoke + teste.</p>
+        <ul class="chk small"><li><code>tsc</code> limpo; <code>next build</code> OK · KPIs via <code>DashboardKpiCard</code> + charts canônicos · 4 arquivos + teste deletados (grep vazio) · bundle vazio sem <code>NaN</code> · paridade com finance</li></ul>
+        <hr>
+        <h4>Verificação cross-phase (§6)</h4>
+        <ul class="clean small"><li><code>tsc</code> após cada fase; build prod + <code>preview_inspect</code>; <code>luminaris-reviewer</code> no diff final. Sequência <b>0 → 1 → 2</b> (1 e 2 dependem do CrmLayout); não paralelizar.</li></ul>
+      </section>
+
+      <!-- 5 -->
+      <section class="panel" id="workflow">
+        <p class="seclabel">Seção 5 · Catálogo completo</p>
+        <h2>Sistema de Skills (32 skills + contrato)</h2>
+        <p>Todas as skills do conjunto, agrupadas por camada. Cada uma referencia o <code>_ARCHITECTURE-CONTRACT.md</code> + tem um checklist obrigatório da sua camada + aponta uma <b>golden reference verificada</b> (arquivo-exemplo real do repo a espelhar). Risco: <span class="badge b-p0">High</span> = confirmação manual.</p>
+
+        <h3 id="sk-backend">Backend — camadas (7)</h3>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:230px">Skill</th><th>Propósito</th><th>Golden ref</th></tr></thead>
+          <tbody>
+            <tr><td class="fp">backend-dto-generator</td><td>DTOs Zod (Create/Update/Response) + type guards <code>isXxxDto</code> + <code>@openapi</code></td><td class="small muted">ChatInstanceDto</td></tr>
+            <tr><td class="fp">backend-repository-generator</td><td>Repository + <code>IRepository</code> com Prisma e soft-delete</td><td class="small muted">DynamicTableRepository</td></tr>
+            <tr><td class="fp">backend-policy-generator</td><td>Policy + <code>IPolicy</code> (<code>canXxx</code> por role/ownership, só boolean)</td><td class="small muted">UserPolicy</td></tr>
+            <tr><td class="fp">backend-service-generator</td><td>Service com DI de repo+policy, erros tipados, registro no factory</td><td class="small muted">UserService · CrmPipelineService</td></tr>
+            <tr><td class="fp">backend-controller-generator</td><td>Controllers async (Zod + getFactory + handleApiError)</td><td class="small muted">chatInstancesController</td></tr>
+            <tr><td class="fp">backend-route-generator</td><td>Rota Express + registro (index + <code>protectedApiPaths</code> + OpenAPI)</td><td class="small muted">routes/users (3-toques)</td></tr>
+            <tr><td class="fp">backend-prisma-model-generator <span class="badge b-p0">High</span></td><td>Novo model no <code>schema.prisma</code> + migration</td><td class="small muted">DynamicTableData</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Tabela 1 · As 7 skills que geram cada camada do backend (DTO → Route → Prisma), cada uma com sua golden reference verificada.</p>
+
+        <h3 id="sk-data">Backend — dados, analytics, jobs &amp; chat (9)</h3>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:230px">Skill</th><th>Propósito</th><th>Golden ref</th></tr></thead>
+          <tbody>
+            <tr><td class="fp">analytics-kpi-generator</td><td>KPI processor + template (single-pass sobre rows → <code>ChartDataPoint[]</code>)</td><td class="small muted">RevenueKpiProcessor</td></tr>
+            <tr><td class="fp">dashboard-kpi-end-to-end-generator <span class="badge b-p0">High</span></td><td>KPI ponta a ponta — processor → card → hook</td><td class="small muted">Revenue→DashboardKpiCard→ChartRenderer</td></tr>
+            <tr><td class="fp">dynamic-table-preset-generator</td><td>Preset ERP schema-driven (campos tipados, relações, system preset)</td><td class="small muted">LeadsModule · CrmModulePreset</td></tr>
+            <tr><td class="fp">document-processing-generator <span class="badge b-p0">High</span></td><td>Pipeline RAG (extractor/chunk/embed/Qdrant/status)</td><td class="small muted">DocumentProcessingPipeline</td></tr>
+            <tr><td class="fp">structured-data-generator</td><td>XLSX → tabela editável (DocumentPurpose DATA_ANALYSIS)</td><td class="small muted">ExcelStructuredExtractor</td></tr>
+            <tr><td class="fp">job-generator</td><td>Job de background / seed idempotente (<code>__demo</code> + cleanup)</td><td class="small muted">seed-crm-demo.js</td></tr>
+            <tr><td class="fp">chat-domain-generator</td><td>Intenções/tools/modos do agente (RAG + AGENT; escrita = <code>PROPOSED</code>)</td><td class="small muted">LuminarisAgentService</td></tr>
+            <tr><td class="fp">backend-test-suite-generator</td><td>Suítes Jest (service/repo/KPI/middleware) com mocks padronizados</td><td class="small muted">RevenueKpiProcessor.test</td></tr>
+            <tr><td class="fp">backend-workflow-transition-generator <span class="badge b-new">nova</span></td><td>Serviço de transição de etapa atômico (efeitos colaterais)</td><td class="small muted">CrmPipelineService.advanceStage</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Tabela 2 · Skills de dados, analytics, jobs, chat e testes — inclui a nova <code>backend-workflow-transition-generator</code>.</p>
+
+        <h3 id="sk-frontend">Frontend (9)</h3>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:230px">Skill</th><th>Propósito</th><th>Golden ref</th></tr></thead>
+          <tbody>
+            <tr><td class="fp">frontend-page-generator</td><td>Página Pages Router (auth guard, i18n SSR, dynamic imports; detalhe = modal)</td><td class="small muted">pages/dashboard/index</td></tr>
+            <tr><td class="fp">frontend-component-generator</td><td>Component tipado (modal/form/card); reusa <code>GenericTable</code>/<code>Modal</code></td><td class="small muted">GenericTable · Modal</td></tr>
+            <tr><td class="fp">frontend-hook-generator</td><td>Hook de data-fetching/estado (paginação fetch-all, <code>useMemo</code>)</td><td class="small muted">crmFetch · useLeadsView</td></tr>
+            <tr><td class="fp">frontend-context-provider-generator</td><td>Context + Provider + <code>useX</code> (value memoizado)</td><td class="small muted">AuthContext</td></tr>
+            <tr><td class="fp">frontend-widget-generator</td><td>Widget react-grid-layout (loading/error/empty; chart via <code>ChartRenderer</code>)</td><td class="small muted">AnalyticsWidget</td></tr>
+            <tr><td class="fp">frontend-api-service-generator</td><td>Service em <code>lib/services</code> (apiClient tipado, tipos locais)</td><td class="small muted">dynamic-table.service</td></tr>
+            <tr><td class="fp">frontend-feature-module-generator</td><td>Módulo de categoria (View + hooks; reusa <code>GenericTabbedView</code>)</td><td class="small muted">GenericTabbedView</td></tr>
+            <tr><td class="fp">frontend-design-system</td><td>Linguagem visual (neutral/lumi-*, componentes-assinatura)</td><td class="small muted">ManageHeader</td></tr>
+            <tr><td class="fp">frontend-kanban-workflow-generator <span class="badge b-new">nova</span></td><td>Board de workflow Kanban (drag-drop + modal, colunas por pai ativo)</td><td class="small muted">InternalKanbanView</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Tabela 3 · As 9 skills de frontend (página, componente, hook, widget, design system…) — inclui a nova <code>frontend-kanban-workflow-generator</code>.</p>
+
+        <h3 id="sk-composite">Composição (4)</h3>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:230px">Skill</th><th>Propósito</th><th>Golden ref</th></tr></thead>
+          <tbody>
+            <tr><td class="fp">fullstack-feature-generator <span class="badge b-p0">High</span></td><td>Vertical slice completa — Prisma → DTO → … → Page</td><td class="small muted">slice users</td></tr>
+            <tr><td class="fp">crud-resource-generator <span class="badge b-p0">High</span></td><td>CRUD com soft-delete em todas as camadas + frontend service</td><td class="small muted">slice users</td></tr>
+            <tr><td class="fp">api-contract-sync-generator</td><td>Sincroniza DTO backend ↔ service frontend (tipos alinhados)</td><td class="small muted">UserDto ↔ user.service</td></tr>
+            <tr><td class="fp">interview-setup-generator</td><td>Estende o wizard de onboarding AI (estágios/prompts/preset matching)</td><td class="small muted">InterviewService · AiInterviewSetup</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Tabela 4 · Skills que orquestram várias camadas de uma vez (vertical slice, CRUD, sync de contrato, wizard).</p>
+
+        <h3 id="sk-meta">Meta-agentes (3)</h3>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:230px">Skill</th><th>Propósito</th><th>Âncora</th></tr></thead>
+          <tbody>
+            <tr><td class="fp">luminaris-orchestrator</td><td>Analisa a tarefa em linguagem natural → plano de skills na ordem certa</td><td class="small muted">lê o contrato na Phase 1</td></tr>
+            <tr><td class="fp">luminaris-implementer</td><td>Executa o plano lendo cada contrato de geração + o <code>_ARCHITECTURE-CONTRACT</code></td><td class="small muted">slice users</td></tr>
+            <tr><td class="fp">luminaris-reviewer</td><td>Valida camadas/anti-patterns/inter-conexão (bar = o contrato)</td><td class="small muted">slice users</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Tabela 5 · Os 3 meta-agentes que planejam, executam e revisam — o bar de qualidade que aplicam é o contrato.</p>
+        <p class="small muted">+ <b><code>_ARCHITECTURE-CONTRACT.md</code></b> (keystone) — fonte única das regras §0–§6, referenciada por todas as 32.</p>
+
+        <h3 id="sk-workflow">As 2 skills de workflow (criadas nesta frente)</h3>
+        <div class="grid2">
+          <div class="card">
+            <h4 style="margin-top:0"><span class="dot d-done"></span><code>frontend-kanban-workflow-generator</code></h4>
+            <ul class="clean small">
+              <li>Board que <b>reusa</b> <code>InternalKanbanView</code>/<code>KanbanColumn</code>/<code>KanbanCardDetailModal</code> + <code>@dnd-kit</code></li>
+              <li>Drag-end → transição (update simples OU endpoint com efeitos colaterais)</li>
+              <li>Colunas por status-enum OU stage-relation filtrada pelo pai ativo; clique → modal</li>
+              <li>Anti-exemplo embutido: <code>pages/crm/pipeline.tsx</code> (board estático)</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4 style="margin-top:0"><span class="dot d-done"></span><code>backend-workflow-transition-generator</code></h4>
+            <ul class="clean small">
+              <li>Serviço de transição com efeitos colaterais <b>atômicos</b> (padrão <code>CrmPipelineService</code>)</li>
+              <li>Orquestra <code>DynamicTableService</code>; resolve por <code>internalName</code>; sem policy própria</li>
+              <li><code>runInTransaction</code> + controller + rota 3-toques + factory + teste</li>
+            </ul>
+          </div>
+        </div>
+        <p class="small muted"><b>Wiring (6 pontos):</b> contrato §0 · orquestrador (sinais + combinação) · SKILL_MATRIX · GENERATION_CONTRACTS · reviewer (2 camadas de checklist) · plano do CRM (Fase 2).</p>
+
+        <h3 id="sk-detalhe">★ Detalhe por skill (32)</h3>
+        <p>Cada skill expandível: propósito, quando usar, inputs, o que gera, golden reference, regras-chave e anti-patterns. Clique para abrir.</p>
+
+        <h4>Backend — camadas</h4>
+        <div class="skd">
+          <details><summary><span class="nm">backend-dto-generator</span><span class="rk rk-low">Low</span><span class="ol">DTOs Zod + type guards + OpenAPI + companion model</span></summary><div class="body">
+            <p>Cria <code>dtos/&lt;Resource&gt;Dto.ts</code> com schemas Zod anotados com <code>@openapi</code>, tipos via <code>z.infer</code> e type guards <code>isXxxDto</code>. Também gera o companion <code>models/&lt;Resource&gt;.model.ts</code> com a interface <code>I&lt;Resource&gt;</code>, fonte do tipo de domínio que policy e service importam.</p>
+            <div class="meta"><span><b>Inputs:</b> nome do recurso em PascalCase</span><span><b>Checks:</b> <code>cd server &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo recurso precisa de validação de entrada</li><li>Adicionando campo a um DTO existente</li><li>Sincronizando validação com regras de negócio novas</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>dtos/&lt;Resource&gt;Dto.ts</code> (NEW)</li><li><code>models/&lt;Resource&gt;.model.ts</code> com <code>interface I&lt;Resource&gt;</code></li><li>Schemas Create/Update/Response + types <code>z.infer</code> + type guards</li></ul>
+            <h5>Golden reference</h5><p><code>chatInstances/dtos/ChatInstanceDto.ts</code> — DTO perfeito: <code>@openapi</code> em cada schema, <code>Update = Create.partial()</code>, type guards com <code>safeParse</code>, zero <code>z.any()</code> (UserDto redefine Update à mão — não copiar esse ponto).</p>
+            <h5>Regras-chave</h5><ul class="clean"><li><code>@openapi</code> acima do schema principal — <code>docs.paths.ts</code> depende dele</li><li><code>Update</code> derivado via <code>Create.partial()</code>, nunca redefinindo à mão</li><li>Type guards com <code>safeParse().success</code> para narrowing seguro</li><li>ZERO <code>z.any()</code>; datas de payload com <code>z.coerce.date()</code>, nunca <code>z.date()</code> cru</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Reutilizar o mesmo schema para Create e Update</li><li>Omitir <code>@openapi</code> ou expor campos sensíveis no schema de resposta</li><li>Deixar obrigatoriedade condicional fora do schema</li></ul>
+          </div></details>
+          <details><summary><span class="nm">backend-repository-generator</span><span class="rk rk-low">Low</span><span class="ol">Repository + IRepository com Prisma, paginação e soft-delete</span></summary><div class="body">
+            <p>Cria o Repository e a interface. É a única camada que toca <code>prisma.*</code>, encapsulando CRUD com soft-delete, <code>select</code> explícito e paginação via <code>$transaction</code>. Zero regra de negócio.</p>
+            <div class="meta"><span><b>Inputs:</b> nome do recurso em PascalCase</span><span><b>Checks:</b> <code>cd server &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo modelo Prisma precisa de camada de acesso</li><li>Adicionando query especializada</li><li>Implementando soft-delete</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>I&lt;Resource&gt;Repository.ts</code> + <code>&lt;Resource&gt;Repository.ts</code></li><li>Métodos <code>create</code>, <code>findById</code>, <code>findAll</code>, <code>update</code>, <code>delete</code></li></ul>
+            <h5>Golden reference</h5><p><code>dynamicTables/repositories/DynamicTableRepository.ts</code> — único repo exemplar de soft-delete completo (<code>deletedAt: null</code> em todos os finds, delete via update). NÃO espelhar UserRepository (User não tem <code>deletedAt</code>).</p>
+            <h5>Regras-chave</h5><ul class="clean"><li><code>where: { …, deletedAt: null }</code> em TODOS os finds</li><li>Soft-delete via <code>update({ data: { deletedAt: new Date() } })</code>, nunca <code>.delete()</code></li><li><code>findAll</code> usa <code>$transaction([findMany, count])</code> com paginação</li><li><code>implements</code> a interface; tipos de <code>'generated/prisma'</code>; zero regra de negócio</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Lógica de negócio no repository</li><li><code>findMany</code> sem <code>select</code> ou hard-delete <code>.delete()</code></li><li>findMany + count em duas queries sequenciais</li></ul>
+          </div></details>
+          <details><summary><span class="nm">backend-policy-generator</span><span class="rk rk-low">Low</span><span class="ol">Policy + IPolicy com canXxx booleanos (role/ownership)</span></summary><div class="body">
+            <p>Cria a Policy com regras de autorização puramente booleanas. Só inspeciona o <code>actor</code> já carregado, nunca acessa o banco e nunca lança — quem lança <code>ForbiddenError</code> é o service após checar a policy.</p>
+            <div class="meta"><span><b>Inputs:</b> nome do recurso em PascalCase</span><span><b>Checks:</b> <code>cd server &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo recurso precisa de controle de acesso</li><li>Adicionando regra de autorização</li><li>Diferenciando ADMIN vs USER vs proprietário</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>I&lt;Resource&gt;Policy.ts</code> + <code>&lt;Resource&gt;Policy.ts</code></li><li>Métodos <code>canCreate</code>, <code>canView</code>, <code>canUpdate</code>, <code>canDelete</code>, <code>canListAll</code></li></ul>
+            <h5>Golden reference</h5><p><code>users/policies/UserPolicy.ts</code> — todo <code>can*</code> retorna só <code>boolean</code>, zero <code>throw</code>, zero acesso a dados, <code>canListAll</code> exige <code>Role.ADMIN</code>, ownership <code>actor.id === target || ADMIN</code>.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Todo <code>can*</code> retorna <code>boolean</code> — nunca void/Promise/exceção</li><li><code>canListAll</code> checa <code>actor?.role === Role.ADMIN</code></li><li>Ownership: <code>actor?.id === ownerId || ADMIN</code></li><li>Actor <code>IUser | null</code> (null → false); imports de <code>User.model</code></li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Lançar erros na Policy</li><li>Acessar banco na Policy ou não tratar <code>actor === null</code></li><li>Retornar algo além de boolean, ou esquecer o ramo admin</li></ul>
+          </div></details>
+          <details><summary><span class="nm">backend-service-generator</span><span class="rk rk-med">Medium</span><span class="ol">Service com DI, policy-first, erros tipados e factory</span></summary><div class="body">
+            <p>Cria o Service com a regra de negócio do feature, recebendo Repository e Policy por construtor (DI) e registrando-se no factory. Policy-check sempre antes de dados; agnóstico a HTTP; nunca toca <code>prisma.*</code>. Tem variante de orquestração sobre <code>DynamicTableService</code>.</p>
+            <div class="meta"><span><b>Inputs:</b> nome do recurso em PascalCase</span><span><b>Checks:</b> <code>cd server &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo domínio precisa de lógica encapsulada</li><li>Operação complexa com múltiplos repositories</li><li>Extraindo lógica do controller</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>services/&lt;Resource&gt;Service.ts</code></li><li><code>lib/factory.ts</code> (EDIT — registra + getter <code>get&lt;Resource&gt;Service()</code>)</li><li>Métodos create/getById/getAll/update/delete</li></ul>
+            <h5>Golden reference</h5><p><code>users/services/UserService.ts</code> (CRUD clássico) + <code>crm/services/CrmPipelineService.ts</code> (variante DynamicTable: resolve por <code>internalName</code>, sem policy própria, <code>runInTransaction</code>).</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Policy-check ANTES de qualquer acesso a dados</li><li>Erros tipados; cross-tenant = <code>NotFoundError</code>, não <code>ForbiddenError</code></li><li>DI por construtor — nunca <code>new</code> interno; registrar no factory</li><li>ZERO <code>prisma.*</code> direto e ZERO Express/<code>res.json</code></li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Importar/usar <code>prisma</code> direto ou pular policy</li><li><code>new &lt;Resource&gt;Repository()</code> em vez de DI</li><li>Erros genéricos, Express no service, ou <code>ForbiddenError</code> em cross-tenant</li></ul>
+          </div></details>
+          <details><summary><span class="nm">backend-controller-generator</span><span class="rk rk-low">Low</span><span class="ol">Controllers async (Zod + getFactory + handleApiError)</span></summary><div class="body">
+            <p>Cria controllers async nomeados que validam (Zod <code>safeParse</code>) antes de qualquer lógica, extraem o actor, chamam o service via <code>getFactory()</code> e formatam a resposta padrão. Sem regra de negócio e sem <code>prisma.*</code>.</p>
+            <div class="meta"><span><b>Inputs:</b> nome do recurso em PascalCase</span><span><b>Checks:</b> <code>cd server &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo recurso CRUD precisa de controllers</li><li>Actions não-CRUD (approve/publish)</li><li>Corrigindo estrutura de controller</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>controllers/&lt;resource&gt;Controller.ts</code></li><li>Funções async (list/get/create/update/delete) com try/catch + <code>handleApiError</code></li><li>Schemas Zod inline</li></ul>
+            <h5>Golden reference</h5><p><code>chatInstancesController.ts</code> — <code>safeParse</code> com 400 antes de tudo, <code>getUserContextFromRequest</code> + guard 401, <code>getFactory().get…Service()</code>, <code>{ success, data }</code>. NÃO espelhar <code>userController.ts</code> (prisma direto).</p>
+            <h5>Regras-chave</h5><ul class="clean"><li><code>Schema.safeParse(req.body)</code> ANTES de qualquer lógica (→ 400 com <code>flatten()</code>)</li><li><code>getUserContextFromRequest</code> + <code>getFactory().get…Service()</code></li><li>Resposta <code>{ success: true, data }</code> (ou 201); <code>handleApiError(error, res)</code> no catch</li><li>ZERO <code>prisma.*</code> e ZERO regra de negócio</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li><code>prisma</code> direto ou lógica de negócio no controller</li><li><code>res.send</code>, sem try/catch, ou shapes ad-hoc</li><li>Chamar o service antes do <code>safeParse</code></li></ul>
+          </div></details>
+          <details><summary><span class="nm">backend-route-generator</span><span class="rk rk-med">Medium</span><span class="ol">Rota Express + registro 3-toques (index, auth, OpenAPI)</span></summary><div class="body">
+            <p>Cria a rota (só <code>router.&lt;verbo&gt;</code> com handlers nomeados, zero lógica) e faz o registro de 3 toques. Faltar o toque do allowlist gera 401 silencioso que o <code>tsc</code> não pega.</p>
+            <div class="meta"><span><b>Inputs:</b> nome do recurso em kebab-case</span><span><b>Checks:</b> tsc + <code>grep '/api/&lt;recurso&gt;' docs.paths.ts</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo endpoint REST precisa ser exposto</li><li>Adicionando sub-rotas</li><li>Sincronizando OpenAPI com rota nova</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>routes/&lt;resource&gt;.ts</code> com <code>export default router</code></li><li><code>routes/index.ts</code> (import + <code>router.use</code>)</li><li><code>middleware/auth.ts</code> (<code>protectedApiPaths</code>) + <code>docs.paths.ts</code> (OpenAPI)</li></ul>
+            <h5>Golden reference</h5><p>O recurso <code>users</code> (<code>routes/users.ts</code> + <code>index.ts</code> + <code>auth.ts</code> + <code>docs.paths.ts</code>) — conjunto de referência do registro 3-toques.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Registro = 3 toques (index.ts + <code>protectedApiPaths</code> + bloco OpenAPI)</li><li>Toque 2 obrigatório: sem o prefixo no allowlist → 401 com token válido</li><li>Zero lógica no arquivo de rota; <code>export default router</code></li><li>Controller importado por funções nomeadas existentes</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Esquecer <code>/api/&lt;resource&gt;</code> no <code>protectedApiPaths</code></li><li>Lógica/autenticação dentro do arquivo de rota</li><li>Só o component schema sem o bloco de PATH em docs.paths.ts</li></ul>
+          </div></details>
+          <details><summary><span class="nm">backend-prisma-model-generator</span><span class="rk rk-high">High</span><span class="ol">Novo model no schema.prisma + migration (destrutivo)</span></summary><div class="body">
+            <p>Adiciona um novo modelo ao <code>schema.prisma</code> (cuid, timestamps, soft-delete, relação multi-tenant, índices, <code>@@map</code>) e roda <code>migrate dev</code> + <code>generate</code>. Operação destrutiva que modifica o banco real — exige confirmação manual.</p>
+            <div class="meta"><span><b>Inputs:</b> nome do modelo em PascalCase</span><span><b>Checks:</b> <code>prisma validate</code> → <code>migrate dev</code> → <code>generate</code> → tsc</span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Nova entidade de banco</li><li>Adicionando campo (nova migration)</li><li>Adicionando enum ao schema</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>schema.prisma</code> (EDIT — model + relação inversa em User)</li><li><code>migrations/&lt;timestamp&gt;_add_&lt;name&gt;/</code></li><li><code>generated/prisma/</code> (regenerado)</li></ul>
+            <h5>Golden reference</h5><p><code>schema.prisma</code> → model <code>DynamicTableData</code> (soft-delete completo) + <code>DynamicTable</code> (multi-tenant: relação User <code>onDelete: Cascade</code> + <code>@@index([userId])</code>).</p>
+            <h5>Regras-chave</h5><ul class="clean"><li><code>id String @id @default(cuid())</code></li><li><code>createdAt</code> + <code>@updatedAt</code> + <code>deletedAt DateTime?</code></li><li><code>userId</code> + relação <code>onDelete: Cascade</code> + <code>@@index([userId])</code> se multi-tenant</li><li><code>@@index([deletedAt])</code> + <code>@@map("snake_case")</code></li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Editar migrations geradas manualmente</li><li><code>Int @id @default(autoincrement())</code> ou esquecer <code>@@index</code> em FKs</li><li>Omitir <code>deletedAt</code> ou <code>onDelete: Cascade</code></li></ul>
+          </div></details>
+        </div>
+
+        <h4>Backend — dados, analytics, jobs &amp; chat</h4>
+        <div class="skd">
+          <details><summary><span class="nm">analytics-kpi-generator</span><span class="rk rk-med">Medium</span><span class="ol">KPI processor + template single-pass → ChartDataPoint[]</span></summary><div class="body">
+            <p>Gera o processor e o template seguindo o contrato <code>AnalyticsProcessor</code>. Single-pass sobre os dados para performance; o template registra parâmetros configuráveis. Inclui registro e teste com Empty Safety.</p>
+            <div class="meta"><span><b>Inputs:</b> nome PascalCase + categoria</span><span><b>Checks:</b> tsc + <code>jest features/analytics/kpis/&lt;category&gt;</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo KPI de negócio</li><li>Variante de KPI (categoria/período)</li><li>Processor dinâmico para <code>analytics/dynamic/</code></li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>&lt;Name&gt;KpiProcessor.ts</code></li><li><code>&lt;Name&gt;KpiTemplate.ts</code> + auto-<code>registerTemplate</code></li><li>Teste com Empty Safety + edição de <code>kpis/index.ts</code></li></ul>
+            <h5>Golden reference</h5><p><code>revenue/RevenueKpiProcessor.ts</code> — single-pass perfeito: desestrutura <code>{ rows, params, table }</code>, params com <code>?? default</code> + cast, acumula só via <code>addMoney()</code>, exclui <code>amount &lt;= 0</code>, <code>previousValue</code> undefined sem dado.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Single-pass: iterar <code>rows</code> uma única vez</li><li>Money só via <code>addMoney()</code>; excluir negativos e status no loop</li><li><code>previousValue = count&gt;0 ? total/count : undefined</code> (nunca 0); <code>referenceDate</code> com fallback</li><li>Registrar processor + template; validar finitude com <code>Number.isFinite</code></li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Múltiplos passes ou somar <code>NaN</code>/<code>Infinity</code></li><li><code>params || {}</code>/<code>= {}</code> (TS infere <code>{}</code>) — use <code>?? default</code> com cast</li><li>Engolir erro de cross-fetch silenciosamente; hardcodar nomes de campo</li></ul>
+          </div></details>
+          <details><summary><span class="nm">dashboard-kpi-end-to-end-generator</span><span class="rk rk-med">Medium</span><span class="ol">KPI ponta a ponta: processor + hook + card no dashboard</span></summary><div class="body">
+            <p>Cria um KPI do backend processor ao widget de card no dashboard. Skill certa para "quero ver X no dashboard". Invoca <code>analytics-kpi-generator</code>, <code>frontend-hook-generator</code> e <code>frontend-widget-generator</code>, reusando os componentes canônicos.</p>
+            <div class="meta"><span><b>Inputs:</b> nome PascalCase + categoria</span><span><b>Checks:</b> tsc (server+app) + jest do processor</span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Nova métrica precisa aparecer no dashboard</li><li>KPI em finance/sales/inventory</li><li>KPI custom com fórmula do usuário</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li>Backend: processor + template + teste + registro</li><li>Hook <code>use&lt;Name&gt;Kpi.ts</code> chamando <code>analytics.service.ts</code></li><li>Widget reusando <code>DashboardKpiCard</code> + <code>ChartRenderer</code></li></ul>
+            <h5>Golden reference</h5><p>Slice <code>RevenueKpiProcessor.ts</code> → <code>DashboardKpiCard.tsx</code> → <code>ChartRenderer.tsx</code> + <code>AnalyticsDashboard.tsx</code> — slice perfeito porque a UI é REUSADA (o erro do CRM foi recriar <code>CrmKpiCard</code>/<code>CrmBarChart</code>).</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Não criar o widget sem o processor backend</li><li>REUSE <code>DashboardKpiCard</code>/<code>GoldKpiWidgetView</code> + <code>ChartRenderer</code></li><li>Frontend via service layer; tratar loading/error/empty</li><li>Não pular o teste do processor (única verificação do cálculo)</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Componentes de gráfico próprios em vez de <code>ChartRenderer</code></li><li>KPI card do zero quando o canônico serve</li><li>Hardcodar valores ou esquecer loading/error</li></ul>
+          </div></details>
+          <details><summary><span class="nm">dynamic-table-preset-generator</span><span class="rk rk-med">Medium</span><span class="ol">Módulo de preset ERP schema-driven (campos, relações, registro)</span></summary><div class="body">
+            <p>Gera módulos de preset para o ERP schema-driven. Cada módulo define uma tabela virtual com campos tipados, relações e comportamentos especiais, registrando o suite no <code>&lt;System&gt;Preset.ts</code> e em <code>tablePresetSuites</code> quando selecionável.</p>
+            <div class="meta"><span><b>Inputs:</b> nome do sistema + módulo (opcional)</span><span><b>Checks:</b> tsc + grep do suite em <code>presets/index.ts</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo negócio precisa de tabelas ERP</li><li>Módulo a sistema existente ou campo reutilizável</li><li>Preset de sistema completo selecionável</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>presets/modules/&lt;category&gt;/&lt;Name&gt;Module.ts</code></li><li><code>presets/systems/&lt;System&gt;Preset.ts</code></li><li>Edição de <code>presets/index.ts</code> (<code>tablePresetSuites</code>)</li></ul>
+            <h5>Golden reference</h5><p><code>presets/modules/core/LeadsModule.ts</code> — named export camelCase, <code>schema as ITableSchema</code>, reusa field presets, relações via <code>@@PRESET_TABLE_KEY::</code>. Pareie com <code>systems/CrmModulePreset.ts</code> (suite selecionável).</p>
+            <h5>Regras-chave</h5><ul class="clean"><li><code>schema as ITableSchema</code> (não <code>as const</code>); named export camelCase</li><li><code>category</code> válido — não existe <code>crm</code>; funil usa <code>leads</code></li><li>Relações via <code>@@PRESET_TABLE_KEY::</code>; reusar field presets</li><li>Registrar o suite em <code>tablePresetSuites</code>; board precisa de pai (pipeline) + stages</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li><code>as const</code> no schema, tipo de campo inválido, ou inventar <code>category</code></li><li>Tratar <code>tables</code> como array (é <code>Record</code> com chave = <code>internalName</code>)</li><li>Criar a folha sem o pai+stages, ou não registrar o suite</li></ul>
+          </div></details>
+          <details><summary><span class="nm">document-processing-generator</span><span class="rk rk-high">High</span><span class="ol">Pipeline RAG: extractor, chunk, embed, Qdrant, status</span></summary><div class="body">
+            <p>Gera/modifica componentes do pipeline RAG: extractors, chunking, embedding via OpenAI, Qdrant e status do Document. Risco HIGH — toca isolamento de tenant na busca e o status; erro vaza documentos entre usuários ou trava em <code>PROCESSING</code>.</p>
+            <div class="meta"><span><b>Inputs:</b> tipo do extractor (csv/markdown/txt)</span><span><b>Checks:</b> tsc + testes de tenant isolation</span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo tipo de arquivo (CSV/TXT/Markdown)</li><li>Modificar chunking ou metadados do embedding</li><li>Debugar falhas no pipeline</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>lib/vector/extractors/&lt;type&gt;.ts</code> (devolve <code>{ text }</code>)</li><li>Edição de <code>DocumentProcessingPipeline.ts</code> (branch + status flow)</li><li>Reuso de chunking/embedding/upsert de <code>lib/vector/</code></li></ul>
+            <h5>Golden reference</h5><p><code>documents/services/DocumentProcessingPipeline.ts</code> — dispatcher com status flow em todos os branches (<code>PROCESSING</code>→<code>COMPLETED</code>/<code>ERROR</code>), separa <code>DATA_ANALYSIS</code> de <code>KNOWLEDGE_BASE</code>. Extractor: espelhe <code>extractors/pdf.ts</code>.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Extractor retorna <code>{ text: string }</code>, erros via throw tipado</li><li>Chunk/embed/Qdrant via libs de <code>lib/vector/</code></li><li>Status flow em TODOS os branches (nunca preso em <code>PROCESSING</code>)</li><li>Isolamento por tenant: ownership por <code>userId</code> ANTES do Qdrant</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Processar no controller em vez de async via <code>DocumentService</code></li><li>Deixar preso em <code>PROCESSING</code> ou guardar o buffer no banco</li><li>RAG cross-tenant, ou <code>KNOWLEDGE_BASE</code> para XLSX/CSV tabular</li></ul>
+          </div></details>
+          <details><summary><span class="nm">structured-data-generator</span><span class="rk rk-med">Medium</span><span class="ol">XLSX → tabela editável (DATA_ANALYSIS + StructuredDataService)</span></summary><div class="body">
+            <p>Estende o pipeline de dados estruturados: importação de XLSX para tabela editável, detecção de conteúdo tabular em PDF/DOCX e edição de células. Diferente do RAG, armazena em SQL (JSON column) para edição pelo usuário.</p>
+            <div class="meta"><span><b>Inputs:</b> ação (novo-extrator/tipo-coluna/multi-sheet/widget)</span><span><b>Checks:</b> tsc + <code>prisma migrate dev</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo formato ou tipo de coluna (TEXT/NUMBER/CURRENCY/…)</li><li>XLSX multi-sheet ou widget de spreadsheet</li><li>Export CSV/JSON ou debug DATA_ANALYSIS vs KNOWLEDGE_BASE</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>extractors/&lt;Format&gt;StructuredExtractor.ts</code></li><li>Edições casadas em model + types + service + DTO</li><li>Edição de <code>DocumentProcessingPipeline.ts</code> + <code>schema.prisma</code></li></ul>
+            <h5>Golden reference</h5><p><code>lib/vector/extractors/ExcelStructuredExtractor.ts</code> — importa via lib de planilha, devolve <code>{ sheets }</code> com headers inferidos, preserva o tipo de cada célula (<code>inferType</code>), <code>null</code> para vazio.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Importar via lib de planilha; preservar o tipo de cada célula</li><li><code>null</code> para vazio, nunca <code>undefined</code></li><li>Armazenar em SQL via <code>StructuredDataService</code>, nunca Qdrant</li><li><code>DATA_ANALYSIS</code> (não <code>KNOWLEDGE_BASE</code>); novo <code>HeaderType</code> propaga em 4 pontos</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Confundir extração RAG vs DATA_ANALYSIS do Excel</li><li>Armazenar no Qdrant ou editar <code>data</code> direto no Prisma</li><li>Coagir células a <code>string</code> ou usar <code>undefined</code> para vazias</li></ul>
+          </div></details>
+          <details><summary><span class="nm">job-generator</span><span class="rk rk-med">Medium</span><span class="ol">Job de background ou seed fixture idempotente</span></summary><div class="body">
+            <p>Gera jobs em <code>server/src/jobs/</code> ou fixtures de seed (via API ou script de volume com Prisma direto). Jobs e seeds usam Prisma diretamente (sem factory) para manutenção/dev, com idempotência e guards obrigatórios.</p>
+            <div class="meta"><span><b>Inputs:</b> nome PascalCase + <code>schedule</code>|<code>seed</code></span><span><b>Checks:</b> <code>cd server &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Job de limpeza/manutenção periódico</li><li>Fixture de dev para novo módulo</li><li>Processamento em background</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>jobs/&lt;JobName&gt;.ts</code> (Prisma direto)</li><li><code>features/dev/seed/modules/&lt;name&gt;Seed.ts</code> (via API)</li><li><code>scripts/seed-&lt;dominio&gt;-demo.js</code> (volume idempotente)</li></ul>
+            <h5>Golden reference</h5><p><code>scripts/seed-crm-demo.js</code> — idempotente: cada registro leva <code>data.__demo = true</code> e <code>clearDemo</code> apaga antes de reinserir; resolve por <code>internalName</code>, <code>createMany</code> para volume. Periódico: <code>jobs/PurgeDeletedRecords.ts</code>.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Idempotência: re-rodar não duplica; seeds tagueiam <code>__demo</code> + cleanup</li><li>Guard de produção (<code>NODE_ENV === 'production'</code>); seed escopado a <code>userId</code></li><li>Resolver por <code>internalName</code>/<code>id</code>, nunca <code>[0]</code></li><li>Documentar o bypass de factory; logs de início/fim; cron explícito se periódico</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li><code>getFactory()</code> em jobs (use Prisma direto)</li><li>Seed de volume sem <code>__demo</code>+cleanup, ou em produção sem guard</li><li>Resolver por <code>[0]</code>, ou job periódico sem agendamento</li></ul>
+          </div></details>
+          <details><summary><span class="nm">chat-domain-generator</span><span class="rk rk-high">High</span><span class="ol">Intenções/tools/modos do agente AI (RAG + AGENT, PROPOSED)</span></summary><div class="body">
+            <p>Orquestra modificações no domínio de chat: ferramentas do agente ERP, prompts, KnowledgeGraph ou pipeline RAG. Skill certa para "quero que o agente consiga fazer X". Toda escrita passa pelo fluxo proposta→confirmação.</p>
+            <div class="meta"><span><b>Inputs:</b> nome da tool snake_case + ação</span><span><b>Checks:</b> tsc + <code>jest features/chat</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Nova capacidade do agente (tool call)</li><li>Customizar KnowledgeGraph ou system prompt</li><li>Ação no fluxo proposta→confirmação, ou novo modo</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li>Edição de <code>LuminarisAgentService.ts</code> (<code>getTools()</code> + <code>handleToolCall()</code>)</li><li><code>ChatService.ts</code> + <code>KnowledgeGraphService.ts</code></li><li><code>lib/factory.ts</code> (dep) + <code>schema.prisma</code> se nova model</li></ul>
+            <h5>Golden reference</h5><p><code>chat/services/LuminarisAgentService.ts</code> — escrita em <code>handleToolCall()</code> cria <code>ActionProposal</code> <code>PENDING</code> e retorna <code>{ status: 'PROPOSED', proposalId }</code>; escrita real só em <code>executeProposal()</code>. Pareie com <code>ChatService.ts</code>.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Escrita em <code>handleToolCall()</code> retorna <code>{ status: 'PROPOSED', proposalId }</code> — nunca DB direto</li><li>Toda tool: entry em <code>getTools()</code> + case em <code>handleToolCall()</code>; deps via factory</li><li>RAG só quando <code>documentIds.length &gt; 0</code>; isolamento de tenant</li><li>Loop de tool calls ≤ 5 iterações; resolver por <code>internalName</code></li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Escrever no DB direto em <code>handleToolCall()</code></li><li>Tool sem entry em <code>getTools()</code>, ou <code>new Service()</code> no agente</li><li>RAG cross-tenant, confundir modos, ou loop &gt; 5</li></ul>
+          </div></details>
+          <details><summary><span class="nm">backend-test-suite-generator</span><span class="rk rk-low">Low</span><span class="ol">Suítes Jest (service/repo/KPI/middleware/security)</span></summary><div class="body">
+            <p>Gera <code>.test.ts</code> alinhados aos padrões reais: factory builders <code>buildService(overrides?)</code>, <code>jest.clearAllMocks()</code>, <code>toBeCloseTo</code> para floats, <code>referenceDate</code> fixo e asserções de tenant isolation/LGPD.</p>
+            <div class="meta"><span><b>Inputs:</b> tipo (service/repository/kpi/middleware/security) + nome</span><span><b>Checks:</b> <code>jest --testPathPattern</code> + tsc</span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo KPI processor — suíte de regressão</li><li>Novo service — happy path + error cases</li><li>Isolamento de tenant ou middleware de auth</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>services/__tests__/&lt;Resource&gt;Service.test.ts</code></li><li><code>kpis/&lt;cat&gt;/__tests__/&lt;Name&gt;KpiProcessor.test.ts</code></li><li><code>__tests__/tenant-isolation.test.ts</code> / middleware</li></ul>
+            <h5>Golden reference</h5><p>Por tipo: kpi → <code>RevenueKpiProcessor.test.ts</code>; service → <code>user-deletion-qdrant.test.ts</code>; security → <code>rag-tenant-isolation.test.ts</code>; middleware → <code>auth.test.ts</code>.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li><code>beforeEach(jest.clearAllMocks())</code> + <code>referenceDate</code> fixo</li><li>Floats com <code>toBeCloseTo(value, 2)</code></li><li>Service: <code>buildService(overrides?)</code>; cross-tenant lança <code>NotFoundError</code></li><li>KPI: suíte Empty Safety (vazio → 0 finito, nunca <code>NaN</code>)</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li><code>jest.mock()</code> em KPI processors (são puros)</li><li><code>ForbiddenError</code> em cross-tenant</li><li>Só happy path, datas relativas, ou <code>toEqual</code> para floats</li></ul>
+          </div></details>
+          <details><summary><span class="nm">backend-workflow-transition-generator</span><span class="rk rk-med">Medium</span><span class="ol">Serviço de transição de etapa atômico (efeitos colaterais)</span></summary><div class="body">
+            <p>Gera o serviço de transições de workflow: mover um registro de etapa com efeitos colaterais (criar relacionado, snapshot, logar) de forma atômica. É o backend que o board Kanban chama no drag-end. Padrão <code>CrmPipelineService</code>.</p>
+            <div class="meta"><span><b>Inputs:</b> nome do domínio em PascalCase</span><span><b>Checks:</b> tsc + <code>jest features/&lt;domain&gt;</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Mudança de etapa com lógica server-side</li><li>Board Kanban precisa de transição atômica</li><li>Máquina de estados sobre DynamicTable</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>&lt;Domain&gt;WorkflowService.ts</code> + DTO + teste</li><li><code>&lt;domain&gt;Controller.ts</code> + <code>routes/&lt;domain&gt;.ts</code></li><li>Edições de index/auth/docs/factory</li></ul>
+            <h5>Golden reference</h5><p><code>crm/services/CrmPipelineService.ts</code> — injeta <code>DynamicTableService</code> + repo, resolve por <code>internalName</code>, escritas em <code>runInTransaction</code> com <code>{ tx }</code>, efeitos por tipo de etapa, sem policy própria.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Injeta <code>DynamicTableService</code> + repo (sem <code>new</code>, sem Repo/Policy próprios)</li><li>Resolver por <code>internalName</code>; <code>NotFoundError</code> se ausente</li><li>TODAS as escritas em <code>runInTransaction</code> com <code>{ tx }</code></li><li>Rota = 3 toques; controller fino</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Escrever fora de <code>runInTransaction</code> com efeito colateral</li><li>Policy própria ou HTTP no service; resolver por <code>[0]</code></li><li>Esquecer <code>protectedApiPaths</code> ou usar <code>prisma.*</code> direto</li></ul>
+          </div></details>
+        </div>
+
+        <h4>Frontend</h4>
+        <div class="skd">
+          <details><summary><span class="nm">frontend-page-generator</span><span class="rk rk-med">Medium</span><span class="ol">Página Pages Router (auth, i18n SSR, dynamic, modal-não-rota)</span></summary><div class="body">
+            <p>Gera <code>pages/&lt;resource&gt;/index.tsx</code> no padrão Luminaris: auth guard, <code>getServerSideProps</code> com <code>serverSideTranslations</code> e dynamic imports. Detalhe de registro é sempre modal, nunca rota <code>[id].tsx</code>.</p>
+            <div class="meta"><span><b>Inputs:</b> recurso kebab-case + <code>list|detail|create|edit</code></span><span><b>Checks:</b> tsc + <code>next lint</code> + build prod</span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Nova rota de página</li><li>Rota dinâmica <code>[id].tsx</code> (só standalone/deep-link)</li><li>Página de listagem de novo recurso</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>pages/&lt;resource&gt;/index.tsx</code></li><li><code>locales/{en,pt}/&lt;resource&gt;.json</code> (se namespace novo)</li></ul>
+            <h5>Golden reference</h5><p><code>pages/dashboard/index.tsx</code> — auth guard, <code>getServerSideProps</code>+<code>serverSideTranslations</code>, dynamic <code>{ssr:false}</code>, container full-height. <code>pages/crm/*</code> é o anti-exemplo.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li><code>getServerSideProps</code> sempre com <code>serverSideTranslations</code></li><li>Detalhe = MODAL, nunca <code>router.push('/x/[id]')</code></li><li>Container full-height (sem <code>max-w-*</code> divergente)</li><li>Dynamic <code>{ssr:false}</code> + <code>useMemo</code> em derivados</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li><code>getStaticProps</code></li><li><code>localStorage</code>/<code>document</code> no SSR sem guard</li><li><code>[id].tsx</code> para ver/editar registro da lista</li></ul>
+          </div></details>
+          <details><summary><span class="nm">frontend-component-generator</span><span class="rk rk-low">Low</span><span class="ol">Component tipado (modal/form/card) no Galaxy theme</span></summary><div class="body">
+            <p>Gera componentes React tipados com interface de props, dark mode e design system. Antes de criar, manda reusar canônicos (<code>GenericTable</code>/<code>RowActionsCell</code> para tabelas, <code>Modal</code> para detalhe).</p>
+            <div class="meta"><span><b>Inputs:</b> nome PascalCase + <code>modal|form-field|card|default</code></span><span><b>Checks:</b> <code>cd my-app &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo componente reutilizável</li><li>Modal de ação (criar/editar/confirmar)</li><li>Form field ou card de listagem</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>components/&lt;category&gt;/&lt;Name&gt;.tsx</code></li><li>Interface <code>&lt;Name&gt;Props</code></li><li>FC com export nomeado</li></ul>
+            <h5>Golden reference</h5><p>Por tipo: <code>Modal.tsx</code> + <code>KanbanCardDetailModal.tsx</code> (detalhe); <code>GenericTable.tsx</code>+<code>RowActionsCell.tsx</code> (tabela). <code>RecordTable.tsx</code> é o anti-exemplo.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Interface de props obrigatória; modal = <code>isOpen</code>/<code>onClose</code>/<code>onConfirm?</code>; zero <code>any</code></li><li>Reusar <code>GenericTable</code>+<code>RowActionsCell</code> em vez de <code>&lt;table&gt;</code> bespoke</li><li>Estilizar via design system (<code>neutral</code>, <code>rounded-2xl</code>, <code>dark:</code>)</li><li>Tratar loading e empty state</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li><code>style={{}}</code> inline</li><li><code>zinc-*</code> / esquecer <code>dark:</code></li><li>Tabela do zero sem ações/filtros/paginação</li></ul>
+          </div></details>
+          <details><summary><span class="nm">frontend-hook-generator</span><span class="rk rk-med">Medium</span><span class="ol">Hook de data-fetching/estado via service layer</span></summary><div class="body">
+            <p>Gera hooks de fetch (loading/error/refetch) ou estado de UI. Fetch via service layer com cleanup, fetch-all paginado ao ler DynamicTable e dados derivados memoizados.</p>
+            <div class="meta"><span><b>Inputs:</b> nome <code>use…</code> + <code>fetch|state|form</code></span><span><b>Checks:</b> <code>cd my-app &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo endpoint precisa de hook reutilizável</li><li>Extrair estado de componente</li><li>Hook de formulário com validação</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>features/&lt;module&gt;/hooks/&lt;hookName&gt;.ts</code></li><li>Fetch hook → <code>{ data, isLoading, error, refetch }</code></li><li>State hook → estado + handlers nomeados</li></ul>
+            <h5>Golden reference</h5><p><code>features/crm/lib/crmFetch.ts</code> (<code>fetchAllRows</code>: itera até <code>totalPages</code>, tipos locais) + <code>leads/hooks/useLeadsView.ts</code> (resolve por <code>internalName</code>, memoiza).</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Fetch via service layer; <code>useEffect</code> com cleanup</li><li>Paginar DynamicTable (fetch-all <code>limit=200</code>) — default é 50</li><li>Sem <code>any</code>; <code>catch (e)</code> com narrowing por <code>unknown</code></li><li>Memoizar derivados com <code>useMemo([deps])</code></li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li><code>apiClient</code> direto no hook</li><li>Confiar no page-size default (50)</li><li>Fetch no render ou hook sem prefixo <code>use</code></li></ul>
+          </div></details>
+          <details><summary><span class="nm">frontend-context-provider-generator</span><span class="rk rk-med">Medium</span><span class="ol">Context + Provider + hook useX (value memoizado)</span></summary><div class="body">
+            <p>Gera Context, Provider e hook de consumo com guard, registrando o provider em <code>_app.tsx</code>. Memoiza o <code>value</code>, expõe loading/error e garante que gates globais sempre resolvem.</p>
+            <div class="meta"><span><b>Inputs:</b> nome em PascalCase</span><span><b>Checks:</b> <code>cd my-app &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Estado global compartilhado entre componentes</li><li>Substituir prop-drilling</li><li>Adicionar provider ao <code>_app.tsx</code></li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>lib/context/&lt;Name&gt;Context.tsx</code> (Context + Provider + <code>use&lt;Name&gt;()</code>)</li><li>Edit em <code>_app.tsx</code> (wrapper)</li><li>Hook com guard <code>if (!ctx) throw</code></li></ul>
+            <h5>Golden reference</h5><p><code>lib/context/AuthContext.tsx</code> — gate global: <code>isLoading</code> no value, check inicial em <code>useEffect</code>, resolve o gate incondicionalmente, <code>useRef</code> anti-loop, fallback de <code>API_BASE_URL</code>.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Memoizar o <code>value</code> com <code>useMemo</code> + handlers <code>useCallback</code></li><li>Hook de consumo com guard que lança erro fora do Provider</li><li>Gate <code>isLoading</code> resolve incondicionalmente (<code>finally</code> + timeout backstop)</li><li>Fetch de init só em <code>useEffect</code>; registrar provider em <code>_app.tsx</code></li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li><code>value={{...}}</code> literal sem <code>useMemo</code></li><li>Gate <code>isLoading</code> poder ficar preso</li><li>Ler <code>process.env</code> direto para URL de API</li></ul>
+          </div></details>
+          <details><summary><span class="nm">frontend-widget-generator</span><span class="rk rk-med">Medium</span><span class="ol">Widget react-grid-layout (loading/error/empty)</span></summary><div class="body">
+            <p>Gera widgets self-contained para o dashboard grid, responsivos ao <code>react-grid-layout</code>. Consome via hook ou <code>DashboardDataContext</code>, reusa <code>ChartRenderer</code>/<code>DashboardKpiCard</code> (nunca Recharts cru), pagina e memoiza.</p>
+            <div class="meta"><span><b>Inputs:</b> nome PascalCase + <code>kpi|chart|table|calendar|default</code></span><span><b>Checks:</b> <code>cd my-app &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo tipo de widget</li><li>KPI card ou chart com dados analíticos</li><li>Table widget de tabela dinâmica</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>components/widgets/&lt;name&gt;/&lt;Name&gt;Widget.tsx</code></li><li>Interface <code>&lt;Name&gt;WidgetProps</code></li><li>Export nomeado</li></ul>
+            <h5>Golden reference</h5><p><code>components/widgets/analytics/AnalyticsWidget.tsx</code> — trata loading/empty/config, consome via hook, memoiza e renderiza via <code>ChartRenderer</code> + <code>GoldKpiWidgetView</code>, <code>h-full w-full</code>. <code>CrmKpiCard</code>/<code>CrmBarChart</code> são anti-exemplo.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Tratar loading, error E empty (os três)</li><li>Chart: <code>ChartRenderer</code>; KPI: <code>DashboardKpiCard</code> — antes de Recharts cru</li><li>Dados via hook/<code>DashboardDataContext</code>; paginar DynamicTable</li><li>Responsivo ao grid (<code>h-full</code>, nunca px fixos) + memoizar</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Fetch dentro do widget em vez de hook/context</li><li>Recharts cru ignorando <code>ChartRenderer</code></li><li>Larguras/alturas fixas em px</li></ul>
+          </div></details>
+          <details><summary><span class="nm">frontend-api-service-generator</span><span class="rk rk-med">Medium</span><span class="ol">Service em lib/services que espelha o backend (apiClient tipado)</span></summary><div class="body">
+            <p>Gera <code>lib/services/&lt;resource&gt;.service.ts</code> como wrapper tipado de <code>apiClient</code>, espelhando os endpoints do backend. É o contrato frontend↔backend: tipos locais espelham o Response DTO, com paths exatos das rotas.</p>
+            <div class="meta"><span><b>Inputs:</b> nome do recurso em kebab-case</span><span><b>Checks:</b> <code>cd my-app &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo endpoint precisa de client</li><li>Sincronizar tipos após mudança de DTO</li><li>Adicionar método a service existente</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>lib/services/&lt;resource&gt;.service.ts</code></li><li>Classe com métodos espelhando o backend</li><li>Tipos locais (sem importar do backend)</li></ul>
+            <h5>Golden reference</h5><p><code>lib/services/dynamic-table.service.ts</code> — importa só <code>apiClient</code> (+<code>notify</code>), tipos locais mínimos, paths batem com as rotas; <code>user.service.ts</code> para CRUD com <code>{ data, pagination }</code>.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Tudo via <code>apiClient</code>, nunca <code>fetch</code> nem env direto</li><li>Paths batem EXATAMENTE com <code>routes/index.ts</code> (divergência = 404 silencioso)</li><li>Sem drift de nome (mesmo nome do tipo de retorno)</li><li>Não sub-especificar o retorno (incluir <code>id</code>/<code>createdAt</code>; listagem com <code>pagination</code>)</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li><code>fetch</code> direto ou ler a env de base URL</li><li>Sub-especificar o retorno (força <code>as any</code> no consumidor)</li><li>Hardcodar IDs de tabela em vez de <code>internalName</code></li></ul>
+          </div></details>
+          <details><summary><span class="nm">frontend-feature-module-generator</span><span class="rk rk-high">High</span><span class="ol">Módulo de categoria no dashboard (View + hooks + registro)</span></summary><div class="body">
+            <p>Cria <code>category-views/&lt;name&gt;/</code> com View (named export), <code>components/</code>/<code>hooks/</code>, hook de dados e registra o dynamic import + switch em <code>pages/dashboard/index.tsx</code>. A View reusa canônicos — nunca tabela/paginação/layout bespoke (erro 'ilha' do CRM).</p>
+            <div class="meta"><span><b>Inputs:</b> módulo kebab-case + categoria ERP</span><span><b>Checks:</b> <code>cd my-app &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo módulo de negócio no dashboard</li><li>Adicionar categoria ao sidebar</li><li>View para novo preset de tabela</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>category-views/&lt;name&gt;/&lt;Name&gt;View.tsx</code> + <code>components/</code>/<code>hooks/</code></li><li><code>hooks/use&lt;Name&gt;Data.ts</code> → <code>{ data, isLoading, error, refetch }</code></li><li>Edit em <code>pages/dashboard/index.tsx</code> (dynamic + switch)</li></ul>
+            <h5>Golden reference</h5><p><code>category-views/shared/GenericTabbedView.tsx</code> — orquestrador canônico: <code>GenericTable</code>+<code>GenericFilterBar</code>+<code>CategoryTabs</code>+<code>StandardPagination</code> (25/pg) em container full-height, memoizado. CRM é o anti-exemplo 'ilha'.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Reusar <code>GenericTable</code>/<code>GenericTabbedView</code>, <code>StandardPagination</code>, container full-height, <code>AnalyticsDashboard</code></li><li>View só via <code>dynamic({ssr:false})</code> + registro no switch; named export</li><li>Lógica de fetch no hook, não na View</li><li>Boards filtram colunas pelo pai ativo (default = pai com mais filhos + seletor)</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Recriar tabela/paginação/layout/analytics (módulo 'ilha')</li><li>Board agrupando por TODAS as etapas/relações</li><li><code>[id].tsx</code> para detalhe em vez de modal</li></ul>
+          </div></details>
+          <details><summary><span class="nm">frontend-design-system</span><span class="rk rk-low">Low</span><span class="ol">Linguagem visual real (neutral/lumi-*, componentes-assinatura)</span></summary><div class="body">
+            <p>Detalha a camada visual que as outras skills não cobrem: tokens (<code>neutral</code>/<code>lumi-*</code>), superfícies dark charcoal, tipografia-assinatura e componentes-assinatura (gradient header, score gauge, barras BANT, badges). Aplicada sempre que houver UI.</p>
+            <div class="meta"><span><b>Inputs:</b> componente ou tela a estilizar</span><span><b>Checks:</b> tsc + build prod + <code>preview_inspect</code> + grep <code>zinc-</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Toda vez que uma skill criar UI</li><li>Reestilizar telas 'genéricas'</li><li>Construir componentes-assinatura (gauge, BANT, gradient header)</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>features/&lt;module&gt;/components/ui/*.tsx</code> (kit on-brand)</li><li>Telas reestilizadas com tokens canônicos</li><li>Padrões copiáveis (card, gradient header, badge, gauge, KPI tile)</li></ul>
+            <h5>Golden reference</h5><p><code>leads/components/ManageHeader.tsx</code> — hero on-brand (gradient + blur blobs, KPI tiles <code>rounded-2xl</code>, labels <code>text-[10px] font-black uppercase</code>, superfícies <code>neutral</code>, badges <code>color/10</code>+<code>color/20</code>).</p>
+            <h5>Regras-chave</h5><ul class="clean"><li><code>neutral-*</code> para dark, NUNCA <code>zinc-*</code>; borda <code>dark:border-neutral-800</code></li><li>Cards <code>rounded-2xl</code>/<code>3xl</code>; inputs/botões <code>rounded-xl</code>; wrappers de libs também são cards</li><li><code>font-semibold</code> corpo / <code>font-black</code> ênfase; labels <code>text-[10px] uppercase tracking-widest</code></li><li>Badges <code>color/10</code>+<code>color/20</code>+<code>color-600</code>; paleta blue/emerald/rose/amber</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li><code>zinc-*</code> para superfícies dark</li><li><code>rounded-xl</code> em cards ou trocar todo <code>font-semibold</code> por <code>font-black</code></li><li>Badges sólidos e cores fora da paleta</li></ul>
+          </div></details>
+          <details><summary><span class="nm">frontend-kanban-workflow-generator</span><span class="rk rk-med">Medium</span><span class="ol">Board de workflow Kanban reusando primitivos canônicos</span></summary><div class="body">
+            <p>Gera uma tela de fluxo de trabalho como board Kanban que REUSA os primitivos canônicos (<code>InternalKanbanView</code>/<code>KanbanColumn</code>/<code>KanbanCardDetailModal</code> + <code>@dnd-kit</code>). Existe para impedir o 'módulo ilha' do board estático do CRM.</p>
+            <div class="meta"><span><b>Inputs:</b> módulo kebab-case + <code>status-enum|stage-relation</code></span><span><b>Checks:</b> tsc + build prod (drag persiste, clique abre modal, &gt;1 pai)</span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Tela onde o usuário arrasta registros entre etapas</li><li>Entidade com campo de estado ou etapas numa tabela relacionada</li><li>Substituir board estático/lista por Kanban interativo</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>features/&lt;module&gt;/&lt;Name&gt;Board.tsx</code></li><li><code>hooks/use&lt;Name&gt;Board.ts</code> (colunas + drag-end → transição)</li><li><code>pages/&lt;module&gt;/index.tsx</code> ou registro no dashboard</li></ul>
+            <h5>Golden reference</h5><p><code>category-views/kanban/InternalKanbanView.tsx</code> (+ <code>useKanbanLogic.tsx</code>) — board canônico; <code>pages/crm/pipeline.tsx</code> é o ANTI-exemplo (board estático).</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Reusar os primitivos (<code>DndContext</code>/<code>DragOverlay</code>, <code>KanbanColumn</code>, <code>KanbanCardDetailModal</code>) — zero board estático</li><li>Colunas filtradas pelo pai ativo (validar &gt;1 pai) ou opções do enum</li><li>Drag-end: <code>updateRecord</code> (simples) OU endpoint de transição (efeitos colaterais)</li><li>Clique no card abre MODAL, nunca <code>router.push</code></li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Board estático (<code>flex gap-4 overflow-x-auto</code> + cards sem drag)</li><li>Trocar de rota no clique do card</li><li>Renderizar etapas de todos os pais, ou <code>updateRecord</code> simples com efeitos colaterais</li></ul>
+          </div></details>
+        </div>
+
+        <h4>Composição</h4>
+        <div class="skd">
+          <details><summary><span class="nm">fullstack-feature-generator</span><span class="rk rk-high">High</span><span class="ol">Vertical slice completa — Prisma ao frontend</span></summary><div class="body">
+            <p>Orquestra a geração de todos os átomos de um novo recurso: Prisma, DTO, Repository, Policy, Service, Controller, Route, OpenAPI, frontend service e page. Skill de maior impacto e maior risco.</p>
+            <div class="meta"><span><b>Inputs:</b> recurso snake_case + <code>--com-prisma</code>/<code>--sem-frontend</code></span><span><b>Checks:</b> tsc (server+app); branch separada</span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo domínio do zero ('sistema de agendamentos')</li><li>Prototipagem rápida de feature completa</li><li>Aprovação de implementação de spec</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li>Backend: model, DTO, Repository, Policy, Service, Controller, Route (+index/auth/docs), Factory</li><li><code>lib/services/&lt;resource&gt;.service.ts</code></li><li><code>pages/&lt;resource&gt;/index.tsx</code></li></ul>
+            <h5>Golden reference</h5><p>Feature <code>server/src/features/users/</code> — slice mais limpo. Ressalva LGPD: <code>users</code> faz delete HARD; para soft-delete seguir o contrato, não copiar essas 2 funções.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Ordem EXATA (Prisma → DTO → Repository → Policy → Service → Factory → Controller → Route → frontend → page)</li><li>Rota = 3 toques (incl. <code>protectedApiPaths</code>)</li><li>Registrar repo/policy/service no factory + getter</li><li>Camadas estritas + reuse de canônicos (nada de 'módulo ilha')</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Gerar sem ler a feature <code>users/</code></li><li>Pular o 3º toque (<code>protectedApiPaths</code>)</li><li>Recriar tabela/modal/analytics próprios</li></ul>
+          </div></details>
+          <details><summary><span class="nm">crud-resource-generator</span><span class="rk rk-med">Medium</span><span class="ol">CRUD com soft-delete em todas as camadas + frontend service</span></summary><div class="body">
+            <p>Atalho para o padrão mais comum: CRUD completo com soft-delete, paginação, auth guard e frontend service. Mais rápido que o fullstack para recursos sem lógica complexa.</p>
+            <div class="meta"><span><b>Inputs:</b> recurso + <code>dynamic-table|prisma</code></span><span><b>Checks:</b> tsc (server+app)</span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Recurso simples só com CRUD padrão</li><li>Tabela ERP com API própria e soft-delete</li><li>Prototipagem de CRUD sem regras especiais</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li>Backend CRUD completo (Repository soft-delete, Policy, Service, Controller, Route)</li><li><code>lib/services/&lt;resource&gt;.service.ts</code></li><li>Mesmos arquivos do fullstack, sem migration por padrão</li></ul>
+            <h5>Golden reference</h5><p>Feature <code>users/</code> — camadas estritas + DI + policy-first. Ressalva crítica: <code>users</code> faz delete HARD; um CRUD comum faz o oposto (seguir o 'Soft-delete pattern obrigatório').</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Soft-delete obrigatório (<code>deletedAt: null</code> em todos finds; <code>$transaction</code> no findAll)</li><li>Policy: ADMIN tudo, USER só o seu (ownership)</li><li>Rota = 3 toques (incl. <code>protectedApiPaths</code>)</li><li>Reuse de canônicos; frontend service com tipos locais, zero <code>any</code></li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li><code>prisma.model.delete()</code> em vez de soft-delete</li><li>Esquecer <code>deletedAt: null</code> ou o 3º toque</li><li>Recriar tabela/modal/analytics ('módulo ilha')</li></ul>
+          </div></details>
+          <details><summary><span class="nm">api-contract-sync-generator</span><span class="rk rk-low">Low</span><span class="ol">Sincroniza frontend service 1:1 com o contrato do backend</span></summary><div class="body">
+            <p>Garante que o frontend service espelhe exatamente o contrato do backend: mesmos campos, tipos e estrutura de resposta <code>{ success, data }</code>. Útil ao modificar DTOs ou adicionar endpoints.</p>
+            <div class="meta"><span><b>Inputs:</b> recurso + endpoint específico (opcional)</span><span><b>Checks:</b> <code>cd my-app &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>DTO backend alterado e frontend precisa refletir</li><li>Novo endpoint sem método no service</li><li>Depurar erros de tipo frontend↔backend</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>lib/services/&lt;resource&gt;.service.ts</code> (EDIT — tipos/métodos alinhados)</li><li><code>features/*/hooks/use&lt;Resource&gt;*.ts</code> (EDIT, se tipos mudaram)</li></ul>
+            <h5>Golden reference</h5><p>Par <code>users/dtos/UserDto.ts</code> ↔ <code>lib/services/user.service.ts</code> — frontend espelha 1:1 o DTO, <code>apiClient</code>, tipos locais, <code>{ success, data }</code>.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Tipos do frontend batem 1:1 com <code>Create/Update&lt;X&gt;Schema</code></li><li>Todo campo enviado existe no schema do DTO</li><li>Paths batem com a rota em <code>routes/&lt;resource&gt;.ts</code></li><li>ZERO <code>any</code>; tipos locais, nunca importar do backend</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Copiar tipos do backend para o frontend</li><li><code>any</code> como solução temporária</li><li>Esquecer a paginação ou assumir simetria sem verificar a rota</li></ul>
+          </div></details>
+          <details><summary><span class="nm">interview-setup-generator</span><span class="rk rk-med">Medium</span><span class="ol">Estende o wizard de onboarding AI (11 estágios + 3 singletons)</span></summary><div class="body">
+            <p>Guia extensões do wizard de setup AI: máquina de estados de 11 estágios, 3 serviços singleton (Interview/Customization/FieldCustomization) e StateManager in-memory. Skill certa para 'adicionar pergunta/etapa ao onboarding'.</p>
+            <div class="meta"><span><b>Inputs:</b> ação + nome do estágio</span><span><b>Checks:</b> <code>cd server &amp;&amp; npx tsc --noEmit</code></span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Novo estágio ou prompt no onboarding</li><li>Customização de tabela ou de campo</li><li>Novo preset matcher por palavras-chave</li></ul>
+            <h5>O que gera</h5><ul class="clean"><li><code>models/InterviewTypes.ts</code> (novo stage na enum)</li><li><code>PromptConfig.ts</code> + <code>InterviewService.ts</code> (prompt + case)</li><li><code>AIInteractions.ts</code> + <code>FieldCustomizationService</code></li></ul>
+            <h5>Golden reference</h5><p>Slice: <code>InterviewService.ts</code> + <code>PromptConfig.ts</code> + <code>InterviewTypes.ts</code> (backend, singletons via <code>getInstance()</code>) e <code>AiInterviewSetup/index.tsx</code> + <code>useAiInterview.ts</code> (UI).</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Serviços são singletons — sempre <code>getInstance()</code>, nunca <code>new</code></li><li>Ao adicionar estágio, atualizar a sequência (<code>nextStage</code> do anterior)</li><li>Prompts em loop precisam de marcador de conclusão detectável</li><li>Estágio com AI+history entra em <code>InterviewStage</code> E <code>ProcessableStage</code></li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li><code>new</code> em vez de <code>getInstance()</code></li><li>Estágio sem atualizar a sequência (wizard preso)</li><li>Confiar que o StateManager in-memory persiste entre reinícios</li></ul>
+          </div></details>
+        </div>
+
+        <h4>Meta-agentes</h4>
+        <div class="skd">
+          <details><summary><span class="nm">luminaris-orchestrator</span><span class="rk rk-low">Low</span><span class="ol">Entende a tarefa, seleciona skills e produz o plano</span></summary><div class="body">
+            <p>Agente de entrada. Entende a tarefa e produz um plano de execução preciso — não implementa, apenas planeja e delega. Lê o contexto de referência, classifica por sinais, resolve ambiguidades e entrega ao implementador.</p>
+            <div class="meta"><span><b>Inputs:</b> descrição da tarefa em linguagem natural</span><span><b>Saída:</b> plano estruturado + handoff</span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Tarefa em linguagem natural a mapear para skills</li><li>Tarefas combinadas multi-skill</li><li>Definir ordem, dependências, risco, branch</li></ul>
+            <h5>O que produz</h5><ul class="clean"><li>Plano (# | Skill | Argumentos | Arquivos | Motivo)</li><li>Ordem de dependências + checks finais + riscos</li><li>Handoff ao implementador</li></ul>
+            <h5>Referência</h5><p>Phase 1 lê <code>SKILL_MATRIX.md</code>, <code>ATOM_REGISTRY.md</code>, <code>GENERATION_CONTRACTS.md</code>, <code>_ARCHITECTURE-CONTRACT.md</code>; assume <code>users/</code> como vertical-slice.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Phase 1 sempre antes de planejar (ler os 4 docs de referência)</li><li>Classificar por sinais → skill principal + combinações</li><li>Todo passo de UI inclui <code>frontend-design-system</code></li><li>Resolver ambiguidades antes de planejar</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Criar qualquer arquivo (só planeja)</li><li>Inventar skills ou pular o SKILL_MATRIX.md</li><li>Assumir nomes de arquivo sem especificar</li></ul>
+          </div></details>
+          <details><summary><span class="nm">luminaris-implementer</span><span class="rk rk-med">Medium</span><span class="ol">Executa o plano lendo cada contrato, com verificação contínua</span></summary><div class="body">
+            <p>Agente de execução. Recebe o plano e implementa cada passo lendo o contrato de geração da skill. Não decide — executa com disciplina e <code>tsc</code> como gate após cada camada.</p>
+            <div class="meta"><span><b>Inputs:</b> plano do orquestrador</span><span><b>Checks:</b> tsc (server+app) + jest quando aplicável</span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Executar um plano já produzido</li><li>Gerar arquivos seguindo o 'Generation contract'</li><li>Implementar com verificação contínua + handoff ao revisor</li></ul>
+            <h5>O que produz</h5><ul class="clean"><li>Os arquivos de cada skill nos paths corretos</li><li>Registros de integração (factory, index, auth, docs)</li><li>Relatório de implementação + handoff ao revisor</li></ul>
+            <h5>Referência</h5><p><code>server/src/features/users/</code> (slice canônico). Ressalva LGPD: não copiar o delete HARD para recursos soft-delete.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Protocolo por passo: LER skill (+contrato) → LER referências → IMPLEMENTAR → VERIFICAR → REPORTAR</li><li>Ordem interna de dependências inviolável</li><li>Não avançar com <code>tsc</code> vermelho; aplicar padrões por tipo de skill</li><li>Nunca inventar paths; contrato como gate mesmo se a skill o omitir</li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Decidir o que implementar em vez de seguir o plano</li><li>Pular a leitura dos arquivos de referência</li><li>Avançar com <code>tsc</code> vermelho ou inventar paths</li></ul>
+          </div></details>
+          <details><summary><span class="nm">luminaris-reviewer</span><span class="rk rk-low">Low</span><span class="ol">Valida cada arquivo contra os contratos por camada (PASS/FAIL)</span></summary><div class="body">
+            <p>Agente de qualidade. Valida cada arquivo gerado contra os contratos por camada, consistência inter-camadas e <code>tsc</code>. Não corrige — reporta PASS/FAIL com evidência arquivo:linha e a correção exata.</p>
+            <div class="meta"><span><b>Inputs:</b> lista de arquivos (vazio = git diff)</span><span><b>Checks:</b> git diff + tsc + greps de evidência</span></div>
+            <h5>Quando usar</h5><ul class="clean"><li>Validar os arquivos do implementador antes do commit</li><li>Detectar anti-patterns e mismatches de contrato</li><li>Auto-detectar via <code>git diff --name-only HEAD</code></li></ul>
+            <h5>O que produz</h5><ul class="clean"><li>Relatório PASS/FAIL por arquivo (evidência + correção)</li><li>Seção de consistência inter-camadas</li><li>Veredicto final: APROVADO ou REPROVADO</li></ul>
+            <h5>Referência</h5><p><code>users/</code> (o que um 'PASS' parece); orchestration-service = <code>CrmPipelineService.ts</code>; Kanban = <code>InternalKanbanView.tsx</code>.</p>
+            <h5>Regras-chave</h5><ul class="clean"><li>Checklist por camada; em conflito, o contrato prevalece</li><li>Exceção Orchestration Service (sem policy própria) = PASS-com-nota</li><li>Validar consistência inter-camadas; nunca aprovar sem <code>tsc</code></li><li>Toda FAIL com arquivo:linha + correção; verificar 3º toque e <code>zinc-</code></li></ul>
+            <h5>Anti-patterns</h5><ul class="clean"><li>Corrigir em vez de só reportar</li><li>Aprovar sem <code>tsc</code> ou ignorar mismatch cross-layer</li><li>Tratar <code>rounded-xl</code>/<code>font-semibold</code> como off-brand</li></ul>
+          </div></details>
+        </div>
+      </section>
+
+      <!-- 6 -->
+      <section class="panel" id="codigo">
+        <p class="seclabel">Seção 6 · Referência de código</p>
+        <h2>Mudanças no código — arquivos &amp; arquitetura</h2>
+        <p>Mapa rastreável de tudo o que foi tocado, com a <b>justificativa arquitetural</b> de cada mudança ligada às seções do contrato (§0 reuse, §2 backend, §3 frontend). Legenda: <span class="badge b-new">criado</span> <span class="badge b-mod">modificado</span> <span class="badge b-del">deletado</span>.</p>
+
+        <h3 id="cd-arch">CRM — arquitetura completa</h3>
+        <p>Inventário de todas as peças do módulo CRM após a remediação, por camada de origem.</p>
+
+        <h4>① Canônicos do app reusados <span class="badge b-new">reuso</span></h4>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:280px">Componente</th><th>Papel no CRM</th></tr></thead>
+          <tbody>
+            <tr><td class="fp">GenericTabbedView · GenericTable · GenericRow · RowActionsCell</td><td>Tabelas de Contatos/Contas/Propostas (CRUD inline, filtros, sort, soft-delete)</td></tr>
+            <tr><td class="fp">GenericFilterBar · StandardPagination (25/pg)</td><td>Filtro + paginação client-side das tabelas e da timeline de atividades</td></tr>
+            <tr><td class="fp">FloatingActionButton · EditRecordButton · ConfirmDeleteModal</td><td>Criar / editar / inativar (soft-delete) registros</td></tr>
+            <tr><td class="fp">Modal (components/ui)</td><td>Base do <code>Lead360Modal</code> e do <code>ProposalCaptureModal</code></td></tr>
+            <tr><td class="fp">InternalKanbanView · KanbanColumn · SortableTaskItem · DragOverlay (@dnd-kit)</td><td>Primitivos do board de pipeline (drag-drop)</td></tr>
+            <tr><td class="fp">DashboardKpiCard · ChartRenderer</td><td>KPIs e gráficos do Analytics + KPIs do overview</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Camada ① · Componentes canônicos do dashboard reaproveitados pelo CRM — nenhum recriado.</p>
+
+        <h4>② Peças do CRM já existentes, mantidas <span class="badge b-mod">reuso</span></h4>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:280px">Arquivo</th><th>Papel</th></tr></thead>
+          <tbody>
+            <tr><td class="fp">components/CrmNav.tsx · LeadCard.tsx</td><td>Abas de navegação (agora dentro do <code>CrmLayout</code>) · card de lead no board</td></tr>
+            <tr><td class="fp">components/ui/{GradientHeader,ScoreGauge,StatusBadge,BantBars}.tsx</td><td>Kit visual on-brand reaproveitado no <code>Lead360Modal</code></td></tr>
+            <tr><td class="fp">lib/crmFetch.ts (<code>fetchAllRows</code>) · lib/constants.ts</td><td>Paginação fetch-all (200/pg até <code>totalPages</code>) · constantes (moeda etc.)</td></tr>
+            <tr><td class="fp">hooks/{useCrmData,useCrmTable,useCrmAnalytics}.ts</td><td>Dados de leads/stages/pipelines · linhas de tabela · bundle de analytics</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Camada ② · Peças que o CRM já tinha e foram mantidas dentro do novo shell.</p>
+
+        <h4>③ Backend do CRM — inalterado (reusado pelo frontend) <span class="badge b-mod">estável</span></h4>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:280px">Arquivo (server)</th><th>Papel</th></tr></thead>
+          <tbody>
+            <tr><td class="fp">features/crm/services/CrmPipelineService.ts</td><td>Orquestração transacional: <code>advanceStage</code>, <code>createProposal</code>, <code>recordNoShow</code></td></tr>
+            <tr><td class="fp">features/crm/services/CrmAnalyticsService.ts</td><td>Bundle de 7 processors sobre <code>leads</code> (funnel/conversão/fonte/status/BANT/propostas/atividades)</td></tr>
+            <tr><td class="fp">controllers/crmController.ts · routes/crm.ts</td><td>4 endpoints: <code>/pipeline/advance</code>, <code>/pipeline/proposal</code>, <code>/pipeline/no-show</code>, <code>/pipeline-analytics</code></td></tr>
+            <tr><td class="fp">features/crm/dtos/{CrmPipelineDto,CrmAnalyticsDto}.ts · analytics/kpis/crm/*</td><td>Schemas Zod das transições · os 7 KPI processors registrados</td></tr>
+            <tr><td class="fp">presets/systems/CrmModulePreset.ts</td><td>Modelo: <code>crmAccounts</code>, <code>crmContacts</code>, <code>leads</code>, <code>leadProposals</code>, <code>leadActivities</code>, <code>leadPipelines</code>, <code>leadStages</code></td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Camada ③ · Backend do CRM — não sofreu alteração; o frontend novo apenas o consome.</p>
+
+        <h4>④ Frontend novo (Fases 0–4) <span class="badge b-new">criado</span> · ⑤ aposentado <span class="badge b-del">deletado</span></h4>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:280px">Arquivo</th><th>Papel / motivo</th></tr></thead>
+          <tbody>
+            <tr><td class="fp"><span class="badge b-new">novo</span> components/CrmLayout.tsx</td><td>Shell full-height compartilhado (Fase 0)</td></tr>
+            <tr><td class="fp"><span class="badge b-new">novo</span> components/CrmTableScreen.tsx</td><td>Wrapper que delega a <code>GenericTabbedView</code> (Fase 1)</td></tr>
+            <tr><td class="fp"><span class="badge b-new">novo</span> components/CrmPipelineBoard.tsx · hooks/useCrmPipelineBoard.ts</td><td>Board Kanban + lógica de drag→<code>advanceStage</code> (Fase 2)</td></tr>
+            <tr><td class="fp"><span class="badge b-new">novo</span> components/ProposalCaptureModal.tsx · Lead360Modal.tsx</td><td>Captura de proposta na transição · detalhe do lead em modal (Fase 2)</td></tr>
+            <tr><td class="fp"><span class="badge b-new">novo</span> components/analytics/CrmAnalyticsDashboard.tsx</td><td>Adaptador do bundle → folhas canônicas (Fase 4)</td></tr>
+            <tr><td class="fp"><span class="badge b-del">del</span> RecordTable · CrmKpiCard (+test) · analytics/{CrmAnalyticsBoard,CrmBarChart,CrmPieChart}</td><td>Bespoke aposentados (tabela read-only + 4 componentes de gráfico/KPI)</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Camadas ④ ⑤ · 7 arquivos criados nas Fases 0–4 e 5 (+ 1 teste) aposentados.</p>
+
+        <h4>⑥ Rotas do módulo (9)</h4>
+        <p class="small"><code>pages/crm/</code>: <b>index</b> (visão geral) · <b>pipeline</b> · <b>contacts</b> · <b>accounts</b> · <b>proposals</b> · <b>activities</b> · <b>meetings</b> · <b>analytics</b> · <b>leads/[id]</b> (deep-link opcional). Todas dentro do <code>CrmLayout</code>; SSR = 200 verificado.</p>
+
+        <h3 id="cd-crm">CRM — mudanças por fase</h3>
+        <p class="small muted">Execução da Parte A do plano. <b>Backend inalterado</b> em todas as fases — o trabalho é troca de bespoke por canônico no frontend.</p>
+
+        <h4>Fase 0 · Fundação — <code>CrmLayout</code></h4>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:110px">Status</th><th>Arquivo</th><th>Arquitetura — por quê</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge b-new">criado</span></td><td class="fp">features/crm/components/<b>CrmLayout.tsx</b></td><td>Shell full-height único (<code>flex h-full flex-col</code>) + <code>CrmNav</code> uma vez. <b>§3</b> — container consistente entre telas irmãs.</td></tr>
+            <tr><td><span class="badge b-mod">modificado</span></td><td class="fp">pages/crm/{index,contacts,accounts,proposals,analytics,activities,meetings,pipeline}.tsx · leads/[id].tsx</td><td>Removido o wrapper <code>mx-auto max-w-* px-4 py-6</code> e o <code>CrmNav</code> duplicado de cada página; envolvidas em <code>&lt;CrmLayout&gt;</code>. Mata o defeito #3/#4 (views mudavam de tamanho).</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Fase 0 · 1 arquivo criado + 9 páginas reembrulhadas no shell compartilhado.</p>
+
+        <h4>Fase 1 · Tabelas sobre <code>GenericTable</code></h4>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:110px">Status</th><th>Arquivo</th><th>Arquitetura — por quê</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge b-new">criado</span></td><td class="fp">features/crm/components/<b>CrmTableScreen.tsx</b></td><td>Resolve o <code>IDynamicTable</code> por <code>internalName</code> e delega a <code>GenericTabbedView</code>. <b>§0</b> reuse + <b>§3</b> (paginação fetch-all, resolver por internalName).</td></tr>
+            <tr><td><span class="badge b-del">deletado</span></td><td class="fp">features/crm/components/<b>RecordTable.tsx</b></td><td>Tabela bespoke read-only (sem CRUD/filtros/paginação) — substituída pelo stack canônico. Causa do defeito #1/#2/#7.</td></tr>
+            <tr><td><span class="badge b-mod">modificado</span></td><td class="fp">pages/crm/{contacts,accounts,proposals}.tsx</td><td>Passam a renderizar <code>&lt;CrmLayout&gt;&lt;CrmTableScreen …/&gt;&lt;/CrmLayout&gt;</code>. CRUD cabeado aos endpoints DynamicTable já existentes.</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Fase 1 · Tabela canônica com CRUD inline; 1 componente bespoke removido.</p>
+
+        <h4>Fase 2 · Pipeline (Kanban) + Lead360 modal</h4>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:110px">Status</th><th>Arquivo</th><th>Arquitetura — por quê</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge b-new">criado</span></td><td class="fp">features/crm/components/<b>CrmPipelineBoard.tsx</b></td><td>Reusa os primitivos dnd-kit do <code>InternalKanbanView</code> (<code>DndContext</code>/<code>PointerSensor</code>/<code>DragOverlay</code>); colunas = stages do pipeline ativo. <b>§0</b> + skill <code>frontend-kanban-workflow-generator</code>. Substitui o board estático (#8).</td></tr>
+            <tr><td><span class="badge b-new">criado</span></td><td class="fp">features/crm/hooks/<b>useCrmPipelineBoard.ts</b></td><td><code>handleDragEnd</code>: move otimista → <code>CrmService.advanceStage</code> → rollback no erro. Encapsula a transição (lógica fora da view — <b>§3</b>).</td></tr>
+            <tr><td><span class="badge b-new">criado</span></td><td class="fp">features/crm/components/<b>ProposalCaptureModal.tsx</b></td><td>Captura <code>amount</code>/<code>winProbability</code> quando a etapa de destino é <code>proposal</code> (efeito colateral da transição). Reusa <code>Modal</code>.</td></tr>
+            <tr><td><span class="badge b-new">criado</span></td><td class="fp">features/crm/components/<b>Lead360Modal.tsx</b></td><td>Detalhe do lead em <b>modal</b> (não rota), reusando <code>GradientHeader</code>/<code>ScoreGauge</code>/<code>BantBars</code>. <b>§3</b> — detalhe = modal. Resolve #6.</td></tr>
+            <tr><td><span class="badge b-mod">modificado</span></td><td class="fp">pages/crm/pipeline.tsx · pages/crm/leads/[id].tsx</td><td><code>pipeline.tsx</code> renderiza o board; clique abre o modal em vez de <code>router.push</code>. <code>[id].tsx</code> mantido só como deep-link.</td></tr>
+            <tr><td><span class="badge b-mod">modificado</span></td><td class="fp"><span class="muted">backend: nenhum</span></td><td><code>CrmPipelineService.advanceStage</code> + DTO/controller/rota/factory/teste <b>já existiam</b> e são transacionais — Fase 2 foi 100% frontend.</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Fase 2 · 4 arquivos criados; backend (<code>advanceStage</code>) reaproveitado sem alteração.</p>
+
+        <h4>Fase 3 · Atividades (paginação) + Reuniões</h4>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:110px">Status</th><th>Arquivo</th><th>Arquitetura — por quê</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge b-mod">modificado</span></td><td class="fp">pages/crm/activities.tsx</td><td>Timeline fatiada client-side (25/pg) + <code>StandardPagination</code> canônico. <b>§0</b> reuse — resolve #4.</td></tr>
+            <tr><td><span class="badge b-mod">modificado</span></td><td class="fp">pages/crm/meetings.tsx · features/crm/components/MeetingsCalendar.tsx</td><td>Calendário tratado como card on-brand (<code>rounded-2xl</code> neutral); strings PT roteadas por <code>t()</code>. <b>§4</b> + i18n.</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Fase 3 · Paginação da timeline de atividades + calendário tratado como card on-brand.</p>
+
+        <h4>Fase 4 · Analytics nas folhas canônicas</h4>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:110px">Status</th><th>Arquivo</th><th>Arquitetura — por quê</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge b-new">criado</span></td><td class="fp">features/crm/components/analytics/<b>CrmAnalyticsDashboard.tsx</b></td><td>Adaptador do <code>CrmAnalyticsBundle</code> (backend inalterado) → <code>DashboardKpiCard</code> + <code>ChartRenderer</code> canônicos. <b>§0</b> reuse. Resolve #5.</td></tr>
+            <tr><td><span class="badge b-del">deletado</span></td><td class="fp">CrmKpiCard.tsx · analytics/{CrmAnalyticsBoard,CrmBarChart,CrmPieChart}.tsx · __tests__/CrmKpiCard.test.tsx</td><td>4 componentes de gráfico/KPI bespoke (sobre Recharts cru) + teste — aposentados em favor dos canônicos.</td></tr>
+            <tr><td><span class="badge b-mod">modificado</span></td><td class="fp">pages/crm/analytics.tsx · pages/crm/index.tsx · locales/{en,pt}/crm.json</td><td>Analytics e KPIs do overview migrados para <code>DashboardKpiCard</code>; novas strings i18n.</td></tr>
+            <tr><td><span class="badge b-mod">modificado</span></td><td class="fp">features/dashboard/components/shared/dynamic-tables.client.ts</td><td>Ajuste de tipo compartilhado para o <code>CrmTableScreen</code>/<code>CrmAnalyticsDashboard</code> consumirem o stack canônico sem <code>any</code>. <b>§1</b>.</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Fase 4 · Adaptador para as folhas canônicas; 4 componentes bespoke + 1 teste removidos.</p>
+        <p class="small muted">Incidental fora do CRM: <code>pages/documents/index.tsx</code> (toque menor de tipo na mesma varredura). Pendente: Fases 5–6.</p>
+
+        <h3 id="cd-skills">Skills, contrato &amp; documentação</h3>
+        <div class="card tight"><table>
+          <thead><tr><th style="width:110px">Status</th><th>Arquivo</th><th>Arquitetura — por quê</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge b-new">criado</span></td><td class="fp">.claude/skills/<b>_ARCHITECTURE-CONTRACT.md</b></td><td>Fonte única das regras cross-cutting (§0–§6). Toda skill referencia — elimina o drift que causou o bug do <code>zinc</code>.</td></tr>
+            <tr><td><span class="badge b-mod">modificado</span></td><td class="fp">.claude/skills/*/SKILL.md <span class="muted">(30 skills)</span></td><td>Cada uma ganhou referência ao contrato + checklist obrigatório da camada (1:1 com o reviewer) + golden reference verificada.</td></tr>
+            <tr><td><span class="badge b-new">criado</span></td><td class="fp">.claude/skills/<b>frontend-kanban-workflow-generator</b>/ · <b>backend-workflow-transition-generator</b>/</td><td>Par de skills de fluxo de trabalho Kanban — fecham a lacuna que gerou o board estático (#8).</td></tr>
+            <tr><td><span class="badge b-mod">modificado</span></td><td class="fp">luminaris-orchestrator · luminaris-reviewer · GENERATION_CONTRACTS.md · SKILL_MATRIX.md</td><td>Wiring das skills de workflow (sinais, 2 contratos, 2 camadas de checklist, §0 do contrato) + correção da contradição interna <code>zinc</code> do reviewer.</td></tr>
+            <tr><td><span class="badge b-new">criado</span></td><td class="fp">docs/crm/CRM_REMEDIATION_AND_ROADMAP.md · docs/crm/specs/PHASE_0_1_2_SPEC.md · docs/RELATORIO-CONSOLIDADO.html</td><td>Plano + gap Salesforce, spec executável das Fases 0–4, e este relatório.</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">Skills &amp; docs · Contrato keystone + 30 skills endurecidas + 2 novas de workflow + wiring + documentação.</p>
+
+        <h3 id="cd-commits">Commits</h3>
+        <ul class="clean">
+          <li><span class="badge b-done">commitado</span> <code>b7a464f</code> — <b>docs(skills): architecture contract + harden all skills + golden references</b> (contrato + 30 skills + reviewer zinc fix).</li>
+          <li><span class="badge b-pend">pendente</span> CRM Fases 0–4 (criações + deleções + 9 páginas) · skills de workflow + wiring · <code>docs/crm/</code> + relatório HTML. <span class="muted small">Sugestão: 2 commits — <code>feat(crm): remediation phases 0–4</code> e <code>feat(skills): kanban-workflow generators + report</code>.</span></li>
+        </ul>
+      </section>
+
+      <!-- 7 -->
+      <section class="panel" id="docs">
+        <p class="seclabel">Apêndice</p>
+        <h2>Índice de documentos</h2>
+        <div class="card filelist">
+          <h4 style="margin-top:0">Produzidos / editados</h4>
+          <ul class="clean">
+            <li><a href="crm/CRM_REMEDIATION_AND_ROADMAP.md">CRM_REMEDIATION_AND_ROADMAP.md</a> — plano + gap Salesforce <span class="muted small">(Seção 3)</span></li>
+            <li><a href="../.claude/skills/_ARCHITECTURE-CONTRACT.md">_ARCHITECTURE-CONTRACT.md</a> — contrato de arquitetura &amp; qualidade <span class="muted small">(Seção 2)</span></li>
+            <li><a href="crm/specs/PHASE_0_1_2_SPEC.md">PHASE_0_1_2_SPEC.md</a> — spec executável das Fases 0–4 <span class="muted small">(Seção 4)</span></li>
+            <li><a href="claude-skills/SKILL_MATRIX.md">SKILL_MATRIX.md</a> · <a href="claude-skills/GENERATION_CONTRACTS.md">GENERATION_CONTRACTS.md</a> — editados</li>
+          </ul>
+          <h4>Pré-existentes relacionados</h4>
+          <ul class="clean"><li><a href="claude-skills/SKILL_AUDIT_REPORT.md">SKILL_AUDIT_REPORT.md</a> · <a href="claude-skills/ATOM_REGISTRY.md">ATOM_REGISTRY.md</a> · <a href="tech-debt/avoidable-any-remediation.md">avoidable-any-remediation.md</a></li></ul>
+          <h4>Análises só na conversa <span class="badge b-pend">não persistidas</span></h4>
+          <ul class="clean small muted"><li>Diagnóstico do CRM (Seção 1) · Auditoria de omissões das skills · Verificação de golden references</li></ul>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<nav class="pagination" id="pagination">
+  <button class="edge" data-go="prev" title="Anterior (←)">‹ Anterior</button>
+  <div class="pages" id="pages"></div>
+  <button class="edge" data-go="next" title="Próximo (→)">Próximo ›</button>
+</nav>
+
+<div class="overlay" id="overlay">
+  <div class="help">
+    <h3>Atalhos de teclado</h3>
+    <div class="krow"><span>Paginar seções</span><span><kbd>←</kbd><kbd>→</kbd> · <kbd>J</kbd><kbd>K</kbd></span></div>
+    <div class="krow"><span>Alternar tema</span><kbd>D</kbd></div>
+    <div class="krow"><span>Filtrar navegação</span><kbd>/</kbd></div>
+    <div class="krow"><span>Esta ajuda</span><kbd>?</kbd></div>
+    <div class="krow"><span>Fechar</span><kbd>Esc</kbd></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const sections=Array.from(document.querySelectorAll('section.panel'));
+  const navLinks=Array.from(document.querySelectorAll('#nav > a[data-sec]'));
+  const ids=sections.map(s=>s.id);
+  const html=document.documentElement;
+  let current=0;
+
+  // build pagination number buttons
+  const pages=document.getElementById('pages');
+  const pageBtns=sections.map((s,i)=>{
+    const b=document.createElement('button'); b.textContent=i+1; b.title=navLinks[i].textContent.trim();
+    b.onclick=()=>show(i); pages.appendChild(b); return b;
+  });
+  const tbTitle=document.getElementById('tbTitle');
+  const prog=document.getElementById('progress');
+
+  function show(i, anchorId){
+    current=Math.max(0,Math.min(sections.length-1,i));
+    sections.forEach((s,idx)=>s.classList.toggle('active',idx===current));
+    navLinks.forEach((a,idx)=>a.classList.toggle('active',idx===current));
+    pageBtns.forEach((b,idx)=>b.classList.toggle('on',idx===current));
+    document.querySelector('[data-go="prev"]').disabled=current===0;
+    document.querySelector('[data-go="next"]').disabled=current===sections.length-1;
+    tbTitle.innerHTML='<b>'+(current+1)+'/'+sections.length+'</b>'+navLinks[current].textContent.trim();
+    prog.style.width=((current+1)/sections.length*100)+'%';
+    // scroll handling
+    if(anchorId){
+      const el=document.getElementById(anchorId);
+      if(el){ requestAnimationFrame(()=>el.scrollIntoView({behavior:'smooth',block:'start'})); }
+    } else {
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+    history.replaceState(null,'','#'+(anchorId||ids[current]));
+  }
+
+  // main nav → switch view
+  navLinks.forEach((a,i)=>a.addEventListener('click',e=>{e.preventDefault();show(i);}));
+  // sub-anchors → switch to parent view + scroll to anchor
+  document.querySelectorAll('#nav .sub a[data-anchor]').forEach(a=>{
+    a.addEventListener('click',e=>{
+      e.preventDefault();
+      const id=a.dataset.anchor;
+      const el=document.getElementById(id);
+      const sec=el&&el.closest('section.panel');
+      const i=sec?sections.indexOf(sec):-1;
+      if(i>=0) show(i,id);
+    });
+  });
+  // pagination edges
+  document.querySelector('[data-go="prev"]').onclick=()=>show(current-1);
+  document.querySelector('[data-go="next"]').onclick=()=>show(current+1);
+
+  // theme
+  const btnTheme=document.getElementById('btnTheme'),themeIcon=document.getElementById('themeIcon');
+  btnTheme.onclick=()=>{const dark=html.getAttribute('data-theme')==='dark';html.setAttribute('data-theme',dark?'light':'dark');themeIcon.textContent=dark?'☾':'☀';};
+
+  // help
+  const overlay=document.getElementById('overlay');
+  document.getElementById('btnHelp').onclick=()=>overlay.classList.toggle('show');
+  overlay.onclick=e=>{if(e.target===overlay)overlay.classList.remove('show');};
+
+  // filter
+  const filter=document.getElementById('navFilter');
+  filter.addEventListener('input',()=>{const q=filter.value.toLowerCase().trim();navLinks.forEach(a=>{const hay=(a.textContent+' '+(a.dataset.k||'')).toLowerCase();a.classList.toggle('hidden',q&&!hay.includes(q));});});
+
+  // keyboard
+  document.addEventListener('keydown',e=>{
+    if(e.target.tagName==='INPUT'){if(e.key==='Escape'){filter.value='';filter.dispatchEvent(new Event('input'));filter.blur();}return;}
+    switch(e.key){
+      case 'ArrowRight':case 'ArrowDown':case 'j':e.preventDefault();show(current+1);break;
+      case 'ArrowLeft':case 'ArrowUp':case 'k':e.preventDefault();show(current-1);break;
+      case 'd':case 'D':btnTheme.click();break;
+      case '/':e.preventDefault();filter.focus();break;
+      case '?':overlay.classList.toggle('show');break;
+      case 'Escape':overlay.classList.remove('show');break;
+    }
+  });
+
+  // initial view from hash
+  (function init(){
+    const h=location.hash.slice(1);
+    if(h){
+      const si=ids.indexOf(h);
+      if(si>=0){ show(si); return; }
+      const el=document.getElementById(h);
+      const sec=el&&el.closest('section.panel');
+      if(sec){ show(sections.indexOf(sec), h); return; }
+    }
+    show(0);
+  })();
+})();
+</script>
+</body>
+</html>
