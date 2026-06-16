@@ -117,6 +117,26 @@ For DynamicTable-backed domains (leads, ERP, CRM) the service orchestrates `Dyna
 - Registration: Add to `server/src/features/analytics/kpis/index.ts`
 - Test: `__tests__/<Name>KpiProcessor.test.ts` with mock rows
 
+## Workflow Transition Service Contract
+
+- Service file: `server/src/features/<domain>/services/<Domain>WorkflowService.ts` (orquestração — sem Repository/Policy próprios)
+- Constructor: injects `DynamicTableService` + `IDynamicTableRepository`
+- Table resolution: `repository.findTableByInternalName(user.userId, internalName)` → `NotFoundError` se não instalada
+- Atomicidade: todas as escritas dentro de `dynamicTableService.runInTransaction(async (tx) => {...})` com `createTableData`/`updateTableData` recebendo `{ tx }`
+- Side effects: condicionais ao tipo de etapa de destino (ex.: criar proposta em etapa `proposal`); transição + efeitos commitam/rollback juntos
+- DTO: `dtos/<Domain>Transition.dto.ts` (Zod + `@openapi` + type guard); Controller fino (`safeParse` + factory + `handleApiError`); Route 3-toques (`index.ts` + `protectedApiPaths` + `docs.paths.ts`); Factory getter `get<Domain>Service()`
+- Test: `buildService` + mock `runInTransaction`/`findTableByInternalName`; assert atomicidade (1× `runInTransaction`) + cross-tenant `NotFoundError`
+- Golden ref: `server/src/features/crm/services/CrmPipelineService.ts` (`advanceStage`)
+
+## Frontend Kanban Workflow Contract
+
+- Board file: `my-app/features/<module>/<Name>Board.tsx` — REUSA `InternalKanbanView`/`KanbanColumn`/`KanbanCardDetailModal` + `@dnd-kit` (`DndContext`/`PointerSensor`/`DragOverlay`)
+- Hook: `hooks/use<Name>Board.ts` — colunas (status-enum OU stage-relation filtrada pelo pai ativo) + `handleDragEnd`
+- Drag-end: `DynamicTableService.updateRecord` (simples) OU endpoint de transição (efeitos colaterais), com optimistic update + rollback
+- Card click → `KanbanCardDetailModal` (modal, NUNCA `router.push`)
+- Create → `FloatingActionButton`; filters → `KanbanFilterBar`; container full-height; resolve por `internalName`; pagina ao ler
+- Golden ref: `my-app/features/dashboard/category-views/kanban/InternalKanbanView.tsx` (+ `hooks/useKanbanLogic.tsx`). Anti-exemplo: `my-app/pages/crm/pipeline.tsx` (board estático)
+
 ## RAG / Document Processing Contract
 
 - Extractor: `server/src/lib/vector/extractors/<type>.ts` — exports async fn returning `{ text: string }`

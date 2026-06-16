@@ -49,6 +49,7 @@ Analise o argumento `$ARGUMENTS` e classifique em uma das categorias:
 | "componente", "card", "modal", "form" | `frontend-component-generator` |
 | "hook", "use<X>" | `frontend-hook-generator` |
 | "widget", "chart", "gráfico" | `frontend-widget-generator` |
+| "fluxo de trabalho", "workflow", "kanban", "pipeline", "board por etapa", "esteira", "funil arrastável" | `frontend-kanban-workflow-generator` (+ `backend-workflow-transition-generator` se a transição tem efeitos colaterais) |
 | "context", "provider", "global state" | `frontend-context-provider-generator` |
 | "estilizar", "visual", "design", "on-brand", "deixar bonito" | `frontend-design-system` |
 
@@ -63,6 +64,7 @@ Analise o argumento `$ARGUMENTS` e classifique em uma das categorias:
 | "feature completa com dashboard" | `fullstack-feature-generator` → `dashboard-kpi-end-to-end-generator` |
 | "novo agente com preset" | `dynamic-table-preset-generator` → `chat-domain-generator` |
 | "crud + sync frontend" | `crud-resource-generator` → `api-contract-sync-generator` |
+| "pipeline/board com transição de etapa" | `backend-workflow-transition-generator` → `frontend-kanban-workflow-generator` |
 
 ## Phase 3 — Verificar ambiguidades (perguntar se necessário)
 

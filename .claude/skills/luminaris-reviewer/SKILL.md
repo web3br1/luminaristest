@@ -218,6 +218,30 @@ grep -n "Appointment\|<Resource>" server/src/lib/factory.ts   # verificar presen
 
 ---
 
+### Camada: Workflow Transition Service (`*WorkflowService.ts` / `*PipelineService.ts`)
+
+- [ ] Construtor injeta `DynamicTableService` + `IDynamicTableRepository` — **sem** `new`, **sem** Repository/Policy CRUD próprios
+- [ ] Resolve tabelas por `internalName` (`findTableByInternalName`) — **NotFoundError** se não instalada; nunca índice `[0]`
+- [ ] **Todas** as escritas dentro de `runInTransaction(async (tx) => {...})` com `{ tx }` — efeito colateral + transição atômicos
+- [ ] Efeitos colaterais condicionais ao tipo de etapa de destino
+- [ ] Sem policy redundante (delegada ao `DynamicTableService`); sem `prisma.*`; sem Express/`res.json`
+- [ ] Teste: `buildService` + mock `runInTransaction`/`findTableByInternalName`; atomicidade (1× `runInTransaction`) + cross-tenant `NotFoundError`
+- Golden ref: `server/src/features/crm/services/CrmPipelineService.ts`
+
+---
+
+### Camada: Kanban Workflow (frontend — `*Board.tsx` / board de etapas)
+
+- [ ] **Reusa** `InternalKanbanView`/`KanbanColumn`/`KanbanCardDetailModal` + `@dnd-kit` — **zero** board estático bespoke (anti-exemplo: `pages/crm/pipeline.tsx`)
+- [ ] Drag-drop funcional (`DndContext` + `DragOverlay` + optimistic update + rollback)
+- [ ] Drag-end: `updateRecord` (simples) OU endpoint de transição (efeitos colaterais) — nunca escrita parcial não-atômica
+- [ ] Colunas filtradas pelo **pai ativo** (stage-relation) ou opções do enum; validar com **>1 pai**
+- [ ] Clique no card abre **modal**, não troca de rota
+- [ ] Container `flex h-full`; resolve por `internalName`; pagina ao ler
+- Golden ref: `my-app/features/dashboard/category-views/kanban/InternalKanbanView.tsx`
+
+---
+
 ## Phase 3 — Consistência inter-camadas
 
 Verificar que as camadas se falam corretamente:

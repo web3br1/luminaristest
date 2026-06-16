@@ -19,6 +19,8 @@
 | frontend-hook-generator | React hook | Create data-fetching or UI state custom hook | /frontend-hook-generator "useAppointments" | Low | Auto |
 | frontend-context-provider-generator | Context provider | Create React context + provider + useX hook | /frontend-context-provider-generator "Appointments" | Medium | Auto |
 | frontend-widget-generator | Dashboard widget, Chart | Create widget for dashboard grid | /frontend-widget-generator "AppointmentsCalendar" | Medium | Auto |
+| frontend-kanban-workflow-generator | Workflow Kanban board (drag-drop + card modal) | Tela de fluxo de trabalho reusando os primitivos do Kanban canônico | /frontend-kanban-workflow-generator "pipeline" | Medium | Auto |
+| backend-workflow-transition-generator | Stage transition service (side effects) | Serviço de transição de etapa com efeitos colaterais atômicos (padrão CrmPipelineService) | /backend-workflow-transition-generator "Pipeline" | Medium | Auto |
 | frontend-api-service-generator | Frontend API service | Create lib/services/*.service.ts wrapping apiClient | /frontend-api-service-generator "appointments" | Low | Auto |
 | frontend-design-system | Design tokens + componentes-assinatura | Aplica a linguagem visual real (lumi-*/neutral, gauge, BANT, gradient header) — usada junto com toda geração de UI | /frontend-design-system "CRM Overview" | Low | Auto |
 | fullstack-feature-generator | All layers | Complete vertical slice (Prisma to frontend page) | /fullstack-feature-generator "ActionProposal approval flow" | High | Manual confirm |
