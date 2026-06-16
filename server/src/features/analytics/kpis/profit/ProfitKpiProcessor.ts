@@ -45,12 +45,12 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
   const { rows, params, fetchByPresetTableKey, table } = context;
 
   // Field mappings
-  const revenueAmountField = params.revenueAmountField || 'totalAmount';
-  const revenueDateField = params.revenueDateField || 'date';
-  const statusField = params.statusField || 'status';
-  const paymentStatusField = params.paymentStatusField || 'paymentStatus';
+  const revenueAmountField = (params.revenueAmountField as string | undefined) ?? 'totalAmount';
+  const revenueDateField = (params.revenueDateField as string | undefined) ?? 'date';
+  const statusField = (params.statusField as string | undefined) ?? 'status';
+  const paymentStatusField = (params.paymentStatusField as string | undefined) ?? 'paymentStatus';
   const excludeStatuses: string[] = Array.isArray(params.excludeStatuses)
-    ? params.excludeStatuses
+    ? params.excludeStatuses as string[]
     : ['Cancelled'];
 
   // Only include sales that are Finalized and Paid
@@ -63,10 +63,10 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
   let taxesTotal = Number(params.taxesTotal ?? 0);
   let nonRecurringTotal = Number(params.nonRecurringTotal ?? 0);
 
-  const period = params.period || 'month';
-  const datePreset = params.datePreset || 'thisMonth';
-  const timeZone = params.timeZone || 'UTC';
-  const now = params.referenceDate ? new Date(params.referenceDate) : new Date();
+  const period = (params.period as string | undefined) ?? 'month';
+  const datePreset = (params.datePreset as string | undefined) ?? 'thisMonth';
+  const timeZone = (params.timeZone as string | undefined) ?? 'UTC';
+  const now = params.referenceDate ? new Date(params.referenceDate as string | number | Date) : new Date();
   const boundaries = getPeriodBoundaries(datePreset, now, timeZone);
 
   const currentWindowStartDate = getStartDateForMonthsWindow(now, 12, timeZone);
@@ -112,7 +112,7 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
     const rowPaymentStatus = String(data[paymentStatusField] || '');
     const rowAmount = DataSanitizer.extractCurrency(data[revenueAmountField]);
     const rawDate = data[revenueDateField];
-    const date = rawDate ? new Date(rawDate) : null;
+    const date = rawDate ? new Date(rawDate as string | number | Date) : null;
 
     // Skip excluded statuses
     if (statusField) {
@@ -177,10 +177,10 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
   if (fetchByPresetTableKey && typeof params.costSourceTableKey === 'string') {
     try {
       const { rows: expenseRows } = await fetchByPresetTableKey(params.costSourceTableKey);
-      const expenseAmountField = params.expenseAmountField || 'amount';
-      const expenseCategoryField = params.expenseCategoryField || 'category';
-      const expenseDateField = params.expenseDateField || 'paymentDate';
-      const expensePaymentStatusField = params.expensePaymentStatusField || 'paymentStatus';
+      const expenseAmountField = (params.expenseAmountField as string | undefined) ?? 'amount';
+      const expenseCategoryField = (params.expenseCategoryField as string | undefined) ?? 'category';
+      const expenseDateField = (params.expenseDateField as string | undefined) ?? 'paymentDate';
+      const expensePaymentStatusField = (params.expensePaymentStatusField as string | undefined) ?? 'paymentStatus';
       const requireExpensePaid = params.requireExpensePaid !== false; // Default: true
 
       for (const row of expenseRows) {
@@ -189,7 +189,7 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
         const rowAmount = DataSanitizer.extractCurrency(data[expenseAmountField]);
         const categoryRaw = String(data[expenseCategoryField] || '').toLowerCase();
         const rawDate = data[expenseDateField];
-        const date = rawDate ? new Date(rawDate) : null;
+        const date = rawDate ? new Date(rawDate as string | number | Date) : null;
 
         // Require Paid payment status for expenses if enabled
         if (requireExpensePaid && expensePaymentStatusField) {
@@ -395,8 +395,8 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
   const allProfitIds = [...new Set([...currentPeriodRevenueIds, ...expenseIds])];
 
   // Determine table sources
-  const mainTableSource = table.presetKey || table.internalName || params.tableId || 'sales';
-  const expenseTableSource = params.costSourceTableKey || 'expenses';
+  const mainTableSource = table.presetKey || table.internalName || (params.tableId as string | undefined) || 'sales';
+  const expenseTableSource = (params.costSourceTableKey as string | undefined) ?? 'expenses';
   const mixedTableSource = 'mixed'; // For KPIs that use both tables
 
   // Return all KPIs with recordIds and tableSource

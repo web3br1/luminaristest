@@ -181,7 +181,7 @@ export function KanbanCardDetailModal({
                         <div className="flex-1 flex flex-col gap-8">
 
                             {/* Metadata Badges (Trello style labels) */}
-                            {(task.priority || task.category) && (
+                            {Boolean(task.priority || task.category) && (
                                 <div className="flex flex-wrap gap-4 pl-10">
                                     {task.priority && (
                                         <div className="flex flex-col gap-1.5">
@@ -272,7 +272,7 @@ export function KanbanCardDetailModal({
                                                                         {field.type === 'relation' ? (
                                                                             <RelationSelector
                                                                                 name={field.name}
-                                                                                value={value}
+                                                                                value={value as string | string[]}
                                                                                 onChange={handleExtraFieldChange}
                                                                                 targetTable={field.relation?.targetTable || ''}
                                                                                 multiple={Boolean(field.relation?.allowMultiple)}
@@ -405,11 +405,11 @@ function renderFieldValue(field: ISchemaField, value: unknown, relationLookups?:
     }
 
     if (field.type === 'date') {
-        return new Date(value).toLocaleDateString();
+        return new Date(value as string | number | Date).toLocaleDateString();
     }
 
     if (field.type === 'number' && (/price|valor|amount|salary/i.test(field.name))) {
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value as number);
     }
 
     return String(value);

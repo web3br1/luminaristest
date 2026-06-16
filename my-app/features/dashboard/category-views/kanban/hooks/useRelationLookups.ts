@@ -38,8 +38,8 @@ export function useRelationLookups(schema: ITableSchema | null) {
                         const targetTableId = field.relation?.targetTable;
                         if (!targetTableId) return;
 
-                        const body = await DynamicTableService.getTableData(targetTableId).catch(() => ({}));
-                        const data = body.data || [];
+                        const body = await DynamicTableService.getTableData(targetTableId).catch(() => ({})) as { data?: unknown[] };
+                        const data = (body.data || []) as Array<{ id?: string; data?: Record<string, unknown>; [key: string]: unknown }>;
 
                         const map = new Map<string, string>();
                         data.forEach((record) => {

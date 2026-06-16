@@ -78,6 +78,8 @@ function DisplayModeIcon({ mode, chartType, format }: { mode: string; chartType?
     return <svg className="w-3 h-3 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><title>Card</title><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" /></svg>;
 }
 
+type KpiDataItem = { name: string; value: number; previousValue?: number; fullRecords?: FlatKpiItem['fullRecords']; recordIds?: string[]; tableSource?: string };
+
 function flattenKpis(presetGroups: AnalyticsPresetGroup[], chartData: Record<string, { data: unknown[] }>): Record<string, FlatKpiItem[]> {
     const sections: Record<string, FlatKpiItem[]> = {};
     for (const group of presetGroups) {
@@ -89,7 +91,7 @@ function flattenKpis(presetGroups: AnalyticsPresetGroup[], chartData: Record<str
             const currency = opts.currency as string | undefined;
             const isTemporal = Boolean(opts.isTemporal);
             if (layout === 'kpiGrid') {
-                const data = chartData[chart.key]?.data || [];
+                const data = (chartData[chart.key]?.data || []) as KpiDataItem[];
                 for (const item of data) {
                     const metricName = item.name;
                     sections[section].push({
@@ -109,7 +111,7 @@ function flattenKpis(presetGroups: AnalyticsPresetGroup[], chartData: Record<str
                     });
                 }
             } else {
-                const data = chartData[chart.key]?.data || [];
+                const data = (chartData[chart.key]?.data || []) as KpiDataItem[];
                 const lastItem = data.length > 0 ? data[data.length - 1] : undefined;
                 sections[section].push({
                     id: chart.key, name: chart.title, value: lastItem?.value || 0,

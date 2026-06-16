@@ -63,9 +63,9 @@ export function useWidgetAnalyticsData(options: UseWidgetAnalyticsDataOptions = 
           ? `/analytics/presets/${encodeURIComponent(presetKey)}?${search.toString()}`
           : `/analytics/presets?${search.toString()}`;
 
-        const body = await FinanceService.getCustomData(url);
+        const body = await FinanceService.getCustomData(url) as Record<string, unknown> | null;
         if (abortController.signal.aborted) return;
-        setPresetGroups(Array.isArray(body?.data) ? body.data : []);
+        setPresetGroups(Array.isArray((body as { data?: unknown })?.data) ? (body as { data: AnalyticsPresetGroup[] }).data : []);
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return;
         setError(err instanceof Error ? err.message : 'error_loading_presets');

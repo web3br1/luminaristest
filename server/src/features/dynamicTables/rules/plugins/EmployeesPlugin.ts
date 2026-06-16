@@ -15,7 +15,7 @@ function hasAtLeastOneWorkDay(schedule: unknown): boolean {
   if (!schedule || typeof schedule !== 'object') return false;
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   for (const d of days) {
-    const entry = (schedule as Record<string, unknown>)[d];
+    const entry = (schedule as Record<string, unknown>)[d] as Record<string, unknown> | undefined;
     if (!entry) continue;
     const start = String(entry.start || '').trim();
     const end = String(entry.end || '').trim();
@@ -49,7 +49,7 @@ async function validateEmployee(ctx: RuleContext, after: Record<string, unknown>
   if (schedule && typeof schedule === 'object') {
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     for (const d of days) {
-      const entry = (schedule as Record<string, unknown>)[d];
+      const entry = (schedule as Record<string, unknown>)[d] as Record<string, unknown> | undefined;
       if (!entry) continue;
       const start = String(entry.start || '').trim();
       const end = String(entry.end || '').trim();

@@ -65,7 +65,7 @@ export default function ErpViewWidget({ onClose, initialConfig, onConfigChange }
                 setLoadingTables(true);
                 const body = await DynamicTableService.getTables();
                 if (Array.isArray(body?.data)) {
-                    setAvailableTables(body.data);
+                    setAvailableTables(body.data as unknown as IDynamicTable[]);
                 }
             } catch (err) {
                 console.error('Failed to fetch tables for widget config', err);

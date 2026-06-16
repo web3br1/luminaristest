@@ -24,8 +24,8 @@ export const productCostKpiProcessor: AnalyticsProcessor = async (context): Prom
     ];
   }
 
-  const datePreset = params.datePreset || 'thisMonth';
-  const now = params.referenceDate ? new Date(params.referenceDate) : new Date();
+  const datePreset = (params.datePreset as string | undefined) ?? 'thisMonth';
+  const now = params.referenceDate ? new Date(params.referenceDate as string | number | Date) : new Date();
   const monthsWindow = typeof params.monthsWindow === 'number' && params.monthsWindow > 0
     ? params.monthsWindow
     : 12;
@@ -35,7 +35,7 @@ export const productCostKpiProcessor: AnalyticsProcessor = async (context): Prom
   const boundaries = getPeriodBoundaries(datePreset, now);
 
   // History tracking for all 4 metrics (24 months trailing YoY)
-  const tz = params.timeZone || 'America/Sao_Paulo';
+  const tz = (params.timeZone as string | undefined) ?? 'America/Sao_Paulo';
   const limitWindow = Math.max(12, monthsWindow, 24);
   const historyMap = new Map<string, { quantity: number; variableCost: number; saleCount: number; revenue: number }>();
   for (let i = 0; i < limitWindow; i++) {
@@ -71,16 +71,16 @@ export const productCostKpiProcessor: AnalyticsProcessor = async (context): Prom
     const isPurchase = ['purchase', 'compra', 'entrada', 'fornecedor', 'estoque'].some(r => reason.includes(r));
     if (!isPurchase) continue;
 
-    const productId = data.productId;
+    const productId = String(data.productId ?? '').trim();
     const quantity = Number(data.quantity ?? 0);
     const cost = Number(data.cost ?? 0);
 
     if (!productId || quantity <= 0 || cost <= 0) continue;
 
-    const movementDate = data.date ? new Date(data.date) : null;
+    const movementDate = data.date ? new Date(data.date as string | number | Date) : null;
     if (!isDateWithinWindow(movementDate, startWindow, now)) continue;
 
-    const accum = productStockData.get(productId) || { totalCost: 0, totalQty: 0 };
+    const accum = productStockData.get(productId) ?? { totalCost: 0, totalQty: 0 };
     accum.totalCost = addMoney(accum.totalCost, cost);
     accum.totalQty += quantity;
     productStockData.set(productId, accum);
@@ -96,14 +96,14 @@ export const productCostKpiProcessor: AnalyticsProcessor = async (context): Prom
   }
 
   // Fetch sales headers to resolve dates for saleItems
-  const saleTableKey = params.saleTableKey || params.headerTableKey || 'sales';
-  const saleIdField = params.saleIdField || 'saleId';
-  let headerById: Map<string, unknown> | null = null;
+  const saleTableKey = (params.saleTableKey as string | undefined) ?? (params.headerTableKey as string | undefined) ?? 'sales';
+  const saleIdField = (params.saleIdField as string | undefined) ?? 'saleId';
+  let headerById: Map<string, Record<string, unknown>> | null = null;
 
   if (saleTableKey && fetchByPresetTableKey) {
     try {
       const { rows: headerRows } = await fetchByPresetTableKey(saleTableKey);
-      headerById = new Map(headerRows.map((r) => [r.id, r.data]));
+      headerById = new Map(headerRows.map((r) => [r.id, r.data as Record<string, unknown>]));
     } catch {
       headerById = null;
     }
@@ -111,7 +111,7 @@ export const productCostKpiProcessor: AnalyticsProcessor = async (context): Prom
 
   // Fetch sales items to calculate variable costs
   try {
-    const { rows: saleItemsRows } = await fetchByPresetTableKey(params.saleItemsTableKey);
+    const { rows: saleItemsRows } = await fetchByPresetTableKey(params.saleItemsTableKey as string);
 
     for (const row of saleItemsRows) {
       const data = row.data || {};
@@ -124,12 +124,12 @@ export const productCostKpiProcessor: AnalyticsProcessor = async (context): Prom
 
       if (quantity <= 0 || unitPrice <= 0) continue;
 
-      const saleId = data[saleIdField];
+      const saleId = String(data[saleIdField] ?? '').trim();
       const header = headerById && saleId ? headerById.get(saleId) : null;
 
       // Ensure saleItems date filtering uses header date first
-      const saleDateRaw = header?.date || header?.createdAt || data.date || data.createdAt;
-      const saleDate = saleDateRaw ? new Date(saleDateRaw) : null;
+      const saleDateRaw = header?.date ?? header?.createdAt ?? data.date ?? data.createdAt;
+      const saleDate = saleDateRaw ? new Date(saleDateRaw as string | number | Date) : null;
 
       const isCurrent = isDateWithinWindow(saleDate, boundaries.currentStart, boundaries.currentEnd);
       const isPrev = isDateWithinWindow(saleDate, boundaries.prevStart, boundaries.prevEnd);
@@ -138,7 +138,7 @@ export const productCostKpiProcessor: AnalyticsProcessor = async (context): Prom
         if (saleDate !== null) continue;
       }
 
-      const unitCost = productCosts.get(productId) || 0;
+      const unitCost = productCosts.get(String(productId)) ?? 0;
       const variableCost = unitCost * quantity;
       const totalRevenue = unitPrice * quantity;
 
@@ -187,8 +187,8 @@ export const productCostKpiProcessor: AnalyticsProcessor = async (context): Prom
   const allCurrentCostIds = [...new Set([...stockMovementIds, ...currentSaleItemIds])];
 
   // Determine table sources
-  const saleItemsTableSource = params.saleItemsTableKey || 'saleItems';
-  const stockMovementsTableSource = params.stockMovementsTableKey || 'stockMovements';
+  const saleItemsTableSource = (params.saleItemsTableKey as string | undefined) ?? 'saleItems';
+  const stockMovementsTableSource = (params.stockMovementsTableKey as string | undefined) ?? 'stockMovements';
   const mixedTableSource = 'mixed'; // For KPIs that use multiple tables
 
   // Calculate historical derived series for sparklines

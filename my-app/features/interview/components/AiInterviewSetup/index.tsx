@@ -89,7 +89,7 @@ function AiInterviewSetup() {
       <LeftSidebar
         customizationState={customizationState}
         isVisible={showCustomizationPanel}
-        onSelectTable={handleSelectTable}
+        onSelectTable={(table) => handleSelectTable(table as unknown as Parameters<typeof handleSelectTable>[0])}
         selectedTableName={selectedTable?.name}
       />
 

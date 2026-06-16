@@ -144,7 +144,8 @@ export class LuminarisAgentService {
                     tableId: table.id,
                     tableName: table.name,
                     tableLabel: table.name,
-                    data: creationData as unknown as Prisma.InputJsonValue
+                    status: 'PENDING',
+                    data: creationData as unknown as Prisma.JsonValue
                 });
                 return {
                     status: 'PROPOSED',
@@ -165,7 +166,8 @@ export class LuminarisAgentService {
                     tableId: table.id,
                     tableName: table.name,
                     tableLabel: table.name,
-                    data: { ...updateData, id: args.recordId as string } as unknown as Prisma.InputJsonValue
+                    status: 'PENDING',
+                    data: { ...updateData, id: args.recordId as string } as unknown as Prisma.JsonValue
                 });
                 return { status: 'PROPOSED', proposalId: proposal.id };
             }

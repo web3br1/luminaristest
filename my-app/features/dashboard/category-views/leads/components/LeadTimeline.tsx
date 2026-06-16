@@ -141,7 +141,8 @@ export default function LeadTimeline({ activities, activityFilter, setActivityFi
           <ul className="space-y-6 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100 dark:before:bg-neutral-800/50">
             {activities.filter((a) => activityFilter === 'all' ? true : String((a.data || {}).type || '') === activityFilter).map((a, idx, arr) => {
               const ad = a.data || {};
-              const when = new Date(a.updatedAt || a.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+              const adPayload = ad.payload as Record<string, unknown> | undefined;
+              const when = new Date(a.updatedAt || a.createdAt || '').toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
               const type = String(ad.type || '').toLowerCase();
               const colors: Record<string, string> = {
                 stage_change: 'bg-indigo-500',
@@ -156,8 +157,8 @@ export default function LeadTimeline({ activities, activityFilter, setActivityFi
 
               let title = String(ad.message || '');
               if (type === 'stage_change') {
-                const prevName = (stages.find((s) => String(s.id) === String(ad?.payload?.prevStage || ad?.prevStageId || ''))?.data || {}).name || 'Início';
-                const nextName = (stages.find((s) => String(s.id) === String(ad?.payload?.nextStage || ad?.nextStageId || ''))?.data || {}).name || 'Final';
+                const prevName = (stages.find((s) => String(s.id) === String(adPayload?.prevStage || ad?.prevStageId || ''))?.data || {}).name || 'Início';
+                const nextName = (stages.find((s) => String(s.id) === String(adPayload?.nextStage || ad?.nextStageId || ''))?.data || {}).name || 'Final';
                 title = `Transição de etapa: ${prevName} → ${nextName}`;
               }
 
@@ -174,10 +175,10 @@ export default function LeadTimeline({ activities, activityFilter, setActivityFi
                   <li className="relative pl-8 animate-in fade-in slide-in-from-left-4 duration-500">
                     <div className={`absolute left-0 top-1 w-6 h-6 rounded-full border-4 border-white dark:border-neutral-900 shadow-sm flex items-center justify-center z-10 ${color}`}>
                       <div className="text-white">
-                        {type === 'note' && ad?.payload?.icon ? (
-                          ['note', 'phone', 'email', 'handshake', 'calendar', 'chat', 'warning'].includes(String(ad?.payload?.icon))
-                            ? MonoIcon(String(ad?.payload?.icon), 'w-3 h-3')
-                            : <span className="text-[10px]">{String(ad?.payload?.icon)}</span>
+                        {type === 'note' && adPayload?.icon ? (
+                          ['note', 'phone', 'email', 'handshake', 'calendar', 'chat', 'warning'].includes(String(adPayload?.icon))
+                            ? MonoIcon(String(adPayload?.icon), 'w-3 h-3')
+                            : <span className="text-[10px]">{String(adPayload?.icon)}</span>
                         ) : (
                           <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                         )}
@@ -191,7 +192,7 @@ export default function LeadTimeline({ activities, activityFilter, setActivityFi
                       <div className="mt-3 flex items-center justify-between">
                         <div className="flex items-center gap-2 text-[10px] uppercase font-black tracking-widest text-gray-400">
                           <span className="text-blue-500">{when}</span>
-                          {ad?.actorId && ownerMap[String(ad.actorId)] && <span>• {ownerMap[String(ad.actorId)]}</span>}
+                          {Boolean(ad?.actorId) && ownerMap[String(ad.actorId)] && <span>• {ownerMap[String(ad.actorId)]}</span>}
                         </div>
                         <div className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter text-white ${color} grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transition-all`}>
                           {type.replace('_', ' ')}

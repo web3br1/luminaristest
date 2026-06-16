@@ -29,7 +29,7 @@ export default function ManageHeader({ leadData: d, ownerName, activitiesCount, 
               <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[10px] font-black uppercase tracking-widest">
                 {t('database:leads.header.badge_lead', 'Lead')}
               </span>
-              {d.status && (
+              {Boolean(d.status) && (
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${String(d.status) === 'Won' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
                   String(d.status) === 'Lost' ? 'bg-rose-500/10 text-rose-600 border-rose-500/20' :
                     'bg-blue-500/10 text-blue-600 border-blue-500/20'
@@ -71,10 +71,10 @@ export default function ManageHeader({ leadData: d, ownerName, activitiesCount, 
 
       <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: t('database:leads.header.last_contact', 'Último Contato'), icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', value: d.lastContactAt ? new Date(d.lastContactAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : t('database:leads.header.none', 'Nenhum') },
-          { label: t('database:leads.header.next_action', 'Próxima Ação'), icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', value: d.nextActionAt ? new Date(d.nextActionAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : t('database:leads.header.not_scheduled', 'Não agendado') },
+          { label: t('database:leads.header.last_contact', 'Último Contato'), icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', value: d.lastContactAt ? new Date(d.lastContactAt as string | number).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : t('database:leads.header.none', 'Nenhum') },
+          { label: t('database:leads.header.next_action', 'Próxima Ação'), icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', value: d.nextActionAt ? new Date(d.nextActionAt as string | number).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : t('database:leads.header.not_scheduled', 'Não agendado') },
           { label: t('database:leads.header.interactions', 'Interações'), icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', value: t('database:leads.header.activities_count', { count: activitiesCount, defaultValue: `${activitiesCount} atividades` }) },
-          { label: t('database:leads.header.estimated_value', 'Valor Estimado'), icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', value: d.latestProposalAmount != null ? `${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: String(d.latestProposalCurrency || 'BRL') }).format(d.latestProposalAmount)}` : t('database:leads.header.on_request', 'Sob consulta') },
+          { label: t('database:leads.header.estimated_value', 'Valor Estimado'), icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', value: d.latestProposalAmount != null ? `${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: String(d.latestProposalCurrency || 'BRL') }).format(d.latestProposalAmount as number)}` : t('database:leads.header.on_request', 'Sob consulta') },
         ].map((item, i) => (
           <div key={i} className="group p-4 rounded-2xl bg-gray-50/50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/5 hover:bg-white dark:hover:bg-neutral-800 transition-all cursor-default">
             <div className="flex items-center gap-2 mb-2">

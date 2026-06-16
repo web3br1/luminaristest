@@ -54,8 +54,9 @@ export function useDrillDownData(tableId?: string, recordIds?: string[], fields?
                 params.append('page', page.toString());
                 params.append('limit', limit.toString());
 
-                const body = await FinanceService.getDrillDownData(params.toString());
-                
+                const rawBody = await FinanceService.getDrillDownData(params.toString());
+                const body = rawBody as { success?: boolean; data?: DrillDownResult[]; schema?: IDynamicTable; pagination?: PaginationInfo; error?: string } | null;
+
                 if (body && body.success) {
                     setData(body.data || []);
                     setSchema(body.schema || null);

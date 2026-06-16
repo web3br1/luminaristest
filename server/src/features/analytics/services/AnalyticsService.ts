@@ -349,7 +349,7 @@ class AnalyticsService {
           ...template.defaultOptions,
           ...config.options,
           // Copy labelMap from params to options for frontend access
-          ...(processorParams.labelMap ? { labelMap: processorParams.labelMap } : {}),
+          ...(processorParams.labelMap ? { labelMap: processorParams.labelMap as Record<string, string> } : {}),
         },
       };
 

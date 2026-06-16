@@ -334,7 +334,7 @@ export async function resolveChartData(
 
   const service = getFactory().getDynamicTableService();
   const allTables = await service.getTablesForUser(user.id);
-  const tableIdParam = chart.params?.tableId || params.tableId;
+  const tableIdParam = (chart.params?.tableId as string | undefined) || (params.tableId as string | undefined);
 
   if (!tableIdParam) {
     return { chart, data: [], error: 'Missing required param: tableId' };
@@ -516,11 +516,12 @@ export async function resolveChartDetails(
   const allTables = await service.getTablesForUser(user.id);
   
   // Try to get tableId from params, or infer from pipeline source if using aggregatePipeline
-  let tableIdParam = chart.params?.tableId;
-  
+  let tableIdParam = chart.params?.tableId as string | undefined;
+
   // If no tableId in params and using aggregatePipeline, try to get from pipeline source
-  if (!tableIdParam && chart.processor === 'aggregatePipeline' && chart.params?.pipeline?.source) {
-    const source = chart.params.pipeline.source;
+  const pipelineParam = chart.params?.pipeline as { source?: { kind: string; key?: string; id?: string } } | undefined;
+  if (!tableIdParam && chart.processor === 'aggregatePipeline' && pipelineParam?.source) {
+    const source = pipelineParam.source;
     if (source.kind === 'presetTable' && source.key) {
       // Extract preset key from @@PRESET_TABLE_KEY::expenses format
       const presetKey = source.key.startsWith('@@PRESET_TABLE_KEY::')

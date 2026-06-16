@@ -401,7 +401,7 @@ async function findDefaultPipelineForUnit(ctx: RuleContext, unitId: string): Pro
   const pipelinesTable = await findPipelinesTable(ctx);
   if (!pipelinesTable) return null;
   const rows = await ctx.repository.findRowsByFieldValue(pipelinesTable.id, 'unitId', String(unitId));
-  const def = rows.find((r: { data?: Record<string, unknown> }) => Boolean((r.data || {}).isDefault));
+  const def = rows.find((r) => Boolean(((r.data as Record<string, unknown> | null) || {}).isDefault));
   return def ? { id: String(def.id) } : null;
 }
 

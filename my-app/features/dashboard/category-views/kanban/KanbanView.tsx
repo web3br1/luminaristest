@@ -10,7 +10,8 @@ interface KanbanViewProps {
 }
 
 export default function KanbanView({ tables }: KanbanViewProps) {
-  const { kanbanTables, tasks, isLoading, error, refetch, schemaByTableId } = useKanbanData(tables);
+  const { kanbanTables, tasks, isLoading, error: kanbanError, refetch, schemaByTableId } = useKanbanData(tables);
+  const error = kanbanError ? new Error(kanbanError) : null;
   const [activeTabId, setActiveTabId] = useState<string>('');
 
   useEffect(() => {

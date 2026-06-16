@@ -198,7 +198,7 @@ function EditUserPageComponent({ t, i18n, ...props }: EditUserPageProps) {
     }
 
     try {
-      const updatedUser = await UserService.updateProfile(userId, updatePayload);
+      const updatedUser = await UserService.updateProfile(userId, updatePayload as Parameters<typeof UserService.updateProfile>[1]);
 
       if (!updatedUser) {
         throw new Error(t('userEditInvalidResponseData', 'Invalid data structure in API response'));

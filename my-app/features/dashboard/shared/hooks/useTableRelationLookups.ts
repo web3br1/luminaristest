@@ -73,7 +73,8 @@ export function useTableRelationLookups(
                             }
 
                             const map = new Map<string, string>();
-                            for (const row of (body?.data || [])) {
+                            type RecordLike = { id?: string; data?: Record<string, unknown>; [key: string]: unknown };
+                            for (const row of ((body?.data || []) as RecordLike[])) {
                                 map.set(String(row.id), formatRelatedDisplayValue(row, displayField));
                             }
                             entries[field.name] = map;

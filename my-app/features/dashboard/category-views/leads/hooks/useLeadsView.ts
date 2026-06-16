@@ -68,7 +68,7 @@ export function useLeadsView(tables: IDynamicTable[]) {
     const fetchActivities = useCallback(async (leadId: string) => {
         if (!activitiesTable?.id) return;
         try {
-            const body = await DynamicTableService.getTableData(activitiesTable.id).catch(() => ({}));
+            const body = await DynamicTableService.getTableData(activitiesTable.id).catch(() => ({ data: undefined }));
             type ActivityRow = IDynamicTableData & { updatedAt?: string; createdAt?: string };
             const rows = (Array.isArray(body?.data) ? body.data : []) as ActivityRow[];
             const filtered = rows.filter((row) => String((row.data || {}).leadId || '') === String(leadId))
@@ -117,7 +117,7 @@ export function useLeadsView(tables: IDynamicTable[]) {
         (async () => {
             const targetId = unitTableId || fallbackUnitTableId;
             if (!targetId) return;
-            const body = await DynamicTableService.getTableData(targetId).catch(() => ({}));
+            const body = await DynamicTableService.getTableData(targetId).catch(() => ({ data: undefined }));
             const rows = (Array.isArray(body?.data) ? body.data : []) as IDynamicTableData[];
             setUnitOptions(rows.map((r) => ({ id: String(r.id), name: String((r.data || {}).name || r.id) })));
             // Auto selecionar última unidade usada
@@ -136,7 +136,7 @@ export function useLeadsView(tables: IDynamicTable[]) {
         (async () => {
             if (!selectedUnitId) { setPipelines([]); setStages([]); setActivePipelineId(null); return; }
             if (pipelinesTable?.id) {
-                const pb = await DynamicTableService.getTableData(pipelinesTable.id).catch(() => ({}));
+                const pb = await DynamicTableService.getTableData(pipelinesTable.id).catch(() => ({ data: undefined }));
                 const allPipes = (Array.isArray(pb?.data) ? pb.data : []) as IDynamicTableData[];
                 const unitPipes = allPipes.filter((r) => String((r.data || {}).unitId || '') === String(selectedUnitId));
                 setPipelines(unitPipes);
@@ -144,7 +144,7 @@ export function useLeadsView(tables: IDynamicTable[]) {
                 setActivePipelineId(def ? String(def.id) : null);
             }
             if (stagesTable?.id) {
-                const sb = await DynamicTableService.getTableData(stagesTable.id).catch(() => ({}));
+                const sb = await DynamicTableService.getTableData(stagesTable.id).catch(() => ({ data: undefined }));
                 const allStages = (Array.isArray(sb?.data) ? sb.data : []) as IDynamicTableData[];
                 setStages(allStages);
             }
@@ -160,7 +160,7 @@ export function useLeadsView(tables: IDynamicTable[]) {
                 const ownerField = fields.find(f => (f.name === 'assigneeId' || f.name === 'ownerId') && f.type === 'relation');
                 const unitFieldLocal = fields.find(f => f.name === 'unitId' && f.type === 'relation');
                 if (ownerField?.relation?.targetTable) {
-                    const b = await DynamicTableService.getTableData(ownerField.relation.targetTable).catch(() => ({}));
+                    const b = await DynamicTableService.getTableData(ownerField.relation.targetTable).catch(() => ({ data: undefined }));
                     const rows = (Array.isArray(b?.data) ? b.data : []) as IDynamicTableData[];
                     const m: Record<string, string> = {};
                     rows.forEach((row) => {
@@ -174,7 +174,7 @@ export function useLeadsView(tables: IDynamicTable[]) {
                     setOwnerMap(m);
                 }
                 if (unitFieldLocal?.relation?.targetTable) {
-                    const b = await DynamicTableService.getTableData(unitFieldLocal.relation.targetTable).catch(() => ({}));
+                    const b = await DynamicTableService.getTableData(unitFieldLocal.relation.targetTable).catch(() => ({ data: undefined }));
                     const rows = (Array.isArray(b?.data) ? b.data : []) as IDynamicTableData[];
                     const m: Record<string, string> = {};
                     rows.forEach((row) => { const d = row?.data || {}; m[String(row.id)] = String(d.name || row.id); });

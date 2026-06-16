@@ -84,8 +84,11 @@ export async function extractStructuredDataFromExcel(
   fileBuffer: Buffer | ArrayBuffer
 ): Promise<{ sheets: SheetStructured[] }> {
   const workbook = new ExcelJS.Workbook();
+  // ExcelJS load() expects the non-generic Buffer type; use Parameters helper to get the exact type
+  type XlsxLoadBuffer = Parameters<typeof workbook.xlsx.load>[0];
+  const bufferToLoad = (fileBuffer instanceof ArrayBuffer ? Buffer.from(fileBuffer) : fileBuffer) as unknown as XlsxLoadBuffer;
   try {
-    await workbook.xlsx.load(fileBuffer);
+    await workbook.xlsx.load(bufferToLoad);
   } catch (error) {
     console.error('Erro ao carregar arquivo Excel:', error);
     throw new Error(`Falha ao processar arquivo Excel: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);

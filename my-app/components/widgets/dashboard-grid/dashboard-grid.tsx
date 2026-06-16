@@ -361,7 +361,7 @@ export default function DashboardGrid() {
             id={item.id}
             onClose={() => removeWidget(item.id)}
             initialConfig={item.widgetConfig}
-            onConfigChange={(config) => updateWidgetConfig(item.id, config)}
+            onConfigChange={(config) => updateWidgetConfig(item.id, config as unknown as Record<string, unknown>)}
           />
         );
 

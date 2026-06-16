@@ -994,7 +994,7 @@ export class DynamicTableService {
       const startValue = data[rule.startField];
       const endValue = data[rule.endField];
       if (startValue === undefined || startValue === null || endValue === undefined || endValue === null) continue;
-      if (!isFinite(new Date(startValue).getTime()) || !isFinite(new Date(endValue).getTime())) continue;
+      if (!isFinite(new Date(startValue as string | number | Date).getTime()) || !isFinite(new Date(endValue as string | number | Date).getTime())) continue;
 
       const scope: Array<{ field: string; value: string }> = [];
       for (const f of rule.scopeFields ?? []) {
@@ -1051,7 +1051,7 @@ export class DynamicTableService {
             }
           }
         } else {
-          const relatedExists = await this.repository.existsByIdInTable(value, field.relation.targetTable);
+          const relatedExists = await this.repository.existsByIdInTable(value as string, field.relation.targetTable);
           if (!relatedExists) {
             throw new ValidationError(`Related record with ID '${value}' in the target table for field '${field.label}' was not found.`);
           }

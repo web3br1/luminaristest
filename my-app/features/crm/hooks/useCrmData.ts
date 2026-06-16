@@ -86,7 +86,7 @@ export function useCrmData(): CrmData {
     setError(null);
     try {
       const tablesRes = await DynamicTableService.getTables();
-      const tables: DynTable[] = tablesRes?.data ?? tablesRes ?? [];
+      const tables: DynTable[] = (tablesRes?.data ?? []) as DynTable[];
 
       const leadsTable = resolveTable(tables, 'leads');
       const stagesTable = resolveTable(tables, 'leadStages');

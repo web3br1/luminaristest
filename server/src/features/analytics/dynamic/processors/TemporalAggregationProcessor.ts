@@ -63,16 +63,16 @@ function getPeriodStartDate(date: Date, period: PeriodType, limit: number): Date
 
 export const temporalAggregationProcessor: AnalyticsProcessor = (context): ChartDataPoint[] => {
   const { rows, params, table } = context;
-  const amountField = params.amountField || 'totalAmount';
-  const dateField = params.dateField || 'date';
-  const period: PeriodType = params.period || 'month';
-  const excludeStatuses = params.excludeStatuses || [];
-  const statusField = params.statusField;
-  const limit = params.limit || 12;
+  const amountField = (params.amountField as string | undefined) ?? 'totalAmount';
+  const dateField = (params.dateField as string | undefined) ?? 'date';
+  const period: PeriodType = (params.period as PeriodType | undefined) ?? 'month';
+  const excludeStatuses = (params.excludeStatuses as string[] | undefined) ?? [];
+  const statusField = params.statusField as string | undefined;
+  const limit = (params.limit as number | undefined) ?? 12;
 
   const now = new Date();
-  const startDate = params.startDate ? new Date(params.startDate) : getPeriodStartDate(now, period, limit);
-  const endDate = params.endDate ? new Date(params.endDate) : now;
+  const startDate = params.startDate ? new Date(params.startDate as string | number | Date) : getPeriodStartDate(now, period, limit);
+  const endDate = params.endDate ? new Date(params.endDate as string | number | Date) : now;
 
   const periodTotals = new Map<string, number>();
   const periodRecordIds = new Map<string, string[]>();
@@ -93,7 +93,7 @@ export const temporalAggregationProcessor: AnalyticsProcessor = (context): Chart
     const dateValue = row.data?.[dateField];
     if (!dateValue) continue;
 
-    const rowDate = new Date(dateValue);
+    const rowDate = new Date(dateValue as string | number | Date);
     if (isNaN(rowDate.getTime()) || rowDate < startDate || rowDate > endDate) {
       continue;
     }
@@ -111,7 +111,7 @@ export const temporalAggregationProcessor: AnalyticsProcessor = (context): Chart
   }
 
   // Get table source
-  const mainTableSource = table.presetKey || table.internalName || params.tableId || 'sales';
+  const mainTableSource = table.presetKey || table.internalName || (params.tableId as string | undefined) || 'sales';
   
   return Array.from(periodTotals.entries())
     .sort(([a], [b]) => a.localeCompare(b))

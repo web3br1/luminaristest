@@ -47,8 +47,8 @@ function DocumentListPage() {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await DocumentService.getDocuments();
-      setDocuments(data);
+      const result = await DocumentService.getDocuments() as { data?: unknown[] };
+      setDocuments((result?.data || []) as typeof documents);
     } catch (e) {
       setError(resolveErrorMessage(e, t));
     } finally {

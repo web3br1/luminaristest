@@ -13,9 +13,9 @@ import { getPeriodBoundaries } from '../../utils/DateUtils';
  */
 export const crmConversionProcessor: AnalyticsProcessor = (context) => {
   const { rows, params } = context;
-  const now = params.referenceDate ? new Date(params.referenceDate) : new Date();
-  const tz = params.timeZone || 'UTC';
-  const datePreset = params.datePreset || 'thisYear';
+  const now = params.referenceDate ? new Date(params.referenceDate as string | number | Date) : new Date();
+  const tz = (params.timeZone as string | undefined) ?? 'UTC';
+  const datePreset = (params.datePreset as string | undefined) ?? 'thisYear';
   const { currentStart, currentEnd, prevStart, prevEnd } = getPeriodBoundaries(datePreset, now, tz);
 
   let won = 0, lost = 0, open = 0;
@@ -43,8 +43,8 @@ export const crmConversionProcessor: AnalyticsProcessor = (context) => {
     }
 
     if (status === 'Won' && d._createdAt && d._updatedAt) {
-      const start = new Date(d._createdAt).getTime();
-      const end = new Date(d._updatedAt).getTime();
+      const start = new Date(d._createdAt as string | number | Date).getTime();
+      const end = new Date(d._updatedAt as string | number | Date).getTime();
       if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
         cycleTotalDays += (end - start) / 86400000;
         cycleCount++;
@@ -52,7 +52,7 @@ export const crmConversionProcessor: AnalyticsProcessor = (context) => {
     }
 
     if (d._createdAt) {
-      const c = new Date(d._createdAt);
+      const c = new Date(d._createdAt as string | number | Date);
       if (!Number.isNaN(c.getTime())) {
         if (c >= currentStart && c < currentEnd) newCurrent++;
         else if (c >= prevStart && c < prevEnd) newPrev++;

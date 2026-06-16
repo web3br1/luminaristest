@@ -33,7 +33,8 @@ export function MeetingsCalendar() {
     const cancelled = new Set<string>();
     for (const a of activities) {
       if (String(a.data?.type ?? '') !== 'meeting_cancelled') continue;
-      const when = a.data?.payload?.scheduledAt ?? a.data?.scheduledAt ?? a.updatedAt ?? a.createdAt;
+      const payload = a.data?.payload as Record<string, unknown> | undefined;
+      const when = payload?.scheduledAt ?? a.data?.scheduledAt ?? a.updatedAt ?? a.createdAt;
       if (!when) continue;
       cancelled.add(`${String(a.data?.leadId ?? '')}|${new Date(String(when)).toISOString()}`);
     }
@@ -42,7 +43,8 @@ export function MeetingsCalendar() {
       .filter((a) => String(a.data?.type ?? '') === 'meeting')
       .map((a) => {
         const leadId = String(a.data?.leadId ?? '');
-        const when = a.data?.payload?.when ?? a.data?.when ?? a.updatedAt ?? a.createdAt;
+        const actPayload = a.data?.payload as Record<string, unknown> | undefined;
+        const when = actPayload?.when ?? a.data?.when ?? a.updatedAt ?? a.createdAt;
         const startIso = new Date(String(when)).toISOString();
         const endIso = new Date(new Date(startIso).getTime() + MEETING_DURATION_MS).toISOString();
         return { id: a.id, leadId, title: `Reunião - ${nameById.get(leadId) ?? 'Lead'}`, start: startIso, end: endIso };

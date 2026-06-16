@@ -47,17 +47,17 @@ export const formulaCalculationProcessor: AnalyticsProcessor = (context): ChartD
     throw new Error('Missing required param: formula');
   }
 
-  const fieldMapping: Record<string, string> = params.fieldMapping || params.variables || {};
+  const fieldMapping: Record<string, string> = (params.fieldMapping ?? params.variables ?? {}) as Record<string, string>;
   if (!fieldMapping || Object.keys(fieldMapping).length === 0) {
     throw new Error('Missing required param: fieldMapping');
   }
 
-  const groupBy: 'none' | 'period' | 'status' = params.groupBy || 'none';
-  const period: PeriodType = params.period || 'month';
-  const dateField: string | undefined = params.dateField;
-  const statusField: string | undefined = params.statusField;
+  const groupBy: 'none' | 'period' | 'status' = (params.groupBy as 'none' | 'period' | 'status' | undefined) ?? 'none';
+  const period: PeriodType = (params.period as PeriodType | undefined) ?? 'month';
+  const dateField: string | undefined = params.dateField as string | undefined;
+  const statusField: string | undefined = params.statusField as string | undefined;
   const excludeStatuses: string[] = Array.isArray(params.excludeStatuses)
-    ? params.excludeStatuses
+    ? params.excludeStatuses as string[]
     : [];
 
   if (groupBy === 'period' && !dateField) {
@@ -106,7 +106,7 @@ export const formulaCalculationProcessor: AnalyticsProcessor = (context): ChartD
     } else if (groupBy === 'period' && dateField) {
       const dv = row.data?.[dateField];
       if (!dv) continue;
-      const d = new Date(dv);
+      const d = new Date(dv as string | number | Date);
       if (isNaN(d.getTime())) continue;
       key = periodKey(d, period);
     }

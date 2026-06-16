@@ -270,14 +270,15 @@ function renderWizardField(
     const isWorkSchedule = (field.type === 'json' && /workSchedule|schedule|horario/i.test(field.name));
     const isTextarea = field.type === 'textarea' || (field.type === 'string' && /^(description|descri(ç|c)ao|observa(c|ç)oes|observacoes|notes?|summary|resumo)$/i.test(String(field.name || '')));
 
-    let FieldComponent: React.ComponentType<{ name: string; value: unknown; onChange: (name: string, value: unknown) => void; className: string; [key: string]: unknown }> = InputField;
-    if (isCurrency) FieldComponent = CurrencyField;
-    else if (isWorkSchedule) FieldComponent = WorkScheduleField;
-    else if (isTextarea) FieldComponent = TextareaField;
-    else if (field.type === 'select') FieldComponent = SelectField;
-    else if (field.type === 'boolean') FieldComponent = CheckboxField;
-    else if (field.type === 'relation') FieldComponent = RelationSelector;
-    else if (/zip|cep/i.test(field.name)) FieldComponent = CepAddressField;
+    type AnyFieldComponent = React.ComponentType<{ name: string; value: unknown; onChange: (name: string, value: unknown) => void; className: string; [key: string]: unknown }>;
+    let FieldComponent: AnyFieldComponent = InputField as unknown as AnyFieldComponent;
+    if (isCurrency) FieldComponent = CurrencyField as unknown as AnyFieldComponent;
+    else if (isWorkSchedule) FieldComponent = WorkScheduleField as unknown as AnyFieldComponent;
+    else if (isTextarea) FieldComponent = TextareaField as unknown as AnyFieldComponent;
+    else if (field.type === 'select') FieldComponent = SelectField as unknown as AnyFieldComponent;
+    else if (field.type === 'boolean') FieldComponent = CheckboxField as unknown as AnyFieldComponent;
+    else if (field.type === 'relation') FieldComponent = RelationSelector as unknown as AnyFieldComponent;
+    else if (/zip|cep/i.test(field.name)) FieldComponent = CepAddressField as unknown as AnyFieldComponent;
 
     const colSpan = (isWorkSchedule || isTextarea) ? 'sm:col-span-2' : '';
     const error = errors[field.name];

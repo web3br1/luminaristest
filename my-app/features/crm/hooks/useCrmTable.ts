@@ -33,7 +33,7 @@ export function useCrmTable(internalName: string): CrmTableState {
     setError(null);
     try {
       const tablesRes = await DynamicTableService.getTables();
-      const tables: DynTable[] = tablesRes?.data ?? tablesRes ?? [];
+      const tables: DynTable[] = (tablesRes?.data ?? []) as DynTable[];
       const t = tables.find((x) => x?.internalName === internalName) ?? null;
       setTable(t);
       if (!t?.id) {

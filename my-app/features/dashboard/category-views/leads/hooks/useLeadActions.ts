@@ -89,8 +89,8 @@ export function useLeadActions(
 
             // 1. Delete associated proposals
             if (proposalsTableId) {
-                const body = await DynamicTableService.getTableData(proposalsTableId).catch(() => ({}));
-                const rows = Array.isArray(body?.data) ? body.data : [];
+                const body = await DynamicTableService.getTableData(proposalsTableId).catch(() => ({ data: undefined }));
+                const rows = (Array.isArray(body?.data) ? body.data : []) as Array<{ id: string; data?: Record<string, unknown> }>;
                 const toDelete = rows.filter((r) => String(r.data?.leadId) === String(leadId));
 
                 for (const row of toDelete) {
@@ -100,8 +100,8 @@ export function useLeadActions(
 
             // 2. Delete associated activities
             if (activitiesTableId) {
-                const body = await DynamicTableService.getTableData(activitiesTableId).catch(() => ({}));
-                const rows = Array.isArray(body?.data) ? body.data : [];
+                const body = await DynamicTableService.getTableData(activitiesTableId).catch(() => ({ data: undefined }));
+                const rows = (Array.isArray(body?.data) ? body.data : []) as Array<{ id: string; data?: Record<string, unknown> }>;
                 const toDelete = rows.filter((r) => String(r.data?.leadId) === String(leadId));
 
                 for (const row of toDelete) {

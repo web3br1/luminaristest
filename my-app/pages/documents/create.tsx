@@ -44,7 +44,7 @@ function DocumentCreatePage() {
     const formData = new FormData();
     formData.append('file', file);
     DocumentService.getTokenCost(formData)
-      .then((data) => setTokenEstimate(data.tokens))
+      .then((data) => setTokenEstimate(data.tokens ?? null))
       .catch((err) => console.error('Failed to fetch token cost:', err));
   }
 

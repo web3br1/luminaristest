@@ -157,7 +157,7 @@ export default function LeadsView({ tables }: LeadsViewProps) {
       return (
         <MeetingsCalendar
           selectedUnitId={selectedUnitId}
-          activitiesTable={activitiesTable}
+          activitiesTable={activitiesTable ?? null}
           filteredLeads={filteredLeads}
           onOpenLead={(leadId) => { setSelectedLeadId(leadId); setActiveTab('manage'); }}
         />

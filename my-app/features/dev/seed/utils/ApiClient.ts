@@ -37,9 +37,10 @@ export class ApiClient {
             throw new Error(`[${tableNameForLog}] Falha ao criar: ${this.getErrorMsg(body)}`);
         }
 
-        const id = body?.data?.id || body?.id || (typeof body?.data === 'string' ? body.data : null);
+        const bodyData = body?.data as Record<string, unknown> | string | undefined;
+        const id = (typeof bodyData === 'object' && bodyData !== null ? bodyData?.id : null) || body?.id || (typeof bodyData === 'string' ? bodyData : null);
         if (!id) throw new Error(`[${tableNameForLog}] ID não retornado na criação.`);
-        return id;
+        return id as string;
     }
 
     async putRow(tableId: string, dataId: string, data: Record<string, unknown>, tableNameForLog: string = 'Unknown'): Promise<void> {
@@ -61,7 +62,8 @@ export class ApiClient {
     async findExisting(tableId: string, field: string, value: string): Promise<any | null> {
         const rows = await this.getRows(tableId);
         return rows.find((r) => {
-            const val = r.data?.[field] || r[field];
+            const row = r as Record<string, unknown> & { data?: Record<string, unknown> };
+            const val = row.data?.[field] || row[field];
             return String(val).toLowerCase() === String(value).toLowerCase();
         }) || null;
     }

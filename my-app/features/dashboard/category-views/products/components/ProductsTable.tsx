@@ -221,7 +221,7 @@ export function ProductsTable({
                                 productTableId={productTableId}
                                 productSchema={productSchema}
                                 inventoryTableId={inventoryTableId}
-                                inventorySchema={inventorySchema?.schema as ITableSchema}
+                                inventorySchema={inventorySchema}
                                 onProductEdit={onProductEdit}
                                 onInventoryEdit={onInventoryEdit}
                                 isWidgetMode={isWidgetMode}

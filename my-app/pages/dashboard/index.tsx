@@ -104,8 +104,8 @@ function DashboardPage({ allTables }: DashboardPageProps) {
         setSeeding(true);
         await runDevSeed(tables, () => { });
         window.sessionStorage.setItem('dev_seed_ran', '1');
-        const j = await DynamicTableService.getTables().catch(() => ({}));
-        if (Array.isArray(j?.data)) setTables(j.data);
+        const j = await DynamicTableService.getTables().catch(() => ({ data: [] as IDynamicTable[] }));
+        if (Array.isArray(j?.data)) setTables(j.data as IDynamicTable[]);
       } catch (e: unknown) {
         console.error('Seed failed:', e);
       } finally {
@@ -120,7 +120,7 @@ function DashboardPage({ allTables }: DashboardPageProps) {
         if (!user) return;
         const body = await DynamicTableService.getTables();
         if (Array.isArray(body?.data)) {
-          setTables(body.data);
+          setTables(body.data as unknown as IDynamicTable[]);
         }
       } catch { }
     }
@@ -219,8 +219,8 @@ function DashboardPage({ allTables }: DashboardPageProps) {
             try {
               setSeeding(true);
               await runDevSeed(tables, () => { });
-              const j = await DynamicTableService.getTables().catch(() => ({}));
-              if (Array.isArray(j?.data)) setTables(j.data);
+              const j = await DynamicTableService.getTables().catch(() => ({ data: [] as IDynamicTable[] }));
+              if (Array.isArray(j?.data)) setTables(j.data as IDynamicTable[]);
             } catch (e: unknown) {
               console.error('Manual seed failed:', e);
             } finally {

@@ -28,7 +28,7 @@ export default function MeetingsCalendar({ selectedUnitId, activitiesTable, filt
         if (!selectedUnitId || !activitiesTable?.id) { setMeetings([]); onStatsChange?.(false, 0); return; }
         setLoading(true); onStatsChange?.(true, 0);
         type CalRow = IDynamicTableData & { updatedAt?: string; createdAt?: string };
-        const b = await DynamicTableService.getTableData(activitiesTable.id).catch(()=>({}));
+        const b = await DynamicTableService.getTableData(activitiesTable.id).catch(()=>({ data: undefined }));
         const rows = (Array.isArray(b?.data) ? b.data : []) as CalRow[];
         const cancelledMap = new Map<string, Set<string>>();
         rows.filter((row)=> String((row.data||{}).type||'')==='meeting_cancelled').forEach((row)=>{

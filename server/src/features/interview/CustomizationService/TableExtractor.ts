@@ -72,7 +72,7 @@ export class TableExtractor {
         const description = (ts.description as string | undefined) || `Tabela de ${name}`;
 
         // Extrai corretamente os campos do schema da tabela
-        let fields = [];
+        let fields: Array<{ name: string; label: string; type: string; required: boolean; hidden: boolean }> = [];
         const tsSchema = ts.schema as Record<string, unknown> | undefined;
 
         // Verifica se temos campos no schema (estrutura correta dos presets)

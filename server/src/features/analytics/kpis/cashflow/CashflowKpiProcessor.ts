@@ -42,25 +42,25 @@ export const cashflowKpiProcessor: AnalyticsProcessor = async (context): Promise
   const { rows, params, fetchByPresetTableKey, table } = context;
 
   // Field mappings for Sales (receivables)
-  const salesAmountField        = params.salesAmountField        || 'totalAmount';
-  const salesDateField          = params.salesDateField          || 'date';
-  const salesDueDateField       = params.salesDueDateField       || 'dueDate';
-  const salesPaymentStatusField = params.salesPaymentStatusField || 'paymentStatus';
-  const salesStatusField        = params.salesStatusField        || 'status';
+  const salesAmountField        = (params.salesAmountField        as string | undefined) ?? 'totalAmount';
+  const salesDateField          = (params.salesDateField          as string | undefined) ?? 'date';
+  const salesDueDateField       = (params.salesDueDateField       as string | undefined) ?? 'dueDate';
+  const salesPaymentStatusField = (params.salesPaymentStatusField as string | undefined) ?? 'paymentStatus';
+  const salesStatusField        = (params.salesStatusField        as string | undefined) ?? 'status';
   const excludeStatuses: string[] = Array.isArray(params.excludeStatuses)
-    ? params.excludeStatuses
+    ? params.excludeStatuses as string[]
     : ['Cancelled'];
 
   // Field mappings for Expenses (payables)
-  const expenseAmountField        = params.expenseAmountField        || 'amount';
-  const expenseDateField          = params.expenseDateField          || 'date';
-  const expenseDueDateField       = params.expenseDueDateField       || 'dueDate';
-  const expensePaymentStatusField = params.expensePaymentStatusField || 'paymentStatus';
-  const expenseCategoryField      = params.expenseCategoryField      || 'category';
+  const expenseAmountField        = (params.expenseAmountField        as string | undefined) ?? 'amount';
+  const expenseDateField          = (params.expenseDateField          as string | undefined) ?? 'date';
+  const expenseDueDateField       = (params.expenseDueDateField       as string | undefined) ?? 'dueDate';
+  const expensePaymentStatusField = (params.expensePaymentStatusField as string | undefined) ?? 'paymentStatus';
+  const expenseCategoryField      = (params.expenseCategoryField      as string | undefined) ?? 'category';
 
-  const datePreset = params.datePreset || 'thisMonth';
-  const timeZone   = params.timeZone   || 'UTC';
-  const now        = params.referenceDate ? new Date(params.referenceDate) : new Date();
+  const datePreset = (params.datePreset as string | undefined) ?? 'thisMonth';
+  const timeZone   = (params.timeZone   as string | undefined) ?? 'UTC';
+  const now        = params.referenceDate ? new Date(params.referenceDate as string | number | Date) : new Date();
   const boundaries = getPeriodBoundaries(datePreset, now, timeZone);
 
   // ===========================================================================
@@ -123,7 +123,7 @@ export const cashflowKpiProcessor: AnalyticsProcessor = async (context): Promise
     const amount = DataSanitizer.extractCurrency(data[salesAmountField]);
     if (!Number.isFinite(amount) || amount <= 0) continue;
 
-    const saleDate = data[salesDateField] ? new Date(data[salesDateField]) : null;
+    const saleDate = data[salesDateField] ? new Date(data[salesDateField] as string | number | Date) : null;
     if (!saleDate || !isFinite(saleDate.getTime())) continue;
 
     const isCurrentFlow  = isDateWithinWindow(saleDate, boundaries.currentStart, boundaries.currentEnd);
@@ -134,7 +134,7 @@ export const cashflowKpiProcessor: AnalyticsProcessor = async (context): Promise
     if (!isCurrentFlow && !isPrevFlow && !isValidStock && !isValidPrevStock) continue;
 
     const paymentStatus = String(data[salesPaymentStatusField] || '').toLowerCase();
-    const dueDate = data[salesDueDateField] ? new Date(data[salesDueDateField]) : null;
+    const dueDate = data[salesDueDateField] ? new Date(data[salesDueDateField] as string | number | Date) : null;
 
     if (paymentStatus === 'paid' || paymentStatus === 'pago') {
       if (isValidStock) {
@@ -229,7 +229,7 @@ export const cashflowKpiProcessor: AnalyticsProcessor = async (context): Promise
         const amount = DataSanitizer.extractCurrency(data[expenseAmountField]);
         if (!Number.isFinite(amount) || amount <= 0) continue;
 
-        const expenseDate = data[expenseDateField] ? new Date(data[expenseDateField]) : null;
+        const expenseDate = data[expenseDateField] ? new Date(data[expenseDateField] as string | number | Date) : null;
         if (!expenseDate || !isFinite(expenseDate.getTime())) continue;
 
         const isCurrentFlow    = isDateWithinWindow(expenseDate, boundaries.currentStart, boundaries.currentEnd);
@@ -240,7 +240,7 @@ export const cashflowKpiProcessor: AnalyticsProcessor = async (context): Promise
         if (!isCurrentFlow && !isPrevFlow && !isValidStock && !isValidPrevStock) continue;
 
         const paymentStatus = String(data[expensePaymentStatusField] || '').toLowerCase();
-        const dueDate       = data[expenseDueDateField] ? new Date(data[expenseDueDateField]) : null;
+        const dueDate       = data[expenseDueDateField] ? new Date(data[expenseDueDateField] as string | number | Date) : null;
         const category      = String(data[expenseCategoryField] || '').toLowerCase();
         const isInvestment  = category.includes('investment') || category.includes('investimento') || category.includes('capex');
 
@@ -400,8 +400,8 @@ export const cashflowKpiProcessor: AnalyticsProcessor = async (context): Promise
   // ===========================================================================
   // TABLE SOURCES
   // ===========================================================================
-  const mainTableSource    = table.presetKey || table.internalName || params.tableId || 'sales';
-  const expenseTableSource = params.expensesTableKey || 'expenses';
+  const mainTableSource    = table.presetKey || table.internalName || (params.tableId as string | undefined) || 'sales';
+  const expenseTableSource = (params.expensesTableKey as string | undefined) ?? 'expenses';
   const mixedTableSource   = 'mixed';
 
   return [

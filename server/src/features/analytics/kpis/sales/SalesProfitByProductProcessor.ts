@@ -29,37 +29,37 @@ export const salesProfitByProductOverTimeProcessor: AnalyticsProcessor = async (
   // ============================================================================
   // FIELD MAPPINGS
   // ============================================================================
-  const itemTypeField            = params.itemTypeField            || 'itemType';
-  const productIdField           = params.productIdField           || 'productId';
-  const quantityField            = params.quantityField            || 'quantity';
-  const unitPriceField           = params.unitPriceField           || 'unitPrice';
-  const saleIdField              = params.saleIdField              || 'saleId';
-  const saleItemDateField        = params.saleItemDateField        || 'date'; // fallback date field
+  const itemTypeField            = (params.itemTypeField            as string | undefined) ?? 'itemType';
+  const productIdField           = (params.productIdField           as string | undefined) ?? 'productId';
+  const quantityField            = (params.quantityField            as string | undefined) ?? 'quantity';
+  const unitPriceField           = (params.unitPriceField           as string | undefined) ?? 'unitPrice';
+  const saleIdField              = (params.saleIdField              as string | undefined) ?? 'saleId';
+  const saleItemDateField        = (params.saleItemDateField        as string | undefined) ?? 'date'; // fallback date field
 
   const headerTableKey           = params.headerTableKey as string | undefined;
-  const headerDateField          = params.headerDateField          || 'date';
-  const headerPaymentStatusField = params.headerPaymentStatusField || 'paymentStatus';
+  const headerDateField          = (params.headerDateField          as string | undefined) ?? 'date';
+  const headerPaymentStatusField = (params.headerPaymentStatusField as string | undefined) ?? 'paymentStatus';
   const includePaymentStatuses: string[] = Array.isArray(params.includePaymentStatuses)
-    ? params.includePaymentStatuses
+    ? params.includePaymentStatuses as string[]
     : ['Paid'];
 
-  const period: PeriodType = (params.period as PeriodType) || 'month';
-  const timeZone            = params.timeZone || 'UTC';
+  const period: PeriodType = (params.period as PeriodType | undefined) ?? 'month';
+  const timeZone            = (params.timeZone as string | undefined) ?? 'UTC';
 
-  const now          = params.referenceDate ? new Date(params.referenceDate) : new Date();
+  const now          = params.referenceDate ? new Date(params.referenceDate as string | number | Date) : new Date();
   const monthsWindow = typeof params.monthsWindow === 'number' && params.monthsWindow > 0
     ? params.monthsWindow
     : 12;
   const startWindow  = getStartDateForMonthsWindow(now, monthsWindow, timeZone);
 
   const stockMovementsTableKey = params.stockMovementsTableKey as string | undefined;
-  const stockTypeField         = params.stockTypeField         || 'type';
-  const stockProductIdField    = params.stockProductIdField    || 'productId';
-  const stockQuantityField     = params.stockQuantityField     || 'quantity';
-  const stockCostField         = params.stockCostField         || 'cost';
+  const stockTypeField         = (params.stockTypeField         as string | undefined) ?? 'type';
+  const stockProductIdField    = (params.stockProductIdField    as string | undefined) ?? 'productId';
+  const stockQuantityField     = (params.stockQuantityField     as string | undefined) ?? 'quantity';
+  const stockCostField         = (params.stockCostField         as string | undefined) ?? 'cost';
   // If true, stockCostField holds the TOTAL cost of the lot (not unit cost).
   // Default: true (Σcost / Σqty = avg unit cost)
-  const stockCostIsTotal       = params.stockCostIsTotal !== false;
+  const stockCostIsTotal       = (params.stockCostIsTotal as boolean | undefined) !== false;
 
   // ============================================================================
   // PRE-FILL 12-MONTH HISTORY MAP (zero-drift safe, YYYY-MM keys)
@@ -137,13 +137,14 @@ export const salesProfitByProductOverTimeProcessor: AnalyticsProcessor = async (
     const data = row.data || {};
 
     // Filter by itemType if configured
-    if (itemTypeField && params.itemTypeValue) {
+    const itemTypeValue = params.itemTypeValue as string | undefined;
+    if (itemTypeField && itemTypeValue) {
       const type = String(data[itemTypeField] || '').trim();
-      if (type !== String(params.itemTypeValue)) continue;
+      if (type !== String(itemTypeValue)) continue;
     } else if (itemTypeField && data[itemTypeField] !== undefined) {
       const type = String(data[itemTypeField] || '').trim();
       // Only skip if it is explicitly NOT 'Product' AND itemTypeValue was not explicitly set
-      if (type && type !== 'Product' && !params.itemTypeValue) continue;
+      if (type && type !== 'Product' && !itemTypeValue) continue;
     }
 
     // Resolve date + payment status
@@ -156,7 +157,7 @@ export const salesProfitByProductOverTimeProcessor: AnalyticsProcessor = async (
       const header = headerById.get(saleId);
       if (!header) continue;
 
-      dateVal = header[headerDateField];
+      dateVal = header[headerDateField] as string | number | Date | null;
 
       if (includePaymentStatuses.length > 0) {
         const pStatus = String(header[headerPaymentStatusField] || '').trim();
@@ -167,7 +168,7 @@ export const salesProfitByProductOverTimeProcessor: AnalyticsProcessor = async (
       }
     } else {
       // Mode B: fallback — read date directly from saleItem row
-      dateVal = data[saleItemDateField];
+      dateVal = data[saleItemDateField] as string | number | Date | null;
 
       if (includePaymentStatuses.length > 0 && data[headerPaymentStatusField] !== undefined) {
         const pStatus = String(data[headerPaymentStatusField] || '').trim();
@@ -210,7 +211,7 @@ export const salesProfitByProductOverTimeProcessor: AnalyticsProcessor = async (
   // ============================================================================
   // BUILD OUTPUT — sorted YYYY-MM series, all 12 months present
   // ============================================================================
-  const mainTableSource = table.presetKey || table.internalName || params.tableId || 'saleItems';
+  const mainTableSource = table.presetKey || table.internalName || (params.tableId as string | undefined) || 'saleItems';
 
   const sortedEntries = Array.from(historyMap.entries())
     .sort(([a], [b]) => a.localeCompare(b));

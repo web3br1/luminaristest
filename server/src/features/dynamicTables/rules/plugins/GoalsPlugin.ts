@@ -15,7 +15,7 @@ import { tableMatches } from '../shared/tableFinder';
 async function autoComputeResult(ctx: RuleContext, after: Record<string, unknown>) {
     const targetAmount = after?.targetAmount;
     const actualAmount = after?.actualAmount;
-    const endDate = after?.endDate ? new Date(after.endDate) : null;
+    const endDate = after?.endDate ? new Date(after.endDate as string | number | Date) : null;
 
     if (targetAmount && actualAmount !== undefined && actualAmount !== null) {
         const target = Number(targetAmount);

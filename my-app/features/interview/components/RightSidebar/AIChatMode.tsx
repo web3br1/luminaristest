@@ -16,7 +16,11 @@ interface AIChatModeProps {
 function AIChatMode({ tableData, sessionId: externalSessionId, onSaveChanges, onClose, presetKey }: AIChatModeProps) {
   const [messages, setMessages] = useState<IAiMessage[]>(() => {
     if (tableData.conversationHistory && tableData.conversationHistory.length > 0) {
-      return tableData.conversationHistory.map(msg => ({ ...msg, timestamp: new Date(msg.timestamp) }));
+      return tableData.conversationHistory.map(msg => ({
+        role: msg.role as IAiMessage['role'],
+        content: msg.content,
+        timestamp: new Date(),
+      }));
     }
     return [
       {

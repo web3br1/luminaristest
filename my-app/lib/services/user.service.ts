@@ -26,7 +26,7 @@ export const UserService = {
    */
   async updateProfile(userId: string, data: Partial<UpdateUserDto>): Promise<IUser> {
     const response = await apiClient.put<{ success: boolean; data?: IUser; id?: string }>(`/users/${userId}`, data);
-    return (response as { data?: IUser[] }).data || response;
+    return (response as { data?: IUser }).data || (response as unknown as IUser);
   },
 
   /**
@@ -34,7 +34,7 @@ export const UserService = {
    */
   async getUserById(userId: string): Promise<IUser> {
     const response = await apiClient.get<{ data: IUser } | IUser>(`/users/${userId}`);
-    return (response as { data?: IUser[] }).data || response;
+    return (response as { data?: IUser }).data || (response as IUser);
   },
 
   /**
@@ -48,7 +48,7 @@ export const UserService = {
    * Specialized method to change user role (ADMIN test feature).
    */
   async changeRole(userId: string, role: string): Promise<IUser> {
-    return this.updateProfile(userId, { role });
+    return this.updateProfile(userId, { role: role as import('../../types/Role').Role });
   },
 
   /**

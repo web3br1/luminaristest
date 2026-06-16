@@ -19,16 +19,16 @@ function makePeriodKey(date: Date, period: PeriodMode): string {
 export const profitByDimensionProcessor: AnalyticsProcessor = async (context): Promise<ChartDataPoint[]> => {
   const { rows, params, fetchByPresetTableKey, fetchByTableId, schema, table } = context;
 
-  const amountField = params.revenueAmountField || params.amountField || 'totalAmount';
-  const dateField = params.revenueDateField || params.dateField || 'date';
-  const dimensionField = params.dimensionField || 'customerId';
-  const statusField = params.statusField || 'status';
+  const amountField = (params.revenueAmountField as string | undefined) ?? (params.amountField as string | undefined) ?? 'totalAmount';
+  const dateField = (params.revenueDateField as string | undefined) ?? (params.dateField as string | undefined) ?? 'date';
+  const dimensionField = (params.dimensionField as string | undefined) ?? 'customerId';
+  const statusField = (params.statusField as string | undefined) ?? 'status';
   const excludeStatuses: string[] = Array.isArray(params.excludeStatuses)
-    ? params.excludeStatuses
+    ? params.excludeStatuses as string[]
     : ['Cancelled'];
-  const period: PeriodMode = params.period || 'month';
+  const period: PeriodMode = (params.period as PeriodMode | undefined) ?? 'month';
 
-  const now = params.referenceDate ? new Date(params.referenceDate) : new Date();
+  const now = params.referenceDate ? new Date(params.referenceDate as string | number | Date) : new Date();
   const currentPeriodKey = makePeriodKey(now, period);
   
   const prevDate = new Date(now);
@@ -94,7 +94,7 @@ export const profitByDimensionProcessor: AnalyticsProcessor = async (context): P
     if (!Number.isFinite(amount) || amount <= 0) continue;
 
     const rawDate = data[dateField];
-    const date = rawDate ? new Date(rawDate) : null;
+    const date = rawDate ? new Date(rawDate as string | number | Date) : null;
     if (!date || !Number.isFinite(date.getTime())) continue;
 
     const key = makePeriodKey(date, period);
@@ -134,9 +134,9 @@ export const profitByDimensionProcessor: AnalyticsProcessor = async (context): P
   if (fetchByPresetTableKey && typeof params.costSourceTableKey === 'string') {
     try {
       const { rows: expenseRows } = await fetchByPresetTableKey(params.costSourceTableKey);
-      const expenseAmountField = params.expenseAmountField || 'amount';
-      const expenseCategoryField = params.expenseCategoryField || 'category';
-      const expenseDateField = params.expenseDateField || 'paymentDate';
+      const expenseAmountField = (params.expenseAmountField as string | undefined) ?? 'amount';
+      const expenseCategoryField = (params.expenseCategoryField as string | undefined) ?? 'category';
+      const expenseDateField = (params.expenseDateField as string | undefined) ?? 'paymentDate';
 
       for (const row of expenseRows) {
         const data = row.data || {};
@@ -144,7 +144,7 @@ export const profitByDimensionProcessor: AnalyticsProcessor = async (context): P
         if (!Number.isFinite(rawAmount) || rawAmount <= 0) continue;
 
         const rawDate = data[expenseDateField];
-        const date = rawDate ? new Date(rawDate) : null;
+        const date = rawDate ? new Date(rawDate as string | number | Date) : null;
         if (!date || !Number.isFinite(date.getTime())) continue;
 
         const key = makePeriodKey(date, period);
@@ -222,7 +222,7 @@ export const profitByDimensionProcessor: AnalyticsProcessor = async (context): P
       value,
       previousValue,
       recordIds: allIds.length > 0 ? allIds : undefined,
-      tableSource: table.presetKey || params.tableId || 'sales',
+      tableSource: table.presetKey || (params.tableId as string | undefined) || 'sales',
     });
   }
 

@@ -125,8 +125,8 @@ export function useAnalyticsData(
   const discoverKPIs = useCallback(
     async (tableId: string) => {
       try {
-        const body = await FinanceService.discoverKPIs(tableId, datePreset);
-        const discoveredGroups = Array.isArray(body?.data) ? body.data : [];
+        const body = await FinanceService.discoverKPIs(tableId, datePreset) as Record<string, unknown> | null;
+        const discoveredGroups = Array.isArray((body as { data?: unknown })?.data) ? (body as { data: AnalyticsPresetGroup[] }).data : [];
 
         if (discoveredGroups.length > 0) {
           setPresetGroups((prev) => {
@@ -165,8 +165,8 @@ export function useAnalyticsData(
           ? `/analytics/presets/${encodeURIComponent(presetKey)}?${search.toString()}`
           : `/analytics/presets?${search.toString()}`;
 
-        const body = await FinanceService.getCustomData(url);
-        const groups = Array.isArray(body?.data) ? body.data : [];
+        const body = await FinanceService.getCustomData(url) as Record<string, unknown> | null;
+        const groups = Array.isArray((body as { data?: unknown })?.data) ? (body as { data: AnalyticsPresetGroup[] }).data : [];
         setPresetGroups(groups);
 
         // Fetch data for all charts in parallel

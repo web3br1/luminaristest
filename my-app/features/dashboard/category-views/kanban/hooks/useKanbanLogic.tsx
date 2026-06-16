@@ -86,7 +86,8 @@ export function useKanbanLogic({ tasks, activeTabId, schema, onTabChangeCallback
 
         const byTable: Record<string, number> = {};
         localTasks.forEach(t => {
-            byTable[t.dynamicTableId] = (byTable[t.dynamicTableId] || 0) + 1;
+            const tableId = String(t.dynamicTableId);
+            byTable[tableId] = (byTable[tableId] || 0) + 1;
         });
 
         return {

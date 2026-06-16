@@ -9,12 +9,12 @@ import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
 
 export const statusComparisonProcessor: AnalyticsProcessor = (context): ChartDataPoint[] => {
   const { rows, params, table } = context;
-  const amountField = params.amountField || 'totalAmount';
-  const statusField = params.statusField || 'status';
-  const excludeStatuses = params.excludeStatuses || [];
-  const excludeStatusField = params.excludeStatusField;
-  const statusGroups = params.statusGroups || {};
-  const labelMap = params.labelMap || {};
+  const amountField = (params.amountField as string | undefined) ?? 'totalAmount';
+  const statusField = (params.statusField as string | undefined) ?? 'status';
+  const excludeStatuses = (params.excludeStatuses as string[] | undefined) ?? [];
+  const excludeStatusField = params.excludeStatusField as string | undefined;
+  const statusGroups = (params.statusGroups as Record<string, string> | undefined) ?? {};
+  const labelMap = (params.labelMap as Record<string, string> | undefined) ?? {};
 
   const totals = new Map<string, number>();
   const recordIdsByStatus = new Map<string, string[]>();

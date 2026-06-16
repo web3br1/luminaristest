@@ -17,6 +17,7 @@ export interface ITable {
   description: string;
   fields?: ITableField[];
   isCore?: boolean;
+  conversationHistory?: Array<{ role: string; content: string }>;
 }
 
 export interface ICustomizationState {

@@ -58,10 +58,11 @@ class ApiClient {
       }
 
       if (!response.ok) {
-        const errorMessage =
+        const errorMessage = String(
           result?.message ||
           result?.error ||
-          `Erro ${response.status}: ${response.statusText}`;
+          `Erro ${response.status}: ${response.statusText}`
+        );
         notify(errorMessage, 'error', 'Erro');
         // Return the parsed error object (usually { success: false, error: '...' })
         throw result;

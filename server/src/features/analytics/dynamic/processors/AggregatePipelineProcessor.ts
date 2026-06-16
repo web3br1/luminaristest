@@ -60,8 +60,8 @@ function getField(obj: Record<string, unknown>, path: string, opts?: { deriveIte
   return cur;
 }
 
-function formatPeriod(dateStr: string | Date | null, period: 'day' | 'week' | 'month' | 'quarter' | 'year'): string {
-  const d = new Date(dateStr);
+function formatPeriod(dateStr: string | Date | null | undefined, period: 'day' | 'week' | 'month' | 'quarter' | 'year'): string {
+  const d = new Date((dateStr ?? '') as string | Date);
   if (Number.isNaN(d.getTime())) return 'Unknown';
 
   const y = d.getFullYear();
@@ -141,7 +141,7 @@ function makeGroupKey(
     if (d.type === 'field') {
       parts.push(String(getField(row, d.field, { deriveItemType }) ?? ''));
     } else if (d.type === 'period') {
-      parts.push(formatPeriod(getField(row, d.dateField, { deriveItemType }) as string | Date | null, d.period));
+      parts.push(formatPeriod(getField(row, d.dateField, { deriveItemType }) as string | Date | null | undefined, d.period));
     }
   }
   return parts.join('|');
@@ -368,7 +368,7 @@ export const aggregatePipelineProcessor: AnalyticsProcessor = async (
     }
 
     // Apply labelMap transformations if present (handles true/false, status codes, etc.)
-    const labelMap = params.labelMap || params.options?.labelMap;
+    const labelMap = (params.labelMap ?? (params.options as Record<string, unknown> | undefined)?.labelMap) as Record<string, unknown> | undefined;
     if (labelMap && typeof labelMap === 'object') {
       // Check for direct match of display name
       if (labelMap[displayName] !== undefined) {
@@ -388,7 +388,7 @@ export const aggregatePipelineProcessor: AnalyticsProcessor = async (
       .filter((id): id is string => typeof id === 'string' && id.length > 0);
 
     // Determine table source - prioritize sourcePresetKey, then source table's presetKey/internalName, then fallback
-    const mainTableSource = sourcePresetKey || sourceTable?.presetKey || sourceTable?.internalName || params.tableId || 'sales';
+    const mainTableSource = sourcePresetKey || sourceTable?.presetKey || sourceTable?.internalName || (params.tableId as string | undefined) || 'sales';
 
     results.push({
       name: displayName,
@@ -399,17 +399,17 @@ export const aggregatePipelineProcessor: AnalyticsProcessor = async (
   }
 
   // Inject missing categories defined in labelMap with value 0
-  const labelMap = params.labelMap || params.options?.labelMap;
-  if (labelMap && typeof labelMap === 'object') {
+  const labelMap2 = (params.labelMap ?? (params.options as Record<string, unknown> | undefined)?.labelMap) as Record<string, unknown> | undefined;
+  if (labelMap2 && typeof labelMap2 === 'object') {
     const existingNames = new Set(results.map((r) => r.name));
     // Iterate over the translated labels to ensure the chart has them
-    for (const label of Object.values(labelMap)) {
+    for (const label of Object.values(labelMap2)) {
       const labelStr = String(label);
       if (!existingNames.has(labelStr)) {
         results.push({
           name: labelStr,
           value: 0,
-          tableSource: params.tableId || 'sales',
+          tableSource: (params.tableId as string | undefined) ?? 'sales',
         });
       }
     }

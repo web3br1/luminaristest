@@ -41,18 +41,22 @@ export function useKanbanData(tables: IDynamicTable[]) {
                     DynamicTableService.getTableData(table.id).catch(() => null)
                 ]);
 
-                if (tableData?.success && tableData.data) {
-                    newSchemaMap[table.id] = tableData.data.schema || table.schema;
+                type TableMetaWithData = { success?: boolean; data?: { schema?: unknown } };
+                const tableDataTyped = tableData as unknown as TableMetaWithData;
+                if (tableDataTyped?.success && tableDataTyped.data) {
+                    newSchemaMap[table.id] = tableDataTyped.data.schema || table.schema;
                 } else {
                     newSchemaMap[table.id] = table.schema;
                 }
 
-                if (tableRecords?.success && tableRecords.data) {
-                    const records = tableRecords.data || [];
+                type TableRecordsTyped = { success?: boolean; data?: Array<{ id: string; data?: Record<string, unknown>; createdAt?: string; updatedAt?: string }> };
+                const tableRecordsTyped = tableRecords as unknown as TableRecordsTyped;
+                if (tableRecordsTyped?.success && tableRecordsTyped.data) {
+                    const records = tableRecordsTyped.data || [];
 
                     // Extract columns to determine default status
                     let defaultStatus = 'todo';
-                    const schema = newSchemaMap[table.id];
+                    const schema = newSchemaMap[table.id] as { fields?: ISchemaField[] } | null;
                     if (schema && schema.fields) {
                         const statusField = schema.fields.find((f: ISchemaField) => f.name === 'status');
                         if (statusField && statusField.options && statusField.options.length > 0) {
@@ -63,16 +67,16 @@ export function useKanbanData(tables: IDynamicTable[]) {
                     }
 
                     records.forEach((record) => {
-                        const data = record.data || {};
+                        const data = (record.data || {}) as Record<string, unknown>;
                         results.push({
                             ...data, // Preserve all dynamic fields from the backend
                             id: record.id,
-                            name: data.name || data.title || 'Untitled',
-                            description: data.description || '',
-                            status: data.status || defaultStatus,
-                            priority: data.priority || 'Low',
-                            createdAt: record.createdAt || null,
-                            updatedAt: record.updatedAt || null,
+                            name: (data.name || data.title || 'Untitled') as string,
+                            description: (data.description || '') as string,
+                            status: (data.status || defaultStatus) as 'To_Do' | 'In_Progress' | 'Done' | 'Archived',
+                            priority: (data.priority || 'Low') as 'Low' | 'Medium' | 'High' | 'Urgent' | null,
+                            createdAt: record.createdAt ?? '',
+                            updatedAt: record.updatedAt ?? '',
                             dynamicTableId: table.id,
                         });
                     });

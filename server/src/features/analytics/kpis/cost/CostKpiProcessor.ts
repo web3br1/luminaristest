@@ -38,34 +38,34 @@ import { addMoney } from '../../utils/CurrencyUtils';
 export const costKpiProcessor: AnalyticsProcessor = async (context): Promise<ChartDataPoint[]> => {
   const { rows, params, table, fetchByPresetTableKey } = context;
 
-  const amountField = params.amountField || 'amount';
-  const categoryField = params.categoryField || 'category';
-  const paymentDateField = params.paymentDateField || 'paymentDate';
-  const isPlannedField = params.isPlannedField || undefined; // No fallback: undefined means feature is disabled
+  const amountField = (params.amountField as string | undefined) ?? 'amount';
+  const categoryField = (params.categoryField as string | undefined) ?? 'category';
+  const paymentDateField = (params.paymentDateField as string | undefined) ?? 'paymentDate';
+  const isPlannedField = (params.isPlannedField as string | undefined) ?? undefined; // No fallback: undefined means feature is disabled
 
-  const datePreset = params.datePreset || 'thisMonth';
+  const datePreset = (params.datePreset as string | undefined) ?? 'thisMonth';
   const monthsWindow = typeof params.monthsWindow === 'number' && params.monthsWindow > 0
     ? params.monthsWindow
     : 12;
 
   // Time baseline: use referenceDate from params (crucial for audits/history) or current time
-  const now = params.referenceDate ? new Date(params.referenceDate) : new Date();
+  const now = params.referenceDate ? new Date(params.referenceDate as string | number | Date) : new Date();
   const boundaries = getPeriodBoundaries(datePreset, now);
 
   // Cross-table data: fetch appointment counts if table key is provided
-  const appointmentsTableKey = params.appointmentsTableKey;
+  const appointmentsTableKey = params.appointmentsTableKey as string | undefined;
   let totalAppointmentsPeriod = 0;
   let prevAppointmentsPeriod = 0;
 
   if (appointmentsTableKey && fetchByPresetTableKey) {
     try {
       const appointmentsData = await fetchByPresetTableKey(appointmentsTableKey.replace('@@PRESET_TABLE_KEY::', ''));
-      const apptDateField = params.appointmentsDateField || 'date';
+      const apptDateField = (params.appointmentsDateField as string | undefined) ?? 'date';
       
       const currentAppointments = appointmentsData.rows.filter(row => {
         const rawDate = row.data?.[apptDateField];
         if (!rawDate) return false;
-        const d = new Date(rawDate);
+        const d = new Date(rawDate as string | number | Date);
         return !isNaN(d.getTime()) && isDateWithinWindow(d, boundaries.currentStart, boundaries.currentEnd);
       });
       totalAppointmentsPeriod = currentAppointments.length;
@@ -73,7 +73,7 @@ export const costKpiProcessor: AnalyticsProcessor = async (context): Promise<Cha
       const prevAppointments = appointmentsData.rows.filter(row => {
         const rawDate = row.data?.[apptDateField];
         if (!rawDate) return false;
-        const d = new Date(rawDate);
+        const d = new Date(rawDate as string | number | Date);
         return !isNaN(d.getTime()) && isDateWithinWindow(d, boundaries.prevStart, boundaries.prevEnd);
       });
       prevAppointmentsPeriod = prevAppointments.length;
@@ -86,28 +86,28 @@ export const costKpiProcessor: AnalyticsProcessor = async (context): Promise<Cha
   }
 
   // Dynamic categorization (avoiding hardcoded strings)
-  const fixedKeywords = Array.isArray(params.fixedCategoryNames) 
-    ? params.fixedCategoryNames.map((k: string) => k.toLowerCase()) 
+  const fixedKeywords = Array.isArray(params.fixedCategoryNames)
+    ? (params.fixedCategoryNames as string[]).map((k) => k.toLowerCase())
     : ['fixed', 'fixo', 'aluguel', 'personnel', 'folha'];
-    
+
   const variableKeywords = Array.isArray(params.variableCategoryNames)
-    ? params.variableCategoryNames.map((k: string) => k.toLowerCase())
+    ? (params.variableCategoryNames as string[]).map((k) => k.toLowerCase())
     : ['variable', 'variável', 'marketing', 'suprimentos', 'comissão'];
-    
+
   const adminKeywords = Array.isArray(params.adminCategoryNames)
-    ? params.adminCategoryNames.map((k: string) => k.toLowerCase())
+    ? (params.adminCategoryNames as string[]).map((k) => k.toLowerCase())
     : ['admin', 'administrativo', 'personnel', 'office'];
-    
+
   const maintenanceKeywords = Array.isArray(params.maintenanceCategoryNames)
-    ? params.maintenanceCategoryNames.map((k: string) => k.toLowerCase())
+    ? (params.maintenanceCategoryNames as string[]).map((k) => k.toLowerCase())
     : ['maintenance', 'manutenção', 'reparo'];
-    
+
   const nonRecurringKeywords = Array.isArray(params.nonRecurringCategoryNames)
-    ? params.nonRecurringCategoryNames.map((k: string) => k.toLowerCase())
+    ? (params.nonRecurringCategoryNames as string[]).map((k) => k.toLowerCase())
     : ['nonrecurring', 'não recorrente', 'avulso'];
-    
+
   const taxKeywords = Array.isArray(params.taxCategoryNames)
-    ? params.taxCategoryNames.map((k: string) => k.toLowerCase())
+    ? (params.taxCategoryNames as string[]).map((k) => k.toLowerCase())
     : ['tax', 'imposto', 'tributo'];
 
   // History tracking for sparklines (24 months trailing for YoY)
@@ -121,7 +121,7 @@ export const costKpiProcessor: AnalyticsProcessor = async (context): Promise<Cha
     unplanned: number
   }>();
   
-  const tz = params.timeZone || 'America/Sao_Paulo';
+  const tz = (params.timeZone as string | undefined) ?? 'America/Sao_Paulo';
   const limitWindow = Math.max(12, monthsWindow, 24); // Ensure at least 24 months for historyMap
   for (let i = 0; i < limitWindow; i++) {
     const d = new Date(now);
@@ -163,9 +163,9 @@ export const costKpiProcessor: AnalyticsProcessor = async (context): Promise<Cha
   const overallIds: string[] = [];
 
   const excludeStatuses: string[] = Array.isArray(params.excludeStatuses)
-    ? params.excludeStatuses
+    ? params.excludeStatuses as string[]
     : ['Cancelled'];
-  const statusField = params.statusField;
+  const statusField = params.statusField as string | undefined;
 
   for (const row of rows) {
     const data = row.data || {};
@@ -183,7 +183,7 @@ export const costKpiProcessor: AnalyticsProcessor = async (context): Promise<Cha
     if (!Number.isFinite(rawAmount) || rawAmount <= 0) continue;
 
     const rawDate = paymentDateField ? data[paymentDateField] : null;
-    const date = rawDate ? new Date(rawDate) : null;
+    const date = rawDate ? new Date(rawDate as string | number | Date) : null;
     if (!date || isNaN(date.getTime())) continue;
 
     const isCurrent = isDateWithinWindow(date, boundaries.currentStart, boundaries.currentEnd);
@@ -310,7 +310,7 @@ export const costKpiProcessor: AnalyticsProcessor = async (context): Promise<Cha
   const prevOperationalTotal = addMoney(addMoney(prevAdminTotal, prevMaintenanceTotal), prevVariableTotal);
 
   // Determine table source
-  const mainTableSource = table.presetKey || params.tableId || 'expenses';
+  const mainTableSource = table.presetKey || (params.tableId as string | undefined) || 'expenses';
 
   // (series already declared above for avg computation)
 

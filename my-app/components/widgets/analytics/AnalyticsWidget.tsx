@@ -9,7 +9,7 @@ import ChartRenderer from '@/features/dashboard/category-views/finance/component
 import GoldKpiWidgetView from './GoldKpiWidgetView';
 import type { ChartDataPoint, ChartPreset } from '@/features/dashboard/category-views/finance/types';
 
-type AnalyticsConfig = { chartKey?: string; kpiName?: string | null; [key: string]: unknown };
+type AnalyticsConfig = { chartKey?: string | null; kpiName?: string | null; [key: string]: unknown };
 
 interface AnalyticsWidgetProps {
     id: string;
@@ -26,7 +26,7 @@ export default function AnalyticsWidget({ id, onClose, initialConfig, onConfigCh
 
     // Fetch analytics presets and specific chart data cleanly (Lazy Loading pattern)
     const { presetGroups, chartData, loadingPresets, loadingData } = useWidgetAnalyticsData({ 
-        chartKey: config.chartKey 
+        chartKey: config.chartKey ?? undefined
     });
 
     const handleSaveConfig = () => {

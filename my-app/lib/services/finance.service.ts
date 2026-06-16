@@ -21,7 +21,8 @@ export class FinanceService {
     ): Promise<string> {
         // 1. Create the Sale record
         const saleResponse = await DynamicTableService.createRecord(salesTableId, { data: saleData });
-        const saleId = saleResponse?.data?.id || saleResponse?.id;
+        const saleResponseData = saleResponse?.data as { id?: string } | undefined;
+        const saleId = saleResponseData?.id || saleResponse?.id;
 
         if (!saleId) {
             throw new Error('Failed to create sale: No ID returned');

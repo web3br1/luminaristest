@@ -60,7 +60,7 @@ export const multiTableCalculationProcessor: AnalyticsProcessor = async (context
     dateFields = {},
     amountFields,
     statusField,
-  } = params as MultiTableParams;
+  } = params as unknown as MultiTableParams;
 
   if (!tables || Object.keys(tables).length === 0) {
     throw new Error('MultiTableCalculationProcessor requires at least one table');
@@ -126,7 +126,7 @@ export const multiTableCalculationProcessor: AnalyticsProcessor = async (context
         const dateValue = row[dateField];
         if (!dateValue) continue;
 
-        const date = new Date(dateValue);
+        const date = new Date(dateValue as string | number | Date);
         if (isNaN(date.getTime())) continue;
 
         groupKey = formatDateByPeriod(date, period);

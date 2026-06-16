@@ -48,7 +48,7 @@ export default function QuickSetup() {
       setIsLoading(true);
       try {
         const body = (await apiClient.get('/dashboard/presets')) as PresetsResponse;
-        setPresets(body.data || []);
+        setPresets((body.data as Preset[]) || []);
 
       } catch (err) {
         setError((err instanceof Error ? err.message : String(err)) || 'Ocorreu um erro inesperado ao carregar os modelos.');

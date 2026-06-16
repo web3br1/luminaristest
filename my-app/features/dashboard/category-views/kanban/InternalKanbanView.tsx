@@ -4,7 +4,7 @@ import React from 'react';
 import { useTranslation } from 'next-i18next';
 import { DndContext, closestCenter, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { Task } from '../../../../types/Task.types';
-import type { IDynamicTable } from '../../components/shared/dynamic-tables.client';
+import type { IDynamicTable, ITableSchema } from '../../components/shared/dynamic-tables.client';
 import KanbanColumn from './KanbanColumn';
 import KanbanTaskCard from './KanbanTaskCard';
 import { useKanbanLogic } from './hooks/useKanbanLogic';
@@ -41,7 +41,7 @@ export function InternalKanbanView({
 }: InternalKanbanViewProps) {
     const { t } = useTranslation(['common', 'database']);
     const activeTable = tables.find(t => t.id === activeTabId);
-    const activeSchema = schemaByTableId[activeTabId];
+    const activeSchema = schemaByTableId[activeTabId] as ITableSchema | null;
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -105,7 +105,7 @@ export function InternalKanbanView({
         return (
             <div className="text-center p-12 bg-red-50 dark:bg-red-950/20 rounded-xl m-4 border border-red-100 dark:border-red-900/30">
                 <p className="text-red-600 dark:text-red-400 font-bold">{t('common:error_loading_data')}</p>
-                <p className="text-red-500 dark:text-red-500/70 text-sm mt-1">{error}</p>
+                <p className="text-red-500 dark:text-red-500/70 text-sm mt-1">{error instanceof Error ? error.message : String(error)}</p>
             </div>
         );
     }
@@ -221,7 +221,7 @@ export function InternalKanbanView({
                                             task={activeTask}
                                             isOverlay
                                             tableId={activeTable.id}
-                                            tableSchema={activeSchema}
+                                            tableSchema={activeSchema as ITableSchema}
                                             onSuccess={refetch}
                                             relationLookups={relationLookups}
                                         />
@@ -237,7 +237,7 @@ export function InternalKanbanView({
                             onClose={() => setIsDetailModalOpen(false)}
                             task={selectedTask}
                             tableId={activeTabId}
-                            tableSchema={activeSchema}
+                            tableSchema={activeSchema as ITableSchema}
                             onUpdate={refetch}
                             columnTitle={columns.find(c => c.status === selectedTask.status)?.title}
                             relationLookups={relationLookups}

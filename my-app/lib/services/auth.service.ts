@@ -2,7 +2,7 @@ import { apiClient } from '../api/api-client';
 import { IUser } from '../../types/User';
 
 interface LoginFormData {
-  email: string;
+  identifier: string;
   password: string;
 }
 

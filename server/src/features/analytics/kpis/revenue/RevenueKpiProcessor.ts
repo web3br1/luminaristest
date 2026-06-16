@@ -49,35 +49,35 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
   const { rows, params, table } = context;
 
   // Field mappings
-  const amountField = params.amountField || 'totalAmount';
-  const discountField = params.discountField;
-  const taxField = params.taxField;
-  const statusField = params.statusField;
+  const amountField = (params.amountField as string | undefined) ?? 'totalAmount';
+  const discountField = params.discountField as string | undefined;
+  const taxField = params.taxField as string | undefined;
+  const statusField = params.statusField as string | undefined;
   const excludeStatuses: string[] = Array.isArray(params.excludeStatuses)
-    ? params.excludeStatuses
+    ? params.excludeStatuses as string[]
     : [];
-  const dateField = params.dateField || 'date';
-  const customerIdField = params.customerIdField;
-  const categoryField = params.categoryField;
-  const sourceField = params.sourceField || customerIdField || categoryField;
-  const revenueTypeField = params.revenueTypeField || 'revenueType';
-  const isNewCustomerField = params.isNewCustomerField;
-  const isLoyalCustomerField = params.isLoyalCustomerField;
+  const dateField = (params.dateField as string | undefined) ?? 'date';
+  const customerIdField = params.customerIdField as string | undefined;
+  const categoryField = params.categoryField as string | undefined;
+  const sourceField = (params.sourceField as string | undefined) ?? customerIdField ?? categoryField;
+  const revenueTypeField = (params.revenueTypeField as string | undefined) ?? 'revenueType';
+  const isNewCustomerField = params.isNewCustomerField as string | undefined;
+  const isLoyalCustomerField = params.isLoyalCustomerField as string | undefined;
 
-  const datePreset = params.datePreset || 'thisMonth';
+  const datePreset = (params.datePreset as string | undefined) ?? 'thisMonth';
   const monthsWindow = typeof params.monthsWindow === 'number' && params.monthsWindow > 0
     ? params.monthsWindow
     : 12;
 
   // Heuristic parameters
   const newCustomerMinRevenue = typeof params.newCustomerMinRevenue === 'number'
-    ? params.newCustomerMinRevenue
+    ? (params.newCustomerMinRevenue as number)
     : 0;
   const loyalCustomerMinSales = typeof params.loyalCustomerMinSales === 'number'
-    ? params.loyalCustomerMinSales
+    ? (params.loyalCustomerMinSales as number)
     : 3;
   const loyalCustomerMinRevenue = typeof params.loyalCustomerMinRevenue === 'number'
-    ? params.loyalCustomerMinRevenue
+    ? (params.loyalCustomerMinRevenue as number)
     : 0;
 
   // Accumulators (CURRENT)
@@ -110,8 +110,8 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
   const nonOperationalRevenueIds: string[] = [];
 
   // Time baseline: use referenceDate from params (crucial for audits/history) or current time
-  const now = params.referenceDate ? new Date(params.referenceDate) : new Date();
-  const timeZone = params.timeZone || 'UTC';
+  const now = params.referenceDate ? new Date(params.referenceDate as string | number | Date) : new Date();
+  const timeZone = (params.timeZone as string | undefined) ?? 'UTC';
   const startWindow = getStartDateForMonthsWindow(now, monthsWindow, timeZone);
   const boundaries = getPeriodBoundaries(datePreset, now, timeZone);
 
@@ -153,7 +153,7 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
   // Campaign Revenue calculation (merged into main loop)
   let campaignRevenue = 0;
   const campaignRevenueIds: string[] = [];
-  const campaignField = params.campaignIdField || 'campaignId';
+  const campaignField = (params.campaignIdField as string | undefined) ?? 'campaignId';
   const campaignDistributionMap = new Map<string, number>();
 
   // Need to track which rows belong to which customer for heuristic calculation
@@ -182,7 +182,7 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
 
     // Period tracking
     const rawDate = data[dateField];
-    const date = rawDate ? new Date(rawDate) : null;
+    const date = rawDate ? new Date(rawDate as string | number | Date) : null;
     if (!date || isNaN(date.getTime())) continue;
 
     const isCurrent = isDateWithinWindow(date, boundaries.currentStart, boundaries.currentEnd);
@@ -193,8 +193,8 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
     if (historyMap.has(monthKey)) {
       const h = historyMap.get(monthKey)!;
       h.total = addMoney(h.total, rawAmount);
-      const d = DataSanitizer.extractCurrency(data[discountField]);
-      const t = DataSanitizer.extractCurrency(data[taxField]);
+      const d = DataSanitizer.extractCurrency(discountField ? data[discountField] : undefined);
+      const t = DataSanitizer.extractCurrency(taxField ? data[taxField] : undefined);
       h.net = addMoney(h.net, rawAmount - d - t);
 
       const rType = String(data[revenueTypeField] || '').toLowerCase();
@@ -512,7 +512,7 @@ export const revenueKpiProcessor: AnalyticsProcessor = async (context): Promise<
   // Campaign distribution already collected in main loop (no 2nd pass needed)
 
   // Determine table source
-  const mainTableSource = table.presetKey || params.tableId || 'sales';
+  const mainTableSource = table.presetKey || (params.tableId as string | undefined) || 'sales';
 
   // Return all KPIs with recordIds and tableSource
   return [

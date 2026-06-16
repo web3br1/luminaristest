@@ -31,8 +31,8 @@ export const AppointmentsPlugin: RulePlugin = {
  * Validate appointment core fields, temporal consistency and basic coherence with optional service and employee rules.
  */
 async function validateAppointment(ctx: RuleContext, after: Record<string, unknown>, before?: Record<string, unknown>) {
-  const startAt = new Date(after?.startAt as string | number | Date | undefined);
-  const endAt = new Date(after?.endAt as string | number | Date | undefined);
+  const startAt = new Date((after?.startAt ?? '') as string | number | Date);
+  const endAt = new Date((after?.endAt ?? '') as string | number | Date);
   if (!(isFinite(startAt.getTime()) && isFinite(endAt.getTime()))) {
     throw new ValidationError('Agendamento inválido: datas/hora são obrigatórias.');
   }
@@ -100,7 +100,8 @@ async function assertWithinEmployeeHours(ctx: RuleContext, employeeId: string, s
   const schedule = (emp?.data as Record<string, unknown>)?.workSchedule;
   if (!schedule) return;
   const weekday = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][startAt.getDay()];
-  const day = schedule?.[weekday];
+  const scheduleMap = schedule as Record<string, unknown>;
+  const day = scheduleMap[weekday] as Record<string, unknown> | undefined;
   if (!day) return;
   const [startH, startM] = String(day.start || '').split(':').map((n: string) => Number(n));
   const [endH, endM] = String(day.end || '').split(':').map((n: string) => Number(n));
@@ -128,7 +129,7 @@ async function validateCompletionTiming(ctx: RuleContext, after: Record<string, 
   if (prev === next) return;
   if (next === 'Completed' && !ctx.isSystem) {
     // Completion must be in the past or present.
-    const endAt = new Date((after?.endAt ?? before?.endAt) as string | number | Date | undefined);
+    const endAt = new Date(((after?.endAt ?? before?.endAt) ?? '') as string | number | Date);
     if (!isFinite(endAt.getTime()) || endAt > new Date()) {
       throw new ValidationError('Não é possível concluir um agendamento que ainda não terminou.');
     }

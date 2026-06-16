@@ -30,8 +30,8 @@ function findStatusField(
 
 export const statusDistributionProcessor: AnalyticsProcessor = (context): ChartDataPoint[] => {
   const { schema, rows, params, table } = context;
-  const hints = params.hints || {};
-  const labelMap = params.labelMap || {};
+  const hints = (params.hints as { preferFieldNames?: string[]; maxOptions?: number } | undefined) ?? {};
+  const labelMap = (params.labelMap as Record<string, string> | undefined) ?? {};
 
   // Find status field
   let field: ISchemaField | null = null;
@@ -76,7 +76,7 @@ export const statusDistributionProcessor: AnalyticsProcessor = (context): ChartD
     name: labelMap[name] || name,
     value,
     recordIds: recordIdsByValue.get(name),
-    tableSource: table.presetKey || params.tableId || 'sales',
+    tableSource: table.presetKey || (params.tableId as string | undefined) || 'sales',
   }));
 };
 

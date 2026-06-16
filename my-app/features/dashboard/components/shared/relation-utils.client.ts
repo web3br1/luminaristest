@@ -9,7 +9,7 @@ export async function fetchRelatedTableData(tableKey: string): Promise<IDynamicT
 
   try {
     const body = await DynamicTableService.getTableData(tableKey);
-    return body.data || [];
+    return (body.data || []) as IDynamicTableData[];
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to load related data';
     throw new Error(message);

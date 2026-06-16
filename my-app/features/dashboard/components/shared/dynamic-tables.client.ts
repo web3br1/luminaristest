@@ -47,11 +47,11 @@ export function useTableData(tableId: string): {
     setIsLoading(true);
     setError(null);
     try {
-      const resTable: { data: IDynamicTable } = await DynamicTableService.getTableById(tableId);
+      const resTable = await DynamicTableService.getTableById(tableId) as unknown as { data: IDynamicTable };
       setTable(resTable.data);
 
       const resData = await DynamicTableService.getTableData(tableId);
-      setRecords(resData.data || []);
+      setRecords((resData.data || []) as IDynamicTableData[]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Unexpected error');
     } finally {

@@ -1,7 +1,7 @@
 import { apiClient } from '../api/api-client';
 import { notify } from '../notifications/notify';
 
-interface TableMeta { id?: string; name?: string; columns?: unknown[]; [key: string]: unknown }
+interface TableMeta { id: string; name?: string; columns?: unknown[]; [key: string]: unknown }
 interface TableListResponse { data: TableMeta[]; success?: boolean; [key: string]: unknown }
 interface TableDataResponse { data?: unknown[]; total?: number; page?: number; [key: string]: unknown }
 interface RecordResponse { id?: string; [key: string]: unknown }

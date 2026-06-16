@@ -51,7 +51,7 @@ function UserListPage({ }: UserListPageProps) {
     try {
       const data = await UserService.getUsers(pageToFetch, limit);
       setUsers(data.data);
-      setPagination(data.pagination);
+      setPagination(data.pagination as PaginationInfo);
       setCurrentPage(data.pagination?.page || 1);
     } catch (err) {
       setError(resolveErrorMessage(err, t));
