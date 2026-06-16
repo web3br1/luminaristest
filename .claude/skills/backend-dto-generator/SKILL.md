@@ -11,6 +11,32 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera `server/src/features/<resource>/dtos/<Resource>Dto.ts` com schemas Zod anotados com OpenAPI, tipos TypeScript inferidos e type guards, além do domain model em `models/<Resource>.model.ts`.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (camadas, DI, soft-delete, policy-first, erros tipados, no-`any`, registro de rota, money, testes) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico da camada **DTO**.
+
+## Checklist obrigatório — DTO
+
+Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatamente isto na camada DTO). Gere já em conformidade — não deixe para o revisor pegar.
+
+### Arquivo `<Resource>Dto.ts`
+
+- [ ] Comentário `@openapi` JSDoc acima do schema principal (`<Resource>Schema`) — `docs.paths.ts` depende dele para os tipos de request/response.
+- [ ] `Create<Resource>Schema` com `z.object({...})`.
+- [ ] `Update<Resource>Schema` derivado via `.partial()` (NÃO redefinir o objeto à mão — `Create<Resource>Schema.partial()`).
+- [ ] Type exportado via `z.infer`: `export type <Resource>Dto = z.infer<typeof <Resource>Schema>` (idem para Create/Update).
+- [ ] Type guard `isCreate<Resource>Input(v: unknown): v is Create<Resource>Dto { return Create<Resource>Schema.safeParse(v).success }` (e `is<Resource>Dto` para o schema principal).
+- [ ] **ZERO `z.any()`** — todo campo tipado. Para JSON dinâmico use `z.record(z.unknown())`, nunca `z.any()`.
+- [ ] Campos de data usam `z.coerce.date()` (ou `z.string().datetime()` quando a fronteira é string ISO) — nunca `z.date()` cru sobre payload HTTP.
+- [ ] Restrições de domínio: campos monetários/quantidade onde `0`/negativo é inválido usam `.positive()`/`.nonnegative()`.
+- [ ] Obrigatoriedade condicional fica no schema (`.superRefine()` ou `z.discriminatedUnion()`), nunca em runtime no service.
+- [ ] Nenhum campo sensível (password, tokens) no schema de resposta.
+
+### Arquivo companion `models/<Resource>.model.ts`
+
+- [ ] `export interface I<Resource>` com `id`, `userId`, campos do domínio, `createdAt: Date`, `updatedAt: Date`, `deletedAt?: Date`.
+- [ ] Enums locais do domínio declarados aqui (não em `@prisma/client`).
+
 ## When to use
 
 - Novo recurso precisa de validação de entrada
@@ -24,9 +50,15 @@ Gera `server/src/features/<resource>/dtos/<Resource>Dto.ts` com schemas Zod anot
 ## Repository patterns to inspect first
 
 ```
+server/src/features/chatInstances/dtos/ChatInstanceDto.ts
+server/src/features/chatInstances/models/ChatInstance.model.ts
 server/src/features/users/dtos/UserDto.ts
 server/src/features/users/models/User.model.ts
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`server/src/features/chatInstances/dtos/ChatInstanceDto.ts` — DTO perfeito da camada: `@openapi` em cada schema, `Create`/`Update`/`Response`/`Summary`, **`UpdateChatInstanceSchema = CreateChatInstanceSchema.partial()`** (a derivação `.partial()` exata que esta skill exige, em vez de redefinir o objeto à mão), `z.infer` types, type guards `is<X>` com `safeParse` para todos, zero `z.any()`, companion model `IChatInstance` em `models/`. Leia-o ANTES de gerar e siga a mesma estrutura/ordem. (Nota: `UserDto.ts` também é referência válida, mas redefine o `UpdateUserSchema` campo-a-campo em vez de usar `.partial()` — NÃO copie esse ponto dele.)
 
 ## Generation contract
 
@@ -99,3 +131,7 @@ cd server && npx tsc --noEmit
 - Não use `z.any()` sem justificativa
 - Não exponha campos sensíveis (password, tokens) no schema de resposta
 - Não deixe obrigatoriedade condicional fora do schema — se um campo só é exigido quando outro tem certo valor, use `.superRefine()` ou `z.discriminatedUnion()`; não delegue essa validação ao service em runtime
+- Não use `z.date()` cru para datas vindas de payload HTTP — use `z.coerce.date()` (ou `z.string().datetime()`); o body chega como string e `z.date()` rejeita
+- Não redefina o objeto do Update manualmente — derive de `Create<Resource>Schema.partial()` para não divergir
+- Não esqueça o type guard `is<Resource>Input` com `safeParse` — é o que o controller/service usam para narrowing seguro
+- Não omita o companion `models/<Resource>.model.ts` com `interface I<Resource>` — é a fonte do tipo de domínio (`IUser`, enums) que policy/service importam

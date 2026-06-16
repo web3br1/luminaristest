@@ -17,8 +17,11 @@ Antes de qualquer análise, leia:
 ```
 docs/claude-skills/SKILL_MATRIX.md         ← mapa de skills × átomos × risco
 docs/claude-skills/ATOM_REGISTRY.md        ← quais átomos existem e onde vivem
-docs/claude-skills/GENERATION_CONTRACTS.md ← contratos de geração por camada
+docs/claude-skills/GENERATION_CONTRACTS.md ← contratos de geração por camada (scaffolding)
+.claude/skills/_ARCHITECTURE-CONTRACT.md   ← bar de qualidade cross-cutting (gate)
 ```
+
+> **Vertical-slice de referência:** a feature `server/src/features/users/` (DTO → Repository → Policy → Service → `controllers/userController.ts` → `routes/users.ts` → `my-app/lib/services/user.service.ts`) é o exemplar mais limpo do repo. Ao planejar uma feature/CRUD/contrato, assuma que o implementador a espelha. (Backend de CRM como `server/src/features/crm/services/CrmPipelineService.ts` é exemplar de service-orquestra-DynamicTable; o frontend do CRM NÃO é modelo.)
 
 ## Phase 2 — Classificar a tarefa
 
@@ -107,6 +110,8 @@ Produza o plano no seguinte formato. Seja preciso — o implementador executará
 - [HIGH se fullstack-feature-generator ou prisma-model-generator estiverem no plano]
 - [Recomendação: usar em branch separada se risco HIGH]
 ```
+
+> Todo passo herda o `_ARCHITECTURE-CONTRACT.md` — o plano não precisa repetir as regras cross-cutting, mas DEVE assumir que o implementador as aplica em cada arquivo.
 
 ## Phase 5 — Handoff ao implementador
 

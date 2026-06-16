@@ -11,6 +11,31 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera `server/src/features/<resource>/services/<Resource>Service.ts` com padrão de injeção de dependência, erros tipados, e registra o serviço em `server/src/lib/factory.ts`.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (camadas, DI, soft-delete, policy-first, erros tipados, no-`any`, registro de rota, money, testes) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico da camada **Service**.
+
+## Checklist obrigatório — Service
+
+Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatamente isto na camada Service). Gere já em conformidade.
+
+- [ ] **Policy-check ANTES de qualquer acesso a dados** em toda operação: `if (!this.<resource>Policy.canXxx(actor, targetId?)) throw new ForbiddenError();` — primeira linha do método, antes de tocar o repository.
+- [ ] **Erros tipados de `lib/errors`:** `ForbiddenError` quando policy nega; `NotFoundError` quando recurso não existe (não `null` cru, não `throw new Error`).
+- [ ] **Cross-tenant = `NotFoundError`, NÃO `ForbiddenError`** — recurso de outro usuário deve parecer inexistente (anti-enumeration).
+- [ ] **DI por construtor:** `constructor(private <resource>Repository: I<Resource>Repository, private <resource>Policy: I<Resource>Policy) {}`. **Nunca** `new <Resource>Repository()`/`new <Resource>Policy()` dentro do service.
+- [ ] **ZERO `prisma.*` direto** — todo acesso a dados via `this.<resource>Repository`.
+- [ ] **ZERO Express / `res.json` / imports de HTTP** — o service é agnóstico a transporte.
+- [ ] **Actor `actor: IUser | null`** em todo método público — importe `IUser` de `../../users/models/User.model` (NÃO `@prisma/client`).
+- [ ] **Registro em `lib/factory.ts`:** repo e policy instanciados ANTES do service; getter `get<Resource>Service()` exposto.
+- [ ] DTO guard (`is<Resource>Input`) antes de persistir quando o método recebe payload não validado.
+
+### Variante: orquestra `DynamicTableService` (CRM/ERP schema-driven)
+
+- [ ] Resolve a tabela por `internalName` (preset key): `this.repository.findTableByInternalName(user.userId, 'leads')` — **nunca** por índice `[0]`.
+- [ ] **Sem policy própria** é PASS deliberado nesta variante — `DynamicTableService` já aplica `canManageData` em toda escrita.
+- [ ] Continua agnóstico a HTTP; usa `NotFoundError` quando o preset/tabela não está instalado; registra no factory.
+- [ ] Escritas múltiplas atômicas via `dynamicTableService.runInTransaction(...)` passando `{ tx }` em cada `createTableData`/`updateTableData`.
+
 ## When to use
 
 - Novo domínio de negócio precisa de lógica encapsulada
@@ -25,11 +50,18 @@ Gera `server/src/features/<resource>/services/<Resource>Service.ts` com padrão 
 
 ```
 server/src/features/users/services/UserService.ts
+server/src/features/crm/services/CrmPipelineService.ts
 server/src/lib/errors.ts
 server/src/lib/factory.ts
 server/src/features/users/repositories/IUserRepository.ts
 server/src/features/users/policies/IUserPolicy.ts
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+**Variante clássica (CRUD com Repository + Policy próprios):** `server/src/features/users/services/UserService.ts` — Service perfeito: **policy-check ANTES de qualquer acesso a dados** em todo método (`canCreate`/`canListAll`/`canView`/`canUpdate`/`canDelete`), erros tipados de `lib/errors` (`ForbiddenError`/`NotFoundError`/`UnauthorizedError`/`ValidationError`/`ServiceError`), DI 100% por construtor (repo + policy injetados, zero `new`), DTO guards (`isCreateUserDto`/`isUpdateUserDto`) antes de persistir, `actor: IUser | null` de `../models/User.model` (nunca `@prisma/client`), ZERO `prisma.*` direto, ZERO Express. Leia-o ANTES de gerar.
+
+**Variante DynamicTable (orquestra `DynamicTableService`, CRM/ERP schema-driven):** `server/src/features/crm/services/CrmPipelineService.ts` — orquestração perfeita: injeta `DynamicTableService` + `IDynamicTableRepository` (só para resolver tabela), resolve por **`internalName`** (`'leads'`/`'leadProposals'`/`'leadActivities'`) nunca por `[0]`, **sem policy própria** (delega a `DynamicTableService`), `NotFoundError` quando o preset/tabela não está instalado, HTTP-agnóstico (`UserContext`), escritas múltiplas atômicas via `dynamicTableService.runInTransaction(async (tx) => …)` passando `{ tx }` em cada write. Use este exemplar quando a lógica opera sobre tabelas dinâmicas/preset; veja também `CrmAnalyticsService.ts` e `server/src/features/chat/services/LuminarisAgentService.ts`.
 
 ## Generation contract
 
@@ -83,3 +115,7 @@ cd server && npx tsc --noEmit
 - Não pule a verificação de policy
 - Não lance erros genéricos — use os tipos de `lib/errors.ts`
 - Não esqueça de registrar no factory — o controller não consegue instanciar sem ele
+- Nunca `new <Resource>Repository()`/`new <Resource>Policy()` dentro do service — dependências entram só por construtor (DI via factory)
+- Nunca importe Express nem chame `res.json()` — o service é agnóstico a HTTP; quem formata resposta é o controller
+- Cross-tenant retorna `NotFoundError`, não `ForbiddenError` — recurso de outro usuário deve parecer inexistente (evita enumeration attack)
+- Importe `IUser` de `../../users/models/User.model`, nunca de `@prisma/client` — o `UserContext` do controller é estruturalmente atribuível a `IUser`

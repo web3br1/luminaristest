@@ -11,6 +11,10 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera hooks React customizados em `my-app/lib/hooks/` ou `features/*/hooks/` para data-fetching com loading/error state, ou para lógica de UI compartilhada.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (reuse de canônicos, service layer, paginação DynamicTable, modal-não-rota, `useMemo`, no-`any`, container full-height, design system) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Hook**.
+
 ## When to use
 
 - Novo endpoint precisa de hook de fetch reutilizável
@@ -26,10 +30,18 @@ Gera hooks React customizados em `my-app/lib/hooks/` ou `features/*/hooks/` para
 
 ```
 my-app/lib/hooks/useTheme.ts
-my-app/features/dashboard/category-views/leads/hooks/
+my-app/features/dashboard/category-views/leads/hooks/useLeadsView.ts
+my-app/features/crm/lib/crmFetch.ts
 my-app/lib/services/dynamic-table.service.ts
 my-app/lib/api/api-client.ts
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+- **Paginação fetch-all (DynamicTable)** → `my-app/features/crm/lib/crmFetch.ts` (`fetchAllRows`): itera `page` até `totalPages` com `limit=200`, tipos locais (`DynamicRow`, zero `any`), via service layer. É a ÚNICA peça exemplar do CRM — use-a sempre que o hook alimentar KPIs/listas/boards.
+- **Hook de dados de view (limpo)** → `my-app/features/dashboard/category-views/leads/hooks/useLeadsView.ts`: resolve tabelas por `internalName` (nunca índice `[0]`), memoiza todos os lookups/derivados com `useMemo`, fetch via service, retorna estado + handlers.
+
+Leia o arquivo correspondente ANTES de gerar.
 
 ## Generation contract
 

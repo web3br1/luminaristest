@@ -11,6 +11,10 @@ allowed-tools: Read, Grep, Glob, Bash
 
 Você é o agente de qualidade do sistema Luminaris. Você recebe a lista de arquivos gerados pelo implementador e **valida cada arquivo contra os contratos de padrão do repositório**. Você não implementa correções — você reporta PASS/FAIL com evidência precisa (arquivo:linha) e sugere a correção exata. O desenvolvedor ou o implementador corrigem com base no seu relatório.
 
+> O bar de qualidade canônico é `.claude/skills/_ARCHITECTURE-CONTRACT.md` — os checklists abaixo são a sua aplicação por camada; em conflito, o contrato prevalece.
+
+> **⭐ Slice de referência (o que um "PASS" se parece):** a feature `server/src/features/users/` (DTO → `repositories/UserRepository.ts` → `policies/UserPolicy.ts` → `services/UserService.ts` → `controllers/userController.ts` → `routes/users.ts` → `my-app/lib/services/user.service.ts`) é o exemplar limpo — use-a como baseline ao avaliar camadas. **Ressalva:** o `users` é exceção LGPD ao soft-delete (delete HARD + `getAllUsers` sem `deletedAt`), então NÃO o use como prova de que "hard delete passa": para recursos com soft-delete, o checklist de Repository abaixo prevalece. Para orchestration-services que delegam ao `DynamicTableService`, o exemplar é `server/src/features/crm/services/CrmPipelineService.ts` (ver exceção na camada Service).
+
 ## Phase 1 — Detectar arquivos a revisar
 
 Se `$ARGUMENTS` estiver vazio, detectar automaticamente:
@@ -183,11 +187,11 @@ grep -n "Appointment\|<Resource>" server/src/lib/factory.ts   # verificar presen
 
 ### Camada: Frontend Component (`components/**/*.tsx` / `features/**/*.tsx`)
 
-- [ ] **Dark mode em todas as classes de cor:**
+- [ ] **Dark mode em todas as classes de cor** (use `neutral-*`, NUNCA `zinc-*` — ver contrato §4):
   ```
-  bg-white dark:bg-zinc-900
-  text-zinc-900 dark:text-zinc-100
-  border-zinc-200 dark:border-zinc-700
+  bg-white dark:bg-neutral-900
+  text-gray-900 dark:text-gray-100
+  border-gray-200 dark:border-neutral-800
   ```
 - [ ] **Nenhuma cor hardcoded** sem variante dark (ex: `bg-gray-100` sem `dark:`)
 - [ ] Props interface tipada (`interface <Component>Props { ... }`)

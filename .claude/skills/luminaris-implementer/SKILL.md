@@ -13,21 +13,28 @@ Você é o agente de execução do sistema Luminaris. Você recebe um plano estr
 
 ## Protocolo de execução — seguir SEMPRE nesta ordem
 
+No início da execução (uma vez), LEIA `.claude/skills/_ARCHITECTURE-CONTRACT.md` — é o bar de qualidade cross-cutting que vale para todo arquivo gerado, independentemente da camada.
+
 Para cada passo do plano:
 
 ```
 1. LEIA a skill → `.claude/skills/<skill-name>/SKILL.md`
+   (+ na 1ª vez, leia também `.claude/skills/_ARCHITECTURE-CONTRACT.md` — uma vez, no início)
 2. LEIA os arquivos de referência → seção "Repository patterns to inspect first" da skill
 3. IMPLEMENTE → siga a seção "Generation contract" passo a passo
-4. VERIFIQUE → execute os comandos de "Required checks"
+4. VERIFIQUE → execute os comandos de "Required checks" E aplique o `_ARCHITECTURE-CONTRACT.md` como gate (todo item aplicável à camada tocada deve estar cumprido)
 5. REPORTE → informe o que foi criado/editado antes de passar ao próximo passo
 ```
 
 **Nunca pule o passo 2.** Ler os arquivos de referência é o que garante que o código gerado seja consistente com os padrões do repositório.
 
+**O `_ARCHITECTURE-CONTRACT.md` é gate em todo "VERIFIQUE".** Se a skill executada omitir um ponto do contrato que se aplica à camada tocada, o contrato prevalece — implemente-o mesmo assim.
+
 ## Protocolo detalhado por skill
 
 ### Para skills de camada backend individual
+
+> **⭐ Vertical-slice exemplar:** `server/src/features/users/` é o slice de referência canônico (DTO → Repository → Policy → Service → `controllers/userController.ts` → `routes/users.ts` → `my-app/lib/services/user.service.ts`). Espelhe sua separação de camadas, DI por construtor e policy-first. **Ressalva:** o `users` é exceção LGPD ao soft-delete (`UserRepository.deleteUser` é HARD delete e `getAllUsers` não filtra `deletedAt`) — para soft-delete siga o contrato, não copie essas duas funções.
 
 **Referências obrigatórias a ler antes de implementar:**
 - `server/src/features/users/` — feature de referência (ler dtos, services, repositories, policies)
@@ -125,10 +132,18 @@ function buildService(overrides = {}) {
 - `my-app/lib/context/AuthContext.tsx` — antes de qualquer página com auth
 - Um componente existente de referência na mesma categoria
 
+**Reuse os componentes canônicos — NÃO recrie do zero (lição da revisão do CRM):**
+Antes de escrever uma tabela, modal, card de KPI ou layout, procure o componente que o app JÁ tem e reuse. Construir paralelos bespoke produz um módulo "ilha", fora do padrão (foi o que aconteceu no CRM: `RecordTable`/`CrmKpiCard`/`CrmBarChart` próprios + páginas com `max-w-*` divergentes + detalhe em rota em vez de modal).
+- **Lista tabular de registros de DynamicTable** → reuse `features/dashboard/category-views/shared/GenericTabbedView.tsx` + `components/GenericTable.tsx` + `GenericRow.tsx` + `RowActionsCell.tsx` (já trazem CRUD inline add/edit/delete, filtros, sort, soft-delete, colunas customizáveis). NÃO escreva um `<table>` próprio.
+- **Paginação** → reuse `features/dashboard/shared/components/StandardPagination.tsx` (25/página, fatiamento client-side). NÃO renderize `rows.map` sem paginar.
+- **Detalhe/edição de um registro** → MODAL: `components/ui/Modal.tsx` (portal) + estado local na view (padrão `KanbanCardDetailModal`). NÃO crie rota `[id].tsx` para detalhe de registro.
+- **Analytics board (KPIs + charts + explicação + lista)** → reuse `features/dashboard/category-views/finance/components/analytics/dashboard/AnalyticsDashboard.tsx` + `DashboardKpiCard.tsx` + `charts/ChartRenderer.tsx` + `widgets/analytics/GoldKpiWidgetView.tsx`. NÃO crie `CrmBarChart`/`CrmPieChart` próprios sobre Recharts cru.
+- **Container de tela** → `flex h-full … flex-col` full-width herdado do shell do dashboard (padrão de `GenericTabbedView`). NÃO fixe `max-w-*` por página — telas irmãs ficam de tamanhos diferentes.
+
 **Padrões obrigatórios:**
 ```tsx
-// Dark mode — SEMPRE em classes de cor
-className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+// Dark mode — SEMPRE em classes de cor (use neutral, NUNCA zinc — ver frontend-design-system)
+className="bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100"
 
 // Dynamic import — SEMPRE para componentes pesados em páginas
 const HeavyComponent = dynamic(() => import('./HeavyComponent'), { ssr: false, loading: viewLoading });

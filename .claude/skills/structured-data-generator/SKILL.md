@@ -11,6 +11,21 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Documenta e guia extensões do pipeline de dados estruturados: importação de XLSX para tabela editável no frontend, detecção automática de conteúdo tabular em PDF/DOCX, e API de edição de células. Diferente do RAG (chunks + Qdrant), este pipeline armazena os dados em SQL (JSON column) para permitir edição pelo usuário.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (camadas, no-`any`, soft-delete, money math, testes, verificação) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Structured Data**.
+
+## Checklist obrigatório — Structured Data
+
+- [ ] **Importar via lib de planilha** (`xlsx`) — não parsear bytes na mão. O extractor devolve `{ sheets: SheetStructured[] }` com headers inferidos.
+- [ ] **Preservar o tipo de cada célula** — não coagir tudo a `string`. Número permanece `number`, data vira `DATE`, percentual `PERCENTAGE`, moeda `CURRENCY`. A inferência de coluna (`inferColumnType`) determina o `HeaderType`; coagir tudo a texto quebra ordenação/formatação no frontend.
+- [ ] **`null` para célula vazia — nunca `undefined`.** O tipo de valor é `(string | number | null)[][]`; `undefined` não serializa em JSON e some na coluna SQL, desalinhando a linha.
+- [ ] **Paginar ao ler** grandes volumes — não materializar a planilha inteira em memória de uma vez quando há suporte a leitura em páginas/streams; o frontend pagina a tabela editável.
+- [ ] **Armazenar em SQL (JSON column) via `StructuredDataService`** — nunca no Qdrant (esse é exclusivo de embeddings). Update sempre via `StructuredDataService.update()` (valida schema), nunca `prisma` direto na coluna.
+- [ ] **`DocumentPurpose.DATA_ANALYSIS`** para tabular; `KNOWLEDGE_BASE` pula a extração estruturada e perde o dado.
+- [ ] **Novo `HeaderType`** propaga em 4 pontos casados: enum em `StructuredData.model.ts`, `ExcelHeader` em `Sheet.types.ts`, detecção em `inferColumnType`, e o `z.enum` do DTO. Esquecer um deixa o tipo inválido em runtime.
+- [ ] **Normalizar single-sheet vs multi-sheet** ao ler — `getByDocumentId()` já normaliza; não assumir que `data` é sempre `(string|number|null)[][]`.
+
 ## When to use
 
 - Adicionar suporte a novo formato de arquivo além de XLSX, PDF, DOCX
@@ -52,14 +67,19 @@ DocumentService.createDocument(fileBuffer, fileName, fileType, fileSize, user, d
 ## Repository patterns to inspect first
 
 ```
+server/src/lib/vector/extractors/ExcelStructuredExtractor.ts           ← extractStructuredDataFromExcel (XLSX → sheets)
 server/src/features/documents/services/DocumentProcessingPipeline.ts   ← dispatcher DATA_ANALYSIS vs KB
 server/src/features/documents/services/DocumentService.ts               ← createDocument, setImmediate async
-server/src/features/structuredData/services/StructuredDataService.ts    ← API completa
+server/src/features/structuredData/services/StructuredDataService.ts    ← API completa (createFromStructured/createFromText/update)
 server/src/features/structuredData/models/StructuredData.model.ts       ← IStructuredData, Header, SheetData
 server/src/features/structuredData/types/Sheet.types.ts                 ← ExcelHeader, SheetStructured
 server/src/features/structuredData/dtos/StructuredDataDto.ts            ← validação de input
 server/prisma/schema.prisma (modelo StructuredData)                     ← documentId FK, headers JSON, data JSON
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`server/src/lib/vector/extractors/ExcelStructuredExtractor.ts` — extractor XLSX real e perfeito: importa via lib de planilha (`exceljs`, não parseia bytes na mão), devolve `{ sheets: SheetStructured[] }` com headers inferidos, **preserva o tipo de cada célula** (`inferType` decide `NUMBER`/`DATE`/`TEXT` a partir dos valores — não coage tudo a string) e usa **`null` para célula vazia** (`getCellValue` retorna `null`, com padding de linhas curtas com `null` para não desalinhar). Pareie com `StructuredDataService.createFromStructured()` (normaliza single-sheet vs multi-sheet e persiste via repository — nunca prisma direto na coluna). Leia-os ANTES de gerar.
 
 ## Data model
 
@@ -128,7 +148,7 @@ const HeaderTypeEnum = z.enum(['TEXT', 'NUMBER', 'CURRENCY', 'PERCENTAGE', 'DATE
 
 ## Generation contract — adicionar novo extrator de formato
 
-Localização: `server/src/features/documents/services/extractors/`
+Localização: `server/src/lib/vector/extractors/` (mesma pasta de `ExcelStructuredExtractor.ts` — espelhe a assinatura dele). Registrar o novo branch no dispatcher `DocumentProcessingPipeline.ts`.
 
 ```typescript
 // Padrão do extrator — mesma assinatura dos existentes
@@ -171,7 +191,7 @@ server/src/features/structuredData/models/StructuredData.model.ts        ← EDI
 server/src/features/structuredData/types/Sheet.types.ts                  ← EDIT (novo ExcelHeader type)
 server/src/features/structuredData/services/StructuredDataService.ts     ← EDIT (nova lógica)
 server/src/features/structuredData/dtos/StructuredDataDto.ts             ← EDIT (validação)
-server/src/features/documents/services/extractors/<format>Extractor.ts  ← NEW (novo formato)
+server/src/lib/vector/extractors/<Format>StructuredExtractor.ts          ← NEW (novo formato — espelha ExcelStructuredExtractor.ts)
 server/src/features/documents/services/DocumentProcessingPipeline.ts    ← EDIT (novo fileType case)
 server/prisma/schema.prisma                                               ← EDIT (novo FileType enum)
 ```
@@ -190,3 +210,7 @@ cd server && npx prisma migrate dev --name add_<tipo>_to_structured_data
 - **Não armazenar `StructuredData` no Qdrant** — esses dados vão para SQL (JSON column), não para o vector store. Qdrant é exclusivo para embeddings de texto.
 - **Não retornar sheet[0] sem detectar formato** — `StructuredDataService.getByDocumentId()` normaliza o formato multi-sheet automaticamente; não assumir que `data` é sempre `(string|number|null)[][]`.
 - **Não modificar `data` diretamente no Prisma** — sempre via `StructuredDataService.update()` que valida schema e propaga para o frontend.
+- **Não coagir todas as células a `string`** — preserve o tipo (`number`/`DATE`/`CURRENCY`/`PERCENTAGE`); coagir tudo a texto quebra ordenação e formatação no spreadsheet.
+- **Não usar `undefined` para célula vazia** — use `null`; `undefined` não serializa em JSON e desalinha a linha na coluna SQL.
+- **Não materializar a planilha inteira em memória quando há leitura paginada** — pagine; volumes grandes estouram memória e o frontend já consome em páginas.
+- **Não esquecer nenhum dos 4 pontos casados ao adicionar `HeaderType`** — model enum + `ExcelHeader` + `inferColumnType` + `z.enum` do DTO; faltar um deixa o tipo inválido só em runtime.

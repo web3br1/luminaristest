@@ -11,6 +11,26 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera `<Name>KpiProcessor.ts` e `<Name>KpiTemplate.ts` seguindo o contrato `AnalyticsProcessor` do Luminaris. O processor executa em single-pass sobre os dados para performance máxima, e o template registra os parâmetros configuráveis.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (camadas, no-`any`, soft-delete, money math, testes, verificação) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Analytics KPI**.
+
+## Checklist obrigatório — Analytics KPI
+
+- [ ] **Single-pass:** iterar `rows` (ou o stream de batches) **uma única vez**, acumulando todas as métricas no mesmo loop. Múltiplos passes = FAIL.
+- [ ] **Desestruturar `const { rows, params, table } = context`** — não acessar `context.x` esparso.
+- [ ] **Money via `addMoney()` — nunca `+=`** (drift de ponto flutuante). Acumuladores monetários só crescem por `addMoney`.
+- [ ] **Excluir negativos e status configurados** dentro do loop: `if (amount <= 0) continue;` e `if (excludeStatuses.includes(status)) continue;`.
+- [ ] **`previousValue = count > 0 ? total/count : undefined`** — **`undefined` quando não há dados, NUNCA `0`**. Zero é um valor legítimo e mente sobre o delta.
+- [ ] **Usar os helpers do feature** — `DataSanitizer.extractCurrency()` para parsear valores, `DateUtils`/`getPeriodBoundaries()`/`isDateWithinWindow()` para janelas. Não reimplementar parsing/datas.
+- [ ] **`referenceDate` com fallback:** `params.referenceDate ? new Date(params.referenceDate) : new Date()` — nunca `new Date()` cru.
+- [ ] **Params lidos com `?? default` + cast explícito** (`const amountField = (params.amountField ?? 'totalAmount') as string`). **NÃO** usar `params || {}` nem destructure com default `= {}` — o TS infere `{}` e perde os tipos dos campos.
+- [ ] **Validar finitude antes de acumular:** `Number.isFinite(amount)` — nunca somar `NaN`/`Infinity`.
+- [ ] **Clampar inputs de domínio conhecido** antes da aritmética (ex.: percentuais `Math.min(100, Math.max(0, v))`) — dados legados passam pelo processor.
+- [ ] **Cross-fetch (`fetchByPresetTableKey`) não engole erro** — `logger.warn('...', { presetTableKey, error })` antes de degradar para vazio; nunca `.catch(() => null)` silencioso.
+- [ ] **Registrar em `kpis/<category>/index.ts`** (`registerProcessor` + `import './<Name>KpiTemplate'`) e garantir `import './<category>'` em `kpis/index.ts` se a categoria for nova. Sem registro, o KPI é órfão.
+- [ ] **Gerar o teste de regressão** (via `backend-test-suite-generator`) **com suíte Empty Safety** (rows vazios → `0` finito, nunca `NaN`) + Math + Float Safety.
+
 ## When to use
 
 - Novo KPI de negócio precisa ser calculado
@@ -34,6 +54,10 @@ server/src/features/analytics/utils/CurrencyUtils.ts
 server/src/features/analytics/utils/DataSanitizer.ts
 server/src/features/analytics/kpis/index.ts
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`server/src/features/analytics/kpis/revenue/RevenueKpiProcessor.ts` — processor single-pass perfeito: desestrutura `const { rows, params, table }`, lê params com `?? default` + cast explícito, acumula dinheiro só via `addMoney()` (nunca `+=`), exclui `rawAmount <= 0`, valida `Number.isFinite`, usa `referenceDate` com fallback (`params.referenceDate ? new Date(...) : new Date()`), e define `previousValue` como `undefined` (não `0`) quando não há dado anterior. Pareie com o template `revenue/RevenueKpiTemplate.ts` e o registro em `revenue/index.ts` (re-exporta processor/template) + `kpis/index.ts`. Leia-o ANTES de gerar.
 
 ## Generation contract
 
@@ -106,3 +130,8 @@ cd server && npx jest features/analytics/kpis/<category> --passWithNoTests
 - Não hardcode nomes de campos — sempre via `params.<field> || 'defaultFieldName'`
 - Não confie só na validação upstream para inputs com domínio conhecido — clampe antes da aritmética (ex.: percentuais para `[0, 100]` via `Math.min`/`Math.max`), pois dados legados/corrompidos passam pelo processor (cost/revenue já clampam)
 - Não engula erro de cross-fetch (`fetchByPresetTableKey`) com `.catch(() => null)` silencioso — logue com `logger.warn` antes de degradar para vazio
+- Nunca acumule dinheiro com `+=` — use `addMoney()`; `+=` em floats produz drift (R$0,10 × 1000 ≠ R$100,00)
+- Nunca defina `previousValue = 0` quando não há dados no período anterior — use `count > 0 ? total/count : undefined`; `0` mente sobre o delta
+- Não leia params com `params || {}` nem destructure com default `= {}` — o TS infere `{}` e apaga os tipos dos campos; use `params.<field> ?? default` com cast explícito
+- Não esqueça de registrar o processor/template no `index.ts` da categoria (e a categoria no `kpis/index.ts`) — KPI não-registrado é órfão (tsc verde, mas o engine não o encontra)
+- Não entregue o processor sem o teste com suíte Empty Safety — rows vazios devem dar `0` finito, nunca `NaN`

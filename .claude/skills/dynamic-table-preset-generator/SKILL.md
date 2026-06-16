@@ -11,6 +11,29 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera módulos de preset para o sistema ERP schema-driven do Luminaris. Cada módulo define uma tabela virtual com campos tipados, relações entre tabelas e comportamentos especiais (obrigatoriedade, validação, valor default).
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (camadas, no-`any`, soft-delete, money math, testes, verificação) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Dynamic Table Preset**.
+
+## Checklist obrigatório — Dynamic Table Preset
+
+- [ ] **`export const <name>Module`** (named export, camelCase) com `schema` tipado **`as ITableSchema`** (NÃO `as const` — quebra a inferência para `PresetTableDefinition`).
+- [ ] **`category` é um `DynamicTableCategory` válido** (`TableCategories.ts`) — `commercial, products, services, inventory, finance, people, leads, planning, kanban, operations, marketing, business, administrative, other`. **Não existe `crm`** — entidades de funil usam `leads`.
+- [ ] **Tipos de campo válidos apenas:** `string`, `number`, `date`, `datetime`, `boolean`, `select`, `relation`, `textarea`, `json`. Nada fora desta lista.
+- [ ] **Relações via `@@PRESET_TABLE_KEY::<internalName>`** — `{ type: 'relation', relation: { targetTable: '@@PRESET_TABLE_KEY::<internalName>' } }`. Nunca referenciar tabela externa sem o prefixo.
+- [ ] **Reusar field presets de `presets/fields/`** (ex.: `email`, `phone` de `TextPresets`) — não redefinir campos que já existem.
+- [ ] **`select` sempre com `options: string[]`**; **`number` com `numberFormat`** (`currency|percentage|integer|decimal`); validação `{ minValue, maxValue }` onde fizer sentido.
+- [ ] **Registrar o suite no `<System>Preset.ts`** (objeto `PresetSuite`, `tables` é `Record<string, PresetTableDefinition>` — a **chave é o `internalName`/`presetKey`**) **E** em `tablePresetSuites` (`presets/index.ts`) se for selecionável. Suite fora de `tablePresetSuites` é órfão: compila mas não é instalável.
+- [ ] **Módulo selecionável NÃO é adicionado ao `CoreSystemPreset`** — vive no seu próprio `PresetSuite` em `systems/`.
+
+### Lição CRM — board/relação precisa de pai com etapas
+
+Um board (Kanban/funil) só renderiza se a entidade-filha tem um **registro-pai com etapas**. No CRM: `leads` agrupam por `stageId`, que pertence a um `pipeline` (pai). Um preset que cria a tabela de `leads` **sem** também prover a tabela-pai `pipeline` + a tabela de `stages` (etapas) — e sem os campos de relação casados (`pipelineId`, `stageId`) — deixa a UI **sem colunas e sem dados**: o board não tem por onde agrupar. Portanto:
+
+- [ ] Entidade que aparece em board/funil **inclui no suite** a tabela-pai (pipeline) e as etapas (stages), não só a folha.
+- [ ] Os campos de relação da folha apontam para o pai e a etapa (`pipelineId` → pipeline, `stageId` → stages) via `@@PRESET_TABLE_KEY::`.
+- [ ] O motor valida campos compostos obrigatórios casados (criar `leads` exige `unitId` + `pipelineId` + `stageId`) — reflita isso no schema e nos seeds.
+
 ## When to use
 
 - Novo tipo de negócio precisa de tabelas ERP (ex: clínica, escola, restaurante)
@@ -36,6 +59,10 @@ server/src/features/dynamicTables/presets/index.ts                           ←
 server/src/features/dynamicTables/models/TableCategories.ts                  ← categorias válidas (DynamicTableCategory)
 server/src/features/dynamicTables/models/DynamicTable.model.ts
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`server/src/features/dynamicTables/presets/modules/core/LeadsModule.ts` — módulo perfeito: named export camelCase, `schema` tipado `as ITableSchema` (não `as const`), `category: 'leads'` (válido em `DynamicTableCategory`), reusa field presets (`email`, `phone`, `notes`, `unitId`) de `presets/fields/`, relações via `@@PRESET_TABLE_KEY::` (`pipelineId`→leadPipelines, `stageId`→leadStages), `select` sempre com `options`, `number` com `numberFormat` + `validation { minValue, maxValue }`. Para o registro do suite **selecionável**, espelhe `presets/systems/CrmModulePreset.ts` (`PresetSuite` com `tables` como `Record<string, PresetTableDefinition>` onde a chave É o `internalName`, trazendo o pai `leadPipelines`/`leadStages` junto da folha `leads`) e os field presets em `presets/fields/`. Leia-os ANTES de gerar.
 
 ## Generation contract
 
@@ -135,3 +162,4 @@ grep -n "<suiteKey>" server/src/features/dynamicTables/presets/index.ts   # deve
 - **Não esqueça de registrar o suite selecionável em `tablePresetSuites` (`presets/index.ts`)** — definir o `PresetSuite` em `systems/` sem registrá-lo deixa o módulo órfão (tsc verde, mas não instalável). Verifique com `grep <suiteKey> presets/index.ts`.
 - Não duplique campos que já existem em `presets/fields/` — reutilize os presets existentes
 - **Atenção runtime (não é erro de tsc):** o motor valida campos compostos obrigatórios (ex: criar `leads` exige `unitId` + `pipelineId` + `stageId` casados) e bloqueia hard-delete de registros referenciados (ex: um lead com `leadActivities` — apague as atividades antes). Reflita isso nos seeds/clients.
+- **Não crie a entidade-folha de um board sem o pai com etapas** (lição CRM): `leads` sem `pipeline` + `stages` no mesmo suite, ou sem os campos de relação `pipelineId`/`stageId` casados, deixa a UI **sem colunas e sem dados** — o board não tem por onde agrupar. Board/funil sempre traz pai (pipeline) + etapas (stages) + relações.

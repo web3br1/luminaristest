@@ -1,5 +1,7 @@
 # Generation Contracts
 
+> Regras cross-cutting de arquitetura e qualidade (gate) vivem em `.claude/skills/_ARCHITECTURE-CONTRACT.md`. Este arquivo cobre apenas o scaffolding (paths/nomes) por camada.
+
 ## Backend Route Contract
 
 - File: `server/src/routes/<resource>.ts`

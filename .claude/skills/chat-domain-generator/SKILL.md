@@ -11,6 +11,21 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Orquestra modificações no domínio de chat do Luminaris: adicionar ferramentas ao agente ERP, customizar prompts do sistema, integrar o KnowledgeGraph, ou modificar o pipeline RAG. É a skill correta quando o usuário pede "quero que o agente consiga fazer X" ou "adicionar intenção Y ao chat".
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (camadas, no-`any`, soft-delete, money math, testes, verificação) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Chat Domain / Agente**.
+
+## Checklist obrigatório — Chat Domain / Agente
+
+- [ ] **Toda ação de ESCRITA em `handleToolCall()` retorna `{ status: 'PROPOSED', proposalId }`** — cria um `ActionProposal` com `status: 'PENDING'` e **nunca escreve direto no banco**. A escrita real só acontece em `executeProposal()` após confirmação do usuário no frontend. Escrita direta bypassa o modal de confirmação — FAIL.
+- [ ] **Ações de LEITURA retornam o resultado direto** (`{ status: 'OK', result }`) — listagem/busca/consulta nunca viram `ACTION_PROPOSAL`.
+- [ ] **Toda tool tem entry em `getTools()`** (nome snake_case) **e** case em `handleToolCall()` — sem a declaração o OpenAI não chama; sem o handler dá erro.
+- [ ] **Resolver tabelas por `internalName`** (preset key) escopado ao `userId` — nunca por índice `[0]` nem por id presumido; a ordem da API varia.
+- [ ] **Isolamento de tenant no RAG é barreira de segurança** — `vectorRepository.search()` com `userId` + `docIds` do dono, ownership check antes do Qdrant; nunca cross-tenant.
+- [ ] **Não confundir os modos:** RAG só quando `documentIds.length > 0`; AGENT é o default sem documentos. Não misturar a lógica.
+- [ ] **Loop de tool calls limitado a 5 iterações** — não aumentar; se 5 não basta, a tool está mal modelada.
+- [ ] **Nova dep de service injetada via factory** no `LuminarisAgentService` (construtor) — nunca `new Service()` dentro do agente.
+
 ## When to use
 
 - Adicionar nova capacidade ao agente (nova tool call OpenAI)
@@ -53,8 +68,12 @@ server/src/features/chat/services/LuminarisAgentService.ts   ← getTools(), han
 server/src/features/chat/services/ChatService.ts             ← dispatcher, RAG pipeline, agent loop
 server/src/features/chat/services/KnowledgeGraphService.ts   ← syncGraph(), getGraphPrompt()
 server/src/features/chat/repositories/                       ← IKnowledgeGraphRepository, ActionProposalRepository
-server/prisma/schema.prisma (modelo ActionProposal)          ← id, userId, action, tableName, tableLabel, data, status
+server/prisma/schema.prisma (modelo ActionProposal)          ← id, userId, action, tableId, tableName, tableLabel, data, status
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`server/src/features/chat/services/LuminarisAgentService.ts` — agente perfeito: em `handleToolCall()`, toda ação de ESCRITA (`request_record_creation`/`request_record_update`) cria um `ActionProposal` com `status: 'PENDING'` via `proposalRepository.create()` e retorna `{ status: 'PROPOSED', proposalId }` — **nunca** escreve no banco direto; a escrita real só ocorre em `executeProposal()` após confirmação. Ações de LEITURA (`query_table_data`/`get_table_schema`) retornam o resultado direto. Resolve tabelas via `dynamicTableService.getTableById` escopado ao `user`, e deps entram pelo construtor (factory). Pareie com `ChatService.ts` (dispatcher dos dois modos: RAG quando `documentIds.length > 0`, AGENT senão; loop de tool calls limitado a 5; ownership check antes do Qdrant). Leia-os ANTES de gerar.
 
 ## Generation contract — adicionar nova tool call
 
@@ -240,6 +259,8 @@ cd server && npx jest features/chat --passWithNoTests
 - **Não modificar `vectorRepository.search()` para buscar cross-tenant** — a ownership check antes do Qdrant é uma barreira de segurança obrigatória (previne leak de documentos entre usuários).
 - **Não incrementar o loop de tool calls além de 5 iterações** — limite existe para evitar loop infinito em casos de tool calls circular. Se 5 não basta, investigar a lógica da tool, não aumentar o limite.
 - **Não retornar `ACTION_PROPOSAL` para ações de leitura** — apenas CREATE/UPDATE passam pelo modal. Queries de listagem/busca retornam `TEXT` direto.
+- **Não resolver tabela por índice `[0]` nem id presumido** — resolva por `internalName` (preset key) escopado ao `userId`; a ordem da API varia e quebra silenciosamente.
+- **Não injetar service com `new` dentro do agente** — toda dep entra pelo construtor do `LuminarisAgentService` via factory.
 
 ## Output format
 

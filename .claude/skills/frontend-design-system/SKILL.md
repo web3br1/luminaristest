@@ -9,6 +9,8 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 ## Purpose
 
+As regras estruturais cross-cutting vivem em `.claude/skills/_ARCHITECTURE-CONTRACT.md`; esta skill detalha a camada visual.
+
 As outras skills de frontend garantem a **estrutura** correta (auth, i18n, hooks, dark mode, paginação) mas NÃO a **identidade visual**. Esta skill encoda a linguagem de design real do Luminaris para que as telas geradas pareçam parte do produto — não Tailwind genérico (`zinc`, `rounded-xl`, `font-semibold`). Aplique-a sempre que estilizar qualquer componente/tela.
 
 ## When to use
@@ -26,6 +28,10 @@ my-app/features/dashboard/category-views/leads/components/KanbanView.tsx        
 my-app/features/dashboard/category-views/leads/components/LeadInfoSidebar.tsx      ← barras BANT
 my-app/features/crm/components/ui/                                                 ← UI kit on-brand (ref. CRM)
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`my-app/features/dashboard/category-views/leads/components/ManageHeader.tsx` — hero/header de referência on-brand: gradient header com blur blobs, KPI tiles (`rounded-2xl`, label `text-[10px] font-black uppercase tracking-widest`, valor `font-black`), superfícies `neutral` e badges `color/10`+`color/20`. Para os componentes-assinatura isolados, leia também `KanbanView.tsx` (score gauge SVG) e `LeadInfoSidebar.tsx` (barras BANT). Leia ANTES de estilizar. (O kit `features/crm/components/ui/` — `GradientHeader`/`ScoreGauge`/`StatusBadge`/`BantBars` — é a EXCEÇÃO exemplar do CRM e pode ser reusado como kit visual; tabela/analytics/layout do CRM, não.)
 
 ## Tokens e superfícies (não use `zinc` cru)
 

@@ -11,6 +11,10 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera `my-app/lib/services/<resource>.service.ts` como wrapper tipado em torno de `apiClient`, espelhando os endpoints do backend para o recurso. É o contrato entre frontend e backend para um domínio.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (reuse de canônicos, service layer, paginação DynamicTable, modal-não-rota, `useMemo`, no-`any`, container full-height, design system) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Frontend Service**.
+
 ## When to use
 
 - Novo endpoint backend precisa de client frontend
@@ -25,9 +29,14 @@ Gera `my-app/lib/services/<resource>.service.ts` como wrapper tipado em torno de
 
 ```
 my-app/lib/services/dynamic-table.service.ts
+my-app/lib/services/user.service.ts
 my-app/lib/services/analytics.service.ts
 my-app/lib/api/api-client.ts
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`my-app/lib/services/dynamic-table.service.ts` — service limpo: importa só `apiClient` (+ `notify` para sucesso), tipa cada método com interfaces locais mínimas (`TableMeta`/`TableDataResponse`, zero `any`), paths batem exatamente com as rotas backend e o sucesso é notificado opcionalmente via `options.successMessage`. Para um service de CRUD paginado com `{ data, pagination }`, veja também `my-app/lib/services/user.service.ts`. Leia ANTES de gerar.
 
 ## Generation contract
 
@@ -45,7 +54,8 @@ my-app/lib/api/api-client.ts
    static async update(id: string, data: UpdateResourceDto): Promise<{ success: boolean; data: Resource }>
    static async delete(id: string): Promise<{ success: boolean }>
    ```
-6. `apiClient` já chama `notify()` em erros — o service só precisa fazer re-throw se necessário
+6. **Paths batem com as rotas do backend:** cada chamada usa `apiClient.get/post/put/patch/delete('/api/<x>/...')` no path **exato** registrado em `server/src/routes/<resource>.ts` + montado em `routes/index.ts` (`app.use('/api/<x>', ...)`). Confira o path real no backend antes — divergência (ex.: `/api/lead` vs `/api/leads`) é 404 silencioso que o `tsc` NÃO pega.
+7. `apiClient` já chama `notify()` em erros — o service só precisa fazer re-throw se necessário
 
 ## Files usually created or changed
 
@@ -69,3 +79,4 @@ cd my-app && npx tsc --noEmit
 - Não esqueça a paginação nas respostas de listagem: `{ data: T[]; pagination: { page, limit, totalCount, totalPages } }`
 - Para consumir tabelas dinâmicas, reuse `DynamicTableService` (frontend) e resolva a tabela por `internalName` (`tables.find(t => t.internalName === 'leads')`) — não hardcode IDs de tabela
 - `GET /dynamic-tables/:id/data` retorna **só 50 linhas por padrão** (cap 200). Para alimentar KPIs/listas/boards, **pagine** (fetch-all até `totalPages`, `limit=200`) — não confie no default. Ref: `features/crm/lib/crmFetch.ts`
+- **Não chute o path da rota** — bata exatamente com o backend (`/api/<x>` montado em `routes/index.ts`). Path errado = 404 que o `tsc` não acusa.

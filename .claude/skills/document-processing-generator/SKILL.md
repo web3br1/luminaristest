@@ -11,6 +11,23 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera ou modifica componentes do pipeline RAG do Luminaris: extractors de arquivo, chunking, embedding via OpenAI, armazenamento no Qdrant, e atualização de status no Document model.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (camadas, no-`any`, soft-delete, money math, testes, verificação) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Document Processing / RAG**.
+
+> ⚠️ **Risco HIGH — confirmação manual.** Este pipeline toca isolamento de tenant na busca RAG e o status de documentos do usuário. Um erro vaza documentos entre usuários ou trava documentos em `PROCESSING`. Confirme o plano antes de editar e rode os testes de isolamento (`documents/__tests__/rag-tenant-isolation.test.ts`) depois.
+
+## Checklist obrigatório — Document Processing / RAG
+
+- [ ] **Extractor retorna `{ text: string }`** — assinatura `export async function extract<Type>(buffer: Buffer): Promise<{ text: string }>`; texto limpo, sem formatação especial. Erros via throw tipado.
+- [ ] **Chunking, embedding e Qdrant via as libs de `lib/vector/`** — `chunking.ts`, `embedding.ts` (OpenAI), `qdrant.ts`. Não reimplementar chunk/embed/upsert no extractor ou no service.
+- [ ] **Status flow respeitado em TODOS os branches:** `PENDING → PROCESSING` (ao iniciar) → `COMPLETED` (sucesso) | `ERROR` (qualquer exceção). Nenhum caminho deixa o documento preso em `PROCESSING`.
+- [ ] **Atualizar `Document.processingDate` e `Document.processingError`** junto com o status.
+- [ ] **Isolamento por tenant na busca RAG é barreira de segurança:** a ownership check (`userId`) acontece **antes** do Qdrant, e o `vectorRepository.search()` recebe `userId` + `docIds` do dono. Nunca buscar cross-tenant. Validar com o teste de isolamento.
+- [ ] **`DocumentPurpose` correto:** `KNOWLEDGE_BASE` (PDF/DOCX → RAG) vs `DATA_ANALYSIS` (XLSX/CSV → tabela estruturada; ver `structured-data-generator`). Usar o purpose errado pula a extração devida.
+- [ ] **Processamento sempre async** (via `DocumentService`/`setImmediate`) — nunca no controller, nunca bloqueante.
+- [ ] **Buffer não vai para o banco** — só metadados e texto extraído; o vetor vai para o Qdrant.
+
 ## When to use
 
 - Novo tipo de arquivo precisa ser suportado (ex: CSV, TXT, Markdown)
@@ -28,13 +45,19 @@ Gera ou modifica componentes do pipeline RAG do Luminaris: extractors de arquivo
 server/src/lib/vector/extractors/pdf.ts
 server/src/lib/vector/extractors/word.ts
 server/src/lib/vector/extractors/ExcelExtractor.ts
+server/src/lib/vector/extractors/ExcelStructuredExtractor.ts   ← extração tabular (DATA_ANALYSIS)
 server/src/lib/vector/chunking.ts
 server/src/lib/vector/embedding.ts
 server/src/lib/vector/qdrant.ts
-server/src/features/documents/services/DocumentService.ts
-server/src/features/documents/services/DocumentProcessingService.ts
-server/prisma/schema.prisma  (enum ProcessingStatus, DocumentPurpose)
+server/src/features/documents/services/DocumentService.ts               ← createDocument, setImmediate async
+server/src/features/documents/services/DocumentProcessingPipeline.ts    ← dispatcher: status flow + DATA_ANALYSIS vs KNOWLEDGE_BASE
+server/src/features/documents/services/DocumentProcessingService.ts     ← helper: chunkText() + generateEmbeddings()
+server/prisma/schema.prisma  (enum DocumentStatus, DocumentPurpose)
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`server/src/features/documents/services/DocumentProcessingPipeline.ts` — pipeline real e perfeito: é o **dispatcher** que aplica o status flow em todos os branches (`PROCESSING` ao iniciar → `COMPLETED` no sucesso → `ERROR` em `handleProcessingError`, sempre setando `processingDate`/`processingError`), separa `DocumentPurpose.DATA_ANALYSIS` (Excel → `extractStructuredDataFromExcel` → `StructuredDataService`; PDF/DOCX → `isTextTabular`) de `KNOWLEDGE_BASE` (pula extração estruturada), e só então chama `processChunks()` → embeddings em batch → `vectorRepository.upsertChunks`. Para um extractor, espelhe `server/src/lib/vector/extractors/pdf.ts` (devolve apenas `{ text }`). Confirme o status flow lendo `handleProcessingError`. Leia-o ANTES de gerar.
 
 ## Generation contract
 
@@ -45,12 +68,13 @@ server/prisma/schema.prisma  (enum ProcessingStatus, DocumentPurpose)
 3. Retornar texto limpo sem formatação especial
 4. Tratar erros com throw tipado
 
-### DocumentProcessingService (modificação)
+### DocumentProcessingPipeline (modificação — dispatcher)
 
-1. Leia o arquivo inteiro antes de editar
-2. Adicionar case no switch de tipo de arquivo
+1. Leia `DocumentProcessingPipeline.ts` inteiro antes de editar — é onde mora o status flow e o branch por `documentPurpose`/`mimeType`
+2. Adicionar o branch de detecção do novo tipo (por `mimeType`/`documentPurpose`) dentro do `try` de `processDocument`
 3. Chamar o novo extractor
-4. Passar para chunking → embedding → qdrant.upsert
+4. Para RAG: deixar `processChunks()` cuidar de chunking → embedding (batch) → `vectorRepository.upsertChunks`. Para tabular: chamar `StructuredDataService` (ver `structured-data-generator`)
+5. O chunking/embedding em si vive em `DocumentProcessingService.ts` (`chunkText`/`generateEmbeddings`) — reuse, não reimplemente
 
 ### Status flow (sempre respeitar)
 
@@ -66,8 +90,8 @@ PROCESSING → ERROR (em qualquer exceção)
 ## Files usually created or changed
 
 ```
-server/src/lib/vector/extractors/<type>.ts                          ← NEW
-server/src/features/documents/services/DocumentProcessingService.ts ← EDIT
+server/src/lib/vector/extractors/<type>.ts                           ← NEW
+server/src/features/documents/services/DocumentProcessingPipeline.ts ← EDIT (dispatcher: novo branch + status flow)
 ```
 
 ## Required checks
@@ -82,3 +106,7 @@ cd server && npx tsc --noEmit
 - Não esqueça de atualizar `Document.status` em TODOS os branches (sucesso e erro)
 - Não armazene o buffer em banco de dados — apenas metadados e texto extraído
 - Não ignore erros do Qdrant — o status deve refletir falhas de vetorização
+- Não reimplemente chunking/embedding/upsert no extractor — use as libs de `lib/vector/`; o extractor só devolve `{ text }`
+- Não busque RAG cross-tenant — a ownership check por `userId` antes do Qdrant é barreira de segurança obrigatória; passar `userId` + `docIds` do dono a `vectorRepository.search()` é inegociável
+- Não deixe o documento preso em `PROCESSING` — todo branch (sucesso e exceção) move para `COMPLETED` ou `ERROR`
+- Não use `KNOWLEDGE_BASE` para XLSX/CSV tabular — esse purpose pula a extração estruturada (ver `structured-data-generator`)

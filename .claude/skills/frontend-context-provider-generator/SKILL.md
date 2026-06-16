@@ -11,6 +11,10 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera `my-app/lib/context/<Name>Context.tsx` com Context, Provider component e hook de consumo `use<Name>()`, seguindo o padrão dos contextos existentes do Luminaris (Auth, Currency, Dashboard, Toast).
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (reuse de canônicos, service layer, paginação DynamicTable, modal-não-rota, `useMemo`, no-`any`, container full-height, design system) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Frontend Context**.
+
 ## When to use
 
 - Novo estado global precisa ser compartilhado entre componentes
@@ -27,8 +31,13 @@ Gera `my-app/lib/context/<Name>Context.tsx` com Context, Provider component e ho
 my-app/lib/context/AuthContext.tsx
 my-app/lib/context/ToastContext.tsx
 my-app/lib/context/CurrencyContext.tsx
+my-app/lib/context/DashboardDataContext.tsx
 my-app/pages/_app.tsx
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`my-app/lib/context/AuthContext.tsx` — provider de gate global de referência: expõe `isLoading`/`isAuthenticated` no value, faz o check inicial em `useEffect` com `checkAuthState({ silent })` (re-validação de rota não pisca o loading), resolve o gate de forma incondicional, usa `useRef` para guard anti-loop do locale-sync e fallback de `API_BASE_URL`. Leia ANTES de gerar — e memoize o `value` com `useMemo` + handlers estáveis (`useCallback`).
 
 ## Generation contract
 
@@ -54,6 +63,9 @@ my-app/pages/_app.tsx
    }
    ```
 6. Registrar em `pages/_app.tsx`: adicionar `<<Name>Provider>` no wrapper de providers
+7. **Memoize o objeto `value` com `useMemo`** — `const value = useMemo(() => ({ ...state, ...handlers }), [deps])`. Um objeto-literal novo a cada render força **todos** os consumidores a re-renderizar mesmo sem mudança real de estado. Handlers passados no value devem ser estáveis (`useCallback`).
+8. **Estado de loading/error explícito no value** quando o provider faz fetch: exponha `isLoading: boolean` e `error: string | null` para os consumidores reagirem — não esconda o estado de carregamento dentro do provider.
+9. **Não faça fetch no corpo do render** — todo fetch de inicialização vai em `useEffect` (com cleanup/cancelamento), e fetch via service layer (`lib/services/*.service.ts`), nunca `apiClient`/`fetch` direto no provider.
 
 ## Providers com `isLoading` (auth/gate global) — regras críticas
 
@@ -87,3 +99,6 @@ cd my-app && npx tsc --noEmit
 - Não crie context sem o hook de consumo correspondente
 - **Nunca deixe um `isLoading` de gate global poder ficar preso** — resolva incondicionalmente no `finally` + timeout backstop. Um spinner travado bloqueia a app inteira (bug real do `AuthContext`).
 - Não leia `process.env.NEXT_PUBLIC_*` direto para URL de API — use fallback como o `apiClient`
+- **Não passe um objeto `value` literal sem `useMemo`** — `<Ctx.Provider value={{ ... }}>` recria o objeto a cada render e re-renderiza todos os consumidores. Memoize o value e estabilize handlers com `useCallback`.
+- Não faça fetch no corpo do render — só em `useEffect` (com cleanup), e via service layer (não `apiClient`/`fetch` direto).
+- Não esconda loading/error — exponha `isLoading`/`error` no value quando o provider busca dados.

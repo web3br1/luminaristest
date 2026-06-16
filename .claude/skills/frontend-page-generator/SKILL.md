@@ -11,6 +11,10 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera arquivos de página em `my-app/pages/<resource>/index.tsx` seguindo os padrões do Luminaris: Pages Router, auth guard via `withAuth` ou `useAuth`, `getServerSideProps` com i18n, dynamic imports para componentes pesados.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (reuse de canônicos, service layer, paginação DynamicTable, modal-não-rota, `useMemo`, no-`any`, container full-height, design system) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Page**.
+
 ## When to use
 
 - Nova rota de página precisa ser criada
@@ -33,9 +37,13 @@ my-app/lib/hoc/withAuth.tsx
 my-app/public/locales/en/common.json
 ```
 
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`my-app/pages/dashboard/index.tsx` — página canônica do Pages Router: auth guard, `getServerSideProps` com `serverSideTranslations`, dynamic imports `{ ssr: false }` para as views/widgets pesados (FullCalendar/recharts/grid-layout ficam fora do `_app`) e container full-height do shell. Para uma página de listagem CRUD mais simples, veja `my-app/pages/users/index.tsx`. Leia ANTES de gerar. (Lembre: detalhe de registro = MODAL, nunca `[id].tsx`; NUNCA espelhe as páginas do CRM `pages/crm/*` — são o anti-exemplo de `max-w-*` divergente e detalhe em rota.)
+
 ## Generation contract
 
-1. Arquivo: `my-app/pages/<resource>/index.tsx` (ou `[id].tsx` para detalhe)
+1. Arquivo: `my-app/pages/<resource>/index.tsx`. **Detalhe de um registro = MODAL, não rota.** O padrão dominante do projeto é abrir detalhe/edição num modal (`components/ui/Modal.tsx` + estado local na view, ex.: `KanbanCardDetailModal`), NÃO navegar para `[id].tsx`. Reserve `[id].tsx` apenas para páginas genuinamente standalone/deep-linkáveis (não para "ver um registro da lista"). Lição do CRM: clicar num lead fazia `router.push('/crm/leads/[id]')` e trocava de tela inteira — fora do padrão.
 2. Imports: `useRouter`, `useAuth`, `useTranslation`, `Head`, `serverSideTranslations`, `GetServerSideProps`
 3. Auth check: usar `withAuth` HOC no export OU `useAuth()` + redirect manual no `useEffect`
 4. i18n:
@@ -49,6 +57,7 @@ my-app/public/locales/en/common.json
 7. Head: `<Head><title>X | Luminaris</title></Head>`
 8. Se namespace i18n novo: criar `my-app/public/locales/en/<resource>.json` e `pt/<resource>.json`
 9. **Estilização: aplicar a skill `frontend-design-system`** (tokens `neutral`/`lumi-*`, gradient header, font-black) — não deixe a página com Tailwind genérico
+9b. **Container consistente entre telas irmãs:** páginas de um mesmo módulo devem usar o MESMO container. Prefira o padrão full-height do shell do dashboard (`flex h-full … flex-col`, conteúdo scrollável interno) em vez de fixar `max-w-*` por página. Se variar (`max-w-3xl` numa tela, `max-w-7xl` noutra), as telas "mudam de tamanho" ao navegar — foi o defeito do CRM (largura ia de `3xl` em Atividades a `7xl` em Pipeline).
 10. **Dados derivados memoizados:** todo dado DERIVADO no corpo do render (`filter`/`sort`/`group`/`find`/`reduce` sobre listas, lookups repetidos, agregações) DEVE ser envolvido em `useMemo(() => ..., [deps])` com as dependências corretas. Sem isso, recalcula a cada render — inclusive em updates de context não relacionados — com custo O(n) ou O(n log n). Vale tanto para páginas quanto para hooks de dados.
 
 ## Files usually created or changed
@@ -85,4 +94,6 @@ Páginas atrás de `withAuth` mostram um gate "Authenticating…" até o `AuthCo
 - Não acesse `localStorage` ou `document` no SSR — guard com `typeof window !== 'undefined'`
 - Não esqueça `serverSideTranslations` — sem isso i18n quebra em produção
 - Não importe componentes pesados diretamente — use `dynamic()` com `ssr: false`
+- **Não crie `[id].tsx` para ver/editar um registro da lista** — use modal. Rota dinâmica só para páginas standalone/deep-linkáveis.
+- **Não fixe `max-w-*` divergentes por página** dentro de um módulo — telas irmãs ficam de tamanhos diferentes ao navegar. Herde o container full-height do shell.
 - Não calcule dados derivados (`filter`/`sort`/`group`/`find`/`reduce`/lookups) direto no render sem `useMemo([deps])` — recalcula a cada render (inclusive em context updates) com custo O(n)/O(n log n); memoize em páginas e em hooks de dados

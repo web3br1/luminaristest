@@ -11,6 +11,25 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Orquestra a criação de um KPI completo: do backend analytics processor até o widget de KPI card no dashboard frontend. É a skill correta quando o usuário pede "quero ver X no dashboard".
 
+## Contrato obrigatório
+
+Esta skill gera múltiplas camadas (processor + template + hook + widget) — TODO arquivo gerado deve cumprir `.claude/skills/_ARCHITECTURE-CONTRACT.md` (single-pass + `addMoney` + `previousValue` undefined sem dados, frontend service layer, paginação ao ler DynamicTable, reuse de canônicos, design system, Empty Safety nos testes). O contrato é o gate final.
+
+## ⭐ Exemplo de referência canônico (espelhe este slice)
+
+O vertical-slice ponta-a-ponta de KPI é a cadeia **processor → card canônico → ChartRenderer** — todos verificados e existentes:
+
+```
+server/src/features/analytics/kpis/revenue/RevenueKpiProcessor.ts                                   ← backend: single-pass, addMoney, previousValue undefined
+server/src/features/analytics/kpis/revenue/RevenueKpiTemplate.ts                                     ← template do KPI
+server/src/features/analytics/kpis/revenue/__tests__/RevenueKpiProcessor.test.ts                     ← teste (inclui Empty Safety)
+my-app/features/dashboard/category-views/finance/components/analytics/dashboard/DashboardKpiCard.tsx ← card de KPI canônico (REUSE, não recrie)
+my-app/features/dashboard/category-views/finance/components/analytics/charts/ChartRenderer.tsx       ← orquestrador de chart (REUSE, delega a PieDonut/BarLineArea + empty state)
+my-app/features/dashboard/category-views/finance/components/analytics/dashboard/AnalyticsDashboard.tsx ← board completo (KPIs + charts + explicações)
+```
+
+Por que é o slice perfeito: `RevenueKpiProcessor` é o processor de referência (single-pass com `addMoney`, `previousValue` undefined sem dados) e `DashboardKpiCard`/`ChartRenderer` são os canônicos de UI que você REUSA — o erro do CRM (`CrmKpiCard`/`CrmBarChart` bespoke) foi justamente recriá-los.
+
 ## When to use
 
 - Nova métrica de negócio precisa aparecer no dashboard
@@ -36,11 +55,11 @@ Orquestra a criação de um KPI completo: do backend analytics processor até o 
 5. Criar `my-app/features/dashboard/category-views/<cat>/hooks/use<Name>Kpi.ts`
 6. Hook chama `analytics.service.ts` com o KPI id correto
 
-### Frontend widget
+### Frontend widget — REUSE os componentes canônicos (não recrie gráficos próprios)
 
-7. Criar `my-app/features/dashboard/category-views/<cat>/components/kpi/<Name>KpiCard.tsx`
-8. Seguir padrão de `components/widgets/analytics/KpiCard.tsx`
-9. Exibir: valor atual, valor anterior, trend (up/down/neutral), label e unidade
+7. **Card de KPI** → reuse `DashboardKpiCard.tsx` (`features/dashboard/category-views/finance/components/analytics/dashboard/`) ou `widgets/analytics/GoldKpiWidgetView.tsx` para widgets do grid. Só crie um `<Name>KpiCard.tsx` próprio se o card canônico genuinamente não atender — e mesmo assim espelhe o layout dele.
+8. **Gráficos** → reuse o orquestrador `charts/ChartRenderer.tsx` (delega a `PieDonutChart`/`BarLineAreaChart`, trata empty state via `NoDataCard`, aplica filtro temporal). NÃO escreva `CrmBarChart`/`CrmPieChart` próprios sobre Recharts cru — foi o erro do CRM.
+9. **Board de analytics completo** (KPIs + charts + explicação + lista) → reuse o padrão de `analytics/dashboard/AnalyticsDashboard.tsx`: grid de cards por grupo de preset, linha de charts por tipo de KPI, e as explicações via `KpiInfoFooter`/`KpiTooltip`. Exibir no card: valor atual, valor anterior, trend (up/down/neutral), label e unidade.
 
 ## Sub-skills invocadas
 
@@ -73,3 +92,5 @@ cd my-app && npx tsc --noEmit
 - Não hardcode valores no frontend — sempre via API call ao backend
 - Não esqueça os estados loading/error no KPI card
 - Não pule o teste do processor — é a única verificação automatizada do cálculo
+- **Não crie componentes de gráfico próprios** (`<Modulo>BarChart`/`PieChart` sobre Recharts cru) — reuse `ChartRenderer`. Bespoke ignora empty state, filtro temporal e padrão visual (erro do CRM).
+- **Não crie um KPI card do zero** se `DashboardKpiCard`/`GoldKpiWidgetView` servem — reuse antes de recriar.

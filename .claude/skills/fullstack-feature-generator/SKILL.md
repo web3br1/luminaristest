@@ -11,6 +11,28 @@ allowed-tools: Read, Grep, Glob, Write, Edit, Bash
 
 Orquestra a geração de TODOS os átomos de um novo recurso, do Prisma ao frontend. É a skill de maior impacto e deve ser usada quando um domínio inteiramente novo precisa existir do zero.
 
+## Contrato obrigatório
+
+Esta skill gera múltiplas camadas — TODO arquivo gerado deve cumprir `.claude/skills/_ARCHITECTURE-CONTRACT.md` (camadas, DI, soft-delete, policy-first, registro de rota = 3 toques, no-`any`, frontend service layer, reuse de canônicos, design system, testes). O contrato é o gate final; as sub-skills herdam-no.
+
+## ⭐ Exemplo de referência canônico (espelhe este slice)
+
+A feature **`users`** é o vertical-slice de referência — leia-a inteira ANTES de gerar qualquer arquivo e espelhe a estrutura/separação de camadas:
+
+```
+server/src/features/users/dtos/UserDto.ts                    ← DTO (Zod Create/Update + type guards)
+server/src/features/users/repositories/IUserRepository.ts    ← interface de repo
+server/src/features/users/repositories/UserRepository.ts     ← acesso Prisma ($transaction em getAllUsers)
+server/src/features/users/policies/IUserPolicy.ts            ← interface de policy
+server/src/features/users/policies/UserPolicy.ts             ← métodos can* booleanos, ownership por actor.id/ADMIN
+server/src/features/users/services/UserService.ts            ← policy-first, DI por construtor, erros tipados, zero prisma.*
+server/src/controllers/userController.ts                     ← safeParse + getUserContextFromRequest + getFactory + handleApiError
+server/src/routes/users.ts                                   ← rota fina (router.<verbo> + handler)
+my-app/lib/services/user.service.ts                          ← frontend service (apiClient, tipos locais)
+```
+
+Por que é o par perfeito: é a feature mais limpa do repositório — camadas estritas, DI por construtor, policy-first e erros tipados de `lib/errors`. **Ressalva única:** `UserRepository.deleteUser` faz `prisma.user.delete()` HARD (exceção LGPD art.18 — direito ao esquecimento) e `getAllUsers` não filtra `deletedAt`. Para o padrão de **soft-delete** (que a maioria dos recursos novos usa), siga o contrato em vez de copiar essas duas funções do `users`.
+
 ## When to use
 
 - Novo domínio de negócio do zero (ex: "sistema de agendamentos")
@@ -73,6 +95,20 @@ my-app/lib/services/<resource>.service.ts                               ← NEW
 my-app/pages/<resource>/index.tsx                                       ← NEW
 ```
 
+## Gates por camada (resumo)
+
+Um item-chave por camada que NÃO pode faltar na geração ponta-a-ponta. Detalhe completo no `_ARCHITECTURE-CONTRACT.md` — aqui é só o lembrete de fechamento:
+
+- **DTO** — `@openapi` JSDoc + `Create/Update<X>Schema` (Update = `.partial()`) + type guard `isCreate<X>Input` com `safeParse`; zero `z.any()`.
+- **Repository** — soft-delete em TODO find (`where: { …, deletedAt: null }`) e no delete (`update({ data: { deletedAt } })`); `findAll` via `prisma.$transaction([findMany, count])`.
+- **Policy** — métodos `can*` retornam `boolean` (zero `throw`, zero acesso a dados); ownership por `actor.id === ownerId || ADMIN`.
+- **Service** — policy-first (`if (!this.policy.canX(actor)) throw new ForbiddenError()` antes de tocar dados); DI por construtor (sem `new Repository()`); `NotFoundError` (incl. cross-tenant); zero `prisma.*`/Express.
+- **Controller** — `Schema.safeParse(req.body)` + `getUserContextFromRequest(req)` + `getFactory().get<X>Service()` + `handleApiError(error, res)`.
+- **Route** — registro = **3 toques**: mount em `routes/index.ts` + `'/api/<resource>'` no `protectedApiPaths` de `middleware/auth.ts` + bloco `@openapi` em `routes/docs.paths.ts`.
+- **Frontend service** — `apiClient`, tipos de retorno explícitos e **locais** (não importar do backend); zero `any`.
+- **Page** — auth guard (`withAuth`/`useAuth`) + `serverSideTranslations` (i18n); detalhe de registro = **modal, não rota**.
+- **Reuse de canônicos** — `GenericTable`/`StandardPagination` (tabela+paginação), `Modal` (detalhe), `AnalyticsDashboard`/`ChartRenderer`/`DashboardKpiCard` (analytics). Não recriar.
+
 ## Required checks
 
 ```bash
@@ -86,4 +122,6 @@ cd my-app && npx tsc --noEmit
 - Não pule o registro no factory — o controller não funciona sem isso
 - Não altere a ordem — Service depende de Repository e Policy existirem
 - Não misture lógica de negócio entre camadas
+- **Bug silencioso do `protectedApiPaths`:** esquecer o 3º toque (`'/api/<resource>'` no array de `middleware/auth.ts`) faz a rota retornar **401 mesmo com token válido** — `getUserContextFromRequest` devolve `null`. O `tsc` NÃO pega; só aparece em runtime.
+- **"Módulo ilha":** não recrie tabela/modal/analytics próprios (`RecordTable`/`CrmKpiCard`/`CrmBarChart` foram o erro do CRM) — reuse os canônicos (`GenericTable`, `Modal`, `AnalyticsDashboard`/`ChartRenderer`/`DashboardKpiCard`).
 - Esta é a skill de maior risco — use em branch separada e revise diff antes de commit

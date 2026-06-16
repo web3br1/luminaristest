@@ -11,6 +11,33 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Documenta e guia extensões do wizard de setup AI do Luminaris: máquina de estados com 11 estágios, 3 serviços (InterviewService, CustomizationService, FieldCustomizationService) e in-memory StateManager. É a skill correta quando o usuário pede "quero que o onboarding faça X" ou "adicionar pergunta/etapa ao wizard".
 
+## Contrato obrigatório
+
+Toda extensão (backend de serviços e qualquer UI de wizard/onboarding) deve cumprir `.claude/skills/_ARCHITECTURE-CONTRACT.md` (camadas, no-`any`, frontend service layer, reuse de canônicos, design system, i18n). O contrato é o gate final.
+
+## ⭐ Exemplo de referência canônico (espelhe este slice)
+
+O wizard de onboarding real vive nos dois lados — leia ambos antes de estender:
+
+```
+server/src/features/interview/InterviewService/InterviewService.ts   ← dispatcher principal (máquina de estados)
+server/src/features/interview/InterviewService/PromptConfig.ts        ← system prompts por estágio
+server/src/features/interview/models/InterviewTypes.ts                ← enums InterviewStage / ProcessableStage e tipos
+my-app/features/interview/components/AiInterviewSetup/index.tsx        ← UI do wizard (entry point do chat de setup)
+my-app/features/interview/hooks/useAiInterview.ts                     ← hook que orquestra o fluxo de turnos no frontend
+```
+
+Por que é o slice perfeito: `InterviewService.processTurn()` + `PromptConfig` + `InterviewTypes` são o backend canônico da máquina de estados (singletons via `getInstance()`), e `AiInterviewSetup/index.tsx` + `useAiInterview.ts` são o par de UI/hook que consome esse fluxo. Estender um estágio toca este conjunto exato.
+
+## Checklist de wizard/onboarding (frontend)
+
+- [ ] A tela do wizard/onboarding tem auth guard (`withAuth`/`useAuth`) e i18n (`serverSideTranslations` + strings em `public/locales/{en,pt}/<namespace>.json`; nada hardcoded).
+- [ ] Chama a **service layer** (`lib/services/*.service.ts` via `apiClient`) — nunca `fetch`/`apiClient` direto no componente.
+- [ ] **Reusa componentes canônicos** (`Modal`, `GenericTable`, etc.) — não recria modal/tabela próprios.
+- [ ] **Pagina** se ler DynamicTable (fetch-all até `totalPages`, `limit=200`) — a API retorna só 50 por padrão.
+- [ ] Trata estados de **loading/error** (não só happy path).
+- [ ] Resolve DynamicTables por **`internalName`** (preset key), nunca por posição `[0]`.
+
 ## When to use
 
 - Adicionar novo estágio ao wizard de onboarding

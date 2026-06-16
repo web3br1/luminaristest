@@ -12,6 +12,22 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 Gera `server/src/routes/<resource>.ts` seguindo o padrão Express Router do Luminaris.
 Registra a rota em `server/src/routes/index.ts` e adiciona bloco OpenAPI em `server/src/routes/docs.paths.ts`.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (camadas, DI, soft-delete, policy-first, erros tipados, no-`any`, registro de rota, money, testes) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico da camada **Route**.
+
+## Checklist obrigatório — Route
+
+Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatamente isto na camada Route). Gere já em conformidade.
+
+- [ ] **Registro = 3 toques** (não 2). Faltar qualquer um quebra a rota:
+  1. **`server/src/routes/index.ts`** — `import <resource>Router from './<resource>'` + `router.use('/<resource>', <resource>Router)`.
+  2. **`server/src/middleware/auth.ts` → array `protectedApiPaths`** — adicionar `'/api/<resource>'`. ⚠️ **DESTAQUE:** sem isso `getUserContextFromRequest` retorna `null` e a rota dá **401 com token válido** — bug silencioso que o `tsc` NÃO pega (só runtime). Pular APENAS para rota 100% pública.
+  3. **`server/src/routes/docs.paths.ts`** — bloco `@openapi paths: /<resource>:` com GET/POST/PUT/DELETE para CADA endpoint, na seção `paths:` ANTES de `* components:`. O component schema do DTO NÃO substitui o bloco de path. Valide: `grep -c "/api/<resource>" server/src/routes/docs.paths.ts` deve ser `> 0`.
+- [ ] **`export default router`**.
+- [ ] **Zero lógica no arquivo de rota** — só `router.get/post/put/delete('/path', handler)` com handlers nomeados importados do controller. Sem auth inline, sem validação, sem try/catch.
+- [ ] Controller importado por funções nomeadas existentes (verifique que o controller existe antes de importar).
+
 ## When to use
 
 - Novo endpoint REST precisa ser exposto
@@ -30,6 +46,17 @@ server/src/routes/index.ts
 server/src/routes/docs.paths.ts
 server/src/middleware/auth.ts        ← array protectedApiPaths (allowlist de auth)
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe estes arquivos — o 3-toques completo)
+
+O recurso `users` é o conjunto de referência perfeito do registro 3-toques (verificado: a rota está wired nos quatro arquivos):
+
+- `server/src/routes/users.ts` — arquivo de rota perfeito: só `router.<verbo>('/path', handlerNomeado)` com handlers importados do controller, ZERO lógica/auth/try-catch, `export default router`.
+- `server/src/routes/index.ts` — toque 1: `import userRoutes from './users'` + `router.use('/users', userRoutes)`.
+- `server/src/middleware/auth.ts` — toque 2: `'/api/users'` no array `protectedApiPaths` (sem isso → 401 com token válido).
+- `server/src/routes/docs.paths.ts` — toque 3: bloco `@openapi paths:` para os endpoints `/users` na seção `paths:` ANTES de `* components:`.
+
+Leia os quatro ANTES de gerar e replique exatamente os 3 toques (o arquivo de rota + os 3 registros).
 
 ## Generation contract
 

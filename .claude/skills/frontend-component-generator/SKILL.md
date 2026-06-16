@@ -11,6 +11,10 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera componentes React funcionais tipados em `my-app/components/` ou dentro de `features/`, seguindo o Galaxy theme do Luminaris com Tailwind CSS. Cobre modals, form fields, cards e componentes genéricos.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (reuse de canônicos, service layer, paginação DynamicTable, modal-não-rota, `useMemo`, no-`any`, container full-height, design system) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Component**.
+
 ## When to use
 
 - Novo componente de UI reutilizável
@@ -30,7 +34,24 @@ my-app/components/ui/GalaxyCard.tsx
 my-app/components/ui/Modal.tsx
 my-app/components/ui/feedback/
 my-app/tailwind.config.js
+my-app/features/dashboard/category-views/shared/components/GenericTable.tsx   ← tabela canônica de registros (NÃO recrie)
+my-app/features/dashboard/category-views/shared/components/RowActionsCell.tsx ← edit/delete inline canônico
+my-app/features/dashboard/category-views/kanban/components/KanbanCardDetailModal.tsx ← detalhe de registro em MODAL
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+Por tipo de componente:
+- **Modal/detalhe de registro** → `my-app/components/ui/Modal.tsx` (portal + `isOpen`/`onClose`) como base, e `my-app/features/dashboard/category-views/kanban/components/KanbanCardDetailModal.tsx` como padrão de detalhe/edição de um registro em modal (estado local na view, não rota).
+- **Tabela de registros** → NÃO escreva `<table>`: reuse `my-app/features/dashboard/category-views/shared/components/GenericTable.tsx` + `RowActionsCell.tsx` (CRUD inline, filtros, sort, soft-delete).
+
+Leia o arquivo correspondente ANTES de gerar. (Para tabela/modal: NUNCA espelhe os equivalentes do CRM — `RecordTable.tsx` é o anti-exemplo, reprovado por não ter add/edit/delete na linha nem paginação.)
+
+## Reuse antes de criar (lição da revisão do CRM)
+
+Antes de gerar um componente, verifique se o app já tem o canônico e **reuse-o** — criar paralelos bespoke deixa o módulo fora do padrão:
+- **Lista tabular de registros de DynamicTable** → NÃO escreva um `<table>` próprio. Reuse `GenericTable` + `GenericRow` + `RowActionsCell` (CRUD inline, filtros, sort, soft-delete, colunas customizáveis), orquestrados por `GenericTabbedView`. "Card de listagem" (abaixo) é só para coleções que genuinamente não são tabela.
+- **Detalhe/edição de um registro** → MODAL (`Modal.tsx` via portal + estado local na view, padrão `KanbanCardDetailModal`), NÃO uma página/rota separada.
 
 ## Generation contract
 
@@ -61,3 +82,5 @@ cd my-app && npx tsc --noEmit
 - **Não use `zinc-*` para superfícies dark** — o app usa `neutral-*` (único sinal confiável de Tailwind genérico). Cards devem ser `rounded-2xl` (não `rounded-xl`), mas `rounded-xl`/`font-semibold` são corretos em inputs/botões/corpo — não os trate como off-brand. Ver `frontend-design-system`.
 - Não omita a interface de props — sem tipos o componente não é seguro
 - Não use `any` nos tipos de props
+- **Não construa uma tabela de registros do zero** (`<table>` bespoke sem ações inline/filtros/paginação) — reuse `GenericTable`/`RowActionsCell`. Foi o erro do CRM (`RecordTable.tsx`): tabela sem add/edit/delete na linha, sem filtros, sem paginação.
+- **Não use modal só para "ação"** e rota para detalhe — detalhe de registro também é modal. O projeto prefere modal sobre troca de rota.

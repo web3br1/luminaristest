@@ -11,6 +11,10 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Cria a estrutura de um novo módulo de categoria no dashboard (`features/dashboard/category-views/<name>/`) com View principal, hooks de dados, e registra o dynamic import em `pages/dashboard/index.tsx`.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (reuse de canônicos, service layer, paginação DynamicTable, modal-não-rota, `useMemo`, no-`any`, container full-height, design system) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Feature Module**.
+
 ## When to use
 
 - Novo módulo de negócio precisa de visualização no dashboard
@@ -29,7 +33,24 @@ my-app/features/dashboard/category-views/leads/
 my-app/features/dashboard/category-views/finance/FinanceView.tsx
 my-app/pages/dashboard/index.tsx
 my-app/features/dashboard/DashboardSidebar.tsx
+my-app/features/dashboard/category-views/shared/GenericTabbedView.tsx          ← orquestrador canônico (tabela + filtros + paginação + header)
+my-app/features/dashboard/category-views/shared/components/GenericTable.tsx     ← tabela de registros (CRUD inline) — REUSE, não recrie
+my-app/features/dashboard/shared/components/StandardPagination.tsx              ← paginação canônica (25/página)
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`my-app/features/dashboard/category-views/shared/GenericTabbedView.tsx` — orquestrador canônico de uma View de módulo: combina `GenericTable` (CRUD inline) + `GenericFilterBar` + `CategoryTabs` + `StandardPagination` (`ITEMS_PER_PAGE = 25`) num container full-height, com `useGenericData`, sort/filtro/colunas customizáveis e tudo memoizado (`useMemo`/`useCallback`). Leia ANTES de gerar — uma View nova deve reusar exatamente esses canônicos, não recriar tabela/paginação/layout. (NUNCA espelhe o módulo CRM: `RecordTable`/`CrmKpiCard`/`CrmBarChart` são o anti-exemplo "ilha".)
+
+## Reuse os componentes canônicos (lição da revisão do CRM)
+
+Uma View de lista NÃO deve construir tabela/paginação/layout do zero — reuse:
+- **Tabela de registros** → `GenericTable` + `GenericRow` + `RowActionsCell` (CRUD inline add/edit/delete, filtros, sort, soft-delete, colunas customizáveis), tipicamente via `GenericTabbedView`. Detalhe de registro = MODAL (`Modal.tsx`, padrão `KanbanCardDetailModal`), nunca rota.
+- **Paginação** → `StandardPagination` com fatiamento client-side (`ITEMS_PER_PAGE = 25`). Nunca `rows.map` sem paginar.
+- **Container da View** → `flex h-full … flex-col` full-width (padrão de `GenericTabbedView`), com conteúdo scrollável interno. Não fixe `max-w-*` (telas irmãs ficam de tamanhos diferentes).
+- **Analytics do módulo** → reuse `finance/components/analytics/dashboard/AnalyticsDashboard.tsx` + `DashboardKpiCard.tsx` + `charts/ChartRenderer.tsx`, não componentes de gráfico próprios.
+
+O CRM ignorou tudo isso (criou `RecordTable`, `CrmKpiCard`, `CrmBarChart`, páginas com `max-w-*` divergentes, detalhe em rota) e ficou um módulo "ilha". Sempre prefira reusar.
 
 ## Generation contract
 
@@ -72,3 +93,5 @@ cd my-app && npx tsc --noEmit
 - Não use default export na View se o módulo exporta múltiplas coisas — use named export
 - **Não renderize um board agrupando por TODAS as etapas/relações** — filtre pelo pai ativo, senão múltiplos pais (pipelines/units) produzem colunas duplicadas. Sempre teste a view com >1 registro-pai.
 - **Estilize as telas aplicando `frontend-design-system`** (tokens reais + componentes-assinatura) — Tailwind genérico (`zinc`/`rounded-xl`/`semibold`) deixa o módulo off-brand, fora do padrão do app.
+- **Não recrie tabela/paginação/layout/analytics do zero** — reuse `GenericTable`/`GenericTabbedView`, `StandardPagination`, o container full-height e `AnalyticsDashboard`. Bespoke = módulo "ilha" (erro do CRM).
+- **Não use rota `[id].tsx` para detalhe de registro** — use modal (`Modal.tsx`).

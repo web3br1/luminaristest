@@ -11,6 +11,23 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera `server/src/controllers/<Resource>Controller.ts` com funções async nomeadas seguindo o padrão do Luminaris: validação Zod inline, `getFactory()`, `getUserContextFromRequest`, e `handleApiError`.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (camadas, DI, soft-delete, policy-first, erros tipados, no-`any`, registro de rota, money, testes) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico da camada **Controller**.
+
+## Checklist obrigatório — Controller
+
+Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatamente isto na camada Controller). Gere já em conformidade.
+
+- [ ] **`Schema.safeParse(req.body)` ANTES de qualquer lógica:** `const parse = Schema.safeParse(req.body); if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });`
+- [ ] **`getUserContextFromRequest(req)`** para extrair o actor antes de chamar o service (`UserContext | null`; faça guard `if (!actor) throw new UnauthorizedError()` se o service exige actor não-nulo).
+- [ ] **`getFactory().get<Resource>Service()`** — nunca instancia o service direto.
+- [ ] **Resposta de sucesso `{ success: true, data }`** (`res.json` em 200, `res.status(201).json(...)` em criação).
+- [ ] **`handleApiError(error, res)`** no `catch` (ordem: `error` primeiro), importado de `../lib/apiUtils` — nunca `res.status(500).json()` manual.
+- [ ] **ZERO `prisma.*`** no controller.
+- [ ] **ZERO regra de negócio** — sem hashing, sem checagem de permissão, sem cálculo de domínio; delega ao service imediatamente.
+- [ ] `return` antes de cada `res.json` (evita "headers already sent").
+
 ## When to use
 
 - Novo recurso CRUD precisa de controllers
@@ -24,11 +41,15 @@ Gera `server/src/controllers/<Resource>Controller.ts` com funções async nomead
 ## Repository patterns to inspect first
 
 ```
-server/src/controllers/userController.ts
+server/src/controllers/chatInstancesController.ts
 server/src/lib/apiUtils.ts
 server/src/lib/authUtils.ts
 server/src/lib/factory.ts
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`server/src/controllers/chatInstancesController.ts` — Controller perfeito da camada: `Schema.safeParse(req.body)` com `return res.status(400)` em create/update ANTES de qualquer lógica, `getUserContextFromRequest(req)` + guard `if (!ctx) return res.status(401)`, `getFactory().getChatInstanceService()` (nunca `new`), resposta `{ success: true, data }` (`res.status(201)` em criação), `handleApiError(error, res)` em todo `catch`, ZERO `prisma.*`, ZERO regra de negócio (delega ao service). Leia-o ANTES de gerar e siga a mesma estrutura/ordem. ⚠️ **NÃO espelhe `userController.ts`**: ele importa e usa `prisma` direto (`getUsers`/`updateMyPreferences`) e tem um handler que retorna shape ad-hoc (`res.json(updated)` sem `{ success, data }`) — ambos violam o contrato desta camada.
 
 ## Generation contract
 
@@ -67,3 +88,7 @@ cd server && npx tsc --noEmit
 - Não use `res.send` — sempre `res.json`
 - Não omita o `try/catch` com `handleApiError`
 - Não esqueça `return` antes de cada `res.json` para evitar "headers already sent"
+- Não chame o service antes de `Schema.safeParse(req.body)` — validação é a primeira coisa do handler
+- Não instancie o service direto (`new <Resource>Service()`) — sempre `getFactory().get<Resource>Service()`
+- Não extraia o actor manualmente do token — use `getUserContextFromRequest(req)`
+- Não retorne shapes ad-hoc — sucesso é sempre `{ success: true, data }`; erro é sempre via `handleApiError(error, res)`

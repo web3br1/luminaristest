@@ -11,6 +11,21 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera jobs de background em `server/src/jobs/` ou fixtures de seed em `my-app/features/dev/seed/modules/`. Jobs usam Prisma diretamente (sem factory) para operações de manutenção.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (camadas, no-`any`, soft-delete, money math, testes, verificação) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Job / Seed**.
+
+## Checklist obrigatório — Job / Seed
+
+- [ ] **Idempotência:** re-rodar o job/seed **não duplica** nem corrompe. Operações de manutenção são reentrantes; seeds marcam e limpam antes de reinserir.
+- [ ] **Seeds tagueiam os registros** — cada registro semeado leva `data.__demo = true`; no início, o seed apaga os `__demo` anteriores (`findMany` → filtra → `deleteMany`) antes de reinserir. Sem tag + cleanup, duplica a cada execução.
+- [ ] **Cron/agendamento explícito** — se o job roda periodicamente, registrar a chamada/agendamento no boot (`server.ts`) com o intervalo documentado. Se é one-shot, declarar isso.
+- [ ] **Logs de início e fim com métricas** — `logger.info('Job started', { job })` + `logger.info('Job completed', { affected: N })`; `try/catch` com `logger.error(msg, { context })` (string primeiro, contexto depois).
+- [ ] **Prisma direto é aceitável em script de seed/job — mas documentar** que bypassa factory, schema-validation, rules/plugins e policy. Anotar no topo do arquivo o que está sendo contornado.
+- [ ] **Guard de produção em seed:** `if (process.env.NODE_ENV === 'production') throw/return` no topo. Seed de volume é dev-only, standalone (nunca endpoint), escopado a um `userId` resolvido por `--email`.
+- [ ] **Resolver tabelas/pais por `internalName`/`id`, nunca por `[0]`** — a API ordena `createdAt desc` e o `prisma.findMany` default difere; posição não é estável.
+- [ ] **Cobrir a variabilidade que a view ramifica** (seed): múltiplos status/scores, **>1 registro-pai** (ex.: 2 pipelines) e datas passadas/futuras — é assim que se pega bug de view (colunas duplicadas de Kanban) escondido por dados happy-path.
+
 ## When to use
 
 - Novo job de limpeza/manutenção periódico (ex: purge de registros deletados)
@@ -25,10 +40,15 @@ Gera jobs de background em `server/src/jobs/` ou fixtures de seed em `my-app/fea
 ## Repository patterns to inspect first
 
 ```
-server/src/jobs/PurgeDeletedRecords.ts
-my-app/features/dev/seed/
+server/src/jobs/PurgeDeletedRecords.ts                  ← background job (Prisma direto)
+server/scripts/seed-crm-demo.js                         ← seed de VOLUME idempotente (Prisma direto)
+my-app/features/dev/seed/                               ← seed fixtures via API (SeedService + módulos Seed*.ts)
 server/src/lib/logger.ts
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+`server/scripts/seed-crm-demo.js` — seed de volume perfeito em idempotência: cada registro leva `data.__demo = true`; no início, `clearDemo(tableId)` faz `findMany` → filtra `r.data.__demo === true` → `deleteMany` ANTES de reinserir (re-rodar nunca duplica). Cria a `DynamicTable` sob demanda quando o preset selecionável não está instalado (`ensureTable` com `internalName`/`category`/`schema`), resolve tabelas/pais por `internalName` (`getTable`), usa `createMany` para volume e `createRow` individual só quando precisa do `id` para FKs, e cobre a variabilidade que a view ramifica (leads espalhados por todas as etapas do pipeline, múltiplos status/scores, datas passadas/futuras). Cabeçalho documenta o bypass do rule engine. (Para background job periódico, espelhe `server/src/jobs/PurgeDeletedRecords.ts`.) Leia-o ANTES de gerar.
 
 ## Generation contract
 
@@ -81,3 +101,6 @@ cd server && npx tsc --noEmit
 - Seeds de dev não devem rodar em produção — guard com `if (process.env.NODE_ENV === 'production') return`
 - Seed de volume sem marca `__demo` + cleanup = duplica a cada execução; sempre torne idempotente
 - Não resolva tabelas/pais por posição de array (`[0]`) — a ordenação da API (`createdAt desc`) difere do `findMany`; resolva por `internalName`/`id`
+- Não deixe um job periódico sem agendamento registrado no boot — declarar o cron/intervalo, senão o job nunca roda
+- Não use Prisma direto sem documentar o bypass — anote no topo que pula factory/validação/rules/policy (aceitável em seed/job, mas explícito)
+- Não escreva seed de volume idempotente sem cleanup dos `__demo` anteriores — re-rodar tem que ser seguro; sem isso, duplica

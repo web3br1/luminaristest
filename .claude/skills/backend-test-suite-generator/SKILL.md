@@ -11,6 +11,42 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 
 Gera arquivos `.test.ts` / `.spec.ts` alinhados com os padrões de teste reais do repositório: factory builders, `jest.clearAllMocks()` no `beforeEach`, `toBeCloseTo` para floats, e asserções de segurança (tenant isolation, LGPD). É a skill correta quando o usuário pede "quero testes para X" ou quando um KPI processor novo precisa de cobertura de regressão.
 
+## Contrato obrigatório
+
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (camadas, no-`any`, soft-delete, money math, testes, verificação) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Test Suite**.
+
+## Checklist obrigatório — Test Suite
+
+Toda suíte gerada cumpre, por tipo:
+
+**Universal (todos os tipos):**
+- [ ] `beforeEach(() => jest.clearAllMocks())` — sempre, no topo do `describe` raiz. Sem isso, mocks vazam estado entre testes.
+- [ ] Floats monetários comparados com `toBeCloseTo(value, 2)` — **nunca** `toBe`/`toEqual` (drift de ponto flutuante).
+- [ ] `referenceDate` **fixo** (`new Date('YYYY-MM-DDT00:00:00Z')` hardcoded) — nunca `new Date()` sem âncora; senão o teste vira não-determinístico.
+- [ ] Não testar só happy path — cobrir também NotFoundError, ForbiddenError e input inválido onde aplicável.
+
+**Service test:**
+- [ ] Factory builder `buildService(overrides?)` presente — `new <Resource>Service({ ...mockRepo, ...overrides }, mockPolicy)`.
+- [ ] `mockPolicy` com todos os `can*` mockados; default `mockReturnValue(true)`, override pontual com `mockReturnValueOnce(false)`.
+- [ ] Cobre: `getById` retorna recurso; `getById` lança `NotFoundError` quando `null`; `getById` lança `ForbiddenError` quando policy nega; `delete` chama `softDelete` (não hard-delete).
+
+**Security / tenant isolation test:**
+- [ ] Acesso a recurso de **outro** usuário lança `NotFoundError` (**NÃO** `ForbiddenError`) — não revelar existência previne enumeration attack.
+- [ ] Verifica que o repositório é chamado com o `userId` do actor (`expect.objectContaining({ userId })`).
+
+**KPI processor test:**
+- [ ] **Suíte Empty Safety obrigatória:** rows vazios (`rows: []`) → todo `value` é finito (`Number.isFinite`) e **0**, nunca `NaN`/`Infinity`.
+- [ ] **Math Suite:** acumula corretamente excluindo negativos e status configurados (ex.: `1500 + 500`, `-100` excluído).
+- [ ] **Float Safety Suite:** 1000 × R$0,10 = R$100,00 exatos via `toBeCloseTo(100, 2)`.
+- [ ] `previousValue` é `undefined` (ou number) quando não há dados no período anterior — nunca asserir `0`.
+- [ ] Rows no shape real `{ id, data: { ...campos } }`; pontos identificados por `name`, não `id`.
+- [ ] Chamar o processor **direto** com dados mock (sem `jest.mock`) — é função pura; não mocke `DataSanitizer`.
+
+**Middleware test:**
+- [ ] Cobre token ausente/inválido (rejeita) e token válido (popula `req` user context) — ver `auth.test.ts`.
+
+> Referências por tipo (já existem; complete a partir delas): `kpi` → `revenue/__tests__/RevenueKpiProcessor.test.ts`; `service` → `users/__tests__/user-deletion-qdrant.test.ts`; `security` → `documents/__tests__/rag-tenant-isolation.test.ts`; `middleware` → `middleware/__tests__/auth.test.ts`.
+
 ## When to use
 
 - Novo KPI processor criado via `analytics-kpi-generator` — adicionar suíte de regressão
@@ -35,6 +71,15 @@ server/src/middleware/__tests__/auth.test.ts                                    
 server/src/features/dynamicTables/__tests__/transaction-rollback.test.ts           ← transaction integrity
 server/jest.config.js                                                               ← test runner config
 ```
+
+## ⭐ Exemplo de referência canônico (espelhe este arquivo)
+
+Por TIPO de suíte — leia o golden correspondente ANTES de gerar:
+
+- **kpi-processor** → `server/src/features/analytics/kpis/revenue/__tests__/RevenueKpiProcessor.test.ts` — `referenceDate` fixo (`new Date('2024-03-15T12:00:00Z')`), suíte "Edge Cases (QA Gold Standard)" com QA-4 (Empty Safety: rows vazios → `Number.isFinite` e nunca `NaN`), QA-2 (exclui negativos), QA-3 (timezone/midnight leap) e `previousValue` `undefined` quando o campo não está configurado. (Para a estrutura multi-suíte Math/Float/Timezone/Empty nomeada, ver também `analytics/kpis/sales/__tests__/SalesProfitByProductProcessor.test.ts`, que valida 1000 × R$0,10 = R$100,00 sem drift.)
+- **service** → `server/src/features/users/__tests__/user-deletion-qdrant.test.ts` — factory `buildService(overrides)`, `mockPolicy`/`mockRepo` padronizados, `beforeEach(() => jest.clearAllMocks())` e ordering de segurança (Qdrant antes do SQL delete).
+- **security / tenant-isolation** → `server/src/features/documents/__tests__/rag-tenant-isolation.test.ts` — `jest.mock` de prisma/logger, ownership check antes do vector store, asserção de que `vectorRepository.search` NÃO é chamado em acesso cross-tenant.
+- **middleware** → `server/src/middleware/__tests__/auth.test.ts` — JWT válido/expirado/ausente, bypass de rota pública, enforcement admin-only.
 
 ## Generation contract — KPI Processor test
 
@@ -260,3 +305,6 @@ Required check (frontend): `cd my-app && npx vitest run`. Arquivos: `my-app/**/_
 - **Não hardcode datas relativas** — use `referenceDate: new Date('YYYY-MM-DDT00:00:00Z')` fixo para garantir reprodutibilidade independente de quando o teste roda
 - **Não teste apenas happy path** — todo service test deve incluir: NotFoundError, ForbiddenError, e validação de input inválido
 - **Não use `toEqual` para floats** — sempre `toBeCloseTo(value, 2)` para valores monetários calculados
+- **Não instancie o service inline em cada teste** — use o factory `buildService(overrides?)` para manter mocks consistentes e permitir override pontual de repo
+- **Não omita a suíte Empty Safety em KPI processor** — rows vazios devem render `0` finito, nunca `NaN`/`Infinity`; é a regressão mais comum
+- **Não asserir `previousValue === 0` sem dados no período anterior** — o contrato é `undefined`; aceite `undefined` ou `number`
