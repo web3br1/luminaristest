@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { useTranslation } from 'next-i18next';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -23,11 +24,12 @@ interface CalendarEvent {
  * Mirrors the legacy LeadsView MeetingsCalendar but isolated under the CRM module.
  */
 export function MeetingsCalendar() {
+  const { t } = useTranslation('crm');
   const { loading: loadingActs, rows: activities } = useCrmTable('leadActivities');
   const { rows: leads } = useCrmTable('leads');
 
   const events = useMemo<CalendarEvent[]>(() => {
-    const nameById = new Map(leads.map((l) => [l.id, String(l.data?.leadName ?? 'Lead')]));
+    const nameById = new Map(leads.map((l) => [l.id, String(l.data?.leadName ?? t('detail.unnamed_lead', 'Unnamed lead'))]));
 
     // Cancelled meeting instances, keyed by leadId + ISO start.
     const cancelled = new Set<string>();
@@ -47,7 +49,8 @@ export function MeetingsCalendar() {
         const when = actPayload?.when ?? a.data?.when ?? a.updatedAt ?? a.createdAt;
         const startIso = new Date(String(when)).toISOString();
         const endIso = new Date(new Date(startIso).getTime() + MEETING_DURATION_MS).toISOString();
-        return { id: a.id, leadId, title: `Reunião - ${nameById.get(leadId) ?? 'Lead'}`, start: startIso, end: endIso };
+        const title = t('meetings.event_title', { name: nameById.get(leadId) ?? t('detail.unnamed_lead', 'Unnamed lead'), defaultValue: 'Reunião - {{name}}' });
+        return { id: a.id, leadId, title, start: startIso, end: endIso };
       })
       .filter((ev) => {
         const isFuture = new Date(ev.start).getTime() >= Date.now();
@@ -55,12 +58,12 @@ export function MeetingsCalendar() {
         return isFuture && !isCancelled;
       })
       .map(({ id, leadId, title, start, end }) => ({ id, leadId, title, start, end }));
-  }, [activities, leads]);
+  }, [activities, leads, t]);
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
       <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
-        {loadingActs ? 'Carregando…' : `${events.length} reuniões encontradas`}
+        {loadingActs ? t('meetings.loading', 'Carregando…') : t('meetings.count', { count: events.length, defaultValue: '{{count}} reuniões encontradas' })}
       </p>
       <FullCalendar
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}

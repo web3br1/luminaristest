@@ -7,9 +7,9 @@ import type { GetServerSideProps, GetServerSidePropsContext } from 'next';
 import withAuth from '../../lib/hoc/withAuth';
 import { CrmProvider } from '../../lib/context/CrmContext';
 import { useCrmData } from '../../features/crm/hooks/useCrmData';
-import { CrmKpiCard } from '../../features/crm/components/CrmKpiCard';
+import DashboardKpiCard from '../../features/dashboard/category-views/finance/components/analytics/dashboard/DashboardKpiCard';
 import { LeadCard } from '../../features/crm/components/LeadCard';
-import { CrmNav } from '../../features/crm/components/CrmNav';
+import { CrmLayout } from '../../features/crm/components/CrmLayout';
 import { GradientHeader } from '../../features/crm/components/ui/GradientHeader';
 
 function CrmOverviewInner() {
@@ -28,9 +28,7 @@ function CrmOverviewInner() {
   const currency = (n: number) => `R$ ${n.toLocaleString('pt-BR')}`;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6">
-      <CrmNav />
-
+    <CrmLayout>
       <GradientHeader
         avatar="CRM"
         title={t('overview.title', 'CRM — Visão Geral')}
@@ -51,12 +49,12 @@ function CrmOverviewInner() {
         </div>
       ) : null}
 
-      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
-        <CrmKpiCard label={t('kpi.total', 'Total de Leads')} value={loading ? '—' : String(kpis.totalLeads)} />
-        <CrmKpiCard label={t('kpi.open', 'Em aberto')} value={loading ? '—' : String(kpis.openLeads)} />
-        <CrmKpiCard label={t('kpi.won', 'Ganhos')} value={loading ? '—' : String(kpis.wonLeads)} tone="positive" />
-        <CrmKpiCard label={t('kpi.pipeline_value', 'Valor do Pipeline')} value={loading ? '—' : currency(kpis.pipelineValue)} />
-        <CrmKpiCard label={t('kpi.win_rate', 'Win Rate')} value={loading ? '—' : `${kpis.winRate}%`} tone={kpis.winRate >= 50 ? 'positive' : 'default'} />
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+        <DashboardKpiCard title={t('kpi.total', 'Total de Leads')} value={loading ? '—' : String(kpis.totalLeads)} change="" trend="flat" details={[]} showGraph={false} />
+        <DashboardKpiCard title={t('kpi.open', 'Em aberto')} value={loading ? '—' : String(kpis.openLeads)} change="" trend="flat" details={[]} showGraph={false} />
+        <DashboardKpiCard title={t('kpi.won', 'Ganhos')} value={loading ? '—' : String(kpis.wonLeads)} change="" trend="flat" details={[]} showGraph={false} />
+        <DashboardKpiCard title={t('kpi.pipeline_value', 'Valor do Pipeline')} value={loading ? '—' : currency(kpis.pipelineValue)} change="" trend="flat" details={[]} isCurrency showGraph={false} />
+        <DashboardKpiCard title={t('kpi.win_rate', 'Win Rate')} value={loading ? '—' : `${kpis.winRate}%`} change="" trend="flat" details={[]} showGraph={false} />
       </div>
 
       <h2 className="mb-3 mt-8 text-[11px] font-black uppercase tracking-widest text-gray-400">
@@ -73,7 +71,7 @@ function CrmOverviewInner() {
           ))}
         </div>
       )}
-    </div>
+    </CrmLayout>
   );
 }
 

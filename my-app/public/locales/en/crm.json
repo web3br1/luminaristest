@@ -14,7 +14,30 @@
   },
   "analytics": {
     "title": "CRM — Analytics",
-    "subtitle": "Funnel, conversion and qualification KPIs"
+    "subtitle": "Funnel, conversion and qualification KPIs",
+    "period": {
+      "this_month": "This month",
+      "last_month": "Last month",
+      "this_year": "This year"
+    },
+    "cards": {
+      "total_leads": "Total Leads",
+      "new_leads": "New Leads",
+      "won_leads": "Won",
+      "win_rate": "Win Rate",
+      "pipeline_value": "Pipeline Value",
+      "forecast": "Weighted Forecast",
+      "avg_ticket": "Average Ticket",
+      "avg_cycle": "Average Cycle"
+    },
+    "charts": {
+      "funnel": "Conversion funnel",
+      "source": "Source attribution",
+      "status": "Leads by status",
+      "bant": "BANT strength (%)",
+      "proposals": "Proposals by status",
+      "activities": "Activities by type"
+    }
   },
   "overview": {
     "title": "CRM — Overview",
@@ -35,9 +58,20 @@
     "subtitle": "Funnel management by stage",
     "back": "← Overview",
     "no_stages": "No stages configured.",
-    "empty_stage": "No records"
+    "empty_stage": "No records",
+    "new_lead": "New Lead"
+  },
+  "capture": {
+    "title": "Record Proposal",
+    "subtitle": "Enter the proposal details to move the lead to",
+    "amount": "Amount",
+    "currency": "Currency",
+    "win_probability": "Win %",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
   },
   "detail": {
+    "title": "Lead",
     "back": "← Pipeline",
     "score": "Score",
     "advance": "Advance to",
@@ -48,12 +82,15 @@
     "need": "Need",
     "timing": "Timing",
     "contact": "Contact",
+    "email": "Email",
     "phone": "Phone",
     "status": "Status",
+    "unnamed_lead": "Unnamed lead",
     "not_found": "Lead not found."
   },
   "contacts": {
     "title": "Contacts",
+    "subtitle": "People and contacts across your accounts",
     "name": "Name",
     "phone": "Phone",
     "job": "Job Title",
@@ -62,6 +99,7 @@
   },
   "accounts": {
     "title": "Accounts",
+    "subtitle": "Companies and organizations in your pipeline",
     "name": "Company",
     "segment": "Segment",
     "size": "Size",
@@ -70,6 +108,7 @@
   },
   "proposals": {
     "title": "Proposals",
+    "subtitle": "Commercial proposals and their status",
     "amount": "Amount",
     "win": "Win %",
     "eta": "Close date",
@@ -77,9 +116,23 @@
   },
   "activities": {
     "title": "Activities",
-    "empty": "No activities recorded."
+    "empty": "No activities recorded.",
+    "types": {
+      "note": "Note",
+      "call": "Call",
+      "email": "Email",
+      "meeting": "Meeting",
+      "meeting_no_show": "No-show",
+      "meeting_cancelled": "Cancelled meeting",
+      "proposal": "Proposal",
+      "stage_change": "Stage change",
+      "status_change": "Status change"
+    }
   },
   "meetings": {
-    "title": "Meetings"
+    "title": "Meetings",
+    "loading": "Loading…",
+    "count": "{{count}} meetings found",
+    "event_title": "Meeting - {{name}}"
   }
 }

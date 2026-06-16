@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'next-i18next';
 import type { CrmRecord } from '../hooks/useCrmData';
 import { ScoreGauge } from './ui/ScoreGauge';
 import { DEFAULT_CURRENCY } from '../lib/constants';
@@ -9,6 +10,7 @@ interface LeadCardProps {
 }
 
 export function LeadCard({ lead, onClick }: LeadCardProps) {
+  const { t } = useTranslation('crm');
   const d = lead.data || {};
   return (
     <button
@@ -19,7 +21,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-black text-gray-900 dark:text-white">
-            {String(d.leadName ?? 'Lead sem nome')}
+            {String(d.leadName ?? t('detail.unnamed_lead', 'Unnamed lead'))}
           </p>
           {d.source ? (
             <p className="truncate text-[11px] font-semibold italic text-gray-400">{String(d.source)}</p>

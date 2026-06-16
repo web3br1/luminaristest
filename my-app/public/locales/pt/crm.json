@@ -14,7 +14,30 @@
   },
   "analytics": {
     "title": "CRM — Analytics",
-    "subtitle": "KPIs do funil, conversão e qualificação"
+    "subtitle": "KPIs do funil, conversão e qualificação",
+    "period": {
+      "this_month": "Este mês",
+      "last_month": "Mês anterior",
+      "this_year": "Este ano"
+    },
+    "cards": {
+      "total_leads": "Total de Leads",
+      "new_leads": "Novos Leads",
+      "won_leads": "Ganhos",
+      "win_rate": "Win Rate",
+      "pipeline_value": "Valor do Pipeline",
+      "forecast": "Forecast Ponderado",
+      "avg_ticket": "Ticket Médio",
+      "avg_cycle": "Ciclo Médio"
+    },
+    "charts": {
+      "funnel": "Funil de conversão",
+      "source": "Atribuição por fonte",
+      "status": "Leads por status",
+      "bant": "Força BANT (%)",
+      "proposals": "Propostas por status",
+      "activities": "Atividades por tipo"
+    }
   },
   "overview": {
     "title": "CRM — Visão Geral",
@@ -35,9 +58,20 @@
     "subtitle": "Gestão do funil por etapa",
     "back": "← Visão Geral",
     "no_stages": "Nenhuma etapa configurada.",
-    "empty_stage": "Sem registros"
+    "empty_stage": "Sem registros",
+    "new_lead": "Novo Lead"
+  },
+  "capture": {
+    "title": "Registrar Proposta",
+    "subtitle": "Informe os dados da proposta para mover o lead para",
+    "amount": "Valor",
+    "currency": "Moeda",
+    "win_probability": "Win %",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar"
   },
   "detail": {
+    "title": "Lead",
     "back": "← Pipeline",
     "score": "Score",
     "advance": "Avançar para",
@@ -48,12 +82,15 @@
     "need": "Need",
     "timing": "Timing",
     "contact": "Contato",
+    "email": "Email",
     "phone": "Telefone",
     "status": "Status",
+    "unnamed_lead": "Lead sem nome",
     "not_found": "Lead não encontrado."
   },
   "contacts": {
     "title": "Contatos",
+    "subtitle": "Pessoas e contatos das suas contas",
     "name": "Nome",
     "phone": "Telefone",
     "job": "Cargo",
@@ -62,6 +99,7 @@
   },
   "accounts": {
     "title": "Contas",
+    "subtitle": "Empresas e organizações no seu pipeline",
     "name": "Empresa",
     "segment": "Segmento",
     "size": "Porte",
@@ -70,6 +108,7 @@
   },
   "proposals": {
     "title": "Propostas",
+    "subtitle": "Propostas comerciais e seus status",
     "amount": "Valor",
     "win": "Win %",
     "eta": "Fechamento",
@@ -77,9 +116,23 @@
   },
   "activities": {
     "title": "Atividades",
-    "empty": "Nenhuma atividade registrada."
+    "empty": "Nenhuma atividade registrada.",
+    "types": {
+      "note": "Nota",
+      "call": "Ligação",
+      "email": "E-mail",
+      "meeting": "Reunião",
+      "meeting_no_show": "Não compareceu",
+      "meeting_cancelled": "Reunião cancelada",
+      "proposal": "Proposta",
+      "stage_change": "Mudança de etapa",
+      "status_change": "Mudança de status"
+    }
   },
   "meetings": {
-    "title": "Reuniões"
+    "title": "Reuniões",
+    "loading": "Carregando…",
+    "count": "{{count}} reuniões encontradas",
+    "event_title": "Reunião - {{name}}"
   }
 }

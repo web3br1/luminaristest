@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DynamicTableService } from '../../../lib/services/dynamic-table.service';
 import { fetchAllRows } from '../lib/crmFetch';
 
@@ -118,6 +118,10 @@ export function useCrmData(): CrmData {
     void reload();
   }, [reload]);
 
+  // Single-pass aggregation over all leads — memoize so unrelated context/render
+  // churn doesn't recompute it (contract §3).
+  const kpis = useMemo(() => computeKpis(leads), [leads]);
+
   return {
     loading,
     error,
@@ -125,7 +129,7 @@ export function useCrmData(): CrmData {
     leads,
     stages,
     pipelines,
-    kpis: computeKpis(leads),
+    kpis,
     reload,
   };
 }

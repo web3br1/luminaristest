@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
@@ -10,7 +10,7 @@ import { useCrmData, type CrmRecord } from '../../../features/crm/hooks/useCrmDa
 import { CrmService } from '../../../lib/services/crm.service';
 import { resolveErrorMessage } from '../../../lib/utils/error-handler';
 import { notify } from '../../../lib/notifications/notify';
-import { CrmNav } from '../../../features/crm/components/CrmNav';
+import { CrmLayout } from '../../../features/crm/components/CrmLayout';
 import { GradientHeader } from '../../../features/crm/components/ui/GradientHeader';
 import { ScoreGauge } from '../../../features/crm/components/ui/ScoreGauge';
 import { StatusBadge } from '../../../features/crm/components/ui/StatusBadge';
@@ -35,11 +35,13 @@ function LeadDetailInner() {
   const lead: CrmRecord | undefined = leads.find((l) => l.id === leadId);
   const d = lead?.data ?? {};
 
-  const orderedStages = [...stages]
-    .filter((s) => String(s.data?.pipelineId ?? '') === String(d.pipelineId ?? ''))
-    .sort((a, b) => Number(a.data?.order ?? 0) - Number(b.data?.order ?? 0));
-  const currentIdx = orderedStages.findIndex((s) => s.id === String(d.stageId ?? ''));
-  const nextStage = currentIdx >= 0 ? orderedStages[currentIdx + 1] : undefined;
+  const nextStage = useMemo(() => {
+    const ordered = [...stages]
+      .filter((s) => String(s.data?.pipelineId ?? '') === String(d.pipelineId ?? ''))
+      .sort((a, b) => Number(a.data?.order ?? 0) - Number(b.data?.order ?? 0));
+    const idx = ordered.findIndex((s) => s.id === String(d.stageId ?? ''));
+    return idx >= 0 ? ordered[idx + 1] : undefined;
+  }, [stages, d.pipelineId, d.stageId]);
 
   const handleAdvance = async () => {
     if (!lead || !nextStage) return;
@@ -59,8 +61,7 @@ function LeadDetailInner() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6">
-      <CrmNav />
+    <CrmLayout>
       <Link href="/crm/pipeline" className="text-[11px] font-black uppercase tracking-widest text-blue-600 hover:underline dark:text-blue-400">
         {t('detail.back', '← Pipeline')}
       </Link>
@@ -73,7 +74,7 @@ function LeadDetailInner() {
         <div className="mt-4 space-y-6">
           <GradientHeader
             avatar={String(d.leadName ?? 'L')}
-            title={String(d.leadName ?? 'Lead')}
+            title={String(d.leadName ?? t('detail.unnamed_lead', 'Unnamed lead'))}
             subtitle={String(d.source ?? '')}
             badges={<StatusBadge status={String(d.status ?? 'Open')} />}
             right={
@@ -100,7 +101,7 @@ function LeadDetailInner() {
           <SectionCard title={t('detail.contact', 'Contato')}>
             <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
               <div>
-                <dt className="text-[10px] font-black uppercase tracking-widest text-gray-400">Email</dt>
+                <dt className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('detail.email', 'Email')}</dt>
                 <dd className="mt-0.5 font-bold text-gray-800 dark:text-gray-200">{String(d.email ?? '—')}</dd>
               </div>
               <div>
@@ -115,7 +116,7 @@ function LeadDetailInner() {
           </SectionCard>
         </div>
       )}
-    </div>
+    </CrmLayout>
   );
 }
 

@@ -1,12 +1,13 @@
 import React from 'react';
+import { useTranslation } from 'next-i18next';
 
 const SCALE: Record<string, number> = { Low: 33, Medium: 66, High: 100, Urgent: 100, Short: 75, Medium2: 50, Long: 25 };
 
-const ITEMS: { label: string; key: string }[] = [
-  { label: 'Budget', key: 'bantBudget' },
-  { label: 'Authority', key: 'bantAuthority' },
-  { label: 'Need', key: 'bantNeed' },
-  { label: 'Timing', key: 'bantTiming' },
+const ITEMS: { labelKey: string; key: string }[] = [
+  { labelKey: 'detail.budget', key: 'bantBudget' },
+  { labelKey: 'detail.authority', key: 'bantAuthority' },
+  { labelKey: 'detail.need', key: 'bantNeed' },
+  { labelKey: 'detail.timing', key: 'bantTiming' },
 ];
 
 function pctFor(value: string | undefined): number {
@@ -16,6 +17,7 @@ function pctFor(value: string | undefined): number {
 
 /** BANT qualification bars (Budget / Authority / Need / Timing). */
 export function BantBars({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslation('crm');
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {ITEMS.map((it) => {
@@ -26,7 +28,7 @@ export function BantBars({ data }: { data: Record<string, unknown> }) {
         return (
           <div key={it.key}>
             <div className="mb-1 flex justify-between text-[10px] font-black uppercase tracking-widest text-gray-400">
-              <span>{it.label}</span>
+              <span>{t(it.labelKey)}</span>
               <span>{value ?? '—'}</span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 shadow-inner dark:bg-neutral-800">

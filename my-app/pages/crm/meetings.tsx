@@ -5,27 +5,33 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import type { GetServerSideProps, GetServerSidePropsContext } from 'next';
 import withAuth from '../../lib/hoc/withAuth';
 import { CrmProvider } from '../../lib/context/CrmContext';
-import { CrmNav } from '../../features/crm/components/CrmNav';
+import { CrmLayout } from '../../features/crm/components/CrmLayout';
+
+// Translated loading state — rendered in-component (where `t` is available)
+// since `t` cannot be reached at module scope (mirrors CrmTableScreen).
+function CrmLoading() {
+  const { t } = useTranslation('crm');
+  return <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">{t('common.loading', 'Loading…')}</p>;
+}
 
 // FullCalendar does not render server-side — load the calendar client-only.
 const MeetingsCalendar = dynamic(
   () => import('../../features/crm/components/MeetingsCalendar').then((m) => m.MeetingsCalendar),
   {
     ssr: false,
-    loading: () => <p className="text-sm text-gray-500 dark:text-gray-400">Carregando calendário…</p>,
+    loading: () => <CrmLoading />,
   },
 );
 
 function MeetingsInner() {
   const { t } = useTranslation('crm');
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
-      <CrmNav />
+    <CrmLayout>
       <h1 className="mb-4 text-2xl font-black tracking-tight text-gray-900 dark:text-white">
         {t('meetings.title', 'Reuniões')}
       </h1>
       <MeetingsCalendar />
-    </div>
+    </CrmLayout>
   );
 }
 
