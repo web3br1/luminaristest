@@ -6,6 +6,7 @@ import { DynamicTableService } from '../../../lib/services/dynamic-table.service
 import { CrmService, type AdvanceStagePayload } from '../../../lib/services/crm.service';
 import type { ITableSchema } from '../../dashboard/components/shared/dynamic-tables.client';
 import { useCrmData, type CrmRecord } from './useCrmData';
+import { useOwnerFilter, type OwnerOption } from './useOwnerFilter';
 
 /** A pipeline stage projected as a Kanban column. */
 export interface PipelineColumn {
@@ -38,10 +39,22 @@ export interface CrmPipelineBoardState {
   setActivePipelineId: (id: string) => void;
   columns: PipelineColumn[];
   leadsByStage: Map<string, CrmRecord[]>;
+  /** Flat lookup of ALL (unfiltered) leads by id — for modal resolution that must
+   *  survive the owner filter (a filtered-out lead shouldn't close an open modal). */
+  leadById: Map<string, CrmRecord>;
   activeLead: CrmRecord | null;
   /** Leads table id + schema, for the FloatingActionButton create-lead form. */
   leadsTableId: string | null;
   leadsSchema: ITableSchema | null;
+  /** Owner ("vendedor") filter — options + selection, applied to the board. */
+  ownerOptions: OwnerOption[];
+  selectedOwnerId: string;
+  setSelectedOwnerId: (id: string) => void;
+  showOwnerFilter: boolean;
+  /** "Meus registros" toggle state + gate (only usable when the user maps to an owner). */
+  mine: boolean;
+  setMine: (mine: boolean) => void;
+  canUseMine: boolean;
   /** Set while a drop targeted a `proposal` stage and awaits amount input. */
   pendingProposal: PendingProposal | null;
   handleDragStart: (event: DragStartEvent) => void;
@@ -133,16 +146,39 @@ export function useCrmPipelineBoard(): CrmPipelineBoardState {
     [stages, activePipelineId],
   );
 
+  // Owner ("vendedor") filter — auto-detected from the leads schema relation.
+  const {
+    options: ownerOptions,
+    selectedOwnerId,
+    setSelectedOwnerId,
+    hasMultipleOwners,
+    mine,
+    setMine,
+    canUseMine,
+    filterByOwner,
+  } = useOwnerFilter(leadsSchema, leads);
+
+  // Apply the owner filter to the optimistic leads before grouping into columns.
+  const visibleLeads = useMemo(() => filterByOwner(localLeads), [filterByOwner, localLeads]);
+
+  // Flat lookup over the UNFILTERED optimistic leads — modal resolution must not be
+  // affected when the owner filter hides a lead while its detail modal is open.
+  const leadById = useMemo(() => {
+    const m = new Map<string, CrmRecord>();
+    for (const l of localLeads) m.set(l.id, l);
+    return m;
+  }, [localLeads]);
+
   const leadsByStage = useMemo(() => {
     const m = new Map<string, CrmRecord[]>();
-    for (const l of localLeads) {
+    for (const l of visibleLeads) {
       const sid = String(l.data?.stageId ?? '');
       const bucket = m.get(sid);
       if (bucket) bucket.push(l);
       else m.set(sid, [l]);
     }
     return m;
-  }, [localLeads]);
+  }, [visibleLeads]);
 
   const setActivePipelineId = useCallback((id: string) => setPipelineOverride(id), []);
 
@@ -260,9 +296,17 @@ export function useCrmPipelineBoard(): CrmPipelineBoardState {
     setActivePipelineId,
     columns,
     leadsByStage,
+    leadById,
     activeLead,
     leadsTableId,
     leadsSchema,
+    ownerOptions,
+    selectedOwnerId,
+    setSelectedOwnerId,
+    showOwnerFilter: hasMultipleOwners,
+    mine,
+    setMine,
+    canUseMine,
     pendingProposal,
     handleDragStart,
     handleDragEnd,

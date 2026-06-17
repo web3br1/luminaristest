@@ -27,6 +27,7 @@ import { sortRecords, type SortOption } from './SortSelect';
 import { getSearchableFields } from './utils/sortUtils';
 import { useGenericData } from './hooks/useGenericData';
 import { GenericTable } from './components/GenericTable';
+import { useOwnerFilter, OWNER_FILTER_ALL } from '../../../crm/hooks/useOwnerFilter';
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -39,6 +40,13 @@ interface GenericTabbedViewProps {
     addButtonLabel?: string;
     isWidgetMode?: boolean;
     categoryKey?: string;
+    /**
+     * Opt-in (CRM table screens). When true, an owner ("vendedor") <select> +
+     * "Meus registros" toggle are rendered (gated on multiple owners) and the
+     * fetched rows are filtered by owner BEFORE reaching the table. Default off —
+     * other dashboard consumers behave exactly as before.
+     */
+    enableOwnerFilter?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -58,8 +66,9 @@ export default function GenericTabbedView({
     addButtonLabel,
     isWidgetMode = false,
     categoryKey,
+    enableOwnerFilter = false,
 }: GenericTabbedViewProps) {
-    const { t } = useTranslation(['common', 'database']);
+    const { t } = useTranslation(['common', 'database', 'crm']);
     const [activeTableId, setActiveTableId] = useState<string>('');
     const [query, setQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -97,6 +106,30 @@ export default function GenericTabbedView({
         deleteRecord,
     } = useGenericData(activeTableId, tables);
 
+    // --- Owner ("vendedor") filter (opt-in: CRM table screens) ---
+    // Always called (Rules of Hooks); its UI + effect on rows are gated on
+    // `enableOwnerFilter` so other consumers are unaffected. Reuses the same
+    // detection/auth logic as the pipeline board (no duplication).
+    const {
+        options: ownerOptions,
+        selectedOwnerId,
+        setSelectedOwnerId,
+        hasMultipleOwners,
+        mine,
+        setMine,
+        canUseMine,
+        filterByOwner,
+    } = useOwnerFilter(schema, Array.isArray(records) ? records : []);
+
+    const showOwnerFilter = enableOwnerFilter && hasMultipleOwners;
+
+    // Owner-filtered rows feed the existing filter→sort→paginate pipeline. When the
+    // feature is off, this is the untouched `records` array (zero behavior change).
+    const ownerScopedRecords = useMemo(() => {
+        if (!enableOwnerFilter || !Array.isArray(records)) return records;
+        return filterByOwner(records);
+    }, [enableOwnerFilter, records, filterByOwner]);
+
     // --- Tab change ---
     const handleTabChange = useCallback((id: string) => {
         setActiveTableId(id);
@@ -124,8 +157,8 @@ export default function GenericTabbedView({
 
     // --- Filter → Sort → Paginate ---
     const filteredRecords = useMemo(() => {
-        if (!Array.isArray(records)) return [];
-        let result = records;
+        if (!Array.isArray(ownerScopedRecords)) return [];
+        let result = ownerScopedRecords;
 
         // 1. Text Search Query
         if (query.trim()) {
@@ -159,7 +192,7 @@ export default function GenericTabbedView({
         }
 
         return result;
-    }, [records, query, fieldFilters]);
+    }, [ownerScopedRecords, query, schema, fieldFilters]);
 
     const sortedRecords = useMemo(
         () => sortRecords(filteredRecords, sortConfig, relationLookups),
@@ -229,6 +262,39 @@ export default function GenericTabbedView({
                     fieldFilters={fieldFilters}
                     setFieldFilters={handleFieldFiltersChange}
                 />
+            )}
+
+            {/* Owner ("vendedor") filter — opt-in, gated on multiple owners */}
+            {!isWidgetMode && (showOwnerFilter || (enableOwnerFilter && canUseMine)) && (
+                <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+                    {showOwnerFilter && (
+                        <select
+                            value={selectedOwnerId}
+                            onChange={(e) => setSelectedOwnerId(e.target.value)}
+                            disabled={mine}
+                            aria-label={t('crm:owner_filter.label', 'Owner')}
+                            className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 disabled:opacity-50 dark:border-white/10 dark:bg-neutral-800 dark:text-gray-200"
+                        >
+                            <option value={OWNER_FILTER_ALL}>{t('crm:owner_filter.all', 'All owners')}</option>
+                            {ownerOptions.map((o) => (
+                                <option key={o.id} value={o.id}>
+                                    {o.name}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                    {enableOwnerFilter && canUseMine && (
+                        <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 dark:border-white/10 dark:bg-neutral-800 dark:text-gray-200">
+                            <input
+                                type="checkbox"
+                                checked={mine}
+                                onChange={(e) => setMine(e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-white/20 dark:bg-neutral-700"
+                            />
+                            {t('crm:owner_filter.mine', 'My records')}
+                        </label>
+                    )}
+                </div>
             )}
 
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-neutral-950 transition-colors">

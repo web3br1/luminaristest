@@ -7,6 +7,7 @@ import {
   updateTableData,
   deleteTableData,
   resolveRelations,
+  syncPreset,
 } from '@/controllers/dynamicTablesController';
 
 const router = Router();
@@ -14,6 +15,9 @@ const router = Router();
 // /api/dynamic-tables
 router.get('/', listTables);
 router.post('/lookup', resolveRelations);
+// Admin-only: additively evolve an installed table's schema from its preset module.
+// Declared before the /:tableId param routes so it is not captured as a table id.
+router.post('/sync-preset', syncPreset);
 
 // /api/dynamic-tables/:tableId
 router.get('/:tableId', getTable);

@@ -121,7 +121,7 @@ export function CrmTableScreen({ internalName, titleKey, descriptionKey }: CrmTa
   // + dark border keeps it on-brand.
   return (
     <div className="flex-1 min-h-0 overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800">
-      <GenericTabbedView tables={[table]} title={title} description={description} />
+      <GenericTabbedView tables={[table]} title={title} description={description} enableOwnerFilter />
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { LeadCard } from './LeadCard';
 import { Lead360Modal } from './Lead360Modal';
 import { ProposalCaptureModal } from './ProposalCaptureModal';
 import { useCrmPipelineBoard, type PipelineColumn } from '../hooks/useCrmPipelineBoard';
+import { OWNER_FILTER_ALL } from '../hooks/useOwnerFilter';
 import type { CrmRecord } from '../hooks/useCrmData';
 
 /** A draggable lead card (mirror of SortableTaskItem/useSortable). */
@@ -95,9 +96,17 @@ export function CrmPipelineBoard() {
     setActivePipelineId,
     columns,
     leadsByStage,
+    leadById,
     activeLead,
     leadsTableId,
     leadsSchema,
+    ownerOptions,
+    selectedOwnerId,
+    setSelectedOwnerId,
+    showOwnerFilter,
+    mine,
+    setMine,
+    canUseMine,
     pendingProposal,
     handleDragStart,
     handleDragEnd,
@@ -110,14 +119,12 @@ export function CrmPipelineBoard() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  const selectedLead = useMemo<CrmRecord | null>(() => {
-    if (!selectedLeadId) return null;
-    for (const list of Array.from(leadsByStage.values())) {
-      const found = list.find((l: CrmRecord) => l.id === selectedLeadId);
-      if (found) return found;
-    }
-    return null;
-  }, [selectedLeadId, leadsByStage]);
+  // Resolve from the UNFILTERED lead map so changing the owner filter (or filtering
+  // a lead out) while the Lead360 modal is open does not abruptly close it.
+  const selectedLead = useMemo<CrmRecord | null>(
+    () => (selectedLeadId ? leadById.get(selectedLeadId) ?? null : null),
+    [selectedLeadId, leadById],
+  );
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -131,6 +138,33 @@ export function CrmPipelineBoard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {showOwnerFilter ? (
+            <select
+              value={selectedOwnerId}
+              onChange={(e) => setSelectedOwnerId(e.target.value)}
+              disabled={mine}
+              aria-label={t('owner_filter.label', 'Vendedor')}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 disabled:opacity-50 dark:border-white/10 dark:bg-neutral-800 dark:text-gray-200"
+            >
+              <option value={OWNER_FILTER_ALL}>{t('owner_filter.all', 'Todos os vendedores')}</option>
+              {ownerOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {canUseMine ? (
+            <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 dark:border-white/10 dark:bg-neutral-800 dark:text-gray-200">
+              <input
+                type="checkbox"
+                checked={mine}
+                onChange={(e) => setMine(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-white/20 dark:bg-neutral-700"
+              />
+              {t('owner_filter.mine', 'Meus registros')}
+            </label>
+          ) : null}
           {pipelines.length > 1 ? (
             <select
               value={activePipelineId ?? ''}

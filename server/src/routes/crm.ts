@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { advanceStage, createProposal, recordNoShow, getCrmAnalytics } from '../controllers/crmController';
+import { advanceStage, convertLead, createProposal, recordNoShow, getCrmAnalytics } from '../controllers/crmController';
 
 const router = Router();
 
@@ -7,6 +7,7 @@ const router = Router();
 router.post('/pipeline/advance', advanceStage);
 router.post('/pipeline/proposal', createProposal);
 router.post('/pipeline/no-show', recordNoShow);
+router.post('/pipeline/convert-lead', convertLead);
 
 // CRM analytics — aggregated KPI bundle over the leads dataset.
 router.get('/pipeline-analytics', getCrmAnalytics);

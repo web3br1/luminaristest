@@ -35,6 +35,7 @@ import { LuminarisAgentService } from '../features/chat/services/LuminarisAgentS
 import { KnowledgeGraphService } from '../features/chat/services/KnowledgeGraphService';
 import { CrmPipelineService } from '../features/crm/services/CrmPipelineService';
 import { CrmAnalyticsService } from '../features/crm/services/CrmAnalyticsService';
+import { PresetSyncService } from '../features/dynamicTables/services/PresetSyncService';
 
 // Lib - External Services
 import { OpenAIService as ChatOpenAIService } from './openai/OpenAIService';
@@ -100,6 +101,7 @@ export class ApplicationFactory {
     knowledgeGraph: KnowledgeGraphService;
     crmPipeline: CrmPipelineService;
     crmAnalytics: CrmAnalyticsService;
+    presetSync: PresetSyncService;
   };
 
   private constructor() {
@@ -165,6 +167,11 @@ export class ApplicationFactory {
       this.repositories.dynamicTable
     );
 
+    const presetSyncService = new PresetSyncService(
+      dynamicTableService,
+      this.repositories.dynamicTable
+    );
+
     this.services = {
       chat: new ChatService(
         embeddingOpenAIService,
@@ -201,6 +208,7 @@ export class ApplicationFactory {
       knowledgeGraph: knowledgeGraphService,
       crmPipeline: crmPipelineService,
       crmAnalytics: crmAnalyticsService,
+      presetSync: presetSyncService,
     };
   }
 
@@ -225,6 +233,7 @@ export class ApplicationFactory {
   public getKnowledgeGraphService = (): KnowledgeGraphService => this.services.knowledgeGraph;
   public getCrmPipelineService = (): CrmPipelineService => this.services.crmPipeline;
   public getCrmAnalyticsService = (): CrmAnalyticsService => this.services.crmAnalytics;
+  public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
 
   // Repository Getters
   public getChatInstanceRepository = (): IChatInstanceRepository => this.repositories.chatInstance;

@@ -2,6 +2,8 @@ import type { Request, Response } from 'express';
 import { getFactory } from '@/lib/factory';
 import { handleApiError } from '@/lib/apiUtils';
 import { getUserContextFromRequest } from '@/lib/authUtils';
+import { ForbiddenError } from '@/lib/errors';
+import { Role } from '@/features/users/models/User.model';
 import { z } from 'zod';
 import {
   CreateDynamicTableDataDto,
@@ -9,6 +11,11 @@ import {
 } from '@/features/dynamicTables/dtos/DynamicTable.dto';
 
 const cuidSchema = z.string().cuid();
+
+/** Body schema for POST /api/dynamic-tables/sync-preset (admin-only, schema-mutating). */
+export const SyncPresetDto = z.object({
+  internalName: z.string().trim().min(1, { message: 'internalName é obrigatório.' }),
+});
 
 export async function listTables(req: Request, res: Response) {
   try {
@@ -112,6 +119,32 @@ export async function deleteTableData(req: Request, res: Response) {
     const service = getFactory().getDynamicTableService();
     await service.deleteTableData(ctx, req.params.dataId);
     return res.status(204).end();
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+}
+
+/**
+ * POST /api/dynamic-tables/sync-preset — additively evolve an installed table's schema
+ * from its preset module. ADMIN-ONLY: this mutates installed table schemas, so it is
+ * guarded by an explicit role check (ForbiddenError otherwise) on top of route auth.
+ */
+export async function syncPreset(req: Request, res: Response) {
+  try {
+    const ctx = getUserContextFromRequest(req);
+    if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    // Admin-only: schema-mutating operation.
+    if (ctx.role !== Role.ADMIN) {
+      throw new ForbiddenError('Apenas administradores podem sincronizar schemas de preset.');
+    }
+
+    const body = SyncPresetDto.safeParse(req.body);
+    if (!body.success) return res.status(400).json({ success: false, error: body.error.flatten() });
+
+    const service = getFactory().getPresetSyncService();
+    const result = await service.syncInstalledTableFromPreset(ctx, body.data.internalName);
+    return res.json({ success: true, data: result });
   } catch (error) {
     return handleApiError(error, res);
   }

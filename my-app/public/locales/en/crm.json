@@ -61,6 +61,31 @@
     "empty_stage": "No records",
     "new_lead": "New Lead"
   },
+  "owner_filter": {
+    "label": "Owner",
+    "all": "All owners",
+    "mine": "My records"
+  },
+  "convert": {
+    "button": "Convert Lead",
+    "converted_badge": "Converted",
+    "title": "Convert Lead",
+    "subtitle": "Create an account and a contact from this lead.",
+    "account_section": "Account",
+    "account_name": "Account name",
+    "account_name_ph": "Company name",
+    "segment": "Segment",
+    "size": "Size",
+    "website": "Website",
+    "city": "City",
+    "state": "State",
+    "contact_section": "Contact",
+    "contact_role": "Role",
+    "contact_job_title": "Job title",
+    "cancel": "Cancel",
+    "confirm": "Convert",
+    "converting": "Converting…"
+  },
   "capture": {
     "title": "Record Proposal",
     "subtitle": "Enter the proposal details to move the lead to",

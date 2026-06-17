@@ -42,6 +42,22 @@ export const leadsModule = {
         relation: { targetTable: '@@PRESET_TABLE_KEY::employees' },
         searchable: false,
       },
+      {
+        name: 'accountId',
+        label: 'Account',
+        type: 'relation',
+        required: false,
+        relation: { targetTable: '@@PRESET_TABLE_KEY::crmAccounts' },
+        searchable: false,
+      },
+      {
+        name: 'contactId',
+        label: 'Contact',
+        type: 'relation',
+        required: false,
+        relation: { targetTable: '@@PRESET_TABLE_KEY::crmContacts' },
+        searchable: false,
+      },
       notes,
       // --- BANT scoring ---
       { name: 'bantBudget',    label: 'BANT: Budget',    type: 'select', options: ['Low', 'Medium', 'High'],                   required: false, searchable: false },
@@ -61,6 +77,7 @@ export const leadsModule = {
       // --- Operational dates ---
       { name: 'lastContactAt', label: 'Last Contact At', type: 'datetime', required: false, readOnly: true, searchable: false },
       { name: 'nextActionAt',  label: 'Next Action At',  type: 'datetime', required: false,                searchable: false },
+      { name: 'convertedAt',   label: 'Converted At',    type: 'datetime', required: false, readOnly: true, searchable: false },
       // --- Latest proposal snapshot ---
       {
         name: 'latestProposalAmount',
@@ -92,7 +109,7 @@ export const leadsModule = {
         name: 'status',
         label: 'Lead Status',
         type: 'select',
-        options: ['Open', 'Won', 'Lost', 'Disqualified'],
+        options: ['Open', 'Won', 'Lost', 'Disqualified', 'Converted'],
         required: true,
         defaultValue: 'Open',
       },

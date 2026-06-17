@@ -39,13 +39,13 @@ export class DynamicTableService {
    * Throws a ValidationError on the first violation found.
    * Columns whose `targetTable` is a preset marker (@@PRESET_TABLE_KEY::...) are skipped.
    */
-  private async validateRelationTargetOwnership(userId: string, schema: ITableSchema): Promise<void> {
+  private async validateRelationTargetOwnership(userId: string, schema: ITableSchema, repo: IDynamicTableRepository = this.repository): Promise<void> {
     if (!Array.isArray(schema?.fields)) return;
     for (const field of schema.fields) {
       if (field.type !== 'relation' || !field.relation?.targetTable) continue;
       const targetId = field.relation.targetTable;
       if (typeof targetId === 'string' && targetId.startsWith('@@PRESET_TABLE_KEY::')) continue;
-      const targetTable = await this.repository.findTableById(targetId);
+      const targetTable = await repo.findTableById(targetId);
       if (!targetTable) {
         throw new ValidationError(
           `Relação inválida no campo '${field.label || field.name}': tabela alvo '${targetId}' não existe.`
@@ -203,7 +203,7 @@ export class DynamicTableService {
    * @param tableId The ID of the table to update.
    * @param data The new schema data.
    */
-  public async updateTableSchemaAsSystem(tableId: string, data: UpdateDynamicTableSchemaDtoType): Promise<IDynamicTable> {
+  public async updateTableSchemaAsSystem(tableId: string, data: UpdateDynamicTableSchemaDtoType, revalidateMode: 'full' | 'partial' | 'none' = 'full'): Promise<IDynamicTable> {
     const tableExists = await this.repository.findTableById(tableId);
     if (!tableExists) {
       throw new NotFoundError('Table not found.');
@@ -227,13 +227,21 @@ export class DynamicTableService {
       }
     }
     await this.validateRelationTargetOwnership(tableExists.userId, data.schema);
-    // 3) Revalidar dados existentes contra o novo schema e bloquear se inválidos
-    const existingData = await this.repository.findAllDataByTableId(tableId);
-    for (const row of existingData) {
-      try {
-        this.validateDataAgainstSchema(row.data as Record<string, unknown>, data.schema as unknown as ITableSchema);
-      } catch (err) {
-        throw new ValidationError('Schema update would invalidate existing data. Aborting update.', { dataId: row.id });
+    // 3) Revalidar dados existentes contra o novo schema e bloquear se inválidos.
+    // - 'full' (default): valida cada linha por completo (obrigatórios presentes + valores válidos).
+    // - 'partial': valida só os VALORES PRESENTES (não exige obrigatórios) — útil quando há dados stale.
+    // - 'none': pula a revalidação por linha. Usado APENAS por callers que provam que a mudança é
+    //   puramente aditiva (superset: nenhum campo/opção removido, nenhum obrigatório novo) — uma mudança
+    //   aditiva nunca invalida um valor já presente, então não deve ser bloqueada por dados pré-existentes
+    //   malformados (ex.: seed com obrigatório nulo) alheios à mudança. Ver PresetSyncService.
+    if (revalidateMode !== 'none') {
+      const existingData = await this.repository.findAllDataByTableId(tableId);
+      for (const row of existingData) {
+        try {
+          this.validateDataAgainstSchema(row.data as Record<string, unknown>, data.schema as unknown as ITableSchema, revalidateMode === 'partial');
+        } catch (err) {
+          throw new ValidationError('Schema update would invalidate existing data. Aborting update.', { dataId: row.id });
+        }
       }
     }
     return this.repository.updateTableSchema(tableId, data);
@@ -484,19 +492,26 @@ export class DynamicTableService {
     if (!this.policy.canManageData(user, table)) {
       throw new ForbiddenError('You do not have permission to add data to this table.');
     }
+    // When composing an atomic multi-write (options.tx), run validations against the SAME
+    // tx-bound repo so a write can validate against rows created earlier in the same tx
+    // (e.g. CRM lead conversion: contact references an account created moments ago in-tx).
+    // When no tx is supplied, fall back to the committed-state repository (default behavior).
+    const validationRepo: IDynamicTableRepository = options?.tx
+      ? new TransactionalDynamicTableRepository(options.tx)
+      : this.repository;
     // Guard: ensure every relation column's targetTable exists and belongs to this user.
     // This prevents a malicious client from probing or inserting data into cross-user tables.
-    await this.validateRelationTargetOwnership(table.userId, table.schema as unknown as ITableSchema);
+    await this.validateRelationTargetOwnership(table.userId, table.schema as unknown as ITableSchema, validationRepo);
     // isSystem is derived from the call context only — never from the client payload.
     // Strip __isSystem from the data before validation to ensure it is never stored.
     const isSystem = !!(options?.isSystem);
     const sanitizedData = { ...(dataDto.data as Record<string, unknown>) };
     delete sanitizedData.__isSystem;
     const validatedData = this.validateDataAgainstSchema(sanitizedData, table.schema as unknown as ITableSchema);
-    await this.validateAdvancedRules(table, validatedData);
-    await this.enforceNoOverlap(table, table.schema as unknown as ITableSchema, validatedData, isSystem);
+    await this.validateAdvancedRules(table, validatedData, undefined, validationRepo);
+    await this.enforceNoOverlap(table, table.schema as unknown as ITableSchema, validatedData, isSystem, validationRepo);
     // Rules: beforeCreate (validation-focused; runs outside transaction to avoid long locks)
-    await this.runRules({ userId: table.userId, table, schema: table.schema as unknown as ITableSchema, operation: 'create', before: null, after: validatedData, repository: this.repository, isSystem }, 'beforeCreate');
+    await this.runRules({ userId: table.userId, table, schema: table.schema as unknown as ITableSchema, operation: 'create', before: null, after: validatedData, repository: validationRepo, isSystem }, 'beforeCreate');
 
     // Wrap the main write + afterCreate side-effects in a single transaction so that
     // a plugin failure (e.g. SalesPlugin stock update) rolls back the record creation.
@@ -521,13 +536,15 @@ export class DynamicTableService {
    * compose atomically (all-or-nothing) — used by orchestration services to
    * avoid app-level compensation.
    *
-   * LIMITATION: the create/update VALIDATIONS (schema, relations, advanced rules,
-   * overlap, beforeX plugins) run against committed state via `this.repository`
-   * (non-tx), so a later write cannot validate against a row created by an
-   * earlier write IN THE SAME tx. Safe for independent or snapshot-style
-   * composed writes (e.g. the CRM pipeline: proposal create + lead snapshot
-   * update). Do NOT compose writes whose validation must see a prior in-tx row
-   * until validations are made tx-aware.
+   * TX-AWARE VALIDATIONS: when `options.tx` is supplied, the create/update
+   * VALIDATIONS (relation existence/ownership, advanced rules — uniqueness,
+   * relation targets, compositeUnique — overlap, and beforeX plugins) run against
+   * the SAME tx-bound repository. Composed writes CAN therefore reference rows
+   * created earlier in the same transaction: e.g. CRM lead conversion creates an
+   * account and then a contact whose relation field points at that just-created
+   * account — the relation-existence check now sees the in-tx account and passes.
+   * Without `options.tx`, validations run against committed state via
+   * `this.repository` (unchanged default behavior).
    */
   public async runInTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     return prisma.$transaction(fn);
@@ -607,8 +624,15 @@ export class DynamicTableService {
     if (!this.policy.canManageData(user, table)) {
       throw new ForbiddenError('You do not have permission to update data in this table.');
     }
+    // When composing an atomic multi-write (options.tx), run validations against the SAME
+    // tx-bound repo so this update can validate against rows created earlier in the same tx
+    // (e.g. lead conversion's lead update references a contact created moments ago in-tx).
+    // When no tx is supplied, fall back to the committed-state repository (default behavior).
+    const validationRepo: IDynamicTableRepository = options?.tx
+      ? new TransactionalDynamicTableRepository(options.tx)
+      : this.repository;
     // Guard: ensure every relation column's targetTable exists and belongs to this user.
-    await this.validateRelationTargetOwnership(table.userId, table.schema as unknown as ITableSchema);
+    await this.validateRelationTargetOwnership(table.userId, table.schema as unknown as ITableSchema, validationRepo);
     // isSystem is derived from the call context only — never from the client payload.
     // Strip __isSystem from the data before validation to ensure it is never stored.
     const isSystem = !!(options?.isSystem);
@@ -692,8 +716,8 @@ export class DynamicTableService {
       }
     }
 
-    await this.validateAdvancedRules(table, mergedData, dataId);
-    await this.enforceNoOverlap(table, schema, mergedData, isSystem, dataId);
+    await this.validateAdvancedRules(table, mergedData, dataId, validationRepo);
+    await this.enforceNoOverlap(table, schema, mergedData, isSystem, validationRepo, dataId);
 
     // Rules: beforeUpdate runs outside the transaction (validation-focused, avoids long locks).
     // afterWithId is intentionally mutable: plugins that write to ctx.after (e.g. GoalsPlugin,
@@ -701,7 +725,7 @@ export class DynamicTableService {
     // the clean data object from afterWithId (minus id) before calling updateData.
     const beforeWithId = { ...(existingData.data as Record<string, unknown>), id: dataId };
     const afterWithId = { ...(mergedData as Record<string, unknown>), id: dataId };
-    await this.runRules({ userId: table.userId, table, schema: table.schema as unknown as ITableSchema, operation: 'update', before: beforeWithId, after: afterWithId, repository: this.repository, isSystem }, 'beforeUpdate');
+    await this.runRules({ userId: table.userId, table, schema: table.schema as unknown as ITableSchema, operation: 'update', before: beforeWithId, after: afterWithId, repository: validationRepo, isSystem }, 'beforeUpdate');
 
     // Wrap the main write + afterUpdate side-effects in a single transaction so that
     // a plugin failure (e.g. SalesPlugin stock/commission update) rolls back the record update.
@@ -986,6 +1010,7 @@ export class DynamicTableService {
     schema: ITableSchema,
     data: Record<string, unknown>,
     isSystem: boolean,
+    repo: IDynamicTableRepository = this.repository,
     excludeId?: string,
   ) {
     if (isSystem) return;
@@ -1004,7 +1029,7 @@ export class DynamicTableService {
         }
       }
 
-      const count = await this.repository.countOverlaps(
+      const count = await repo.countOverlaps(
         table.id,
         rule.startField,
         rule.endField,
@@ -1019,7 +1044,7 @@ export class DynamicTableService {
     }
   }
 
-  private async validateAdvancedRules(table: IDynamicTable, data: Record<string, unknown>, dataIdToExclude?: string) {
+  private async validateAdvancedRules(table: IDynamicTable, data: Record<string, unknown>, dataIdToExclude?: string, repo: IDynamicTableRepository = this.repository) {
     const schema = table.schema as unknown as ITableSchema;
 
     for (const field of schema.fields) {
@@ -1028,7 +1053,7 @@ export class DynamicTableService {
 
       // 1. Validate Uniqueness
       if (field.unique) {
-        const count = await this.repository.countByFieldValue(table.id, field.name, value, dataIdToExclude);
+        const count = await repo.countByFieldValue(table.id, field.name, value, dataIdToExclude);
         if (count > 0) {
           throw new ValidationError(`The value '${value}' for field '${field.label}' already exists and must be unique.`);
         }
@@ -1045,13 +1070,13 @@ export class DynamicTableService {
             throw new ValidationError(`Field '${field.label}' contains duplicate IDs.`);
           }
           for (const id of value) {
-            const exists = await this.repository.existsByIdInTable(id, field.relation.targetTable);
+            const exists = await repo.existsByIdInTable(id, field.relation.targetTable);
             if (!exists) {
               throw new ValidationError(`Related record with ID '${id}' in the target table for field '${field.label}' was not found.`);
             }
           }
         } else {
-          const relatedExists = await this.repository.existsByIdInTable(value as string, field.relation.targetTable);
+          const relatedExists = await repo.existsByIdInTable(value as string, field.relation.targetTable);
           if (!relatedExists) {
             throw new ValidationError(`Related record with ID '${value}' in the target table for field '${field.label}' was not found.`);
           }
@@ -1066,7 +1091,7 @@ export class DynamicTableService {
       const allPresent = rule.fields.every(f => data[f] !== undefined && data[f] !== null);
       if (!allPresent) continue;
 
-      const existingRows = await this.repository.findAllDataByTableId(table.id);
+      const existingRows = await repo.findAllDataByTableId(table.id);
       const duplicate = existingRows.find(row => {
         if (dataIdToExclude && row.id === dataIdToExclude) return false;
         const d = row.data as Record<string, unknown>;

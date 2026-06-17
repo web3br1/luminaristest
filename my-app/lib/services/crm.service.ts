@@ -32,6 +32,26 @@ export interface NoShowPayload {
   previousStageId?: string;
 }
 
+export interface ConvertLeadPayload {
+  leadId: string;
+  account: {
+    name: string;
+    segment?: string;
+    size?: string;
+    website?: string;
+    taxId?: string;
+    city?: string;
+    state?: string;
+  };
+  contact?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    jobTitle?: string;
+    role?: string;
+  };
+}
+
 type ApiResult<T = unknown> = { success: boolean; data: T };
 
 export interface ChartDataPoint {
@@ -69,6 +89,11 @@ export const CrmService = {
   async recordNoShow(payload: NoShowPayload): Promise<ApiResult> {
     const res = await apiClient.post<ApiResult>('/crm/pipeline/no-show', payload);
     notify('No-show registrado.', 'success', 'CRM');
+    return res;
+  },
+  async convertLead(payload: ConvertLeadPayload): Promise<ApiResult> {
+    const res = await apiClient.post<ApiResult>('/crm/pipeline/convert-lead', payload);
+    notify('Lead convertido com sucesso.', 'success', 'CRM');
     return res;
   },
 };

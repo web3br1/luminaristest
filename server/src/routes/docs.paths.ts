@@ -467,6 +467,35 @@
  *         '200': { description: Resolved relation values }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *
+ *   /api/dynamic-tables/sync-preset:
+ *     post:
+ *       summary: Additively evolve an installed table's schema from its preset (admin-only)
+ *       description: >
+ *         Computes the additive delta (new fields + new select options) between the
+ *         preset module and the user's installed table identified by internalName, then
+ *         applies it via the engine's revalidating schema update. Never removes/renames
+ *         fields or options. Idempotent: a second call with no preset changes is a no-op.
+ *         Requires ADMIN role.
+ *       tags: [DynamicTables]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [internalName]
+ *               properties:
+ *                 internalName:
+ *                   type: string
+ *                   description: Stable preset key of the installed table (e.g. 'leads')
+ *       responses:
+ *         '200': { description: 'Applied delta { added, optionsAdded }' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '403': { $ref: '#/components/responses/ForbiddenError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
  *   /api/dynamic-tables/{tableId}:
  *     get:
  *       summary: Get a dynamic table schema by ID
@@ -1203,6 +1232,35 @@
  *                 properties:
  *                   success: { type: boolean, example: true }
  *                   data: { type: object, properties: { ok: { type: boolean } } }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/crm/pipeline/convert-lead:
+ *     post:
+ *       summary: Convert a lead into an Account (+ optional Contact), atomically
+ *       tags: [CRM]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ConvertLeadInput' }
+ *       responses:
+ *         '201':
+ *           description: Created account + contact and the updated (converted) lead
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:
+ *                     type: object
+ *                     properties:
+ *                       account: { type: object }
+ *                       contact: { type: object }
+ *                       lead:    { type: object }
  *         '400': { $ref: '#/components/responses/BadRequestError' }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *         '404': { $ref: '#/components/responses/NotFoundError' }

@@ -1,5 +1,5 @@
 import { CrmPipelineService } from '../CrmPipelineService';
-import { NotFoundError } from '../../../../lib/errors';
+import { NotFoundError, ValidationError } from '../../../../lib/errors';
 
 /**
  * CrmPipelineService orchestrates multi-step writes over DynamicTableService.
@@ -10,6 +10,24 @@ import { NotFoundError } from '../../../../lib/errors';
  */
 const user = { userId: 'u1', role: 'USER' } as any;
 
+// A preset-synced leads schema: has the conversion link fields and a status field whose
+// options include 'Converted'. convertLead's partial-sync guard (FIX 2) inspects this.
+const leadsSchema = {
+  fields: [
+    { name: 'leadName', label: 'Name', type: 'string', required: true },
+    { name: 'accountId', label: 'Account', type: 'relation', required: false },
+    { name: 'contactId', label: 'Contact', type: 'relation', required: false },
+    { name: 'convertedAt', label: 'Converted At', type: 'datetime', required: false },
+    {
+      name: 'status',
+      label: 'Status',
+      type: 'select',
+      options: ['Open', 'Won', 'Lost', 'Disqualified', 'Converted'],
+      required: true,
+    },
+  ],
+};
+
 function buildService(over: { dts?: any; repo?: any } = {}) {
   const dynamicTableService = {
     // runInTransaction invokes the callback with a fake tx, mirroring prisma.$transaction.
@@ -19,7 +37,13 @@ function buildService(over: { dts?: any; repo?: any } = {}) {
     ...over.dts,
   };
   const repository = {
-    findTableByInternalName: jest.fn(async (_uid: string, internal: string) => ({ id: `${internal}-table`, userId: 'u1' })),
+    findTableByInternalName: jest.fn(async (_uid: string, internal: string) => ({
+      id: `${internal}-table`,
+      userId: 'u1',
+      // leads table must expose a preset-synced schema (FIX 2 partial-sync guard);
+      // other tables don't have their schema inspected by convertLead.
+      schema: internal === 'leads' ? leadsSchema : { fields: [] },
+    })),
     ...over.repo,
   };
   const svc = new CrmPipelineService(dynamicTableService as any, repository as any);
@@ -86,6 +110,188 @@ describe('CrmPipelineService', () => {
       const { svc, dynamicTableService } = buildService();
       await svc.recordNoShow(user, { leadId: 'l1', option: 'revert', previousStageId: 's1' });
       expect(dynamicTableService.updateTableData).toHaveBeenCalledWith(user, 'l1', { data: { stageId: 's1' } }, txArg);
+    });
+  });
+
+  describe('convertLead', () => {
+    // The lead snapshot read by convertLead (via repository.findDataById) — owner inherited
+    // from assigneeId, base contact fields (leadName/email/phone) carried into the contact.
+    const leadRow = {
+      id: 'lead-1',
+      // Belongs to THIS tenant's leads table (id is `${internal}-table` per the repo mock).
+      // convertLead's cross-tenant guard (FIX 1) asserts this matches the resolved leads id.
+      dynamicTableId: 'leads-table',
+      data: {
+        unitId: 'unit-1',
+        assigneeId: 'emp-1',
+        leadName: 'Acme Corp',
+        email: 'sales@acme.com',
+        phone: '11999990000',
+        status: 'Open',
+      },
+    };
+
+    // convertLead reads the lead through the repository and writes account/contact/lead.
+    // createTableData is called twice (account then contact) — distinct ids per call order.
+    function buildConvert(overData: { findDataById?: any; createTableData?: any; status?: string } = {}) {
+      const account = { id: 'acc-1' };
+      const contact = { id: 'con-1' };
+      const createTableData =
+        overData.createTableData ??
+        jest
+          .fn()
+          .mockResolvedValueOnce(account)
+          .mockResolvedValueOnce(contact);
+      const findDataById =
+        overData.findDataById ??
+        jest.fn(async () => ({
+          ...leadRow,
+          data: { ...leadRow.data, status: overData.status ?? leadRow.data.status },
+        }));
+      const built = buildService({
+        dts: { createTableData },
+        repo: { findDataById },
+      });
+      return { ...built, account, contact, createTableData, findDataById };
+    }
+
+    const baseInput = {
+      leadId: 'lead-1',
+      account: { name: 'Acme Corp', segment: 'SaaS' },
+    };
+
+    it('é atômico: 1× runInTransaction, 2× createTableData (account+contact) e 1× updateTableData (lead) — todos no MESMO tx', async () => {
+      const { svc, dynamicTableService } = buildConvert();
+      await svc.convertLead(user, baseInput);
+
+      expect(dynamicTableService.runInTransaction).toHaveBeenCalledTimes(1);
+      expect(dynamicTableService.createTableData).toHaveBeenCalledTimes(2);
+      expect(dynamicTableService.updateTableData).toHaveBeenCalledTimes(1);
+
+      // account create — resolved table id + same tx
+      expect(dynamicTableService.createTableData).toHaveBeenNthCalledWith(
+        1, user, 'crmAccounts-table', expect.any(Object), txArg,
+      );
+      // contact create — resolved table id + same tx
+      expect(dynamicTableService.createTableData).toHaveBeenNthCalledWith(
+        2, user, 'crmContacts-table', expect.any(Object), txArg,
+      );
+      // lead update — isSystem (readOnly convertedAt + terminal status) + same tx
+      expect(dynamicTableService.updateTableData).toHaveBeenCalledWith(
+        user, 'lead-1', expect.any(Object), { tx: { __tx: true }, isSystem: true },
+      );
+    });
+
+    it('herda o owner do lead (assigneeId) na account e no contact', async () => {
+      const { svc, dynamicTableService } = buildConvert();
+      await svc.convertLead(user, baseInput);
+
+      expect(dynamicTableService.createTableData).toHaveBeenNthCalledWith(
+        1, user, 'crmAccounts-table',
+        { data: expect.objectContaining({ ownerId: 'emp-1', name: 'Acme Corp', unitId: 'unit-1', segment: 'SaaS' }) },
+        txArg,
+      );
+      expect(dynamicTableService.createTableData).toHaveBeenNthCalledWith(
+        2, user, 'crmContacts-table',
+        { data: expect.objectContaining({ ownerId: 'emp-1' }) },
+        txArg,
+      );
+    });
+
+    it('liga o contact à account criada (accountId) e ao lead de origem (leadId), herdando email/phone', async () => {
+      const { svc, dynamicTableService } = buildConvert();
+      await svc.convertLead(user, baseInput);
+
+      expect(dynamicTableService.createTableData).toHaveBeenNthCalledWith(
+        2, user, 'crmContacts-table',
+        {
+          data: expect.objectContaining({
+            accountId: 'acc-1',
+            leadId: 'lead-1',
+            name: 'Acme Corp',
+            email: 'sales@acme.com',
+            phone: '11999990000',
+          }),
+        },
+        txArg,
+      );
+    });
+
+    it('marca o lead Converted com accountId/contactId/convertedAt', async () => {
+      const { svc, dynamicTableService } = buildConvert();
+      await svc.convertLead(user, baseInput);
+
+      const updateCall = dynamicTableService.updateTableData.mock.calls[0];
+      expect(updateCall[1]).toBe('lead-1');
+      expect(updateCall[2].data).toEqual(
+        expect.objectContaining({
+          status: 'Converted',
+          accountId: 'acc-1',
+          contactId: 'con-1',
+        }),
+      );
+      expect(typeof updateCall[2].data.convertedAt).toBe('string');
+    });
+
+    it('guard: lead já Converted → ValidationError (idempotência), sem escritas', async () => {
+      const { svc, dynamicTableService } = buildConvert({ status: 'Converted' });
+      await expect(svc.convertLead(user, baseInput)).rejects.toBeInstanceOf(ValidationError);
+      expect(dynamicTableService.runInTransaction).not.toHaveBeenCalled();
+      expect(dynamicTableService.createTableData).not.toHaveBeenCalled();
+    });
+
+    it('cross-tenant / tabela ausente → NotFoundError', async () => {
+      const { svc } = buildService({ repo: { findTableByInternalName: jest.fn(async () => null) } });
+      await expect(svc.convertLead(user, baseInput)).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('lead inexistente → NotFoundError', async () => {
+      const { svc } = buildConvert({ findDataById: jest.fn(async () => null) });
+      await expect(svc.convertLead(user, baseInput)).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    // FIX 1 — cross-tenant read: findDataById is NOT tenant-scoped. A row whose
+    // dynamicTableId !== the caller's resolved leads table id must be treated as
+    // non-existent (NotFoundError, no PII leak), and NO write may occur.
+    it('lead de outro tenant (dynamicTableId ≠ tabela de leads do caller) → NotFoundError, sem escritas', async () => {
+      const foreignRow = {
+        id: 'lead-1',
+        dynamicTableId: 'someone-else-leads-table',
+        data: { leadName: 'Foreign Co', email: 'x@y.com', status: 'Open' },
+      };
+      const { svc, dynamicTableService } = buildConvert({
+        findDataById: jest.fn(async () => foreignRow),
+      });
+      await expect(svc.convertLead(user, baseInput)).rejects.toBeInstanceOf(NotFoundError);
+      expect(dynamicTableService.createTableData).not.toHaveBeenCalled();
+      expect(dynamicTableService.updateTableData).not.toHaveBeenCalled();
+      expect(dynamicTableService.runInTransaction).not.toHaveBeenCalled();
+    });
+
+    // FIX 2 — partial-sync guard: leads table missing convertedAt (or status without
+    // 'Converted') means the engine would silently strip the link fields. Reject with
+    // ValidationError BEFORE the transaction so no orphan account/contact is created.
+    it('tabela de leads não sincronizada (sem convertedAt) → ValidationError, sem createTableData', async () => {
+      const unsyncedSchema = {
+        fields: leadsSchema.fields.filter((f) => f.name !== 'convertedAt'),
+      };
+      const { svc, dynamicTableService } = buildService({
+        dts: {
+          createTableData: jest.fn(),
+          updateTableData: jest.fn(),
+        },
+        repo: {
+          findTableByInternalName: jest.fn(async (_uid: string, internal: string) => ({
+            id: `${internal}-table`,
+            userId: 'u1',
+            schema: internal === 'leads' ? unsyncedSchema : { fields: [] },
+          })),
+          findDataById: jest.fn(async () => ({ ...leadRow })),
+        },
+      });
+      await expect(svc.convertLead(user, baseInput)).rejects.toBeInstanceOf(ValidationError);
+      expect(dynamicTableService.createTableData).not.toHaveBeenCalled();
+      expect(dynamicTableService.runInTransaction).not.toHaveBeenCalled();
     });
   });
 });

@@ -11,6 +11,7 @@ import { ScoreGauge } from './ui/ScoreGauge';
 import { StatusBadge } from './ui/StatusBadge';
 import { BantBars } from './ui/BantBars';
 import { ProposalCaptureModal } from './ProposalCaptureModal';
+import { LeadConvertModal } from './LeadConvertModal';
 
 interface Lead360ModalProps {
   isOpen: boolean;
@@ -39,8 +40,11 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
   const [advancing, setAdvancing] = useState(false);
   // Set while the next stage is a `proposal` and we await amount input.
   const [capturingProposal, setCapturingProposal] = useState(false);
+  // Set while collecting account/contact input for the lead conversion.
+  const [converting, setConverting] = useState(false);
 
   const d = lead?.data ?? {};
+  const isConverted = String(d.status ?? '') === 'Converted';
 
   const nextStage = useMemo(() => {
     if (!lead) return undefined;
@@ -103,6 +107,19 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
           right={
             <div className="flex items-center gap-4">
               <ScoreGauge score={Number(d.score ?? 0)} size={56} />
+              {isConverted ? (
+                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                  {t('convert.converted_badge', 'Convertido')}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConverting(true)}
+                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-black text-emerald-600 transition hover:bg-emerald-500/20 dark:text-emerald-400"
+                >
+                  {t('convert.button', 'Converter Lead')}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleAdvance}
@@ -147,6 +164,14 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
         stageName={String(nextStage?.data?.name ?? '')}
         onCancel={() => setCapturingProposal(false)}
         onConfirm={handleConfirmProposal}
+      />
+
+      <LeadConvertModal
+        isOpen={converting}
+        onClose={() => setConverting(false)}
+        leadId={lead.id}
+        leadName={String(d.leadName ?? '')}
+        onConverted={onChanged}
       />
     </>
   );

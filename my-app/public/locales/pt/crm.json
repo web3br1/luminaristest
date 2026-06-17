@@ -61,6 +61,31 @@
     "empty_stage": "Sem registros",
     "new_lead": "Novo Lead"
   },
+  "owner_filter": {
+    "label": "Vendedor",
+    "all": "Todos os vendedores",
+    "mine": "Meus registros"
+  },
+  "convert": {
+    "button": "Converter Lead",
+    "converted_badge": "Convertido",
+    "title": "Converter Lead",
+    "subtitle": "Crie uma conta e um contato a partir deste lead.",
+    "account_section": "Conta",
+    "account_name": "Nome da conta",
+    "account_name_ph": "Nome da empresa",
+    "segment": "Segmento",
+    "size": "Porte",
+    "website": "Website",
+    "city": "Cidade",
+    "state": "Estado",
+    "contact_section": "Contato",
+    "contact_role": "Papel",
+    "contact_job_title": "Cargo",
+    "cancel": "Cancelar",
+    "confirm": "Converter",
+    "converting": "Convertendo…"
+  },
   "capture": {
     "title": "Registrar Proposta",
     "subtitle": "Informe os dados da proposta para mover o lead para",

@@ -5,6 +5,7 @@ import { UnauthorizedError } from '../lib/errors';
 import { getFactory } from '../lib/factory';
 import {
   AdvanceStageSchema,
+  ConvertLeadSchema,
   CreateProposalSchema,
   RecordNoShowSchema,
 } from '../features/crm/dtos/CrmPipelineDto';
@@ -50,6 +51,21 @@ export const recordNoShow = async (req: Request, res: Response) => {
     }
     const data = await getFactory().getCrmPipelineService().recordNoShow(user, parsed.data);
     return res.json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+export const convertLead = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = ConvertLeadSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const data = await getFactory().getCrmPipelineService().convertLead(user, parsed.data);
+    return res.status(201).json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
   }
