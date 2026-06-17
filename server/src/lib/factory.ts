@@ -10,6 +10,7 @@ import { VectorRepository } from '../features/documents/repositories/VectorRepos
 import { DynamicTableRepository } from '../features/dynamicTables/repositories/DynamicTableRepository';
 import { ActionProposalRepository } from '../features/chat/repositories/ActionProposalRepository';
 import { KnowledgeGraphRepository } from '../features/chat/repositories/KnowledgeGraphRepository';
+import { AttachmentRepository } from '../features/attachments/repositories/AttachmentRepository';
 
 // Features - Policies
 import { ChatInstancePolicy } from '../features/chatInstances/policies/ChatInstancePolicy';
@@ -19,6 +20,7 @@ import { DocumentPolicy } from '../features/documents/policies/DocumentPolicy';
 import { StructuredDataPolicy } from '../features/structuredData/policies/StructuredDataPolicy';
 import { UserPolicy } from '../features/users/policies/UserPolicy';
 import { DynamicTablePolicy } from '../features/dynamicTables/policies/DynamicTablePolicy';
+import { AttachmentPolicy } from '../features/attachments/policies/AttachmentPolicy';
 
 // Features - Services
 import { ChatInstanceService } from '../features/chatInstances/services/ChatInstanceService';
@@ -36,6 +38,7 @@ import { KnowledgeGraphService } from '../features/chat/services/KnowledgeGraphS
 import { CrmPipelineService } from '../features/crm/services/CrmPipelineService';
 import { CrmAnalyticsService } from '../features/crm/services/CrmAnalyticsService';
 import { PresetSyncService } from '../features/dynamicTables/services/PresetSyncService';
+import { AttachmentService } from '../features/attachments/services/AttachmentService';
 
 // Lib - External Services
 import { OpenAIService as ChatOpenAIService } from './openai/OpenAIService';
@@ -59,6 +62,8 @@ import type { IChatService } from '../features/chat/services/IChatService';
 import type { IReportService } from '../features/reports/services/IReportService';
 import type { IActionProposalRepository } from '../features/chat/repositories/IActionProposalRepository';
 import type { IKnowledgeGraphRepository } from '../features/chat/repositories/IKnowledgeGraphRepository';
+import type { IAttachmentRepository } from '../features/attachments/repositories/IAttachmentRepository';
+import type { IAttachmentPolicy } from '../features/attachments/policies/IAttachmentPolicy';
 
 export class ApplicationFactory {
   private static instance: ApplicationFactory;
@@ -75,6 +80,7 @@ export class ApplicationFactory {
     dynamicTable: IDynamicTableRepository;
     actionProposal: IActionProposalRepository;
     knowledgeGraph: IKnowledgeGraphRepository;
+    attachment: IAttachmentRepository;
   };
 
   private readonly policies: {
@@ -85,6 +91,7 @@ export class ApplicationFactory {
     document: IDocumentPolicy;
     structuredData: StructuredDataPolicy;
     dynamicTable: IDynamicTablePolicy;
+    attachment: IAttachmentPolicy;
   };
 
   public readonly services: {
@@ -102,6 +109,7 @@ export class ApplicationFactory {
     crmPipeline: CrmPipelineService;
     crmAnalytics: CrmAnalyticsService;
     presetSync: PresetSyncService;
+    attachment: AttachmentService;
   };
 
   private constructor() {
@@ -122,6 +130,7 @@ export class ApplicationFactory {
       dynamicTable: new DynamicTableRepository(),
       actionProposal: new ActionProposalRepository(),
       knowledgeGraph: new KnowledgeGraphRepository(),
+      attachment: new AttachmentRepository(),
     };
 
     // Policies
@@ -133,6 +142,7 @@ export class ApplicationFactory {
       structuredData: new StructuredDataPolicy(this.repositories.document),
       user: new UserPolicy(),
       dynamicTable: new DynamicTablePolicy(),
+      attachment: new AttachmentPolicy(),
     };
 
     // Services (handling inter-dependencies)
@@ -209,6 +219,7 @@ export class ApplicationFactory {
       crmPipeline: crmPipelineService,
       crmAnalytics: crmAnalyticsService,
       presetSync: presetSyncService,
+      attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
     };
   }
 
@@ -234,6 +245,7 @@ export class ApplicationFactory {
   public getCrmPipelineService = (): CrmPipelineService => this.services.crmPipeline;
   public getCrmAnalyticsService = (): CrmAnalyticsService => this.services.crmAnalytics;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
+  public getAttachmentService = (): AttachmentService => this.services.attachment;
 
   // Repository Getters
   public getChatInstanceRepository = (): IChatInstanceRepository => this.repositories.chatInstance;

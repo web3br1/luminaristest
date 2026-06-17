@@ -115,7 +115,8 @@
     "tasks": "Tasks",
     "no_tasks": "No tasks.",
     "new_task": "+ New task",
-    "notes": "Notes"
+    "notes": "Notes",
+    "attachments": "Attachments"
   },
   "notes": {
     "placeholder": "Write a note…",
@@ -125,6 +126,17 @@
     "required_error": "Enter the note content.",
     "not_available": "Notes are not available.",
     "by": "By"
+  },
+  "attachments": {
+    "upload": "Attach file",
+    "uploading": "Uploading…",
+    "empty": "No attachments.",
+    "download": "Download",
+    "delete": "Delete",
+    "too_large": "File too large (max 25MB).",
+    "invalid_type": "File type not allowed.",
+    "error": "Failed to load attachments.",
+    "confirm_delete": "Remove this attachment?"
   },
   "tasks": {
     "title": "Tasks",

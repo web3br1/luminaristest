@@ -9,3 +9,4 @@ generated/
 *.tmp
 coverage/
 logs/
+/storage/

@@ -1,5 +1,12 @@
 import { Router } from 'express';
 import { advanceStage, convertLead, createProposal, recordNoShow, getCrmAnalytics } from '../controllers/crmController';
+import {
+  uploadMiddleware,
+  createAttachment,
+  listAttachments,
+  downloadAttachment,
+  deleteAttachment,
+} from '../controllers/attachmentsController';
 
 const router = Router();
 
@@ -11,5 +18,11 @@ router.post('/pipeline/convert-lead', convertLead);
 
 // CRM analytics — aggregated KPI bundle over the leads dataset.
 router.get('/pipeline-analytics', getCrmAnalytics);
+
+// CRM attachments — downloadable file-store for record attachments.
+router.post('/attachments', uploadMiddleware, createAttachment);
+router.get('/attachments', listAttachments);
+router.get('/attachments/:id/download', downloadAttachment);
+router.delete('/attachments/:id', deleteAttachment);
 
 export default router;

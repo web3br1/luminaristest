@@ -14,6 +14,7 @@ import { ProposalCaptureModal } from './ProposalCaptureModal';
 import { LeadConvertModal } from './LeadConvertModal';
 import { LeadTasksPanel } from './LeadTasksPanel';
 import { LeadNotesPanel } from './LeadNotesPanel';
+import { LeadAttachmentsPanel } from './LeadAttachmentsPanel';
 
 interface Lead360ModalProps {
   isOpen: boolean;
@@ -165,6 +166,10 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
 
         <SectionCard title={t('detail.notes', 'Notas')}>
           <LeadNotesPanel leadId={lead.id} onChanged={() => { void onChanged(); }} />
+        </SectionCard>
+
+        <SectionCard title={t('detail.attachments', 'Anexos')}>
+          <LeadAttachmentsPanel leadId={lead.id} onChanged={() => { void onChanged(); }} />
         </SectionCard>
       </div>
     </Modal>

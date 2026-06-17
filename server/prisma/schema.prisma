@@ -31,6 +31,27 @@ model User {
   dynamicTables  DynamicTable[]  // Relation to DynamicTable
   knowledgeGraph KnowledgeGraph? // Relation to KnowledgeGraph
   actionProposals ActionProposal[] // Relation to ActionProposal
+  crmAttachments CrmAttachment[] // Relation to CrmAttachment
+}
+
+// Downloadable file-store metadata for CRM record attachments (polymorphic, soft-delete).
+// The binary lives on disk under ATTACHMENTS_DIR; this row holds only metadata + storageKey.
+model CrmAttachment {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entityType  String    // 'lead' | 'account' | 'contact'  (extensível p/ 'opportunity')
+  entityId    String    // id da row DynamicTable (não FK — rows são dinâmicas)
+  fileName    String    // nome original (sanitizado p/ exibição)
+  mimeType    String
+  fileSize    Int
+  storageKey  String    // caminho relativo dentro de ATTACHMENTS_DIR
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([userId, entityType, entityId])
+  @@map("crm_attachments")
 }
 
 model DashboardLayout {

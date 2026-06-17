@@ -102,4 +102,12 @@ try {
   // Avoid any crash due to logging
 }
 
+/**
+ * Base directory for CRM attachment binaries (Slice 4 file-store).
+ * Defaults to <cwd>/storage/attachments when unset. The attachmentStorage util reads
+ * process.env.ATTACHMENTS_DIR directly at runtime; this export is the typed accessor.
+ */
+export const ATTACHMENTS_DIR: string =
+  process.env.ATTACHMENTS_DIR || path.resolve(process.cwd(), 'storage/attachments');
+
 

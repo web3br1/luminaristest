@@ -115,7 +115,8 @@
     "tasks": "Tarefas",
     "no_tasks": "Nenhuma tarefa.",
     "new_task": "+ Nova tarefa",
-    "notes": "Notas"
+    "notes": "Notas",
+    "attachments": "Anexos"
   },
   "notes": {
     "placeholder": "Escreva uma nota…",
@@ -125,6 +126,17 @@
     "required_error": "Informe o conteúdo da nota.",
     "not_available": "Notas não disponíveis.",
     "by": "Por"
+  },
+  "attachments": {
+    "upload": "Anexar arquivo",
+    "uploading": "Enviando…",
+    "empty": "Nenhum anexo.",
+    "download": "Baixar",
+    "delete": "Excluir",
+    "too_large": "Arquivo muito grande (máx. 25MB).",
+    "invalid_type": "Tipo de arquivo não permitido.",
+    "error": "Falha ao carregar anexos.",
+    "confirm_delete": "Remover este anexo?"
   },
   "tasks": {
     "title": "Tarefas",

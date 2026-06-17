@@ -1287,6 +1287,106 @@
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *         '404': { $ref: '#/components/responses/NotFoundError' }
  *
+ *   /api/crm/attachments:
+ *     post:
+ *       summary: Upload a downloadable file attachment for a CRM record
+ *       tags: [CRM Attachments]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           multipart/form-data:
+ *             schema:
+ *               type: object
+ *               required: [file, entityType, entityId]
+ *               properties:
+ *                 file: { type: string, format: binary }
+ *                 entityType: { type: string, enum: [lead, account, contact] }
+ *                 entityId: { type: string }
+ *       responses:
+ *         '201':
+ *           description: Created attachment metadata
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data: { $ref: '#/components/schemas/Attachment' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '413': { description: File too large (max 25 MB) }
+ *         '415': { description: File type not supported or content/type mismatch }
+ *     get:
+ *       summary: List active attachments for a CRM record
+ *       tags: [CRM Attachments]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - in: query
+ *           name: entityType
+ *           required: true
+ *           schema: { type: string, enum: [lead, account, contact] }
+ *         - in: query
+ *           name: entityId
+ *           required: true
+ *           schema: { type: string }
+ *       responses:
+ *         '200':
+ *           description: List of attachment metadata
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:
+ *                     type: array
+ *                     items: { $ref: '#/components/schemas/Attachment' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/crm/attachments/{id}/download:
+ *     get:
+ *       summary: Download an attachment binary (streamed)
+ *       tags: [CRM Attachments]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema: { type: string }
+ *       responses:
+ *         '200':
+ *           description: The attachment file stream
+ *           content:
+ *             application/octet-stream:
+ *               schema: { type: string, format: binary }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/crm/attachments/{id}:
+ *     delete:
+ *       summary: Soft-delete an attachment (and remove its binary)
+ *       tags: [CRM Attachments]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema: { type: string }
+ *       responses:
+ *         '200':
+ *           description: Acknowledgement
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data: { type: object, properties: { ok: { type: boolean } } }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
  * components:
  *   responses:
  *     BadRequestError:
