@@ -25,6 +25,11 @@ export interface CrmData {
   leads: CrmRecord[];
   stages: CrmRecord[];
   pipelines: CrmRecord[];
+  /** First-class opportunities (`crmOpportunities`) — reuses leadStages/leadPipelines. */
+  opportunities: CrmRecord[];
+  opportunitiesTableId: string | null;
+  /** False when the `crmOpportunities` table is not installed in this tenant. */
+  opportunitiesInstalled: boolean;
   kpis: CrmKpis;
   reload: () => Promise<void>;
 }
@@ -80,6 +85,8 @@ export function useCrmData(): CrmData {
   const [leads, setLeads] = useState<CrmRecord[]>([]);
   const [stages, setStages] = useState<CrmRecord[]>([]);
   const [pipelines, setPipelines] = useState<CrmRecord[]>([]);
+  const [opportunities, setOpportunities] = useState<CrmRecord[]>([]);
+  const [opportunitiesTableId, setOpportunitiesTableId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -91,22 +98,27 @@ export function useCrmData(): CrmData {
       const leadsTable = resolveTable(tables, 'leads');
       const stagesTable = resolveTable(tables, 'leadStages');
       const pipelinesTable = resolveTable(tables, 'leadPipelines');
+      // crmOpportunities is installed at runtime (install-table) — it may be absent.
+      const opportunitiesTable = resolveTable(tables, 'crmOpportunities');
       setLeadsTableId(leadsTable?.id ?? null);
+      setOpportunitiesTableId(opportunitiesTable?.id ?? null);
 
       const pull = async (table: DynTable | null): Promise<CrmRecord[]> => {
         if (!table?.id) return [];
         return (await fetchAllRows(table.id)) as CrmRecord[];
       };
 
-      const [leadRows, stageRows, pipelineRows] = await Promise.all([
+      const [leadRows, stageRows, pipelineRows, opportunityRows] = await Promise.all([
         pull(leadsTable),
         pull(stagesTable),
         pull(pipelinesTable),
+        pull(opportunitiesTable),
       ]);
 
       setLeads(leadRows);
       setStages(stageRows);
       setPipelines(pipelineRows);
+      setOpportunities(opportunityRows);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao carregar dados do CRM');
     } finally {
@@ -129,6 +141,9 @@ export function useCrmData(): CrmData {
     leads,
     stages,
     pipelines,
+    opportunities,
+    opportunitiesTableId,
+    opportunitiesInstalled: opportunitiesTableId !== null,
     kpis,
     reload,
   };

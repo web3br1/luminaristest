@@ -17,6 +17,11 @@ export const SyncPresetDto = z.object({
   internalName: z.string().trim().min(1, { message: 'internalName é obrigatório.' }),
 });
 
+/** Body schema for POST /api/dynamic-tables/install-table (admin-only, creates a new table). */
+export const InstallTableDto = z.object({
+  internalName: z.string().min(1, { message: 'internalName é obrigatório.' }),
+});
+
 export async function listTables(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
@@ -169,6 +174,32 @@ export async function syncPreset(req: Request, res: Response) {
     const service = getFactory().getPresetSyncService();
     const result = await service.syncInstalledTableFromPreset(ctx, body.data.internalName);
     return res.json({ success: true, data: result });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+}
+
+/**
+ * POST /api/dynamic-tables/install-table — install ONE new table from its preset into an
+ * already-installed tenant (idempotent). ADMIN-ONLY: this creates a table, so it is guarded
+ * by an explicit role check (ForbiddenError otherwise) on top of route auth.
+ */
+export async function installTableFromPreset(req: Request, res: Response) {
+  try {
+    const ctx = getUserContextFromRequest(req);
+    if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    // Admin-only: table-creating operation.
+    if (ctx.role !== Role.ADMIN) {
+      throw new ForbiddenError('Apenas administradores podem instalar tabelas de preset.');
+    }
+
+    const body = InstallTableDto.safeParse(req.body);
+    if (!body.success) return res.status(400).json({ success: false, error: body.error.flatten() });
+
+    const service = getFactory().getPresetSyncService();
+    const data = await service.installTableFromPreset(ctx, body.data.internalName);
+    return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
   }

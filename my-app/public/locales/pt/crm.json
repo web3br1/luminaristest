@@ -5,6 +5,7 @@
   "nav": {
     "overview": "Visão Geral",
     "pipeline": "Pipeline",
+    "opportunities": "Oportunidades",
     "contacts": "Contatos",
     "accounts": "Contas",
     "proposals": "Propostas",
@@ -65,6 +66,39 @@
     "label": "Vendedor",
     "all": "Todos os vendedores",
     "mine": "Meus registros"
+  },
+  "opportunities": {
+    "title": "Oportunidades",
+    "subtitle": "Gestão de oportunidades por etapa",
+    "empty": "Nenhuma oportunidade ainda.",
+    "unnamed": "Oportunidade sem nome",
+    "not_installed": "Oportunidades não instaladas",
+    "not_installed_hint": "Um administrador pode habilitar o módulo de oportunidades.",
+    "new": "Nova Oportunidade"
+  },
+  "opp": {
+    "name": "Nome",
+    "pipeline": "Pipeline",
+    "pipeline_ph": "Selecione um pipeline",
+    "amount": "Valor",
+    "currency": "Moeda",
+    "win_probability": "Win %",
+    "close_date": "Fechamento",
+    "owner": "Responsável",
+    "account": "Conta",
+    "account_ph": "Sem conta",
+    "stage": "Etapa",
+    "status": "Status",
+    "details": "Detalhes",
+    "advance": "Avançar etapa",
+    "create": "Criar Oportunidade",
+    "create_from_lead": "Criar Oportunidade",
+    "create_subtitle": "Crie uma oportunidade a partir deste lead. O lead permanece em aberto.",
+    "cancel": "Cancelar",
+    "save": "Criar",
+    "saving": "Salvando…",
+    "won": "Ganha",
+    "lost": "Perdida"
   },
   "convert": {
     "button": "Converter Lead",

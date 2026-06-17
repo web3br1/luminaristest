@@ -53,6 +53,28 @@ export interface ConvertLeadPayload {
   };
 }
 
+/** Advance a first-class opportunity to a target stage (mirror of AdvanceStagePayload). */
+export interface AdvanceOpportunityPayload {
+  opportunityId: string;
+  stageId: string;
+  stageType?: string;
+  amount?: number;
+  currency?: 'BRL' | 'USD' | 'EUR';
+  winProbability?: number;
+  status?: 'Open' | 'Won' | 'Lost';
+}
+
+/** Create an opportunity from a lead (mirror of ConvertLeadPayload). The lead stays Open. */
+export interface ConvertLeadToOpportunityPayload {
+  leadId: string;
+  name: string;
+  pipelineId: string;
+  stageId?: string;
+  amount?: number;
+  currency?: 'BRL' | 'USD' | 'EUR';
+  accountId?: string;
+}
+
 type ApiResult<T = unknown> = { success: boolean; data: T };
 
 /**
@@ -147,6 +169,27 @@ export const CrmService = {
   async convertLead(payload: ConvertLeadPayload): Promise<ApiResult> {
     const res = await apiClient.post<ApiResult>('/crm/pipeline/convert-lead', payload);
     notify('Lead convertido com sucesso.', 'success', 'CRM');
+    return res;
+  },
+
+  /**
+   * Advance a first-class opportunity to a target stage via the atomic
+   * orchestration endpoint (mirror of `advanceStage`). When `stageType` is a
+   * closing stage the backend sets status Won/Lost + closedAt.
+   */
+  async advanceOpportunity(payload: AdvanceOpportunityPayload): Promise<ApiResult> {
+    const res = await apiClient.post<ApiResult>('/crm/pipeline/advance-opportunity', payload);
+    notify('Oportunidade avançada com sucesso.', 'success', 'CRM');
+    return res;
+  },
+
+  /**
+   * Create a first-class opportunity from a lead (mirror of `convertLead`). The
+   * lead remains Open — opportunity tracking runs in parallel to qualification.
+   */
+  async convertLeadToOpportunity(payload: ConvertLeadToOpportunityPayload): Promise<ApiResult> {
+    const res = await apiClient.post<ApiResult>('/crm/pipeline/convert-lead-to-opportunity', payload);
+    notify('Oportunidade criada com sucesso.', 'success', 'CRM');
     return res;
   },
 

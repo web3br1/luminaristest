@@ -241,3 +241,90 @@ describe('PresetSyncService.syncInstalledTableFromPreset', () => {
     expect(updateTableSchemaAsSystem).not.toHaveBeenCalled();
   });
 });
+
+describe('PresetSyncService.installTableFromPreset', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  // crmOpportunities has relation markers to leads/crmAccounts/crmContacts/leadPipelines/
+  // leadStages/employees/units — each must resolve to a REAL installed table id.
+  function buildInstalledDeps(): Record<string, IDynamicTable> {
+    const keys = ['units', 'employees', 'leads', 'crmAccounts', 'crmContacts', 'leadPipelines', 'leadStages'];
+    const deps: Record<string, IDynamicTable> = {};
+    for (const k of keys) {
+      deps[k] = { id: `tbl-${k}-id`, userId: 'user-1' } as unknown as IDynamicTable;
+    }
+    return deps;
+  }
+
+  test('is idempotent: a second call returns created:false and never calls createTable', async () => {
+    const repository = buildMockRepository();
+    const existing = { id: 'tbl-opps-existing', userId: 'user-1' } as unknown as IDynamicTable;
+    repository.findTableByInternalName.mockImplementation(async (_userId, internalName) =>
+      internalName === 'crmOpportunities' ? existing : null,
+    );
+    const { service } = buildService({ repository });
+
+    const result = await service.installTableFromPreset(ADMIN_USER, 'crmOpportunities');
+
+    expect(result).toEqual({ tableId: 'tbl-opps-existing', created: false });
+    expect(repository.createTable).not.toHaveBeenCalled();
+  });
+
+  test('resolves markers to REAL table ids and createTable receives a marker-free schema', async () => {
+    const repository = buildMockRepository();
+    const deps = buildInstalledDeps();
+    repository.findTableByInternalName.mockImplementation(async (_userId, internalName) => {
+      if (internalName === 'crmOpportunities') return null; // not yet installed
+      return deps[internalName] ?? null;
+    });
+    repository.createTable.mockResolvedValue({ id: 'tbl-opps-new', userId: 'user-1' } as unknown as IDynamicTable);
+    const { service } = buildService({ repository });
+
+    const result = await service.installTableFromPreset(ADMIN_USER, 'crmOpportunities');
+
+    expect(result).toEqual({ tableId: 'tbl-opps-new', created: true });
+    expect(repository.createTable).toHaveBeenCalledTimes(1);
+
+    const [userId, dto] = repository.createTable.mock.calls[0];
+    expect(userId).toBe('user-1');
+    expect(dto.internalName).toBe('crmOpportunities');
+
+    const schema = dto.schema as ITableSchema;
+    // No marker leaks into the persisted schema.
+    for (const f of schema.fields) {
+      if (f.type === 'relation') {
+        expect(f.relation?.targetTable).not.toContain('@@PRESET_TABLE_KEY::');
+      }
+    }
+    // A specific marker resolved to the real dependency id.
+    const leadField = schema.fields.find((f: ISchemaField) => f.name === 'leadId');
+    expect(leadField?.relation?.targetTable).toBe('tbl-leads-id');
+  });
+
+  test('NotFoundError when a dependency table is not installed for the tenant', async () => {
+    const repository = buildMockRepository();
+    const deps = buildInstalledDeps();
+    delete deps.crmAccounts; // a required dependency is missing
+    repository.findTableByInternalName.mockImplementation(async (_userId, internalName) => {
+      if (internalName === 'crmOpportunities') return null;
+      return deps[internalName] ?? null;
+    });
+    const { service } = buildService({ repository });
+
+    await expect(
+      service.installTableFromPreset(ADMIN_USER, 'crmOpportunities'),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    expect(repository.createTable).not.toHaveBeenCalled();
+  });
+
+  test('NotFoundError when no preset defines the requested internalName', async () => {
+    const repository = buildMockRepository();
+    repository.findTableByInternalName.mockResolvedValue(null);
+    const { service } = buildService({ repository });
+
+    await expect(
+      service.installTableFromPreset(ADMIN_USER, 'doesNotExist'),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    expect(repository.createTable).not.toHaveBeenCalled();
+  });
+});

@@ -6,6 +6,7 @@ import { useTranslation } from 'next-i18next';
 const ITEMS: { href: string; key: string; fallback: string }[] = [
   { href: '/crm', key: 'nav.overview', fallback: 'Visão Geral' },
   { href: '/crm/pipeline', key: 'nav.pipeline', fallback: 'Pipeline' },
+  { href: '/crm/opportunities', key: 'nav.opportunities', fallback: 'Oportunidades' },
   { href: '/crm/contacts', key: 'nav.contacts', fallback: 'Contatos' },
   { href: '/crm/accounts', key: 'nav.accounts', fallback: 'Contas' },
   { href: '/crm/proposals', key: 'nav.proposals', fallback: 'Propostas' },

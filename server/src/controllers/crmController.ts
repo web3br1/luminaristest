@@ -10,6 +10,10 @@ import {
   RecordNoShowSchema,
 } from '../features/crm/dtos/CrmPipelineDto';
 import { CrmAnalyticsQuerySchema } from '../features/crm/dtos/CrmAnalyticsDto';
+import {
+  AdvanceOpportunitySchema,
+  ConvertLeadToOpportunitySchema,
+} from '../features/crm/dtos/CrmOpportunityDto';
 
 export const advanceStage = async (req: Request, res: Response) => {
   try {
@@ -65,6 +69,36 @@ export const convertLead = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: parsed.error.flatten() });
     }
     const data = await getFactory().getCrmPipelineService().convertLead(user, parsed.data);
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+export const advanceOpportunity = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = AdvanceOpportunitySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const data = await getFactory().getCrmPipelineService().advanceOpportunity(user, parsed.data);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+export const convertLeadToOpportunity = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = ConvertLeadToOpportunitySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const data = await getFactory().getCrmPipelineService().convertLeadToOpportunity(user, parsed.data);
     return res.status(201).json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);

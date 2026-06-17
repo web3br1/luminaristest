@@ -12,6 +12,7 @@ import { StatusBadge } from './ui/StatusBadge';
 import { BantBars } from './ui/BantBars';
 import { ProposalCaptureModal } from './ProposalCaptureModal';
 import { LeadConvertModal } from './LeadConvertModal';
+import { OpportunityCreateModal } from './OpportunityCreateModal';
 import { LeadTasksPanel } from './LeadTasksPanel';
 import { LeadNotesPanel } from './LeadNotesPanel';
 import { LeadAttachmentsPanel } from './LeadAttachmentsPanel';
@@ -45,6 +46,8 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
   const [capturingProposal, setCapturingProposal] = useState(false);
   // Set while collecting account/contact input for the lead conversion.
   const [converting, setConverting] = useState(false);
+  // Set while collecting input to create a first-class opportunity from the lead.
+  const [creatingOpp, setCreatingOpp] = useState(false);
 
   const d = lead?.data ?? {};
   const isConverted = String(d.status ?? '') === 'Converted';
@@ -125,6 +128,13 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
               )}
               <button
                 type="button"
+                onClick={() => setCreatingOpp(true)}
+                className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-sm font-black text-blue-600 transition hover:bg-blue-500/20 dark:text-blue-400"
+              >
+                {t('opp.create_from_lead', 'Criar Oportunidade')}
+              </button>
+              <button
+                type="button"
                 onClick={handleAdvance}
                 disabled={!nextStage || advancing}
                 className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-700 hover:to-indigo-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -187,6 +197,15 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
         leadId={lead.id}
         leadName={String(d.leadName ?? '')}
         onConverted={onChanged}
+      />
+
+      <OpportunityCreateModal
+        isOpen={creatingOpp}
+        onClose={() => setCreatingOpp(false)}
+        leadId={lead.id}
+        leadName={String(d.leadName ?? '')}
+        defaultAccountId={d.accountId ? String(d.accountId) : undefined}
+        onCreated={onChanged}
       />
     </>
   );

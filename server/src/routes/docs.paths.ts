@@ -498,6 +498,34 @@
  *         '403': { $ref: '#/components/responses/ForbiddenError' }
  *         '404': { $ref: '#/components/responses/NotFoundError' }
  *
+ *   /api/dynamic-tables/install-table:
+ *     post:
+ *       summary: Install ONE new table from its preset into an already-installed tenant (admin-only)
+ *       description: >
+ *         Idempotently installs a single preset table (identified by internalName) for the
+ *         current tenant. If the table already exists it is a no-op (created=false). Relation
+ *         markers (@@PRESET_TABLE_KEY::x) are resolved to the user's REAL installed table ids;
+ *         a missing dependency table yields 404. Requires ADMIN role.
+ *       tags: [DynamicTables]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [internalName]
+ *               properties:
+ *                 internalName:
+ *                   type: string
+ *                   description: Stable preset key of the table to install (e.g. 'crmOpportunities')
+ *       responses:
+ *         '200': { description: 'Install result { tableId, created }' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '403': { $ref: '#/components/responses/ForbiddenError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
  *   /api/dynamic-tables/{tableId}:
  *     get:
  *       summary: Get a dynamic table schema by ID
@@ -1360,6 +1388,38 @@
  *                       account: { type: object }
  *                       contact: { type: object }
  *                       lead:    { type: object }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/crm/pipeline/advance-opportunity:
+ *     post:
+ *       summary: Advance an opportunity to a target stage (first-class Opportunity)
+ *       tags: [CRM]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/AdvanceOpportunityInput' }
+ *       responses:
+ *         '200': { description: The updated opportunity }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/crm/pipeline/convert-lead-to-opportunity:
+ *     post:
+ *       summary: Create a first-class opportunity from a lead (the lead is NOT consumed)
+ *       tags: [CRM]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ConvertLeadToOpportunityInput' }
+ *       responses:
+ *         '201': { description: The created opportunity }
  *         '400': { $ref: '#/components/responses/BadRequestError' }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *         '404': { $ref: '#/components/responses/NotFoundError' }

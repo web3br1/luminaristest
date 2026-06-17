@@ -9,6 +9,7 @@ import {
   batchDeleteTableData,
   resolveRelations,
   syncPreset,
+  installTableFromPreset,
 } from '@/controllers/dynamicTablesController';
 
 const router = Router();
@@ -19,6 +20,9 @@ router.post('/lookup', resolveRelations);
 // Admin-only: additively evolve an installed table's schema from its preset module.
 // Declared before the /:tableId param routes so it is not captured as a table id.
 router.post('/sync-preset', syncPreset);
+// Admin-only: install ONE new table from its preset into an already-installed tenant.
+// Declared before the /:tableId param routes so 'install-table' is not captured as a table id.
+router.post('/install-table', installTableFromPreset);
 
 // /api/dynamic-tables/:tableId
 router.get('/:tableId', getTable);

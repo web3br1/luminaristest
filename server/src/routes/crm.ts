@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { advanceStage, convertLead, createProposal, recordNoShow, getCrmAnalytics } from '../controllers/crmController';
+import { advanceStage, convertLead, createProposal, recordNoShow, getCrmAnalytics, advanceOpportunity, convertLeadToOpportunity } from '../controllers/crmController';
 import {
   uploadMiddleware,
   createAttachment,
@@ -15,6 +15,10 @@ router.post('/pipeline/advance', advanceStage);
 router.post('/pipeline/proposal', createProposal);
 router.post('/pipeline/no-show', recordNoShow);
 router.post('/pipeline/convert-lead', convertLead);
+
+// CRM opportunity transitions — first-class Opportunity (parallel to the lead pipeline).
+router.post('/pipeline/advance-opportunity', advanceOpportunity);
+router.post('/pipeline/convert-lead-to-opportunity', convertLeadToOpportunity);
 
 // CRM analytics — aggregated KPI bundle over the leads dataset.
 router.get('/pipeline-analytics', getCrmAnalytics);

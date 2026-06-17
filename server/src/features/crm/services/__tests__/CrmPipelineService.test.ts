@@ -294,4 +294,199 @@ describe('CrmPipelineService', () => {
       expect(dynamicTableService.runInTransaction).not.toHaveBeenCalled();
     });
   });
+
+  describe('advanceOpportunity', () => {
+    // The opportunity row read by advanceOpportunity's cross-tenant guard (FIX 2). Belongs to
+    // THIS tenant's crmOpportunities table (id is `${internal}-table` per the repo mock).
+    const oppRow = { id: 'opp-1', dynamicTableId: 'crmOpportunities-table', data: {} };
+    const oppRepo = { findDataById: jest.fn(async () => ({ ...oppRow })) };
+
+    it('aplica o patch de stage (+amount/currency/winProbability) com isSystem', async () => {
+      const { svc, dynamicTableService } = buildService({
+        dts: { updateTableData: jest.fn(async () => ({ id: 'opp-1', data: {} })) },
+        repo: oppRepo,
+      });
+      await svc.advanceOpportunity(user, {
+        opportunityId: 'opp-1',
+        stageId: 's2',
+        amount: 5000,
+        currency: 'USD',
+        winProbability: 60,
+      });
+
+      expect(dynamicTableService.updateTableData).toHaveBeenCalledWith(
+        user,
+        'opp-1',
+        { data: expect.objectContaining({ stageId: 's2', amount: 5000, currency: 'USD', winProbability: 60 }) },
+        { isSystem: true },
+      );
+    });
+
+    it('closed_won → status Won + closedAt (string ISO), isSystem', async () => {
+      const { svc, dynamicTableService } = buildService({
+        dts: { updateTableData: jest.fn(async () => ({ id: 'opp-1', data: {} })) },
+        repo: oppRepo,
+      });
+      await svc.advanceOpportunity(user, { opportunityId: 'opp-1', stageId: 's-won', stageType: 'closed_won' });
+
+      const call = dynamicTableService.updateTableData.mock.calls[0];
+      expect(call[3]).toEqual({ isSystem: true });
+      expect(call[2].data).toEqual(expect.objectContaining({ stageId: 's-won', status: 'Won' }));
+      expect(typeof call[2].data.closedAt).toBe('string');
+    });
+
+    it('closed_lost → status Lost + closedAt', async () => {
+      const { svc, dynamicTableService } = buildService({
+        dts: { updateTableData: jest.fn(async () => ({ id: 'opp-1', data: {} })) },
+        repo: oppRepo,
+      });
+      await svc.advanceOpportunity(user, { opportunityId: 'opp-1', stageId: 's-lost', stageType: 'closed_lost' });
+
+      const call = dynamicTableService.updateTableData.mock.calls[0];
+      expect(call[2].data).toEqual(expect.objectContaining({ status: 'Lost' }));
+      expect(typeof call[2].data.closedAt).toBe('string');
+    });
+
+    it('NotFoundError se crmOpportunities não está instalada', async () => {
+      const { svc } = buildService({ repo: { findTableByInternalName: jest.fn(async () => null) } });
+      await expect(
+        svc.advanceOpportunity(user, { opportunityId: 'opp-1', stageId: 's2' }),
+      ).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    // FIX 2 — cross-tenant read: a row whose dynamicTableId !== the caller's resolved
+    // crmOpportunities table id must be treated as non-existent (NotFoundError, no
+    // ForbiddenError enumeration), and NO update may occur.
+    it('opportunity de outro tenant (dynamicTableId ≠ crmOpportunities do caller) → NotFoundError, sem update', async () => {
+      const { svc, dynamicTableService } = buildService({
+        dts: { updateTableData: jest.fn(async () => ({ id: 'opp-1', data: {} })) },
+        repo: {
+          findDataById: jest.fn(async () => ({ id: 'opp-1', dynamicTableId: 'someone-else-opps-table', data: {} })),
+        },
+      });
+      await expect(
+        svc.advanceOpportunity(user, { opportunityId: 'opp-1', stageId: 's2' }),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      expect(dynamicTableService.updateTableData).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('convertLeadToOpportunity', () => {
+    const oppLeadRow = {
+      id: 'lead-1',
+      dynamicTableId: 'leads-table',
+      data: { unitId: 'unit-1', assigneeId: 'emp-1', accountId: 'acc-9', leadName: 'Acme', status: 'Open' },
+    };
+
+    // leadStages rows for pipe-1 — returned out of order so the sort-by-`order` is exercised.
+    // When input has no stageId, the service resolves stageId = first stage (lowest order).
+    const stageRows = [
+      { id: 'stage-mid', dynamicTableId: 'leadStages-table', data: { pipelineId: 'pipe-1', order: 2 } },
+      { id: 'stage-first', dynamicTableId: 'leadStages-table', data: { pipelineId: 'pipe-1', order: 0 } },
+      { id: 'stage-late', dynamicTableId: 'leadStages-table', data: { pipelineId: 'pipe-1', order: 5 } },
+    ];
+
+    function buildOppConvert(over: { findDataById?: any; findRowsByFieldValue?: any } = {}) {
+      const createTableData = jest.fn(async () => ({ id: 'opp-1' }));
+      const findDataById = over.findDataById ?? jest.fn(async () => ({ ...oppLeadRow }));
+      const findRowsByFieldValue = over.findRowsByFieldValue ?? jest.fn(async () => [...stageRows]);
+      const built = buildService({ dts: { createTableData }, repo: { findDataById, findRowsByFieldValue } });
+      return { ...built, createTableData, findRowsByFieldValue };
+    }
+
+    const oppInput = { leadId: 'lead-1', name: 'Acme Deal', pipelineId: 'pipe-1', currency: 'BRL' as const };
+
+    it('cria a opportunity atômica (1× runInTransaction, 1× createTableData no MESMO tx)', async () => {
+      const { svc, dynamicTableService } = buildOppConvert();
+      const out = await svc.convertLeadToOpportunity(user, oppInput);
+
+      expect(out).toEqual({ id: 'opp-1' });
+      expect(dynamicTableService.runInTransaction).toHaveBeenCalledTimes(1);
+      expect(dynamicTableService.createTableData).toHaveBeenCalledTimes(1);
+      expect(dynamicTableService.createTableData).toHaveBeenCalledWith(
+        user, 'crmOpportunities-table', expect.any(Object), txArg,
+      );
+    });
+
+    it('herda owner (assigneeId) e unit do lead; status Open; accountId do lead quando não informado', async () => {
+      const { svc, dynamicTableService } = buildOppConvert();
+      await svc.convertLeadToOpportunity(user, oppInput);
+
+      const call = dynamicTableService.createTableData.mock.calls[0];
+      expect(call[2].data).toEqual(
+        expect.objectContaining({
+          leadId: 'lead-1',
+          unitId: 'unit-1',
+          ownerId: 'emp-1',
+          pipelineId: 'pipe-1',
+          name: 'Acme Deal',
+          status: 'Open',
+          accountId: 'acc-9',
+          currency: 'BRL',
+        }),
+      );
+    });
+
+    it('accountId do input tem precedência sobre o do lead', async () => {
+      const { svc, dynamicTableService } = buildOppConvert();
+      await svc.convertLeadToOpportunity(user, { ...oppInput, accountId: 'acc-override' });
+      const call = dynamicTableService.createTableData.mock.calls[0];
+      expect(call[2].data.accountId).toBe('acc-override');
+    });
+
+    // FIX 1 — stageId default: input has NO stageId, so the service resolves the pipeline's
+    // first stage (lowest `order`) via findRowsByFieldValue('leadStages', 'pipelineId', ...).
+    it('sem stageId no input → usa a primeira etapa do pipeline (menor order)', async () => {
+      const { svc, dynamicTableService, findRowsByFieldValue } = buildOppConvert();
+      await svc.convertLeadToOpportunity(user, oppInput);
+      expect(findRowsByFieldValue).toHaveBeenCalledWith('leadStages-table', 'pipelineId', 'pipe-1');
+      const call = dynamicTableService.createTableData.mock.calls[0];
+      expect(call[2].data.stageId).toBe('stage-first');
+    });
+
+    it('stageId do input tem precedência (não consulta leadStages)', async () => {
+      const { svc, dynamicTableService, findRowsByFieldValue } = buildOppConvert();
+      await svc.convertLeadToOpportunity(user, { ...oppInput, stageId: 'stage-explicit' });
+      expect(findRowsByFieldValue).not.toHaveBeenCalled();
+      const call = dynamicTableService.createTableData.mock.calls[0];
+      expect(call[2].data.stageId).toBe('stage-explicit');
+    });
+
+    it('pipeline sem etapas → ValidationError, sem escritas', async () => {
+      const { svc, dynamicTableService } = buildOppConvert({
+        findRowsByFieldValue: jest.fn(async () => []),
+      });
+      await expect(svc.convertLeadToOpportunity(user, oppInput)).rejects.toBeInstanceOf(ValidationError);
+      expect(dynamicTableService.createTableData).not.toHaveBeenCalled();
+      expect(dynamicTableService.runInTransaction).not.toHaveBeenCalled();
+    });
+
+    it('lead sem unitId → ValidationError, sem escritas', async () => {
+      const { svc, dynamicTableService } = buildOppConvert({
+        findDataById: jest.fn(async () => ({ ...oppLeadRow, data: { ...oppLeadRow.data, unitId: undefined } })),
+      });
+      await expect(svc.convertLeadToOpportunity(user, oppInput)).rejects.toBeInstanceOf(ValidationError);
+      expect(dynamicTableService.createTableData).not.toHaveBeenCalled();
+      expect(dynamicTableService.runInTransaction).not.toHaveBeenCalled();
+    });
+
+    it('lead de outro tenant (dynamicTableId ≠ leads do caller) → NotFoundError, sem escritas', async () => {
+      const { svc, dynamicTableService } = buildOppConvert({
+        findDataById: jest.fn(async () => ({ ...oppLeadRow, dynamicTableId: 'someone-else-leads-table' })),
+      });
+      await expect(svc.convertLeadToOpportunity(user, oppInput)).rejects.toBeInstanceOf(NotFoundError);
+      expect(dynamicTableService.createTableData).not.toHaveBeenCalled();
+      expect(dynamicTableService.runInTransaction).not.toHaveBeenCalled();
+    });
+
+    it('lead inexistente → NotFoundError', async () => {
+      const { svc } = buildOppConvert({ findDataById: jest.fn(async () => null) });
+      await expect(svc.convertLeadToOpportunity(user, oppInput)).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('NotFoundError se crmOpportunities não está instalada', async () => {
+      const { svc } = buildService({ repo: { findTableByInternalName: jest.fn(async () => null) } });
+      await expect(svc.convertLeadToOpportunity(user, oppInput)).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
 });

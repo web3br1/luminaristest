@@ -5,6 +5,7 @@ import type { DynamicTableService } from '../../dynamicTables/services/DynamicTa
 import type { IDynamicTableRepository } from '../../dynamicTables/repositories/IDynamicTableRepository';
 import type { ITableSchema } from '../../dynamicTables/models/DynamicTable.model';
 import type { AdvanceStageInput, ConvertLeadInput, CreateProposalInput, RecordNoShowInput } from '../dtos/CrmPipelineDto';
+import type { AdvanceOpportunityInput, ConvertLeadToOpportunityInput } from '../dtos/CrmOpportunityDto';
 import { DEFAULT_CURRENCY } from '../constants';
 
 /**
@@ -258,5 +259,150 @@ export class CrmPipelineService {
     });
 
     return { ok: true };
+  }
+
+  /**
+   * Advance an opportunity to a target stage, persisting the deal patch.
+   *
+   * Opportunity is first-class (parallel to the lead pipeline): `crmOpportunities`
+   * owns the value/stage/close/status. The stage move optionally updates the deal
+   * snapshot (amount/currency/winProbability). When the target stage is a closing
+   * stage (`closed_won`/`closed_lost`), the status moves to Won/Lost and `closedAt`
+   * is stamped — `closedAt` is a readOnly field so the write goes through as a
+   * server-orchestrated transition (isSystem), not a direct user edit.
+   */
+  async advanceOpportunity(user: UserContext, input: AdvanceOpportunityInput) {
+    // Fail fast if the opportunities table is not installed for this user.
+    const opportunitiesTableId = await this.resolveTableId(user, 'crmOpportunities');
+
+    // Cross-tenant read guard (mirrors convertLead's FIX 1, contract §2): findDataById is NOT
+    // tenant-scoped, so a foreign opportunityId would otherwise reach updateTableData and throw
+    // ForbiddenError (mild enumeration). Treat a missing/foreign row as non-existent instead.
+    const oppRow = await this.repository.findDataById(input.opportunityId);
+    if (!oppRow || oppRow.dynamicTableId !== opportunitiesTableId) {
+      throw new NotFoundError(`Opportunity '${input.opportunityId}' não foi encontrada.`);
+    }
+
+    const patch: Record<string, unknown> = { stageId: input.stageId };
+    if (input.amount != null) patch.amount = input.amount;
+    if (input.currency != null) patch.currency = input.currency;
+    if (input.winProbability != null) patch.winProbability = input.winProbability;
+    // Explicit status override (if provided) is applied; the closing-stage rule below wins.
+    if (input.status != null) patch.status = input.status;
+
+    const stageType = (input.stageType || '').toLowerCase();
+    if (stageType === 'closed_won' || stageType === 'closed_lost') {
+      patch.status = stageType === 'closed_won' ? 'Won' : 'Lost';
+      patch.closedAt = new Date().toISOString();
+    }
+
+    // isSystem: closedAt is a readOnly field; this is a server-orchestrated transition.
+    const updated = await this.dynamicTableService.updateTableData(
+      user,
+      input.opportunityId,
+      { data: patch },
+      { isSystem: true },
+    );
+
+    logger.info('CRM opportunity advanced stage', {
+      opportunityId: input.opportunityId,
+      stageId: input.stageId,
+      status: patch.status,
+    });
+    return updated;
+  }
+
+  /**
+   * Create a first-class opportunity FROM a lead (Lead360 → "Create Opportunity").
+   *
+   * The lead is NOT consumed/terminated — it stays as-is (pre-qualification). The new
+   * opportunity links back to its source lead, inherits the lead's unit and owner, and
+   * reuses the lead pipeline/stage. The opportunity create runs inside a transaction.
+   *
+   * The lead is read tenant-scoped (findDataById is NOT tenant-scoped, so a foreign
+   * tenant's leadId would leak PII — assert dynamicTableId === the caller's resolved
+   * leads table id, else NotFoundError; mirrors convertLead's FIX 1). unitId must be
+   * present on the lead (the opportunity requires it) — ValidationError otherwise.
+   */
+  async convertLeadToOpportunity(user: UserContext, input: ConvertLeadToOpportunityInput) {
+    const opportunitiesTableId = await this.resolveTableId(user, 'crmOpportunities');
+
+    // Resolve the leads table object once (tenant-scoped via user.userId → NotFoundError).
+    const leadsTable = await this.repository.findTableByInternalName(user.userId, 'leads');
+    if (!leadsTable) {
+      throw new NotFoundError(`CRM table 'leads' is not installed for this user.`);
+    }
+    const leadsTableId = leadsTable.id;
+
+    // Snapshot the source lead (we inherit unit + owner). findDataById is NOT tenant-scoped.
+    const leadRow = await this.repository.findDataById(input.leadId);
+    if (!leadRow) {
+      throw new NotFoundError(`Lead '${input.leadId}' não foi encontrado.`);
+    }
+    // Cross-tenant read guard: a row whose parent table is not THIS tenant's leads table
+    // is treated as non-existent (NotFoundError, no PII leak). Contract §2.
+    if (leadRow.dynamicTableId !== leadsTableId) {
+      throw new NotFoundError(`Lead '${input.leadId}' não foi encontrado.`);
+    }
+
+    const lead = leadRow.data as Record<string, unknown>;
+
+    // The opportunity requires unitId — fail clearly BEFORE the transaction.
+    const rawUnitId = lead.unitId;
+    const unitId = typeof rawUnitId === 'string' && rawUnitId.length > 0 ? rawUnitId : undefined;
+    if (!unitId) {
+      throw new ValidationError('Lead sem unidade (unitId) não pode gerar oportunidade: defina a unidade do lead antes.');
+    }
+
+    const assigneeId = lead.assigneeId as string | undefined;
+    const leadAccountId = lead.accountId as string | undefined;
+    const accountId = input.accountId ?? leadAccountId;
+
+    // Resolve the target stage: input.stageId OR the pipeline's first stage. stageId is a
+    // REQUIRED field on crmOpportunities and the create modal does not send it, so we must
+    // default it here — else the engine rejects the create. The "first stage" is the lowest
+    // `order` among leadStages rows of input.pipelineId (the opportunity reuses the lead
+    // pipeline/stages). A pipeline with no stages cannot host an opportunity.
+    let stageId = input.stageId;
+    if (stageId === undefined) {
+      const stagesTableId = await this.resolveTableId(user, 'leadStages');
+      const stages = await this.repository.findRowsByFieldValue(stagesTableId, 'pipelineId', input.pipelineId);
+      const firstStage = [...stages].sort(
+        (a, b) => Number((a.data as Record<string, unknown>).order ?? 0) - Number((b.data as Record<string, unknown>).order ?? 0),
+      )[0];
+      if (!firstStage) {
+        throw new ValidationError('Pipeline sem etapas: configure ao menos uma etapa antes de criar a oportunidade.');
+      }
+      stageId = firstStage.id;
+    }
+
+    // Build the opportunity payload, omitting undefined optional fields (never write undefined).
+    const oppData: Record<string, unknown> = {
+      leadId: leadRow.id,
+      unitId,
+      pipelineId: input.pipelineId,
+      name: input.name,
+      currency: input.currency,
+      status: 'Open',
+      stageId, // required — input OR first stage of the pipeline (resolved above)
+    };
+    if (accountId !== undefined) oppData.accountId = accountId;
+    if (input.amount !== undefined) oppData.amount = input.amount;
+    if (assigneeId !== undefined) oppData.ownerId = assigneeId;
+
+    const opportunity = await this.dynamicTableService.runInTransaction(async (tx) => {
+      return this.dynamicTableService.createTableData(
+        user,
+        opportunitiesTableId,
+        { data: oppData },
+        { tx },
+      );
+    });
+
+    logger.info('Lead converted to opportunity', {
+      leadId: leadRow.id,
+      opportunityId: opportunity.id,
+    });
+    return opportunity;
   }
 }

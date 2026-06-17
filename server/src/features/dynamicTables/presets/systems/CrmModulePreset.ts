@@ -7,6 +7,7 @@ import { leadProposalsModule } from '../modules/core/LeadProposalsModule';
 import { leadActivitiesModule } from '../modules/core/LeadActivitiesModule';
 import { crmContactsModule } from '../modules/crm/CrmContactsModule';
 import { crmAccountsModule } from '../modules/crm/CrmAccountsModule';
+import { opportunitiesModule } from '../modules/crm/OpportunitiesModule';
 
 /**
  * @description
@@ -37,6 +38,9 @@ export const CrmModulePreset: PresetSuite = {
     // --- CRM-specific entities ---
     crmAccounts:    createTableFromModule(crmAccountsModule),
     crmContacts:    createTableFromModule(crmContactsModule),
+
+    // --- First-class Opportunity (parallel to the lead pipeline) ---
+    crmOpportunities: createTableFromModule(opportunitiesModule),
   },
 };
 

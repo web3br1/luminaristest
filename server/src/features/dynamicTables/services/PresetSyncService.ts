@@ -6,6 +6,8 @@ import type { IDynamicTableRepository } from '../repositories/IDynamicTableRepos
 import type { ISchemaField, ITableSchema } from '../models/DynamicTable.model';
 import { CoreSystemPreset } from '../presets/systems/CoreSystemPreset';
 import { tablePresetSuites } from '../presets';
+import type { PresetTableDefinition } from '../presets';
+import type { CreateDynamicTableDtoType } from '../dtos/DynamicTable.dto';
 
 const PRESET_TABLE_KEY_PREFIX = '@@PRESET_TABLE_KEY::';
 
@@ -54,6 +56,25 @@ export class PresetSyncService {
       for (const suite of Object.values(category)) {
         const def = suite.tables[internalName];
         if (def?.schema) return def.schema;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Resolve the FULL preset table definition (name/category/schema) for a given
+   * `internalName` across the Core system preset and every selectable preset suite.
+   * Used by installTableFromPreset to build the CreateDynamicTableDto exactly like
+   * installPresetAsSystem does. Preset table keys ARE the internalName.
+   */
+  private getPresetDefinitionForInternalName(internalName: string): PresetTableDefinition | null {
+    const coreDef = CoreSystemPreset.tables[internalName];
+    if (coreDef?.schema) return coreDef;
+
+    for (const category of Object.values(tablePresetSuites)) {
+      for (const suite of Object.values(category)) {
+        const def = suite.tables[internalName];
+        if (def?.schema) return def;
       }
     }
     return null;
@@ -198,5 +219,77 @@ export class PresetSyncService {
     });
 
     return { added, optionsAdded };
+  }
+
+  /**
+   * Install ONE new table from its preset definition into an already-installed tenant.
+   *
+   * Unlike installPresetAsSystem (one-shot, all-tables, blocked once a user has tables),
+   * this is the additive single-table installer used to roll out a NEW table (e.g.
+   * `crmOpportunities`) to tenants that already have the CRM module.
+   *
+   * Steps (see spec Componente A):
+   *  1. Idempotent: if the table is already installed (findTableByInternalName), return
+   *     { tableId, created:false } WITHOUT creating anything.
+   *  2. Load the FULL preset definition (name/category/schema) from the registry by internalName.
+   *  3. Resolve every @@PRESET_TABLE_KEY:: relation marker to the user's REAL installed table
+   *     id (mirrors installPresetAsSystem pass-2 via resolveRelationMarker); a dependency table
+   *     that is NOT installed for this tenant → NotFoundError (no marker leaks into createTable).
+   *  4. Build the CreateDynamicTableDto exactly like installPresetAsSystem (name/category/
+   *     internalName + marker-free schema) and persist via repository.createTable(userId, dto).
+   *
+   * @returns { tableId, created } — created=false when the table already existed (idempotent).
+   */
+  async installTableFromPreset(
+    user: UserContext,
+    internalName: string,
+  ): Promise<{ tableId: string; created: boolean }> {
+    // 1) Idempotent: already installed → no-op.
+    const existing = await this.repository.findTableByInternalName(user.userId, internalName);
+    if (existing) {
+      logger.info('PresetInstall: table already installed — idempotent no-op', {
+        userId: user.userId,
+        internalName,
+        tableId: existing.id,
+      });
+      return { tableId: existing.id, created: false };
+    }
+
+    // 2) Load the full preset definition from the registry.
+    const definition = this.getPresetDefinitionForInternalName(internalName);
+    if (!definition) {
+      throw new NotFoundError(`Nenhum preset conhecido define a tabela '${internalName}'.`);
+    }
+
+    // 3) Resolve relation markers to the user's REAL installed table ids. A missing
+    // dependency throws NotFoundError (resolveRelationMarker) before any write.
+    const presetFields: ISchemaField[] = Array.isArray(definition.schema.fields)
+      ? definition.schema.fields
+      : [];
+    const resolvedFields: ISchemaField[] = [];
+    for (const field of presetFields) {
+      resolvedFields.push(await this.resolveRelationMarker(user, field));
+    }
+    const resolvedSchema: ITableSchema = {
+      ...definition.schema,
+      fields: resolvedFields,
+    };
+
+    // 4) Build the CreateDynamicTableDto exactly like installPresetAsSystem and persist.
+    const dto: CreateDynamicTableDtoType = {
+      name: definition.name,
+      category: definition.category,
+      internalName,
+      schema: resolvedSchema as unknown as CreateDynamicTableDtoType['schema'],
+    };
+    const created = await this.repository.createTable(user.userId, dto);
+
+    logger.info('PresetInstall: installed new table from preset', {
+      userId: user.userId,
+      internalName,
+      tableId: created.id,
+    });
+
+    return { tableId: created.id, created: true };
   }
 }
