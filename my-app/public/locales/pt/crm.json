@@ -114,7 +114,17 @@
     "not_found": "Lead não encontrado.",
     "tasks": "Tarefas",
     "no_tasks": "Nenhuma tarefa.",
-    "new_task": "+ Nova tarefa"
+    "new_task": "+ Nova tarefa",
+    "notes": "Notas"
+  },
+  "notes": {
+    "placeholder": "Escreva uma nota…",
+    "add": "Adicionar nota",
+    "adding": "Adicionando…",
+    "empty": "Nenhuma nota.",
+    "required_error": "Informe o conteúdo da nota.",
+    "not_available": "Notas não disponíveis.",
+    "by": "Por"
   },
   "tasks": {
     "title": "Tarefas",

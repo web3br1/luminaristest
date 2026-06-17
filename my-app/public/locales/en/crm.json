@@ -114,7 +114,17 @@
     "not_found": "Lead not found.",
     "tasks": "Tasks",
     "no_tasks": "No tasks.",
-    "new_task": "+ New task"
+    "new_task": "+ New task",
+    "notes": "Notes"
+  },
+  "notes": {
+    "placeholder": "Write a note…",
+    "add": "Add note",
+    "adding": "Adding…",
+    "empty": "No notes.",
+    "required_error": "Enter the note content.",
+    "not_available": "Notes are not available.",
+    "by": "By"
   },
   "tasks": {
     "title": "Tasks",
