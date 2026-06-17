@@ -138,7 +138,7 @@ Comparação com **Salesforce Sales Cloud**. Aterrada na arquitetura Luminaris: 
 1. **Conversão de Lead** — botão "Converter" que cria/associa Account + Contact + Opportunity e marca o lead como convertido. Hoje lead e conta/contato vivem soltos. *(M, engine já suporta as escritas)*
 2. **Opportunity como objeto de 1ª classe** — separar "oportunidade" (negociação com valor, etapa, fechamento) do "lead" (qualificação). Hoje o lead acumula os dois papéis + snapshot de proposta. Salesforce separa Lead (pré-qualificação) de Opportunity (pipeline de receita). *(L — decisão de modelagem)*
 3. **Owner / atribuição de registro** — todo lead/conta/oportunidade tem um "dono" (vendedor). Hoje não há ownership por vendedor (só o `userId` tenant). Sem isso não há pipeline por vendedor nem relatórios por dono. *(M)*
-4. **Atividades como tarefas reais** — Task (com `dueDate`, `status`, `owner`, lembrete) e Event (reunião com horário). Hoje é só log read-only. *(M)*
+4. **Atividades como tarefas reais** — Task (com `dueDate`, `status`, `owner`, lembrete) e Event (reunião com horário). Hoje é só log read-only. *(M)* — ✅ **FEITO (Slice 2, 2026-06-17, commit `197128e`):** `tasks` estendida (core-safe `leadId` + `reminderAt`; reusa `date`=vencimento, `status`); `LeadTasksPanel` no Lead360 (criar/listar/concluir, dono, prioridade); rollout live + E2E ok. Follow-ups: entrega de lembrete (job), distinção Task/Event, accountId/contactId em task (relação não-core).
 5. **List views salvas + edição inline + ações em massa** — Salesforce tem list views filtráveis/compartilháveis e edição inline na lista. O `GenericTable` já dá base; falta saved views e bulk actions. *(M)*
 6. **Notas & anexos** por registro. *(S — DynamicTable + Documents já existem)*
 
