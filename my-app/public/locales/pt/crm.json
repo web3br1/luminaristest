@@ -111,7 +111,23 @@
     "phone": "Telefone",
     "status": "Status",
     "unnamed_lead": "Lead sem nome",
-    "not_found": "Lead não encontrado."
+    "not_found": "Lead não encontrado.",
+    "tasks": "Tarefas",
+    "no_tasks": "Nenhuma tarefa.",
+    "new_task": "+ Nova tarefa"
+  },
+  "tasks": {
+    "title": "Tarefas",
+    "name": "Nome",
+    "due_date": "Vencimento",
+    "priority": "Prioridade",
+    "owner": "Responsável",
+    "unassigned": "Sem responsável",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "toggle_done": "Concluir tarefa",
+    "required_error": "Informe nome e data de vencimento.",
+    "not_available": "Tarefas não disponíveis."
   },
   "contacts": {
     "title": "Contatos",

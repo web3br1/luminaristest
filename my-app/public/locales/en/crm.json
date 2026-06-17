@@ -111,7 +111,23 @@
     "phone": "Phone",
     "status": "Status",
     "unnamed_lead": "Unnamed lead",
-    "not_found": "Lead not found."
+    "not_found": "Lead not found.",
+    "tasks": "Tasks",
+    "no_tasks": "No tasks.",
+    "new_task": "+ New task"
+  },
+  "tasks": {
+    "title": "Tasks",
+    "name": "Name",
+    "due_date": "Due Date",
+    "priority": "Priority",
+    "owner": "Owner",
+    "unassigned": "Unassigned",
+    "save": "Save",
+    "cancel": "Cancel",
+    "toggle_done": "Complete task",
+    "required_error": "Enter a name and a due date.",
+    "not_available": "Tasks are not available."
   },
   "contacts": {
     "title": "Contacts",

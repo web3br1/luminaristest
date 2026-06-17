@@ -40,6 +40,23 @@ export const tasksModule = {
       },
       { ...date, label: 'Due Date' },
       {
+        // Optional CRM link: a task can belong to a lead. `leads` is a core table
+        // (auto-installed) so the preset marker resolves even without the CRM module.
+        name: 'leadId',
+        label: 'Lead',
+        type: 'relation',
+        required: false,
+        relation: { targetTable: '@@PRESET_TABLE_KEY::leads' },
+        searchable: false,
+      },
+      {
+        name: 'reminderAt',
+        label: 'Reminder At',
+        type: 'datetime',
+        required: false,
+        searchable: false,
+      },
+      {
         name: 'order',
         label: 'Order',
         type: 'number',
