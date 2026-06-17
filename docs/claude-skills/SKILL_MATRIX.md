@@ -15,7 +15,9 @@
 | job-generator | Background job, Seed fixture | Create background job or dev seed script | /job-generator "PurgeExpiredProposals" | Medium | Auto |
 | frontend-page-generator | Next.js Page, i18n namespace | Create page under my-app/pages/ with auth guard + i18n | /frontend-page-generator "appointments" | Low | Auto |
 | frontend-feature-module-generator | Feature module, Category view | Scaffold new feature folder under category-views/ | /frontend-feature-module-generator "appointments" | Medium | Auto |
-| frontend-component-generator | React component, Modal, Form field | Create typed FC with props interface | /frontend-component-generator "AppointmentCard" | Low | Auto |
+| frontend-component-generator | React component, Form field, Card | Create typed FC with props interface (delega tabela→table-screen, modal→modal) | /frontend-component-generator "AppointmentCard" | Low | Auto |
+| frontend-table-screen-generator | Table screen (GenericTabbedView wrapper) | Tela de listagem com CRUD inline + filtros + paginação reusando o stack canônico | /frontend-table-screen-generator "contacts crmContacts" | Medium | Auto |
+| frontend-modal-generator | Modal (detail/edit/confirm/capture) | Modal ancorado em Modal.tsx, padrão modal-não-rota | /frontend-modal-generator "Lead360Modal detail" | Low | Auto |
 | frontend-hook-generator | React hook | Create data-fetching or UI state custom hook | /frontend-hook-generator "useAppointments" | Low | Auto |
 | frontend-context-provider-generator | Context provider | Create React context + provider + useX hook | /frontend-context-provider-generator "Appointments" | Medium | Auto |
 | frontend-widget-generator | Dashboard widget, Chart | Create widget for dashboard grid | /frontend-widget-generator "AppointmentsCalendar" | Medium | Auto |

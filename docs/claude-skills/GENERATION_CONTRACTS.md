@@ -135,7 +135,28 @@ For DynamicTable-backed domains (leads, ERP, CRM) the service orchestrates `Dyna
 - Drag-end: `DynamicTableService.updateRecord` (simples) OU endpoint de transição (efeitos colaterais), com optimistic update + rollback
 - Card click → `KanbanCardDetailModal` (modal, NUNCA `router.push`)
 - Create → `FloatingActionButton`; filters → `KanbanFilterBar`; container full-height; resolve por `internalName`; pagina ao ler
-- Golden ref: `my-app/features/dashboard/category-views/kanban/InternalKanbanView.tsx` (+ `hooks/useKanbanLogic.tsx`). Anti-exemplo: `my-app/pages/crm/pipeline.tsx` (board estático)
+- Golden ref: `my-app/features/dashboard/category-views/kanban/InternalKanbanView.tsx` (+ `hooks/useKanbanLogic.tsx`). Verificada: `my-app/features/crm/components/CrmPipelineBoard.tsx`. Anti-exemplo: `my-app/pages/crm/pipeline.tsx` antigo (board estático)
+
+## Frontend Table Screen Contract
+
+> Skill: `frontend-table-screen-generator`
+
+- Wrapper file: `my-app/features/<module>/components/<Name>TableScreen.tsx` — REUSA `GenericTabbedView` (que traz `GenericTable`/`GenericRow`/`RowActionsCell` + `GenericFilterBar` + `StandardPagination` + relation lookups). **Não** escreva `<table>` próprio.
+- Resolve a `IDynamicTable` (com schema) por `internalName` via `DynamicTableService.getTables()` (`find(x => x.internalName === key || x.name === 'Human Name')`, nunca `[0]`); `useMemo`; estados loading/error/não-instalada.
+- Render: `<GenericTabbedView tables={[table]} title={t(titleKey)} description={t(descriptionKey)} />` — CRUD (create→`createRecord`, edit→`updateRecord`, delete soft→`deleteRecord`), filtros, sort e paginação (25/pg) vêm do wrapper.
+- Página: shell full-height + `withAuth` + `serverSideTranslations(locale, ['common', '<namespace>', 'database'])` — o `database` namespace é obrigatório (cabeçalhos/filtros do `GenericTabbedView`).
+- Duas camadas de paginação (não confundir): **rede** = `useTableData` busca TODAS as páginas (limit=200 até `totalPages`, derrota o cap de 50 da API); **display** = `GenericTabbedView` fatia o conjunto carregado em 25/pg via `StandardPagination`. Validar com **>50 registros**.
+- Golden ref: `my-app/features/dashboard/category-views/shared/GenericTabbedView.tsx` (+ verificada: `my-app/features/crm/components/CrmTableScreen.tsx`). Anti-exemplo: `RecordTable.tsx` (deletado)
+
+## Frontend Modal Contract
+
+> Skill: `frontend-modal-generator`
+
+- Modal file: `my-app/features/<module>/components/<Name>Modal.tsx` — construído sobre `my-app/components/ui/Modal.tsx` (`{ isOpen, onClose, title?, children, maxWidth?, footer?, headerActions?, isDirty?, themeColor? }`); **não** reimplemente portal/overlay/esc/focus-trap.
+- Estado na view-pai: `const [selected, setSelected] = useState<T|null>(null)`; `isOpen={!!selected}` + `onClose={() => setSelected(null)}`. O clique de detalhe **substitui** qualquer `router.push`.
+- Tipos: `detail` (conteúdo do registro + ação via service + `onChanged?`), `edit` (form/`DynamicForm` → `updateRecord`, `isDirty`), `confirm` (reusa `ConfirmDeleteModal`/`ConfirmModal`), `capture` (coleta input → `onConfirm(payload)`; cancelar = nenhuma escrita).
+- Escritas via service layer; props sem `any`; loading/error; i18n via `t()`; `neutral`/`rounded-2xl`/dark.
+- Golden refs: `my-app/components/ui/Modal.tsx`, `KanbanCardDetailModal.tsx`, `ConfirmDeleteModal.tsx` (+ verificadas: `my-app/features/crm/components/Lead360Modal.tsx`, `ProposalCaptureModal.tsx`)
 
 ## RAG / Document Processing Contract
 

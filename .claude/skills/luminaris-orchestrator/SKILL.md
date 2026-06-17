@@ -46,7 +46,9 @@ Analise o argumento `$ARGUMENTS` e classifique em uma das categorias:
 | "controller", "rota", "endpoint" isolado | `backend-controller-generator` + `backend-route-generator` |
 | "service" isolado | `backend-service-generator` |
 | "página", "tela", "view" | `frontend-page-generator` |
-| "componente", "card", "modal", "form" | `frontend-component-generator` |
+| "tabela", "listagem", "lista de registros", "grid", "tela de cadastros" (com CRUD/filtros/paginação) | `frontend-table-screen-generator` |
+| "modal", "detalhe de registro", "popup", "confirmação", "captura de valor" | `frontend-modal-generator` |
+| "componente", "card", "form field" (peça pequena/folha) | `frontend-component-generator` |
 | "hook", "use<X>" | `frontend-hook-generator` |
 | "widget", "chart", "gráfico" | `frontend-widget-generator` |
 | "fluxo de trabalho", "workflow", "kanban", "pipeline", "board por etapa", "esteira", "funil arrastável" | `frontend-kanban-workflow-generator` (+ `backend-workflow-transition-generator` se a transição tem efeitos colaterais) |
@@ -65,6 +67,8 @@ Analise o argumento `$ARGUMENTS` e classifique em uma das categorias:
 | "novo agente com preset" | `dynamic-table-preset-generator` → `chat-domain-generator` |
 | "crud + sync frontend" | `crud-resource-generator` → `api-contract-sync-generator` |
 | "pipeline/board com transição de etapa" | `backend-workflow-transition-generator` → `frontend-kanban-workflow-generator` |
+| "tela de tabela + detalhe em modal" | `frontend-table-screen-generator` → `frontend-modal-generator` |
+| "módulo com tabela + board + analytics" | `frontend-table-screen-generator` + `frontend-kanban-workflow-generator` + `dashboard-kpi-end-to-end-generator` (cada um com `frontend-design-system`) |
 
 ## Phase 3 — Verificar ambiguidades (perguntar se necessário)
 

@@ -15,6 +15,12 @@ Gera componentes React funcionais tipados em `my-app/components/` ou dentro de `
 
 Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (reuse de canônicos, service layer, paginação DynamicTable, modal-não-rota, `useMemo`, no-`any`, container full-height, design system) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Component**.
 
+> **Delegue quando for uma peça canônica inteira (não recrie aqui):**
+> - **Tela de tabela/listagem de registros** (CRUD inline + filtros + paginação) → use `frontend-table-screen-generator` (reusa `GenericTabbedView`). Esta skill cobre só componentes pequenos/folha.
+> - **Modal** (detalhe/edição/confirmação/captura) → use `frontend-modal-generator` (ancorado em `Modal.tsx`, regra modal-não-rota).
+> - **Board por etapa (Kanban/workflow)** → use `frontend-kanban-workflow-generator`.
+> Use esta skill para cards, form fields e componentes genéricos de UI.
+
 ## When to use
 
 - Novo componente de UI reutilizável

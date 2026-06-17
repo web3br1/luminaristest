@@ -14,9 +14,9 @@ Antes de escrever qualquer componente, classe, helper ou padrão, **procure o ca
 
 | Necessidade | Canônico a reusar (NÃO recriar) |
 |---|---|
-| Tabela de registros (CRUD inline) | `features/dashboard/category-views/shared/components/GenericTable.tsx` + `GenericRow.tsx` + `RowActionsCell.tsx` (via `GenericTabbedView.tsx`) |
+| Tabela de registros (CRUD inline) | `features/dashboard/category-views/shared/components/GenericTable.tsx` + `GenericRow.tsx` + `RowActionsCell.tsx` (via `GenericTabbedView.tsx`). Skill: `frontend-table-screen-generator`. Golden ref verificada: `features/crm/components/CrmTableScreen.tsx`. **Anti-exemplo: `RecordTable.tsx` (deletado).** |
 | Paginação | `features/dashboard/shared/components/StandardPagination.tsx` |
-| Modal / detalhe de registro | `components/ui/Modal.tsx` (portal) + estado local (padrão `KanbanCardDetailModal.tsx`) |
+| Modal / detalhe de registro | `components/ui/Modal.tsx` (portal) + estado local (padrão `KanbanCardDetailModal.tsx`). Skill: `frontend-modal-generator`. Golden refs verificadas: `features/crm/components/Lead360Modal.tsx` (detalhe), `ProposalCaptureModal.tsx` (captura), `ConfirmDeleteModal.tsx` (confirmação). **Regra: detalhe/edição = modal, nunca `router.push`.** |
 | Board/KPIs/charts de analytics | `.../finance/components/analytics/dashboard/AnalyticsDashboard.tsx` + `DashboardKpiCard.tsx` + `charts/ChartRenderer.tsx` + `widgets/analytics/GoldKpiWidgetView.tsx` |
 | Board de fluxo de trabalho (Kanban drag-drop entre etapas) | `features/dashboard/category-views/kanban/InternalKanbanView.tsx` (+ `hooks/useKanbanLogic.tsx`, `components/KanbanCardDetailModal.tsx`). Transição com efeitos colaterais → serviço no padrão `server/src/features/crm/services/CrmPipelineService.ts`. Skills: `frontend-kanban-workflow-generator` + `backend-workflow-transition-generator`. **Anti-exemplo: `pages/crm/pipeline.tsx` (board estático).** |
 | Erro de API (controller) | `handleApiError` de `lib/apiUtils` |

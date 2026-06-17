@@ -238,7 +238,30 @@ grep -n "Appointment\|<Resource>" server/src/lib/factory.ts   # verificar presen
 - [ ] Colunas filtradas pelo **pai ativo** (stage-relation) ou opções do enum; validar com **>1 pai**
 - [ ] Clique no card abre **modal**, não troca de rota
 - [ ] Container `flex h-full`; resolve por `internalName`; pagina ao ler
-- Golden ref: `my-app/features/dashboard/category-views/kanban/InternalKanbanView.tsx`
+- Golden ref: `my-app/features/dashboard/category-views/kanban/InternalKanbanView.tsx` (+ verificada: `my-app/features/crm/components/CrmPipelineBoard.tsx`)
+
+---
+
+### Camada: Table Screen (frontend — tela de listagem/tabela de registros) — Skill: `frontend-table-screen-generator`
+
+- [ ] **Reusa** `GenericTabbedView` (que traz `GenericTable`/`RowActionsCell`/`GenericFilterBar`/`StandardPagination`) — **zero** `<table>` bespoke (anti-exemplo: `RecordTable.tsx`, deletado)
+- [ ] Resolve a `IDynamicTable` por `internalName` (com fallback de nome) — **nunca** índice `[0]`; `useMemo`
+- [ ] Estados loading / error / **tabela-não-instalada** tratados
+- [ ] CRUD do stack: create (`FloatingActionButton`→`createRecord`), edit (`EditRecordButton`→`updateRecord`), delete (`ConfirmDeleteModal` soft→`deleteRecord`)
+- [ ] Filtros + paginação (25/pg); leitura fetch-all (`useTableData`) — validar com **>50 registros**
+- [ ] **Página carrega o namespace `database`** em `serverSideTranslations` (senão cabeçalhos/filtros caem em inglês — bug que o `tsc` não pega)
+- Golden ref: `my-app/features/dashboard/category-views/shared/GenericTabbedView.tsx` (+ verificada: `my-app/features/crm/components/CrmTableScreen.tsx`)
+
+---
+
+### Camada: Modal (frontend — detalhe/edição/confirmação/captura) — Skill: `frontend-modal-generator`
+
+- [ ] Construído sobre `components/ui/Modal.tsx` — **zero** portal/overlay/esc/focus-trap reimplementado
+- [ ] Detalhe/edição abre **modal** com estado local na view-pai — **nunca** `router.push` para página de detalhe
+- [ ] `confirm` reusa `ConfirmDeleteModal`/`ConfirmModal` (não recria); `capture` não escreve no cancelar (rollback no pai se otimista)
+- [ ] Ações de escrita via service layer (sem `fetch`/`apiClient` direto); props sem `any`; loading/error tratados
+- [ ] `neutral`/`rounded-2xl`/dark; i18n via `t()`
+- Golden refs: `my-app/components/ui/Modal.tsx`, `KanbanCardDetailModal.tsx`, `ConfirmDeleteModal.tsx` (+ verificadas: `my-app/features/crm/components/Lead360Modal.tsx`, `ProposalCaptureModal.tsx`)
 
 ---
 
