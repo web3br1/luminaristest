@@ -32,6 +32,24 @@ model User {
   knowledgeGraph KnowledgeGraph? // Relation to KnowledgeGraph
   actionProposals ActionProposal[] // Relation to ActionProposal
   crmAttachments CrmAttachment[] // Relation to CrmAttachment
+  savedTableViews SavedTableView[] // Relation to SavedTableView
+}
+
+// Per-user saved table views (query/filters/sort) for the canonical table stack.
+// Scoped by userId + tableId (IDynamicTable.id); tableId is not a FK (tables are dynamic).
+model SavedTableView {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tableId   String   // IDynamicTable.id (escopo da view; não FK — tabelas são dinâmicas)
+  name      String
+  config    Json     // { query, fieldFilters, sortConfig }
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([userId, tableId])
+  @@map("saved_table_views")
 }
 
 // Downloadable file-store metadata for CRM record attachments (polymorphic, soft-delete).

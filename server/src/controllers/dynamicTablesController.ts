@@ -124,6 +124,30 @@ export async function deleteTableData(req: Request, res: Response) {
   }
 }
 
+/** Body schema for POST /api/dynamic-tables/:tableId/data/batch-delete. */
+const BatchDeleteDto = z.object({
+  ids: z.array(z.string().cuid()).min(1).max(200),
+});
+
+export async function batchDeleteTableData(req: Request, res: Response) {
+  try {
+    const ctx = getUserContextFromRequest(req);
+    if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const tableParse = cuidSchema.safeParse(req.params.tableId);
+    if (!tableParse.success) return res.status(400).json({ success: false, error: 'Invalid table ID' });
+
+    const body = BatchDeleteDto.safeParse(req.body);
+    if (!body.success) return res.status(400).json({ success: false, error: body.error.flatten() });
+
+    const service = getFactory().getDynamicTableService();
+    const result = await service.deleteTableDataBatch(ctx, tableParse.data, body.data.ids);
+    return res.json({ success: true, data: { deleted: result.deleted } });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+}
+
 /**
  * POST /api/dynamic-tables/sync-preset — additively evolve an installed table's schema
  * from its preset module. ADMIN-ONLY: this mutates installed table schemas, so it is

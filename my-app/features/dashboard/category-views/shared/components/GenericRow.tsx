@@ -44,6 +44,14 @@ interface GenericRowProps {
     onEditSuccess: () => void;
     /** Called to initiate soft delete (actual HTTP delegated to GenericTable) */
     onDeleteClick: (record: GenericRecord) => void;
+    /**
+     * Opt-in (CRM bulk actions). When true, a leading fixed checkbox cell is
+     * rendered for this row, wired to `isSelected` + `onToggleSelect`. Rendered
+     * OUTSIDE the customizable column model so column persistence is unaffected.
+     */
+    enableSelection?: boolean;
+    isSelected?: boolean;
+    onToggleSelect?: (id: string) => void;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -59,6 +67,9 @@ export function GenericRow({
     isWidgetMode = false,
     onEditSuccess,
     onDeleteClick,
+    enableSelection = false,
+    isSelected = false,
+    onToggleSelect,
 }: GenericRowProps) {
     const { t } = useTranslation(['common', 'database']);
     // CORRECT: hook injects user locale and currency from CurrencyContext
@@ -78,6 +89,19 @@ export function GenericRow({
 
     return (
         <tr className="group bg-gray-50/50 dark:bg-neutral-800/20 border-t-2 border-gray-200 dark:border-gray-800 hover:bg-gray-100/50 dark:hover:bg-neutral-800/40 transition-colors">
+            {/* Leading selection cell — fixed (outside customizable columns) */}
+            {enableSelection && (
+                <td className="px-2 py-3 text-center align-middle">
+                    <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggleSelect?.(record.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={String(record.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-neutral-600 dark:bg-neutral-700"
+                    />
+                </td>
+            )}
             {orderedCols.map((colId) => {
 
                 // ── Actions column ────────────────────────────────────────

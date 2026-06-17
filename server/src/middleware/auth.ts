@@ -17,6 +17,7 @@ const protectedApiPaths = [
   '/api/reports',         // ← cobre /api/reports/generate-chart-data
   '/api/structured-data', // ← cobre /api/structured-data/:documentId
   '/api/crm',             // ← cobre /api/crm/pipeline/*
+  '/api/saved-views',     // ← saved table views (per-user)
 ];
 
 // Admin-only API paths with method checks

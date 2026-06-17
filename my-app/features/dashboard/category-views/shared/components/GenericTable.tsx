@@ -35,6 +35,9 @@ import { useColumnSort } from '../hooks/useColumnSort';
 // Helpers
 // ─────────────────────────────────────────────────────────────
 
+/** Stable empty Set so the `selectedIds` default never changes identity per render. */
+const EMPTY_SELECTION: Set<string> = new Set();
+
 /** Converts a camelCase field name to a readable label. */
 function camelToLabel(field: string): string {
     return field
@@ -62,6 +65,17 @@ interface GenericTableProps {
     activeSortConfig?: SortOption | null;
     onSortChange?: (sort: SortOption | null) => void;
     isWidgetMode?: boolean;
+    /**
+     * Opt-in (CRM bulk actions). When true AND !isWidgetMode, a leading checkbox
+     * column is rendered (select-all-on-page header + per-row checkbox). Rendered
+     * as a FIXED leading th/td OUTSIDE useTableColumnControls so column
+     * resize/visibility/order persistence is completely unaffected. Off → table
+     * renders exactly as before.
+     */
+    enableSelection?: boolean;
+    selectedIds?: Set<string>;
+    onToggleSelect?: (id: string) => void;
+    onToggleSelectAll?: (pageRecords: GenericRecord[]) => void;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -78,8 +92,16 @@ export function GenericTable({
     activeSortConfig,
     onSortChange,
     isWidgetMode = false,
+    enableSelection = false,
+    selectedIds,
+    onToggleSelect,
+    onToggleSelectAll,
 }: GenericTableProps) {
     const { t } = useTranslation(['common', 'database']);
+    // Selection is fixed/leading and never shown in widget mode.
+    const showSelection = enableSelection && !isWidgetMode;
+    const selectionSet = selectedIds ?? EMPTY_SELECTION;
+    const allPageSelected = records.length > 0 && records.every((r) => selectionSet.has(r.id));
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [recordToDelete, setRecordToDelete] = useState<GenericRecord | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -176,6 +198,7 @@ export function GenericTable({
                     style={{ width: `max(100%, ${tableWidth}px)` }}
                 >
                     <colgroup>
+                        {showSelection && <col style={{ width: 44, minWidth: 44, maxWidth: 44 }} />}
                         {columns.map((col) => {
                             if (!isVisible(col.id)) return null;
                             const w = colWidths[col.id];
@@ -192,6 +215,20 @@ export function GenericTable({
                     {/* Header */}
                     <thead className="bg-gray-100/50 dark:bg-neutral-800/50 sticky top-0 z-10 shadow-sm">
                         <tr>
+                            {showSelection && (
+                                <th
+                                    scope="col"
+                                    className="px-2 py-3 text-center border-b border-gray-200 dark:border-gray-800 z-20"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={allPageSelected}
+                                        onChange={() => onToggleSelectAll?.(records)}
+                                        aria-label={t('database:bulk.select_all', 'Select all on page')}
+                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-neutral-600 dark:bg-neutral-700"
+                                    />
+                                </th>
+                            )}
                             {columns.filter((c) => isVisible(c.id)).map((col) => {
                                 const fieldType = col.type;
                                 let alignClass = 'text-left';
@@ -263,6 +300,9 @@ export function GenericTable({
                                 isWidgetMode={isWidgetMode}
                                 onEditSuccess={onEditSuccess}
                                 onDeleteClick={setRecordToDelete}
+                                enableSelection={showSelection}
+                                isSelected={selectionSet.has(record.id)}
+                                onToggleSelect={onToggleSelect}
                             />
                         ))}
                     </tbody>

@@ -169,6 +169,26 @@
         "no_tables": "Nenhuma tabela encontrada",
         "no_tables_desc": "Esta categoria ainda não possui tabelas configuradas."
     },
+    "views": {
+        "label": "Visões",
+        "save": "Salvar",
+        "save_as": "Salvar visão",
+        "apply": "Aplicar visão",
+        "delete": "Excluir visão",
+        "name": "Nome da visão",
+        "empty": "Nenhuma visão salva",
+        "placeholder": "Nome da visão",
+        "none": "Visão padrão"
+    },
+    "bulk": {
+        "selected": "{{count}} selecionado(s)",
+        "delete": "Excluir selecionados",
+        "select_all": "Selecionar todos da página",
+        "confirm_title": "Excluir registros selecionados?",
+        "confirm_message": "{{count}} registro(s) serão inativados. O histórico será preservado.",
+        "deleting": "Excluindo…",
+        "error": "Ocorreu um erro ao excluir os registros."
+    },
     "leads": {
         "new_lead": "Novo Lead",
         "all_units": "Todas as Unidades",

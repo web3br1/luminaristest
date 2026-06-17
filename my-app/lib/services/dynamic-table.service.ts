@@ -56,6 +56,18 @@ export const DynamicTableService = {
     if (msg) notify(msg, 'success', 'Sucesso');
     return result;
   },
+  async deleteRecordsBatch(tableId: string, ids: string[], options?: { successMessage?: string | null }): Promise<{ deleted: number }> {
+    const result = await apiClient.post<{ success?: boolean; data?: { deleted?: number } }>(
+      `/dynamic-tables/${tableId}/data/batch-delete`,
+      { ids },
+    );
+    const deleted = Number(result?.data?.deleted ?? 0);
+    const msg = options?.successMessage !== undefined
+      ? options.successMessage
+      : `${deleted} registro(s) excluído(s) com sucesso.`;
+    if (msg) notify(msg, 'success', 'Sucesso');
+    return { deleted };
+  },
   async performLookup(payload: { targetTableId: string; displayField: string; keys: string[] }): Promise<LookupResponse> {
     return apiClient.post('/dynamic-tables/lookup', payload as Record<string, unknown>);
   },

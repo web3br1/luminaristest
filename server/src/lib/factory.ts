@@ -11,6 +11,7 @@ import { DynamicTableRepository } from '../features/dynamicTables/repositories/D
 import { ActionProposalRepository } from '../features/chat/repositories/ActionProposalRepository';
 import { KnowledgeGraphRepository } from '../features/chat/repositories/KnowledgeGraphRepository';
 import { AttachmentRepository } from '../features/attachments/repositories/AttachmentRepository';
+import { SavedTableViewRepository } from '../features/savedViews/repositories/SavedTableViewRepository';
 
 // Features - Policies
 import { ChatInstancePolicy } from '../features/chatInstances/policies/ChatInstancePolicy';
@@ -21,6 +22,7 @@ import { StructuredDataPolicy } from '../features/structuredData/policies/Struct
 import { UserPolicy } from '../features/users/policies/UserPolicy';
 import { DynamicTablePolicy } from '../features/dynamicTables/policies/DynamicTablePolicy';
 import { AttachmentPolicy } from '../features/attachments/policies/AttachmentPolicy';
+import { SavedTableViewPolicy } from '../features/savedViews/policies/SavedTableViewPolicy';
 
 // Features - Services
 import { ChatInstanceService } from '../features/chatInstances/services/ChatInstanceService';
@@ -39,6 +41,7 @@ import { CrmPipelineService } from '../features/crm/services/CrmPipelineService'
 import { CrmAnalyticsService } from '../features/crm/services/CrmAnalyticsService';
 import { PresetSyncService } from '../features/dynamicTables/services/PresetSyncService';
 import { AttachmentService } from '../features/attachments/services/AttachmentService';
+import { SavedTableViewService } from '../features/savedViews/services/SavedTableViewService';
 
 // Lib - External Services
 import { OpenAIService as ChatOpenAIService } from './openai/OpenAIService';
@@ -64,6 +67,8 @@ import type { IActionProposalRepository } from '../features/chat/repositories/IA
 import type { IKnowledgeGraphRepository } from '../features/chat/repositories/IKnowledgeGraphRepository';
 import type { IAttachmentRepository } from '../features/attachments/repositories/IAttachmentRepository';
 import type { IAttachmentPolicy } from '../features/attachments/policies/IAttachmentPolicy';
+import type { ISavedTableViewRepository } from '../features/savedViews/repositories/ISavedTableViewRepository';
+import type { ISavedTableViewPolicy } from '../features/savedViews/policies/ISavedTableViewPolicy';
 
 export class ApplicationFactory {
   private static instance: ApplicationFactory;
@@ -81,6 +86,7 @@ export class ApplicationFactory {
     actionProposal: IActionProposalRepository;
     knowledgeGraph: IKnowledgeGraphRepository;
     attachment: IAttachmentRepository;
+    savedTableView: ISavedTableViewRepository;
   };
 
   private readonly policies: {
@@ -92,6 +98,7 @@ export class ApplicationFactory {
     structuredData: StructuredDataPolicy;
     dynamicTable: IDynamicTablePolicy;
     attachment: IAttachmentPolicy;
+    savedTableView: ISavedTableViewPolicy;
   };
 
   public readonly services: {
@@ -110,6 +117,7 @@ export class ApplicationFactory {
     crmAnalytics: CrmAnalyticsService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
+    savedTableView: SavedTableViewService;
   };
 
   private constructor() {
@@ -131,6 +139,7 @@ export class ApplicationFactory {
       actionProposal: new ActionProposalRepository(),
       knowledgeGraph: new KnowledgeGraphRepository(),
       attachment: new AttachmentRepository(),
+      savedTableView: new SavedTableViewRepository(),
     };
 
     // Policies
@@ -143,6 +152,7 @@ export class ApplicationFactory {
       user: new UserPolicy(),
       dynamicTable: new DynamicTablePolicy(),
       attachment: new AttachmentPolicy(),
+      savedTableView: new SavedTableViewPolicy(),
     };
 
     // Services (handling inter-dependencies)
@@ -220,6 +230,10 @@ export class ApplicationFactory {
       crmAnalytics: crmAnalyticsService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
+      savedTableView: new SavedTableViewService(
+        this.repositories.savedTableView,
+        this.policies.savedTableView
+      ),
     };
   }
 
@@ -246,6 +260,7 @@ export class ApplicationFactory {
   public getCrmAnalyticsService = (): CrmAnalyticsService => this.services.crmAnalytics;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;
+  public getSavedTableViewService = (): SavedTableViewService => this.services.savedTableView;
 
   // Repository Getters
   public getChatInstanceRepository = (): IChatInstanceRepository => this.repositories.chatInstance;

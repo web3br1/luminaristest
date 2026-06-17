@@ -13,6 +13,8 @@
  *     description: Dashboard setup and data endpoints
  *   - name: DashboardLayout
  *     description: Saved widget layouts per user
+ *   - name: SavedViews
+ *     description: Per-user saved table views (query/filters/sort)
  *   - name: Analytics
  *     description: Analytics presets, chart data and KPI discovery
  *   - name: AnalyticsDefinitions
@@ -590,6 +592,39 @@
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *         '404': { $ref: '#/components/responses/NotFoundError' }
  *
+ *   /api/dynamic-tables/{tableId}/data/batch-delete:
+ *     post:
+ *       summary: Soft-delete multiple data rows in a dynamic table (atomic)
+ *       description: >
+ *         Deletes up to 200 rows in a single transaction. Every id must belong to
+ *         the given table and the caller; if any id is cross-tenant or foreign the
+ *         whole batch rolls back (404).
+ *       tags: [DynamicTables]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - in: path
+ *           name: tableId
+ *           required: true
+ *           schema: { type: string, format: cuid }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [ids]
+ *               properties:
+ *                 ids:
+ *                   type: array
+ *                   minItems: 1
+ *                   maxItems: 200
+ *                   items: { type: string, format: cuid }
+ *       responses:
+ *         '200': { description: 'Rows deleted; returns { deleted: number }' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
  *   # ─── DASHBOARD ──────────────────────────────────────────────────────────
  *
  *   /api/dashboard/create:
@@ -774,6 +809,70 @@
  *       responses:
  *         '204': { description: Deleted }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   # ─── SAVED VIEWS ────────────────────────────────────────────────────────
+ *
+ *   /api/saved-views:
+ *     get:
+ *       summary: List the current user's saved views for a table
+ *       tags: [SavedViews]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - in: query
+ *           name: tableId
+ *           required: true
+ *           schema: { type: string }
+ *       responses:
+ *         '200': { description: Array of saved views }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *     post:
+ *       summary: Create a saved view
+ *       tags: [SavedViews]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/CreateSavedTableView' }
+ *       responses:
+ *         '201': { description: Saved view created }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/saved-views/{id}:
+ *     patch:
+ *       summary: Update a saved view
+ *       tags: [SavedViews]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema: { type: string, format: cuid }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/UpdateSavedTableView' }
+ *       responses:
+ *         '200': { description: Updated saved view }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *     delete:
+ *       summary: Delete a saved view (soft-delete)
+ *       tags: [SavedViews]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema: { type: string, format: cuid }
+ *       responses:
+ *         '200': { description: Saved view deleted }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
  *
  *   # ─── ANALYTICS ──────────────────────────────────────────────────────────
  *

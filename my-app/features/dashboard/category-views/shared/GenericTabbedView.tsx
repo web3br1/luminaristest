@@ -25,9 +25,14 @@ import { useFilterPersistence } from './hooks/useFilterPersistence';
 import { StandardPagination } from '../../shared/components/StandardPagination';
 import { sortRecords, type SortOption } from './SortSelect';
 import { getSearchableFields } from './utils/sortUtils';
-import { useGenericData } from './hooks/useGenericData';
+import { useGenericData, type GenericRecord } from './hooks/useGenericData';
 import { GenericTable } from './components/GenericTable';
 import { useOwnerFilter, OWNER_FILTER_ALL } from '../../../crm/hooks/useOwnerFilter';
+import { useTableViews } from './hooks/useTableViews';
+import { SavedViewsMenu } from './components/SavedViewsMenu';
+import { ConfirmDeleteModal } from '../../shared/components/ConfirmDeleteModal';
+import { DynamicTableService } from '../../../../lib/services/dynamic-table.service';
+import type { SavedViewConfig } from '../../../../lib/services/savedView.service';
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -47,6 +52,19 @@ interface GenericTabbedViewProps {
      * other dashboard consumers behave exactly as before.
      */
     enableOwnerFilter?: boolean;
+    /**
+     * Opt-in (CRM table screens). When true (and not in widget mode), a compact
+     * backend-shared Saved Views menu is rendered in the header: pick a view to
+     * restore its query/fieldFilters/sortConfig, save the current state as a new
+     * view, or delete one. Default off — other consumers behave exactly as before.
+     */
+    enableSavedViews?: boolean;
+    /**
+     * Opt-in (CRM table screens). When true (and not in widget mode), a leading
+     * checkbox column + a bulk-actions toolbar (bulk delete) are rendered. Default
+     * off — other consumers behave exactly as before.
+     */
+    enableBulkActions?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -67,6 +85,8 @@ export default function GenericTabbedView({
     isWidgetMode = false,
     categoryKey,
     enableOwnerFilter = false,
+    enableSavedViews = false,
+    enableBulkActions = false,
 }: GenericTabbedViewProps) {
     const { t } = useTranslation(['common', 'database', 'crm']);
     const [activeTableId, setActiveTableId] = useState<string>('');
@@ -130,6 +150,117 @@ export default function GenericTabbedView({
         return filterByOwner(records);
     }, [enableOwnerFilter, records, filterByOwner]);
 
+    // --- Saved Views (opt-in: CRM table screens; backend-shared) ----------------
+    // Always called (Rules of Hooks); fetch is gated on `enableSavedViews` and a
+    // real tableId inside the hook, so other consumers never hit the network.
+    const {
+        views: savedViews,
+        loading: savedViewsLoading,
+        saveView,
+        applyView,
+        deleteView: deleteSavedView,
+    } = useTableViews(activeTableId, enableSavedViews && !isWidgetMode);
+    const [selectedViewId, setSelectedViewId] = useState('');
+
+    // Current serializable view state (memoized — fed to saveView).
+    const currentViewState = useMemo<SavedViewConfig>(
+        () => ({ query, fieldFilters, sortConfig }),
+        [query, fieldFilters, sortConfig],
+    );
+
+    const handleApplyView = useCallback(
+        (id: string) => {
+            setSelectedViewId(id);
+            if (!id) {
+                // "Default view" — clear to baseline.
+                setQuery('');
+                setFieldFilters({});
+                setSortConfig(null);
+                setCurrentPage(1);
+                return;
+            }
+            const config = applyView(id);
+            if (!config) return;
+            setQuery(config.query ?? '');
+            setFieldFilters(config.fieldFilters ?? {});
+            setSortConfig(config.sortConfig ?? null);
+            setCurrentPage(1);
+        },
+        [applyView],
+    );
+
+    const handleSaveView = useCallback(
+        async (name: string) => {
+            await saveView(name, currentViewState);
+        },
+        [saveView, currentViewState],
+    );
+
+    const handleDeleteView = useCallback(
+        async (id: string) => {
+            await deleteSavedView(id);
+            setSelectedViewId((prev) => (prev === id ? '' : prev));
+        },
+        [deleteSavedView],
+    );
+
+    // --- Bulk actions (opt-in: CRM table screens) -------------------------------
+    const enableSelection = enableBulkActions && !isWidgetMode;
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+    const [isBulkConfirmOpen, setIsBulkConfirmOpen] = useState(false);
+    const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+    const [bulkError, setBulkError] = useState<string | null>(null);
+
+    const clearSelection = useCallback(() => {
+        setSelectedIds((prev) => (prev.size === 0 ? prev : new Set()));
+    }, []);
+
+    const handleToggleSelect = useCallback((id: string) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    }, []);
+
+    const handleToggleSelectAll = useCallback((pageRecords: GenericRecord[]) => {
+        setSelectedIds((prev) => {
+            const allSelected = pageRecords.length > 0 && pageRecords.every((r) => prev.has(r.id));
+            const next = new Set(prev);
+            if (allSelected) {
+                for (const r of pageRecords) next.delete(r.id);
+            } else {
+                for (const r of pageRecords) next.add(r.id);
+            }
+            return next;
+        });
+    }, []);
+
+    const handleBulkDeleteConfirm = useCallback(async () => {
+        if (selectedIds.size === 0) return;
+        setIsBulkDeleting(true);
+        setBulkError(null);
+        try {
+            await DynamicTableService.deleteRecordsBatch(activeTableId, Array.from(selectedIds));
+            setIsBulkConfirmOpen(false);
+            clearSelection();
+            await refetch();
+        } catch (err: unknown) {
+            const msg = err instanceof Error
+                ? err.message
+                : t('database:bulk.error', 'An error occurred while deleting the records.');
+            setBulkError(msg);
+        } finally {
+            setIsBulkDeleting(false);
+        }
+    }, [selectedIds, activeTableId, clearSelection, refetch, t]);
+
+    // Clear selection whenever the active table or filters change (stale ids).
+    useEffect(() => {
+        clearSelection();
+    }, [activeTableId, query, fieldFilters, clearSelection]);
+
     // --- Tab change ---
     const handleTabChange = useCallback((id: string) => {
         setActiveTableId(id);
@@ -137,6 +268,7 @@ export default function GenericTabbedView({
         setFieldFilters({});
         setCurrentPage(1);
         setSortConfig(null);
+        setSelectedViewId('');
     }, []);
 
     // --- Filter handlers — resetam paginação inline (padrão Gold Standard) ---
@@ -297,6 +429,48 @@ export default function GenericTabbedView({
                 </div>
             )}
 
+            {/* Saved Views menu — opt-in (CRM table screens) */}
+            {enableSavedViews && !isWidgetMode && (
+                <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 px-4 py-3 dark:border-neutral-800">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-neutral-500">
+                        {t('database:views.label', 'Views')}
+                    </span>
+                    <SavedViewsMenu
+                        views={savedViews}
+                        selectedViewId={selectedViewId}
+                        onApply={handleApplyView}
+                        onSave={handleSaveView}
+                        onDelete={handleDeleteView}
+                        loading={savedViewsLoading}
+                    />
+                </div>
+            )}
+
+            {/* Bulk-actions toolbar — opt-in, shown only when rows are selected */}
+            {enableSelection && selectedIds.size > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-blue-50/60 px-4 py-3 dark:border-blue-900/50 dark:bg-blue-950/30">
+                    <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                        {t('database:bulk.selected', '{{count}} selected', { count: selectedIds.size })}
+                    </span>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={clearSelection}
+                            className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-600 transition-colors hover:bg-gray-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-gray-300 dark:hover:bg-neutral-700"
+                        >
+                            {t('common:cancel', 'Cancel')}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setBulkError(null); setIsBulkConfirmOpen(true); }}
+                            className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-700"
+                        >
+                            {t('database:bulk.delete', 'Delete selected')}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-neutral-950 transition-colors">
 
                 {/* Tabs Navigation (Separated from Header) */}
@@ -361,6 +535,10 @@ export default function GenericTabbedView({
                                 activeSortConfig={sortConfig}
                                 onSortChange={setSortConfig}
                                 isWidgetMode={isWidgetMode}
+                                enableSelection={enableSelection}
+                                selectedIds={selectedIds}
+                                onToggleSelect={handleToggleSelect}
+                                onToggleSelectAll={handleToggleSelectAll}
                             />
                         </div>
                     )}
@@ -386,6 +564,22 @@ export default function GenericTabbedView({
                     />
                 )}
             </main>
+
+            {/* Bulk-delete confirmation — canonical ConfirmDeleteModal */}
+            {enableSelection && (
+                <ConfirmDeleteModal
+                    isOpen={isBulkConfirmOpen}
+                    onClose={() => { setIsBulkConfirmOpen(false); setBulkError(null); }}
+                    onConfirm={handleBulkDeleteConfirm}
+                    isDeleting={isBulkDeleting}
+                    error={bulkError}
+                    title={t('database:bulk.confirm_title', 'Delete selected records?')}
+                    message={t('database:bulk.confirm_message', {
+                        count: selectedIds.size,
+                        defaultValue: '{{count}} record(s) will be inactivated. History will be preserved.',
+                    })}
+                />
+            )}
         </div>
     );
 }

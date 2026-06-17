@@ -169,6 +169,26 @@
         "no_tables": "No tables found",
         "no_tables_desc": "This category does not have any tables configured yet."
     },
+    "views": {
+        "label": "Views",
+        "save": "Save",
+        "save_as": "Save view",
+        "apply": "Apply view",
+        "delete": "Delete view",
+        "name": "View name",
+        "empty": "No saved views",
+        "placeholder": "View name",
+        "none": "Default view"
+    },
+    "bulk": {
+        "selected": "{{count}} selected",
+        "delete": "Delete selected",
+        "select_all": "Select all on page",
+        "confirm_title": "Delete selected records?",
+        "confirm_message": "{{count}} record(s) will be inactivated. History will be preserved.",
+        "deleting": "Deleting…",
+        "error": "An error occurred while deleting the records."
+    },
     "leads": {
         "new_lead": "New Lead",
         "all_units": "All Units",

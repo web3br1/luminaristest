@@ -835,6 +835,57 @@ export class DynamicTableService {
     kpiCacheService.invalidate(table.userId);
   }
 
+  /**
+   * Atomically soft-deletes multiple rows of a single table. Every id must resolve
+   * to a row that belongs to `tableId` AND to a table the caller can manage; any id
+   * that is missing, in another table, or cross-tenant throws NotFoundError so the
+   * entire transaction rolls back (all-or-nothing). The size cap (200) is enforced
+   * by the controller. Returns the count deleted.
+   *
+   * Reuses the same validated delete primitive as deleteTableData (resolve the row's
+   * table → canManageData → soft-delete), but bound to the shared transaction so the
+   * batch is atomic. Cascade/constraint handling intentionally NOT applied here: bulk
+   * delete targets leaf CRM rows (leads/contacts) selected in the table UI.
+   *
+   * @param user - Authenticated user context
+   * @param tableId - The table all ids must belong to
+   * @param ids - Row ids to delete (1..200, validated upstream)
+   * @returns { deleted } — number of rows soft-deleted
+   */
+  async deleteTableDataBatch(
+    user: UserContext,
+    tableId: string,
+    ids: string[]
+  ): Promise<{ deleted: number }> {
+    // Resolve + authorize the target table once (canManageData) before opening the tx.
+    const table = await this.getTableById(user, tableId);
+    if (!this.policy.canManageData(user, table)) {
+      throw new ForbiddenError('You do not have permission to delete data from this table.');
+    }
+
+    // Dedupe to avoid double-counting / redundant writes within the batch.
+    const uniqueIds = Array.from(new Set(ids));
+
+    let deleted = 0;
+    await this.runInTransaction(async (tx) => {
+      const txRepo = new TransactionalDynamicTableRepository(tx);
+      for (const dataId of uniqueIds) {
+        // Resolve the row's parent table inside the tx. A missing/soft-deleted row,
+        // a row in another table, or a row owned by another user is reported as
+        // NotFound (no cross-tenant enumeration leak) → rolls back the whole batch.
+        const rowTable = await txRepo.findTableByDataId(dataId);
+        if (!rowTable || rowTable.id !== tableId || rowTable.userId !== table.userId) {
+          throw new NotFoundError('One or more rows do not exist in the requested table.');
+        }
+        await txRepo.deleteData(dataId);
+        deleted++;
+      }
+    });
+
+    kpiCacheService.invalidate(table.userId);
+    return { deleted };
+  }
+
   public async deleteAllTablesForUser(userId: string): Promise<void> {
     const tables = await this.repository.findTablesByUserId(userId);
     if (tables.length === 0) return;
