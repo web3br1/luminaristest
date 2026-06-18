@@ -3,6 +3,7 @@ import { IEmbeddingService } from '@/lib/vector/embedding';
 import { IVectorRepository } from '@/features/documents/repositories/IVectorRepository';
 import { OpenAIService } from '@/lib/openai/OpenAIService';
 import { ForbiddenError } from '@/lib/errors';
+// eslint-disable-next-line no-restricted-imports -- DEBT: prisma.* em service, viola contrato §2 (só Repository). Backlog: docs/architecture/lint-layer-gate.md. Remover ao migrar para repository (DocumentRepository).
 import prisma from '@/lib/prisma';
 import logger from '@/lib/logger';
 

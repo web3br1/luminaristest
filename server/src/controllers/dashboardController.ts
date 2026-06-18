@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { handleApiError } from '@/lib/apiUtils';
 import { getUserContextFromRequest } from '@/lib/authUtils';
 import { getFactory } from '@/lib/factory';
+// eslint-disable-next-line no-restricted-imports -- DEBT: prisma.* em controller, viola contrato §2 (só Repository). Backlog: docs/architecture/lint-layer-gate.md. Remover ao migrar para repository.
 import prisma from '@/lib/prisma';
 import logger from '@/lib/logger';
 

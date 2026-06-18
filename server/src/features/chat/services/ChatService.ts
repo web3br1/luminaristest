@@ -8,6 +8,7 @@ import { KnowledgeGraphService } from './KnowledgeGraphService';
 import logger from '@/lib/logger';
 import { UserContext } from '@/lib/authUtils';
 import { ForbiddenError } from '@/lib/errors';
+// eslint-disable-next-line no-restricted-imports -- DEBT: prisma.* em service, viola contrato §2 (só Repository). Backlog: docs/architecture/lint-layer-gate.md. Remover ao migrar para repository (DocumentRepository).
 import prisma from '@/lib/prisma';
 import OpenAI from 'openai';
 import { sanitizeUserInput, wrapSystemPrompt } from '@/lib/PromptSanitizer';

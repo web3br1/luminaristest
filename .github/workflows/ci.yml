@@ -28,6 +28,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Lint (layer-gate)
+        run: npm run lint
+
       - name: Run tests
         run: npm test
 
@@ -51,5 +54,41 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint (layer-gate)
+        run: npm run lint:gate
+
       - name: Build
         run: npm run build
+
+  # Diff-scoped design gate. A base ainda tem ~33 ocorrências de `zinc-` pré-existentes
+  # (contrato §4: superfícies dark = neutral-*). Em vez de reprovar nelas (refactor =
+  # fatia própria), este job falha SÓ quando a mudança INTRODUZ um `zinc-` novo — mesmo
+  # princípio do layer-gate: barra regressão, não força o pagamento da dívida existente.
+  # Backlog mensurável: `grep -rn "zinc-" my-app/{features,lib,components,pages,styles}`.
+  zinc-guard:
+    name: Design – no new zinc-
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fail on newly-added zinc- (use neutral-* per contract §4)
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            git fetch --no-tags --depth=50 origin "${GITHUB_BASE_REF}"
+            BASE="origin/${GITHUB_BASE_REF}"
+          else
+            BASE="${GITHUB_SHA}~1"
+          fi
+          ADDED=$(git diff --unified=0 "${BASE}...${GITHUB_SHA}" -- \
+                    'my-app/**/*.ts' 'my-app/**/*.tsx' 'my-app/**/*.css' 'my-app/**/*.scss' \
+                  | grep -E '^\+' | grep -v '^\+\+\+' | grep 'zinc-' || true)
+          if [ -n "${ADDED}" ]; then
+            echo "::error::New 'zinc-' introduced — dark surfaces must use neutral-* (contract §4)."
+            echo "${ADDED}"
+            exit 1
+          fi
+          echo "OK: no new zinc- added."

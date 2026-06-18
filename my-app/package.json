@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:gate": "eslint . --config eslint.gate.config.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:types": "tsc -p tsconfig.vitest.json --noEmit"
@@ -55,6 +56,7 @@
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5",
+    "typescript-eslint": "^8.61.1",
     "vitest": "^3.2.6"
   }
 }

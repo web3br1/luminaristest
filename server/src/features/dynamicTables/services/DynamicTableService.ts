@@ -12,6 +12,7 @@ import { globalRuleRegistry } from '../rules/RuleRegistry';
 import type { RuleContext } from '../rules/RuleTypes';
 import { KnowledgeGraphService } from '../../chat/services/KnowledgeGraphService';
 import { kpiCacheService } from '../../analytics/services/KpiCacheService';
+// eslint-disable-next-line no-restricted-imports -- SANCTIONED: orquestração de prisma.$transaction documentada no contrato §2 (domínio DynamicTable é o orquestrador atômico). Não é dívida — não remover.
 import prisma from '../../../lib/prisma';
 import { TransactionalDynamicTableRepository } from '../repositories/TransactionalDynamicTableRepository';
 import { Prisma } from 'generated/prisma';

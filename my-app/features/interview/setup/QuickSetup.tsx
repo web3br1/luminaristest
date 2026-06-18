@@ -4,6 +4,7 @@ import { getCookie } from 'cookies-next';
 import { useAuth } from '../../../lib/context/AuthContext';
 import { useTranslation } from 'next-i18next';
 import { FiCheck, FiCpu, FiMonitor, FiActivity } from 'react-icons/fi';
+// eslint-disable-next-line no-restricted-imports -- DEBT: apiClient fora de lib/services, viola contrato §3. Backlog: docs/architecture/lint-layer-gate.md. Remover ao mover estas chamadas para um *.service.ts.
 import { apiClient } from '../../../lib/api/api-client';
 
 interface PresetsResponse { [key: string]: unknown }
