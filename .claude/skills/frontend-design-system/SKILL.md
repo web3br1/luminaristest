@@ -23,15 +23,17 @@ As outras skills de frontend garantem a **estrutura** correta (auth, i18n, hooks
 
 ```
 my-app/tailwind.config.js                                                         ← tokens (lumi-*, palette)
-my-app/features/dashboard/category-views/leads/components/ManageHeader.tsx        ← header com gradiente + KPI tiles
-my-app/features/dashboard/category-views/leads/components/KanbanView.tsx           ← score gauge (SVG circular)
-my-app/features/dashboard/category-views/leads/components/LeadInfoSidebar.tsx      ← barras BANT
-my-app/features/crm/components/ui/                                                 ← UI kit on-brand (ref. CRM)
+my-app/features/crm/components/ui/                                                 ← ⭐ kit on-brand PRIMÁRIO (GradientHeader/ScoreGauge/StatusBadge/BantBars) — extraído, fora de legacy
+my-app/features/dashboard/category-views/leads/components/ManageHeader.tsx        ← header gradiente + KPI tiles (visualmente limpo, 0 zinc — mas módulo legacy: copie só o visual)
+my-app/features/dashboard/category-views/leads/components/KanbanView.tsx           ← score gauge SVG (idem — legacy)
+my-app/features/dashboard/category-views/leads/components/LeadInfoSidebar.tsx      ← barras BANT (idem — legacy)
 ```
 
 ## ⭐ Exemplo de referência canônico (espelhe este arquivo)
 
-`my-app/features/dashboard/category-views/leads/components/ManageHeader.tsx` — hero/header de referência on-brand: gradient header com blur blobs, KPI tiles (`rounded-2xl`, label `text-[10px] font-black uppercase tracking-widest`, valor `font-black`), superfícies `neutral` e badges `color/10`+`color/20`. Para os componentes-assinatura isolados, leia também `KanbanView.tsx` (score gauge SVG) e `LeadInfoSidebar.tsx` (barras BANT). Leia ANTES de estilizar. (O kit `features/crm/components/ui/` — `GradientHeader`/`ScoreGauge`/`StatusBadge`/`BantBars` — é a EXCEÇÃO exemplar do CRM e pode ser reusado como kit visual; tabela/analytics/layout do CRM, não.)
+**Primário — `my-app/features/crm/components/ui/`**: o kit on-brand extraído e reusável, **fora de módulo legacy** — `GradientHeader` (hero gradiente + blur blobs), `ScoreGauge` (gauge SVG circular), `StatusBadge` (pill `color/10`+`color/20`), `BantBars` (barras de progresso). Espelhe estes para os componentes-assinatura. (Reuse o **kit visual** do CRM; tabela/analytics/layout do CRM, não.)
+
+Os **mesmos padrões** aparecem visualmente limpos (0 zinc, `rounded-2xl`, KPI tiles com label `text-[10px] font-black uppercase tracking-widest`) em `category-views/leads/components/` — `ManageHeader.tsx` (hero), `KanbanView.tsx` (gauge), `LeadInfoSidebar.tsx` (BANT). Mas esse é o **módulo legacy**: leia-os só para ver o padrão em contexto e **copie o visual, NUNCA a estrutura do módulo**. Leia ANTES de estilizar.
 
 ## Tokens e superfícies (não use `zinc` cru)
 

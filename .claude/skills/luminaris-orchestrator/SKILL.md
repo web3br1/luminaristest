@@ -57,6 +57,8 @@ Analise o argumento `$ARGUMENTS` e classifique em uma das categorias:
 
 > **Regra fixa:** todo passo que gera/estiliza UI (`frontend-page/component/widget/feature-module-generator`) DEVE aplicar `frontend-design-system` junto — senão o resultado sai com Tailwind genérico (off-brand). Inclua-a no plano sempre que houver frontend.
 
+> **Regra fixa (anti-ilha):** quando a tarefa é "construir X novo" que possa duplicar um canônico (tabela/board/card/chart/modal/widget), o plano DEVE instruir o implementador a responder `.claude/skills/_REUSE-CRITERION.md` (shape+posse) **antes** de gerar, e marcar **risco de ilha**. Reuso do canônico é o default; bespoke só com divergência sancionada (shape ou posse diferentes). Foi a causa-raiz da revisão reprovada do CRM e o lint não pega.
+
 ### Combinações multi-skill
 
 | Tarefa combinada | Plano |

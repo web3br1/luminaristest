@@ -15,6 +15,8 @@ Gera componentes React funcionais tipados em `my-app/components/` ou dentro de `
 
 Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (reuse de canônicos, service layer, paginação DynamicTable, modal-não-rota, `useMemo`, no-`any`, container full-height, design system) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Component**.
 
+> **Decisão bespoke-vs-canônico (anti-ilha):** antes de criar um componente próprio, responda `.claude/skills/_REUSE-CRITERION.md` (shape+posse) — mesmo shape+fonte de um canônico vivo (§0) = **reuse**; diverge em shape ou posse = bespoke sancionado. É o único gate de reuso que o lint não pega.
+
 > **Delegue quando for uma peça canônica inteira (não recrie aqui):**
 > - **Tela de tabela/listagem de registros** (CRUD inline + filtros + paginação) → use `frontend-table-screen-generator` (reusa `GenericTabbedView`). Esta skill cobre só componentes pequenos/folha.
 > - **Modal** (detalhe/edição/confirmação/captura) → use `frontend-modal-generator` (ancorado em `Modal.tsx`, regra modal-não-rota).

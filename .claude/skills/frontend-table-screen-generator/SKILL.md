@@ -17,6 +17,8 @@ Gera uma **tela de listagem de registros** (lista/tabela de uma DynamicTable) qu
 
 Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (reuse de canônicos §0, service layer, paginação DynamicTable/fetch-all §3, container full-height, design system §4, i18n) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Table Screen**. Para detalhe/edição em modal use junto `frontend-modal-generator`; para board por etapa use `frontend-kanban-workflow-generator`.
 
+> **Decisão bespoke-vs-canônico (anti-ilha):** antes de criar uma tabela própria, responda `.claude/skills/_REUSE-CRITERION.md` (shape+posse) — mesmo shape+fonte de `GenericTabbedView` vivo (§0) = **reuse** (foi o erro de `RecordTable`); diverge em shape ou posse = bespoke sancionado. É o único gate de reuso que o lint não pega.
+
 ## When to use
 
 - "tabela de X", "listagem de Y", "grid de registros", "tela de cadastros"

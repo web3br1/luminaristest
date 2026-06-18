@@ -15,6 +15,8 @@ Orquestra a criação de um KPI completo: do backend analytics processor até o 
 
 Esta skill gera múltiplas camadas (processor + template + hook + widget) — TODO arquivo gerado deve cumprir `.claude/skills/_ARCHITECTURE-CONTRACT.md` (single-pass + `addMoney` + `previousValue` undefined sem dados, frontend service layer, paginação ao ler DynamicTable, reuse de canônicos, design system, Empty Safety nos testes). O contrato é o gate final.
 
+> **Decisão bespoke-vs-canônico (anti-ilha):** antes de criar card de KPI/gráfico próprio, responda `.claude/skills/_REUSE-CRITERION.md` (shape+posse) — mesmo shape+fonte de um canônico vivo (§0, `ChartRenderer`/`DashboardKpiCard`) = **reuse** (foi o erro de `CrmKpiCard`/`CrmBarChart`); diverge em shape ou posse = bespoke sancionado. É o único gate de reuso que o lint não pega.
+
 ## ⭐ Exemplo de referência canônico (espelhe este slice)
 
 O vertical-slice ponta-a-ponta de KPI é a cadeia **processor → card canônico → ChartRenderer** — todos verificados e existentes:

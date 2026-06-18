@@ -30,7 +30,7 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 
 ```
 my-app/lib/hooks/useTheme.ts
-my-app/features/dashboard/category-views/leads/hooks/useLeadsView.ts
+my-app/features/crm/hooks/useCrmData.ts
 my-app/features/crm/lib/crmFetch.ts
 my-app/lib/services/dynamic-table.service.ts
 my-app/lib/api/api-client.ts
@@ -39,7 +39,7 @@ my-app/lib/api/api-client.ts
 ## ⭐ Exemplo de referência canônico (espelhe este arquivo)
 
 - **Paginação fetch-all (DynamicTable)** → `my-app/features/crm/lib/crmFetch.ts` (`fetchAllRows`): itera `page` até `totalPages` com `limit=200`, tipos locais (`DynamicRow`, zero `any`), via service layer. É a ÚNICA peça exemplar do CRM — use-a sempre que o hook alimentar KPIs/listas/boards.
-- **Hook de dados de view (limpo)** → `my-app/features/dashboard/category-views/leads/hooks/useLeadsView.ts`: resolve tabelas por `internalName` (nunca índice `[0]`), memoiza todos os lookups/derivados com `useMemo`, fetch via service, retorna estado + handlers.
+- **Hook de dados de view (limpo)** → `my-app/features/crm/hooks/useCrmData.ts`: resolve tabelas por `internalName` (nunca índice `[0]`), memoiza lookups/derivados com `useMemo`, fetch via service, retorna estado + handlers — focado (~150 linhas). **NÃO** espelhe `category-views/leads/hooks/useLeadsView.ts`: é o hook **monolítico legacy** (251 linhas, 49 hook-calls) — anti-exemplo de decomposição.
 
 Leia o arquivo correspondente ANTES de gerar.
 

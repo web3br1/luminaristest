@@ -15,6 +15,8 @@ Gera componentes de widget para o dashboard grid em `my-app/components/widgets/`
 
 Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (reuse de canônicos, service layer, paginação DynamicTable, modal-não-rota, `useMemo`, no-`any`, container full-height, design system) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Widget**.
 
+> **Decisão bespoke-vs-canônico (anti-ilha):** antes de criar um widget de chart/KPI próprio, responda `.claude/skills/_REUSE-CRITERION.md` (shape+posse) — mesmo shape+fonte de um canônico vivo (§0, ex. `ChartRenderer`/`DashboardKpiCard`) = **reuse**; diverge em shape ou posse = bespoke sancionado. É o único gate de reuso que o lint não pega.
+
 ## When to use
 
 - Novo tipo de widget para o dashboard

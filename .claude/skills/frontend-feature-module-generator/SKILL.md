@@ -15,6 +15,8 @@ Cria a estrutura de um novo módulo de categoria no dashboard (`features/dashboa
 
 Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (reuse de canônicos, service layer, paginação DynamicTable, modal-não-rota, `useMemo`, no-`any`, container full-height, design system) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Feature Module**.
 
+> **Decisão bespoke-vs-canônico (anti-ilha):** antes de criar View/tabela/analytics próprios, responda `.claude/skills/_REUSE-CRITERION.md` (shape+posse) — mesmo shape+fonte de um canônico vivo (§0, ex. `GenericTabbedView`/`AnalyticsDashboard`) = **reuse**; diverge em shape ou posse = bespoke sancionado. É o único gate de reuso que o lint não pega.
+
 ## When to use
 
 - Novo módulo de negócio precisa de visualização no dashboard
@@ -29,7 +31,7 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 ## Repository patterns to inspect first
 
 ```
-my-app/features/dashboard/category-views/leads/
+my-app/features/dashboard/category-views/leads/                                 ← ⚠️ módulo LEGACY/monolítico (LeadsView 329 linhas, useLeadsView 251) — veja a estrutura de pastas, mas NÃO espelhe; mirror o stack canônico (GenericTabbedView) abaixo
 my-app/features/dashboard/category-views/finance/FinanceView.tsx
 my-app/pages/dashboard/index.tsx
 my-app/features/dashboard/DashboardSidebar.tsx
