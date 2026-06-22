@@ -58,6 +58,8 @@ Analise o argumento `$ARGUMENTS` e classifique em uma das categorias:
 > **Regra fixa:** todo passo que gera/estiliza UI (`frontend-page/component/widget/feature-module-generator`) DEVE aplicar `frontend-design-system` junto — senão o resultado sai com Tailwind genérico (off-brand). Inclua-a no plano sempre que houver frontend.
 
 > **Regra fixa (anti-ilha):** quando a tarefa é "construir X novo" que possa duplicar um canônico (tabela/board/card/chart/modal/widget), o plano DEVE instruir o implementador a responder `.claude/skills/_REUSE-CRITERION.md` (shape+posse) **antes** de gerar, e marcar **risco de ilha**. Reuso do canônico é o default; bespoke só com divergência sancionada (shape ou posse diferentes). Foi a causa-raiz da revisão reprovada do CRM e o lint não pega.
+>
+> **Plano DEVE incluir um passo de evidência via codebase-memory** (quando o MCP estiver disponível) antes de qualquer "construir X novo": instruir o implementador a localizar o canônico real com `search_graph` (nome/forma) e `semantic_query` + edges `SIMILAR_TO`/`SEMANTICALLY_RELATED` (acha a **ilha que o nome não denuncia**). Assim a Etapa 1 do critério de reuso vira evidência de grafo, não chute. Ver `.claude/skills/_REUSE-CRITERION.md` → "Como o codebase-memory dá a evidência".
 
 ### Combinações multi-skill
 

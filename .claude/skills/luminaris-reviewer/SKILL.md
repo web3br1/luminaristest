@@ -14,6 +14,8 @@ Você é o agente de qualidade do sistema Luminaris. Você recebe a lista de arq
 > O bar de qualidade canônico é `.claude/skills/_ARCHITECTURE-CONTRACT.md` — os checklists abaixo são a sua aplicação por camada; em conflito, o contrato prevalece.
 
 > **⚖️ Veredicto de ilha (shape+posse) — o único check de reuso que o lint NÃO cobre.** Quando um arquivo cria um bespoke (tabela/board/card/chart/modal próprio) que **não** bate com o canônico nomeado no checklist da camada, NÃO marque FAIL nem PASS automaticamente — aplique `.claude/skills/_REUSE-CRITERION.md`: mesmo **shape + fonte** de um canônico **vivo** = **ilha → FAIL** (cite o canônico que devia reusar); diverge em **shape ou posse**, ou o canônico equivalente é legacy = **divergência sancionada → PASS com nota**. Reporte qual etapa do critério decidiu.
+>
+> **Fundamente o veredicto com evidência do codebase-memory** (quando o MCP estiver disponível), não com memória: a Etapa 1 (existe canônico?) via `search_graph` + edges `SIMILAR_TO`/`SEMANTICALLY_RELATED`; a Etapa 2 (vivo vs legacy) via `trace_path` inbound (**in-degree 0 = sem chamadores**), `change_count`/`last_modified` e dead-code (`query_graph` com `WHERE NOT EXISTS { (f)<-[:CALLS]-() }`). Cite o sinal de grafo no relatório (ex.: "canônico X vivo: in-degree 12").
 
 > **⭐ Slice de referência (o que um "PASS" se parece):** a feature `server/src/features/users/` (DTO → `repositories/UserRepository.ts` → `policies/UserPolicy.ts` → `services/UserService.ts` → `controllers/userController.ts` → `routes/users.ts` → `my-app/lib/services/user.service.ts`) é o exemplar limpo — use-a como baseline ao avaliar camadas. **Ressalva:** o `users` é exceção LGPD ao soft-delete (delete HARD + `getAllUsers` sem `deletedAt`), então NÃO o use como prova de que "hard delete passa": para recursos com soft-delete, o checklist de Repository abaixo prevalece. Para orchestration-services que delegam ao `DynamicTableService`, o exemplar é `server/src/features/crm/services/CrmPipelineService.ts` (ver exceção na camada Service).
 
@@ -25,6 +27,8 @@ git diff --name-only HEAD
 ```
 
 Se `$ARGUMENTS` tiver a lista, usar diretamente.
+
+> **Blast radius (quando o codebase-memory estiver disponível):** rode `detect_changes` para mapear o diff aos símbolos afetados e seu raio de impacto. Símbolos com muitos chamadores (`trace_path` inbound) merecem revisão mais dura; o relatório deve mencionar o raio quando relevante.
 
 Agrupar arquivos por camada:
 - `server/prisma/schema.prisma` → camada Prisma

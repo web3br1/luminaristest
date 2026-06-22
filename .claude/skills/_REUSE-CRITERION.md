@@ -36,4 +36,21 @@ Mesmo objeto não implica reusar cegamente. Cheque **estado**:
 > • Diverge em shape ou em posse → **bespoke sancionado** (pode criar; justifique no relatório).
 > • Mesmo objeto mas o outro é legacy → **reuse o vivo, não clone o morto**."
 
+## Como o codebase-memory dá a evidência (pare de adivinhar)
+
+A decisão continua sua — mas o grafo responde os **sinais baratos** das duas etapas, em vez de memória tribal:
+
+- **Etapa 1 (detector):** `search_graph` (name/label/file) acha impls com nome/forma parecidos; edges
+  `SIMILAR_TO` (quase-clone por MinHash) e `SEMANTICALLY_RELATED` revelam a **ilha que o nome não denuncia**.
+  Grafo aponta par com mesmo shape derivando a mesma fonte → mesmo objeto.
+- **Etapa 2 (decisor):** `trace_path` inbound (**in-degree 0 = sem chamadores**) + `change_count` /
+  `last_modified` (parado = candidato a legacy) dão o sinal vivo-vs-morto. Dead-code via
+  `query_graph` (`WHERE NOT EXISTS { (f)<-[:CALLS]-() }`) lista ilhas órfãs; `detect_changes` confirma o
+  blast radius do que você toca.
+
+O grafo **informa**, não decide a Etapa 2 (segue não-mecanizável). Mas "RecordTable morto" ou
+"MeetingsCalendar legacy" deixam de ser conhecimento de cabeça e viram in-degree + change_count observáveis.
+
+---
+
 Não-mecanizável por CI — por isso vive aqui, não no lint. O **reviewer** aplica isto como check do veredicto de ilha; os **geradores** aplicam antes de escrever; o **orquestrador** aplica ao planejar "construir X novo". Relacionado: `_ARCHITECTURE-CONTRACT.md` §0.
