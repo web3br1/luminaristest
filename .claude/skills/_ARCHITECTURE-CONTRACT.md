@@ -18,11 +18,12 @@ Antes de escrever qualquer componente, classe, helper ou padrão, **procure o ca
 | Paginação | `features/dashboard/shared/components/StandardPagination.tsx` |
 | Modal / detalhe de registro | `components/ui/Modal.tsx` (portal) + estado local (padrão `KanbanCardDetailModal.tsx`). Skill: `frontend-modal-generator`. Golden refs verificadas: `features/crm/components/Lead360Modal.tsx` (detalhe), `ProposalCaptureModal.tsx` (captura), `ConfirmDeleteModal.tsx` (confirmação). **Regra: detalhe/edição = modal, nunca `router.push`.** |
 | Board/KPIs/charts de analytics | `.../finance/components/analytics/dashboard/AnalyticsDashboard.tsx` + `DashboardKpiCard.tsx` + `charts/ChartRenderer.tsx` + `widgets/analytics/GoldKpiWidgetView.tsx` |
-| Board de fluxo de trabalho (Kanban drag-drop entre etapas) | `features/dashboard/category-views/kanban/InternalKanbanView.tsx` (+ `hooks/useKanbanLogic.tsx`, `components/KanbanCardDetailModal.tsx`). Transição com efeitos colaterais → serviço no padrão `server/src/features/crm/services/CrmPipelineService.ts`. Skills: `frontend-kanban-workflow-generator` + `backend-workflow-transition-generator`. **Anti-exemplo: `pages/crm/pipeline.tsx` (board estático).** |
+| Board de fluxo de trabalho (Kanban drag-drop entre etapas) | `features/dashboard/category-views/kanban/InternalKanbanView.tsx` (+ `hooks/useKanbanLogic.tsx`, `components/KanbanCardDetailModal.tsx`). Transição com efeitos colaterais → serviço no padrão `server/src/features/crm/services/CrmPipelineService.ts`. Skills: `frontend-kanban-workflow-generator` + `backend-workflow-transition-generator`. **Anti-exemplo (histórico, já remediado): o board estático que existia em `pages/crm/pipeline.tsx` — hoje o arquivo é um wrapper fino de `CrmPipelineBoard`; não recriar o estático.** |
 | Erro de API (controller) | `handleApiError` de `lib/apiUtils` |
 | Erros tipados (service) | `lib/errors` (`ForbiddenError`, `NotFoundError`, …) |
 | Field presets (preset gen) | `server/.../presets/fields/*` |
 | Money math | `addMoney` / `DataSanitizer` / `DateUtils` de `features/analytics/utils` |
+| Formatação de exibição (data/hora/moeda no **frontend**) | `features/dashboard/shared/utils/formatters.ts` (`formatCurrency` — fan-in 14, `formatDate`, `formatDateBR`) + `useFormatCurrency` de `lib/context/CurrencyContext`. **NÃO** re-rolar `formatTimestamp`/`formatDate`/`formatDayLabel` local em panel/modal. (≠ a linha "Money math", que é cálculo backend/analytics.) **Anti-exemplo: `formatTimestamp` clonado em `LeadTimelinePanel`/`LeadNotesPanel`/`LeadAttachmentsPanel` (jaccard 1.0); `finance/utils/formatters.ts` duplicando `formatDateBR`.** |
 
 ---
 
