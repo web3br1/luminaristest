@@ -56,4 +56,8 @@ export class PostingRepository implements IPostingRepository {
       creditCents: row._sum.creditCents ?? 0,
     }));
   }
+
+  public async runTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return prisma.$transaction(fn);
+  }
 }

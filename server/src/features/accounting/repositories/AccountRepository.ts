@@ -42,6 +42,10 @@ export class AccountRepository implements IAccountRepository {
     });
   }
 
+  public async findById(userId: string, id: string): Promise<Account | null> {
+    return prisma.account.findFirst({ where: { id, userId, deletedAt: null } });
+  }
+
   public async findManyByUnit(userId: string, unitId: string): Promise<Account[]> {
     return prisma.account.findMany({
       where: { userId, unitId, deletedAt: null },

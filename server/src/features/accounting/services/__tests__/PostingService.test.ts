@@ -65,6 +65,7 @@ function buildService(over: {
       acceptsEntries: true,
     })),
     create: jest.fn(async (data: any) => ({ id: `acc-${data.code}`, ...data })),
+    findById: jest.fn(async (_uid: string, id: string) => ({ id, userId: 'u1', unitId, code: '9.9', name: 'test', nature: 'Asset', acceptsEntries: true })),
     findManyByUnit: jest.fn(async () => []),
     softDelete: jest.fn(),
     // null = no soft-deleted row to revive → a P2002 in ensureChartOfAccounts is a benign race.
@@ -86,6 +87,9 @@ function buildService(over: {
     findByEntryId: jest.fn(async () => []),
     findByAccount: jest.fn(async () => []),
     groupByAccount: jest.fn(async () => []),
+    // delegates to the global $transaction so existing assertions (toHaveBeenCalledTimes,
+    // mockImplementationOnce P2002 overrides) continue to work unchanged.
+    runTransaction: jest.fn(async (fn: (tx: unknown) => unknown) => $transaction(fn)),
     ...over.postingRepo,
   };
 

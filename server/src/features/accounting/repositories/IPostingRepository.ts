@@ -45,4 +45,11 @@ export interface IPostingRepository {
     unitId: string,
     statuses: string[],
   ): Promise<AccountPostingTotals[]>;
+
+  /**
+   * Runs `fn` inside a Prisma transaction and returns its result. Services use this
+   * to compose atomic cross-repo writes without importing the prisma singleton directly
+   * (layer boundary: only repositories import the singleton).
+   */
+  runTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T>;
 }

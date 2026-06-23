@@ -207,15 +207,13 @@ export const accountingService = {
   /** List accounts (plano de contas) for a unit. */
   async getAccounts(unitId: string): Promise<{ accounts: Account[] }> {
     const qs = buildQuery({ unitId });
-    const res = await apiClient.get<ApiEnvelope<{ accounts: Account[] }>>(`/accounting/accounts${qs}`);
-    return res.data;
+    return apiClient.get<{ accounts: Account[] }>(`/accounting/accounts${qs}`);
   },
 
   /** List journal entries (lançamentos) for a unit — raw paginated list. */
   async getEntries(unitId: string): Promise<{ entries: JournalEntry[]; total: number }> {
     const qs = buildQuery({ unitId });
-    const res = await apiClient.get<ApiEnvelope<{ entries: JournalEntry[]; total: number }>>(`/accounting/entries${qs}`);
-    return res.data;
+    return apiClient.get<{ entries: JournalEntry[]; total: number }>(`/accounting/entries${qs}`);
   },
 
   /** Create a new account in the chart of accounts for a unit. */
@@ -226,15 +224,15 @@ export const accountingService = {
     acceptsEntries: boolean;
     unitId: string;
   }): Promise<{ account: Account }> {
-    const res = await apiClient.post<ApiEnvelope<{ account: Account }>>('/accounting/accounts', data);
+    const res = await apiClient.post<{ account: Account }>('/accounting/accounts', data);
     notify('Conta criada com sucesso.', 'success', 'Contabilidade');
-    return res.data;
+    return res;
   },
 
   /** Soft-delete an account from the chart of accounts. */
   async deleteAccount(id: string): Promise<{ success: boolean }> {
-    const res = await apiClient.delete<ApiEnvelope<{ success: boolean }>>(`/accounting/accounts/${id}`);
+    const res = await apiClient.delete<{ success: boolean }>(`/accounting/accounts/${id}`);
     notify('Conta excluída com sucesso.', 'success', 'Contabilidade');
-    return res.data;
+    return res;
   },
 };

@@ -1,7 +1,6 @@
 import type { UserContext } from '../../../types/UserContext';
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
 import logger from '../../../lib/logger';
-import prisma from '../../../lib/prisma';
 import { Prisma } from 'generated/prisma';
 import type { Account } from 'generated/prisma';
 import { CANONICAL_ACCOUNTS } from '../fixtures/ChartOfAccountsFixture';
@@ -161,7 +160,7 @@ export class PostingService {
 
     try {
       // ATOMIC — entry header + all legs commit/roll back together.
-      const entry = await prisma.$transaction(async (tx) => {
+      const entry = await this.postingRepo.runTransaction(async (tx) => {
         const created = await this.journalEntryRepo.create(
           {
             userId,
@@ -289,7 +288,7 @@ export class PostingService {
     // ATOMIC — reversal header + swapped legs + original→Reversed + link commit together.
     let result: JournalEntryWithPostings;
     try {
-      result = await prisma.$transaction(async (tx) => {
+      result = await this.postingRepo.runTransaction(async (tx) => {
         const reversal = await this.journalEntryRepo.create(
           {
             userId,
@@ -422,11 +421,7 @@ export class PostingService {
     }
     const { userId } = user;
 
-    // We need to find the account regardless of unitId to give a proper 404 vs 403; we do
-    // a direct prisma look-up scoped by userId only, then cross-check unitId ourselves.
-    const account = await prisma.account.findFirst({
-      where: { id: accountId, userId, deletedAt: null },
-    });
+    const account = await this.accountRepo.findById(userId, accountId);
     if (!account) {
       throw new NotFoundError(`Conta '${accountId}' não encontrada.`);
     }

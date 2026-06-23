@@ -43,6 +43,12 @@ export interface IAccountRepository {
     tx?: Prisma.TransactionClient,
   ): Promise<Account | null>;
 
+  /**
+   * Finds an active account by its id, scoped only to userId (not unitId). Used by
+   * deleteAccount to discover the account's unitId before the policy+posting guards.
+   */
+  findById(userId: string, id: string): Promise<Account | null>;
+
   /** Lists all active accounts for a (userId, unitId), ordered by code. */
   findManyByUnit(userId: string, unitId: string): Promise<Account[]>;
 
