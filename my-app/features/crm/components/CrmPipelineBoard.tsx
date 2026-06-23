@@ -103,6 +103,8 @@ export function CrmPipelineBoard() {
     ownerOptions,
     selectedOwnerId,
     setSelectedOwnerId,
+    nameQuery,
+    setNameQuery,
     showOwnerFilter,
     mine,
     setMine,
@@ -138,6 +140,14 @@ export function CrmPipelineBoard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <input
+            type="search"
+            value={nameQuery}
+            onChange={(e) => setNameQuery(e.target.value)}
+            placeholder={t('pipeline.search_placeholder', 'Buscar por nome…')}
+            aria-label={t('pipeline.search_label', 'Buscar lead')}
+            className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 placeholder:font-semibold placeholder:text-gray-400 dark:border-white/10 dark:bg-neutral-800 dark:text-gray-200 dark:placeholder:text-gray-500"
+          />
           {showOwnerFilter ? (
             <select
               value={selectedOwnerId}
