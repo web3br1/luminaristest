@@ -5,6 +5,7 @@ import { useTranslation } from 'next-i18next';
 import { CrmService, type AttachmentMeta } from '../../../lib/services/crm.service';
 import { resolveErrorMessage } from '../../../lib/utils/error-handler';
 import { useLeadAttachments } from '../hooks/useLeadAttachments';
+import { formatTimestamp } from '../lib/dates';
 
 interface LeadAttachmentsPanelProps {
   leadId: string;
@@ -21,14 +22,6 @@ function formatBytes(bytes: number): string {
   const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   const value = bytes / 1024 ** exponent;
   return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`;
-}
-
-function formatTimestamp(value: unknown): string {
-  const raw = String(value ?? '');
-  if (!raw) return '—';
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return raw;
-  return d.toLocaleString();
 }
 
 /**

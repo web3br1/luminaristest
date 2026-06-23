@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { isTableSchema, type IDynamicTableData } from '../../dashboard/components/shared/dynamic-tables.client';
 import { useAuth } from '../../../lib/context/AuthContext';
 import { fetchAllRows } from '../lib/crmFetch';
+import { pickDisplayName } from './useActorNames';
 import type { CrmRecord } from './useCrmData';
 
 export const OWNER_FILTER_ALL = '__all__';
@@ -73,19 +74,8 @@ export function useOwnerFilter(schema: unknown, records: CrmRecord[]): OwnerFilt
       try {
         const rows = (await fetchAllRows(owner.targetTable)) as IDynamicTableData[];
         const mapped = rows.map((row) => {
-          const d = row?.data || {};
-          const first = String(d.firstName || '').trim();
-          const last = String(d.lastName || '').trim();
-          const full = String(d.fullName || '').trim();
-          const email = String(d.email || '').trim();
-          const name =
-            full ||
-            [first, last].filter(Boolean).join(' ').trim() ||
-            String(d.name || '').trim() ||
-            String(d.username || '').trim() ||
-            email ||
-            String(row.id);
-          return { id: String(row.id), name, email };
+          const d = (row?.data ?? {}) as Record<string, unknown>;
+          return { id: String(row.id), name: pickDisplayName(d, String(row.id)), email: String(d.email ?? '').trim() };
         });
         if (!cancelled) setOptions(mapped);
       } catch {
