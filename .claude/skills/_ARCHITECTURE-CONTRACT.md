@@ -73,6 +73,17 @@ Route → Controller → Service → Repository → Prisma
 - [ ] **Money:** acumular com `addMoney()` (nunca `+=` — float drift); excluir negativos e status configurados; `previousValue = count>0 ? total/count : undefined` (**undefined quando sem dados, nunca 0**). Single-pass: iterar `rows` uma vez só.
 - [ ] **Escritas via agente de chat** retornam `{ status: 'PROPOSED', proposalId }` — nunca escrevem direto no banco.
 
+### 2.1 Limites da plataforma DynamicTable (caminho de dinheiro / unicidade / hierarquia)
+
+Toda linha de DynamicTable mora em `DynamicTableData.data Json` sobre **SQLite**. Isso impõe quatro limites que **nenhuma skill remove** — assumir o contrário foi o que furou o primeiro plano do módulo de Contabilidade. Respeite-os ou o gate reprova:
+
+- [ ] **Dinheiro = inteiro em centavos** (`numberFormat:'integer'`), nunca decimal/float. Não existe tipo Decimal; `number` é IEEE-754 e `0.1+0.2` deriva. Invariantes monetários (ex.: `Σdébito=Σcrédito` de um razão) são **igualdade inteira exata, sem epsilon**. (A linha "Money/`addMoney()`" da §2 continua valendo para somatórios de **exibição**; centavos é para **armazenamento** e para qualquer **invariante de fechamento**.)
+- [ ] **`unique`/`compositeUnique` de preset NÃO é constraint de banco.** É um scan `json_extract` em app-layer dentro do tx (TOCTOU) — pega re-post já commitado, **não** pega dois writes concorrentes da mesma chave. Para idempotência (ex.: `unique(sourceType,sourceId)`), use `compositeUnique` + check no service e **nomeie o teto** com um comentário `ponytail:`. Upgrade = promover a model Prisma com `@@unique` real — que **porém** perde o path de lentes schema-driven (`@@PRESET_TABLE_KEY::`), então é trade-off, não upgrade grátis. Não trate como garantia de corrida.
+- [ ] **Sem self-relation provada.** Nenhum preset aponta uma `relation` para a **própria** tabela; a resolução self-`@@PRESET_TABLE_KEY` é não-testada e não há componente de árvore no frontend (`GenericTable` é plano). Modele hierarquia por **chave codificada** (`1.1.2` → pai = prefixo do code), não por `parentId` auto-relacional; renderize com `GenericTabbedView` plano indentado pela profundidade do code. Relations **cross-table** (por id) continuam normais/provadas.
+- [ ] **Soft-delete ignora `immutableAfter`/`lifecycle`.** Esses guards declarativos só rodam em `updateTableData`, **não** em `deleteTableData`. Tornar um registro postado/terminal de fato imutável exige guarda de status na **camada de serviço** (ou `deleteConstraints` RESTRICT no pai) — o edit-block sozinho não cobre o delete.
+
+> Evidência de grafo (2026-06-22): money em `data Json`/SQLite sem Decimal; `unique` enforced via `countByFieldValue`/`findAllDataByTableId` em JS dentro do tx; zero preset com self-relation; `deleteTableData` não consulta `immutableAfter`. Detalhe na memória `dynamictable-money-and-uniqueness-limits`.
+
 ---
 
 ## 3. Arquitetura frontend (cross-cutting)

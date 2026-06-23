@@ -14,6 +14,7 @@ import docsRoutes from './docs';
 import analyticsRoutes from './analytics';
 import analyticsDefinitionsRoutes from './analyticsDefinitions';
 import crmRoutes from './crm';
+import accountingRoutes from './accounting';
 import savedViewsRoutes from './saved-views';
 
 const router = Router();
@@ -53,6 +54,7 @@ router.use('/docs', docsRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/analytics/definitions', analyticsDefinitionsRoutes);
 router.use('/crm', crmRoutes);
+router.use('/accounting', accountingRoutes);
 router.use('/saved-views', savedViewsRoutes);
 
 export { router };

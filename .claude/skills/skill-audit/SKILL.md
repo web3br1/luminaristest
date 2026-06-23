@@ -1,6 +1,6 @@
 ---
 name: skill-audit
-description: Audita as skills geradoras contra o grafo (codebase-memory) em loop com gate objetivo — verifica que os golden refs existem no path, que os anti-exemplos continuam mortos, que todo hotspot de fan-in alto tem dono, e que os clones SIMILAR_TO de um canônico não cresceram desde o último baseline. Propõe patches de skill por evidência de grafo; NÃO aplica. Use com `/loop` para rodar até o gate fechar.
+description: Audita as skills geradoras contra o grafo (codebase-memory) em loop com gate objetivo — verifica que os golden refs existem no path, que os anti-exemplos continuam mortos, que todo hotspot de fan-in alto tem dono, que os clones SIMILAR_TO de um canônico não cresceram desde o último baseline, e que os limites de plataforma DynamicTable do Contrato §2.1 (money=centavos, sem self-relation, `unique`≠constraint, guarda de delete) são respeitados. Propõe patches de skill por evidência de grafo; NÃO aplica. Use com `/loop` para rodar até o gate fechar.
 argument-hint: "[skill ou pasta a auditar — vazio = todas as skills geradoras + os 3 contratos]"
 allowed-tools: Read, Grep, Glob, Bash, mcp__codebase-memory-mcp__search_graph, mcp__codebase-memory-mcp__query_graph, mcp__codebase-memory-mcp__get_architecture, mcp__codebase-memory-mcp__search_code, mcp__codebase-memory-mcp__trace_path
 ---
@@ -62,8 +62,15 @@ agentes:   luminaris-orchestrator · luminaris-implementer · luminaris-reviewer
 - **P3 · Shape ensinado = canônico atual:** os paths/nomes que a skill manda gerar batem com `GENERATION_CONTRACTS.md` E com a forma do canônico vivo no grafo? FAIL se a skill ensina um shape que o canônico já não tem (drift de ensino).
 - **P4 · Output da skill não vira clone:** o domínio que ESTA skill gera mostra clone `SIMILAR_TO` (jaccard ≥0.9) de um canônico? Se sim, o checklist de reuso dela está frouxo → patch. (Foi o que pegou formatters/FinanceService.)
 - **P5 · Higiene de contrato:** a skill **referencia** `_ARCHITECTURE-CONTRACT.md` em vez de **repetir** regras (repetir = fonte de drift, como o `zinc`); cita o gate `tsc`; não inventa canônico paralelo aos da §0.
+- **P6 · Limites de plataforma §2.1 (só skills de money/preset/workflow/test):** FAIL **só por contradição ativa** — a skill **ensina** algo que o §2.1 proíbe. **Omissão NÃO é FAIL:** o Contrato é herdado (preâmbulo: "prevalece mesmo se a skill omitir"), então cobrar um ponteiro redundante seria pointer-spam (drift). Condições de FAIL+patch:
+  - ensina `numberFormat: currency|decimal`/float para um campo que entra em **invariante de fechamento exato** (razão/saldo) — não para money em geral (`currency` é o default correto p/ preço/total);
+  - ensina `parentId` **auto-relacional** como forma de modelar hierarquia (o certo é code prefix);
+  - apresenta `unique`/`compositeUnique` como **constraint de DB** / garantia de idempotência à prova de corrida;
+  - manda hard/soft-delete de registro **postado/terminal** sem a guarda de status na camada de serviço.
 
-Verdict per-skill: **PASS** (P1–P5 limpos) · **PASS-NOTE** (divergência sancionada pelo `_REUSE-CRITERION`, ou nit sem severidade) · **FAIL** (+ patch cirúrgico proposto, com `arquivo:linha` e evidência de grafo).
+  Self-relation tem backstop objetivo no G5. N/A para skills que não tocam esses domínios; PASS se a skill é money/preset/workflow mas não ensina nenhuma das contradições acima (mesmo sem citar o §2.1).
+
+Verdict per-skill: **PASS** (P1–P6 limpos) · **PASS-NOTE** (divergência sancionada pelo `_REUSE-CRITERION`, ou nit sem severidade) · **FAIL** (+ patch cirúrgico proposto, com `arquivo:linha` e evidência de grafo).
 
 ---
 
@@ -91,6 +98,7 @@ triaged_drift: [ <achado>: <decisão> ]
 | P3 shape = canônico atual | PASS/FAIL | … |
 | P4 sem clone SIMILAR_TO | PASS/FAIL | … |
 | P5 higiene de contrato | PASS/NOTE/FAIL | … |
+| P6 limites §2.1 (money/preset/workflow) | PASS/FAIL/N/A | … |
 
 Findings:
 | # | Sev | arquivo:linha | Problema | Patch proposto |
@@ -137,6 +145,12 @@ Para cada `Anti-exemplo: X (deletado)`:
 - `query_graph`: `MATCH (a)-[r:SIMILAR_TO]->(b) WHERE r.same_file = false AND r.jaccard >= 0.9 RETURN ...`
 - Descartar boilerplate sancionado (`getServerSideProps`, `CrmLoading`, scripts `audit-*-kpi`). Dos restantes, contar os pares onde **um lado é canônico conhecido** (§0).
 - **FAIL** se a contagem passou do baseline no STATE → algum gerador está cuspindo clone do canônico; aperta o checklist de reuso daquele gerador. (Pegou `formatTimestamp` ×3, `FinanceService` gêmeo.)
+
+### G5 — §2.1 respeitado no canon (objetivo onde o grafo enxerga)
+A única trava do §2.1 detectável no grafo/source é a **self-relation** (as outras três são design-time → P6). Baseline = **0** (nenhum preset hoje aponta relation pra própria tabela):
+- `search_code("targetTable: '@@PRESET_TABLE_KEY::", mode=content)` sobre `server/.../presets/modules/**` → para cada hit, comparar a `<internalName>` do `targetTable` com a tabela do módulo que o declara.
+- **FAIL** se algum preset referencia a **própria** tabela (self-relation embarcou no canon, apesar de não-suportada) → patch: trocar por hierarquia codificada (`code` prefix) + ajustar a skill `dynamic-table-preset` se foi ela que ensinou.
+- Sem baseline novo: qualquer self-relation > 0 é FAIL direto.
 
 > **Sempre re-confirme o símbolo no grafo antes de propor** — não confie em símbolo lembrado (mesma regra do `luminaris-reviewer`). Memória recém-recordada reflete o que era verdade quando escrita; o grafo é o agora.
 

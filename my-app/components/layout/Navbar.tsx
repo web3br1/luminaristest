@@ -15,7 +15,8 @@ import {
   IoSettingsOutline,
   IoDocumentTextOutline,
   IoGridOutline,
-  IoChatbubbleEllipsesOutline
+  IoChatbubbleEllipsesOutline,
+  IoReceiptOutline
 } from 'react-icons/io5';
 
 import { UserService } from '../../lib/services/user.service';
@@ -189,6 +190,15 @@ export function Navbar() {
                     >
                       <IoDocumentTextOutline size={16} />
                       {t('myDocuments', { defaultValue: 'My Documents' })}
+                    </Link>
+
+                    <Link
+                      href="/accounting"
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <IoReceiptOutline size={16} />
+                      Contabilidade
                     </Link>
 
                     {user?.role === 'ADMIN' && (

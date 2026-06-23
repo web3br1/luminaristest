@@ -12,6 +12,9 @@ import { ActionProposalRepository } from '../features/chat/repositories/ActionPr
 import { KnowledgeGraphRepository } from '../features/chat/repositories/KnowledgeGraphRepository';
 import { AttachmentRepository } from '../features/attachments/repositories/AttachmentRepository';
 import { SavedTableViewRepository } from '../features/savedViews/repositories/SavedTableViewRepository';
+import { AccountRepository } from '../features/accounting/repositories/AccountRepository';
+import { JournalEntryRepository } from '../features/accounting/repositories/JournalEntryRepository';
+import { PostingRepository } from '../features/accounting/repositories/PostingRepository';
 
 // Features - Policies
 import { ChatInstancePolicy } from '../features/chatInstances/policies/ChatInstancePolicy';
@@ -23,6 +26,7 @@ import { UserPolicy } from '../features/users/policies/UserPolicy';
 import { DynamicTablePolicy } from '../features/dynamicTables/policies/DynamicTablePolicy';
 import { AttachmentPolicy } from '../features/attachments/policies/AttachmentPolicy';
 import { SavedTableViewPolicy } from '../features/savedViews/policies/SavedTableViewPolicy';
+import { AccountingPolicy } from '../features/accounting/policies/AccountingPolicy';
 
 // Features - Services
 import { ChatInstanceService } from '../features/chatInstances/services/ChatInstanceService';
@@ -39,6 +43,8 @@ import { LuminarisAgentService } from '../features/chat/services/LuminarisAgentS
 import { KnowledgeGraphService } from '../features/chat/services/KnowledgeGraphService';
 import { CrmPipelineService } from '../features/crm/services/CrmPipelineService';
 import { CrmAnalyticsService } from '../features/crm/services/CrmAnalyticsService';
+import { PostingService } from '../features/accounting/services/PostingService';
+import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
 import { PresetSyncService } from '../features/dynamicTables/services/PresetSyncService';
 import { AttachmentService } from '../features/attachments/services/AttachmentService';
 import { SavedTableViewService } from '../features/savedViews/services/SavedTableViewService';
@@ -69,6 +75,10 @@ import type { IAttachmentRepository } from '../features/attachments/repositories
 import type { IAttachmentPolicy } from '../features/attachments/policies/IAttachmentPolicy';
 import type { ISavedTableViewRepository } from '../features/savedViews/repositories/ISavedTableViewRepository';
 import type { ISavedTableViewPolicy } from '../features/savedViews/policies/ISavedTableViewPolicy';
+import type { IAccountRepository } from '../features/accounting/repositories/IAccountRepository';
+import type { IJournalEntryRepository } from '../features/accounting/repositories/IJournalEntryRepository';
+import type { IPostingRepository } from '../features/accounting/repositories/IPostingRepository';
+import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 
 export class ApplicationFactory {
   private static instance: ApplicationFactory;
@@ -87,6 +97,9 @@ export class ApplicationFactory {
     knowledgeGraph: IKnowledgeGraphRepository;
     attachment: IAttachmentRepository;
     savedTableView: ISavedTableViewRepository;
+    account: IAccountRepository;
+    journalEntry: IJournalEntryRepository;
+    posting: IPostingRepository;
   };
 
   private readonly policies: {
@@ -99,6 +112,7 @@ export class ApplicationFactory {
     dynamicTable: IDynamicTablePolicy;
     attachment: IAttachmentPolicy;
     savedTableView: ISavedTableViewPolicy;
+    accounting: IAccountingPolicy;
   };
 
   public readonly services: {
@@ -115,6 +129,8 @@ export class ApplicationFactory {
     knowledgeGraph: KnowledgeGraphService;
     crmPipeline: CrmPipelineService;
     crmAnalytics: CrmAnalyticsService;
+    posting: PostingService;
+    accountingReport: AccountingReportService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
     savedTableView: SavedTableViewService;
@@ -140,6 +156,9 @@ export class ApplicationFactory {
       knowledgeGraph: new KnowledgeGraphRepository(),
       attachment: new AttachmentRepository(),
       savedTableView: new SavedTableViewRepository(),
+      account: new AccountRepository(),
+      journalEntry: new JournalEntryRepository(),
+      posting: new PostingRepository(),
     };
 
     // Policies
@@ -153,6 +172,7 @@ export class ApplicationFactory {
       dynamicTable: new DynamicTablePolicy(),
       attachment: new AttachmentPolicy(),
       savedTableView: new SavedTableViewPolicy(),
+      accounting: new AccountingPolicy(),
     };
 
     // Services (handling inter-dependencies)
@@ -185,6 +205,20 @@ export class ApplicationFactory {
     const crmAnalyticsService = new CrmAnalyticsService(
       dynamicTableService,
       this.repositories.dynamicTable
+    );
+
+    const postingService = new PostingService(
+      this.repositories.account,
+      this.repositories.journalEntry,
+      this.repositories.posting,
+      this.policies.accounting
+    );
+
+    const accountingReportService = new AccountingReportService(
+      this.repositories.account,
+      this.repositories.posting,
+      this.repositories.journalEntry,
+      this.policies.accounting
     );
 
     const presetSyncService = new PresetSyncService(
@@ -228,6 +262,8 @@ export class ApplicationFactory {
       knowledgeGraph: knowledgeGraphService,
       crmPipeline: crmPipelineService,
       crmAnalytics: crmAnalyticsService,
+      posting: postingService,
+      accountingReport: accountingReportService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
       savedTableView: new SavedTableViewService(
@@ -258,6 +294,8 @@ export class ApplicationFactory {
   public getKnowledgeGraphService = (): KnowledgeGraphService => this.services.knowledgeGraph;
   public getCrmPipelineService = (): CrmPipelineService => this.services.crmPipeline;
   public getCrmAnalyticsService = (): CrmAnalyticsService => this.services.crmAnalytics;
+  public getPostingService = (): PostingService => this.services.posting;
+  public getAccountingReportService = (): AccountingReportService => this.services.accountingReport;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;
   public getSavedTableViewService = (): SavedTableViewService => this.services.savedTableView;

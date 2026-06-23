@@ -4,10 +4,7 @@ import { getCookie } from 'cookies-next';
 import { useAuth } from '../../../lib/context/AuthContext';
 import { useTranslation } from 'next-i18next';
 import { FiCheck, FiCpu, FiMonitor, FiActivity } from 'react-icons/fi';
-// eslint-disable-next-line no-restricted-imports -- DEBT: apiClient fora de lib/services, viola contrato §3. Backlog: docs/architecture/lint-layer-gate.md. Remover ao mover estas chamadas para um *.service.ts.
-import { apiClient } from '../../../lib/api/api-client';
-
-interface PresetsResponse { [key: string]: unknown }
+import { SetupService } from '../../../lib/services/setup.service';
 
 interface Preset {
   category: string;
@@ -48,8 +45,7 @@ export default function QuickSetup() {
     async function verifyAndLoad() {
       setIsLoading(true);
       try {
-        const body = (await apiClient.get('/dashboard/presets')) as PresetsResponse;
-        setPresets((body.data as Preset[]) || []);
+        setPresets(await SetupService.getPresets());
 
       } catch (err) {
         setError((err instanceof Error ? err.message : String(err)) || 'Ocorreu um erro inesperado ao carregar os modelos.');
@@ -67,7 +63,7 @@ export default function QuickSetup() {
     setIsCreating(true);
     setError(null);
     try {
-      await apiClient.post('/dashboard/create', { mode: 'quick', suiteKey: selectedPreset });
+      await SetupService.createDashboard({ mode: 'quick', suiteKey: selectedPreset });
 
       router.push('/dashboard');
 
