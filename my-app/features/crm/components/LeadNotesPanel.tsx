@@ -1,31 +1,16 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import { DynamicTableService } from '../../../lib/services/dynamic-table.service';
 import { resolveErrorMessage } from '../../../lib/utils/error-handler';
 import { useAuth } from '../../../lib/context/AuthContext';
-import { fetchAllRows } from '../lib/crmFetch';
-import { isTableSchema } from '../../dashboard/components/shared/dynamic-tables.client';
-import { useLeadNotes } from '../hooks/useLeadNotes';
+import { useLead360 } from '../context/Lead360Context';
+import { formatTimestamp } from '../lib/dates';
 
 interface LeadNotesPanelProps {
   leadId: string;
   onChanged?: () => void;
-}
-
-interface EmployeeOption {
-  id: string;
-  name: string;
-  email: string;
-}
-
-function formatTimestamp(value: unknown): string {
-  const raw = String(value ?? '');
-  if (!raw) return '—';
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return raw;
-  return d.toLocaleString();
 }
 
 /**
@@ -38,110 +23,40 @@ function formatTimestamp(value: unknown): string {
 export function LeadNotesPanel({ leadId, onChanged }: LeadNotesPanelProps) {
   const { t } = useTranslation('crm');
   const { user } = useAuth();
-  const { loading, error, notes, activitiesTableId, reload } = useLeadNotes(leadId);
-
-  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
-  // Whether the installed leadActivities schema has a `type` select offering a
-  // 'note' option. If a tenant's table wasn't synced, creating with type:'note'
-  // would be invalid/silently dropped (Zod) — so we hide the add form and explain
-  // instead (mirror of LeadTasksPanel's supportsLeadLink gate).
-  const [supportsNotes, setSupportsNotes] = useState(false);
+  const { loading, error, activities, activitiesTableId, reload, actors, actorName, schema } = useLead360();
+  const notes = useMemo(() => activities.filter((r) => String(r.data?.type ?? '') === 'note'), [activities]);
 
   // Inline create form state.
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Resolve the employees table from the leadActivities schema's `actorId`
-  // relation (mirror of useOwnerFilter's owner detection), then load it once to
-  // map actorId → employee name and to resolve the current user's employee id.
-  // Never assume a fixed table id.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!activitiesTableId) {
-        setEmployees([]);
-        setSupportsNotes(false);
-        return;
-      }
-      try {
-        const meta = await DynamicTableService.getTableById(activitiesTableId);
-        const schema = (meta as { schema?: unknown })?.schema;
-        if (!isTableSchema(schema)) {
-          if (!cancelled) {
-            setEmployees([]);
-            setSupportsNotes(false);
-          }
-          return;
-        }
-        if (!cancelled) {
-          const typeField = schema.fields.find((f) => f.name === 'type' && f.type === 'select');
-          const hasNoteOption = (typeField?.options ?? []).some((opt) =>
-            (typeof opt === 'string' ? opt : opt.value) === 'note',
-          );
-          setSupportsNotes(Boolean(typeField) && hasNoteOption);
-        }
-        const field = schema.fields.find((f) => f.name === 'actorId' && f.type === 'relation');
-        const targetTable = field?.relation?.targetTable ?? null;
-        if (!targetTable) {
-          if (!cancelled) setEmployees([]);
-          return;
-        }
-        const rows = await fetchAllRows(targetTable);
-        const mapped = rows.map((row) => {
-          const dd = row?.data || {};
-          const first = String(dd.firstName || '').trim();
-          const last = String(dd.lastName || '').trim();
-          const full = String(dd.fullName || '').trim();
-          const email = String(dd.email || '').trim();
-          const name =
-            full ||
-            [first, last].filter(Boolean).join(' ').trim() ||
-            String(dd.name || '').trim() ||
-            String(dd.username || '').trim() ||
-            email ||
-            String(row.id);
-          return { id: String(row.id), name, email };
-        });
-        if (!cancelled) setEmployees(mapped);
-      } catch {
-        if (!cancelled) {
-          setEmployees([]);
-          setSupportsNotes(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activitiesTableId]);
-
-  const employeeName = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const e of employees) map.set(e.id, e.name);
-    return (id: unknown): string => {
-      const key = String(id ?? '');
-      if (!key) return '';
-      return map.get(key) ?? '';
-    };
-  }, [employees]);
+  // Whether the installed leadActivities schema has a `type` select offering a
+  // 'note' option. If a tenant's table wasn't synced, creating with type:'note'
+  // would be invalid/silently dropped (Zod) — so we hide the add form and explain
+  // instead (mirror of LeadTasksPanel's supportsLeadLink gate).
+  const supportsNotes = useMemo(() => {
+    const typeField = schema?.fields.find((f) => f.name === 'type' && f.type === 'select');
+    if (!typeField) return false;
+    return (typeField.options ?? []).some((opt) => (typeof opt === 'string' ? opt : opt.value) === 'note');
+  }, [schema]);
 
   // Resolve the current user to an employee id: case-insensitive email match
   // (fallback name). user.id is the auth-account id (NOT the employee row id),
-  // so we match by email/name against the loaded employees (padrão useOwnerFilter).
+  // so we match by email/name against the loaded actors (padrão useOwnerFilter).
   const myEmployeeId = useMemo<string | null>(() => {
     const email = user?.email?.trim().toLowerCase();
     const name = user?.name?.trim().toLowerCase();
     if (email) {
-      const byEmail = employees.find((e) => e.email.trim().toLowerCase() === email);
+      const byEmail = actors.find((e) => e.email.trim().toLowerCase() === email);
       if (byEmail) return byEmail.id;
     }
     if (name) {
-      const byName = employees.find((e) => e.name.trim().toLowerCase() === name);
+      const byName = actors.find((e) => e.name.trim().toLowerCase() === name);
       if (byName) return byName.id;
     }
     return null;
-  }, [user?.email, user?.name, employees]);
+  }, [user?.email, user?.name, actors]);
 
   const submitCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,7 +106,7 @@ export function LeadNotesPanel({ leadId, onChanged }: LeadNotesPanelProps) {
       ) : (
         <ul className="space-y-2">
           {notes.map((note) => {
-            const author = employeeName(note.data?.actorId) || '—';
+            const author = actorName(note.data?.actorId) || '—';
             return (
               <li
                 key={note.id}

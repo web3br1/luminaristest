@@ -11,11 +11,14 @@ import { ScoreGauge } from './ui/ScoreGauge';
 import { StatusBadge } from './ui/StatusBadge';
 import { BantBars } from './ui/BantBars';
 import { ProposalCaptureModal } from './ProposalCaptureModal';
+import { NoShowCaptureModal } from './NoShowCaptureModal';
 import { LeadConvertModal } from './LeadConvertModal';
 import { OpportunityCreateModal } from './OpportunityCreateModal';
 import { LeadTasksPanel } from './LeadTasksPanel';
 import { LeadNotesPanel } from './LeadNotesPanel';
+import { LeadTimelinePanel } from './LeadTimelinePanel';
 import { LeadAttachmentsPanel } from './LeadAttachmentsPanel';
+import { Lead360Provider } from '../context/Lead360Context';
 
 interface Lead360ModalProps {
   isOpen: boolean;
@@ -48,6 +51,9 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
   const [converting, setConverting] = useState(false);
   // Set while collecting input to create a first-class opportunity from the lead.
   const [creatingOpp, setCreatingOpp] = useState(false);
+  // Set while collecting the no-show resolution (reschedule / revert one stage).
+  const [recordingNoShow, setRecordingNoShow] = useState(false);
+  const [noShowSaving, setNoShowSaving] = useState(false);
 
   const d = lead?.data ?? {};
   const isConverted = String(d.status ?? '') === 'Converted';
@@ -59,6 +65,17 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
       .sort((a, b) => Number(a.data?.order ?? 0) - Number(b.data?.order ?? 0));
     const currentIdx = ordered.findIndex((s) => s.id === String(d.stageId ?? ''));
     return currentIdx >= 0 ? ordered[currentIdx + 1] : undefined;
+  }, [lead, stages, d.pipelineId, d.stageId]);
+
+  // The previous stage in pipeline order — supplies `previousStageId` for the
+  // no-show "revert" option and gates whether reverting is possible at all.
+  const prevStage = useMemo(() => {
+    if (!lead) return undefined;
+    const ordered = [...stages]
+      .filter((s) => String(s.data?.pipelineId ?? '') === String(d.pipelineId ?? ''))
+      .sort((a, b) => Number(a.data?.order ?? 0) - Number(b.data?.order ?? 0));
+    const currentIdx = ordered.findIndex((s) => s.id === String(d.stageId ?? ''));
+    return currentIdx > 0 ? ordered[currentIdx - 1] : undefined;
   }, [lead, stages, d.pipelineId, d.stageId]);
 
   // Run the transition; proposal stages pass the captured amount/currency/win%
@@ -99,6 +116,28 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
     await runAdvance(capture);
   };
 
+  // Record a meeting no-show. The backend writes the activity row AND updates the
+  // lead atomically — the client sends ONLY the payload. recordNoShow already
+  // emits the success toast, so only errors are notified here.
+  const handleNoShowConfirm = async (capture: { option: 'reschedule' | 'revert'; rescheduleAt?: string }) => {
+    if (!lead) return;
+    setNoShowSaving(true);
+    try {
+      await CrmService.recordNoShow({
+        leadId: lead.id,
+        option: capture.option,
+        ...(capture.option === 'reschedule' ? { rescheduleAt: capture.rescheduleAt } : { previousStageId: prevStage?.id }),
+      });
+      setRecordingNoShow(false);
+      await onChanged();
+      onClose();
+    } catch (err) {
+      notify(resolveErrorMessage(err, t), 'error', 'CRM');
+    } finally {
+      setNoShowSaving(false);
+    }
+  };
+
   if (!lead) return null;
 
   return (
@@ -135,6 +174,14 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
               </button>
               <button
                 type="button"
+                onClick={() => setRecordingNoShow(true)}
+                disabled={noShowSaving}
+                className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-black text-amber-600 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-amber-400"
+              >
+                {t('noshow.button', 'Não compareceu')}
+              </button>
+              <button
+                type="button"
                 onClick={handleAdvance}
                 disabled={!nextStage || advancing}
                 className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-700 hover:to-indigo-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -149,6 +196,37 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
 
         <SectionCard title={t('detail.bant', 'Qualificação BANT')}>
           <BantBars data={d} />
+        </SectionCard>
+
+        <SectionCard title={t('detail.active_proposal', 'Proposta Ativa')}>
+          <dl className="grid grid-cols-1 gap-4 text-sm">
+            <div>
+              <dt className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('detail.proposal_amount', 'Valor Negociado')}</dt>
+              <dd className="mt-0.5 font-bold text-gray-800 dark:text-gray-200">
+                {d.latestProposalAmount != null
+                  ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: String(d.latestProposalCurrency ?? 'BRL') }).format(Number(d.latestProposalAmount))
+                  : t('detail.proposal_amount_tbd', 'Preço sob consulta')}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-2">
+              <dt className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('detail.proposal_win', 'Probabilidade de Fechamento')}</dt>
+              <div className="flex h-2 w-full overflow-hidden rounded-full bg-gray-200 shadow-inner dark:bg-neutral-800">
+                <div
+                  className={`h-full transition-all duration-1000 ${Number(d.latestProposalWinProbability) >= 70 ? 'bg-emerald-500' : Number(d.latestProposalWinProbability) >= 40 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                  style={{ width: `${Number(d.latestProposalWinProbability ?? 0)}%` }}
+                />
+              </div>
+              <div className="text-right text-[10px] font-black italic text-gray-500">{String(d.latestProposalWinProbability ?? 0)}% {t('detail.proposal_win_suffix', 'de chance')}</div>
+            </div>
+            <div>
+              <dt className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('detail.proposal_eta', 'Previsão de Encerramento')}</dt>
+              <dd className="mt-0.5 font-bold text-gray-800 dark:text-gray-200">
+                {d.latestProposalEtaClose
+                  ? new Date(d.latestProposalEtaClose as string | number).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+                  : t('detail.proposal_eta_tbd', 'Indefinida')}
+              </dd>
+            </div>
+          </dl>
         </SectionCard>
 
         <SectionCard title={t('detail.contact', 'Contato')}>
@@ -170,17 +248,23 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
           </dl>
         </SectionCard>
 
-        <SectionCard title={t('detail.tasks', 'Tarefas')}>
-          <LeadTasksPanel leadId={lead.id} onChanged={() => { void onChanged(); }} />
-        </SectionCard>
+        <Lead360Provider leadId={lead.id}>
+          <SectionCard title={t('detail.tasks', 'Tarefas')}>
+            <LeadTasksPanel leadId={lead.id} onChanged={() => { void onChanged(); }} />
+          </SectionCard>
 
-        <SectionCard title={t('detail.notes', 'Notas')}>
-          <LeadNotesPanel leadId={lead.id} onChanged={() => { void onChanged(); }} />
-        </SectionCard>
+          <SectionCard title={t('detail.notes', 'Notas')}>
+            <LeadNotesPanel leadId={lead.id} onChanged={() => { void onChanged(); }} />
+          </SectionCard>
 
-        <SectionCard title={t('detail.attachments', 'Anexos')}>
-          <LeadAttachmentsPanel leadId={lead.id} onChanged={() => { void onChanged(); }} />
-        </SectionCard>
+          <SectionCard title={t('detail.timeline', 'Linha do Tempo')}>
+            <LeadTimelinePanel leadId={lead.id} />
+          </SectionCard>
+
+          <SectionCard title={t('detail.attachments', 'Anexos')}>
+            <LeadAttachmentsPanel leadId={lead.id} onChanged={() => { void onChanged(); }} />
+          </SectionCard>
+        </Lead360Provider>
       </div>
     </Modal>
 
@@ -189,6 +273,13 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
         stageName={String(nextStage?.data?.name ?? '')}
         onCancel={() => setCapturingProposal(false)}
         onConfirm={handleConfirmProposal}
+      />
+
+      <NoShowCaptureModal
+        isOpen={recordingNoShow}
+        canRevert={!!prevStage}
+        onCancel={() => setRecordingNoShow(false)}
+        onConfirm={handleNoShowConfirm}
       />
 
       <LeadConvertModal
