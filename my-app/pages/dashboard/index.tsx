@@ -36,10 +36,6 @@ const ServicesView = dynamic(
   () => import('../../features/dashboard/category-views/services/ServicesView'),
   { ssr: false, loading: viewLoading }
 );
-const LeadsView = dynamic(
-  () => import('../../features/dashboard/category-views/leads/LeadsView'),
-  { ssr: false, loading: viewLoading }
-);
 const InventoryView = dynamic(
   () => import('../../features/dashboard/category-views/inventory/InventoryView'),
   { ssr: false, loading: viewLoading }
@@ -134,6 +130,14 @@ function DashboardPage({ allTables }: DashboardPageProps) {
     }
   }, [user, authLoading, router]);
 
+  // The legacy "leads" category view was replaced by the canonical /crm module.
+  // The island was deleted; the sidebar entry now lands on the new CRM.
+  useEffect(() => {
+    if (selectedCategory?.toLowerCase() === 'leads') {
+      router.replace('/crm');
+    }
+  }, [selectedCategory, router]);
+
   const filteredTables = selectedCategory
     ? tables.filter(table => table.category === selectedCategory)
     : [];
@@ -158,8 +162,6 @@ function DashboardPage({ allTables }: DashboardPageProps) {
         const planningTables = all.filter(table => table.category === 'planning');
         return <PlanningView tables={planningTables} />;
       }
-      case 'leads':
-        return <LeadsView tables={filtered} />;
       case 'kanban':
         return <KanbanView tables={all} />;
       case 'products':
@@ -178,6 +180,11 @@ function DashboardPage({ allTables }: DashboardPageProps) {
   function renderContent() {
     if (!selectedCategory) {
       return <DashboardOverview onSelectCategory={handleSelectCategory} />;
+    }
+
+    // 'leads' redirects to /crm (effect above) — show the loader meanwhile.
+    if (selectedCategory.toLowerCase() === 'leads') {
+      return viewLoading();
     }
 
     if (selectedCategory && filteredTables.length === 0 && selectedCategory.toLowerCase() !== 'sales') {
