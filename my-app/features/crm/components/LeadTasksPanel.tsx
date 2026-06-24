@@ -1,21 +1,16 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import { DynamicTableService } from '../../../lib/services/dynamic-table.service';
 import { resolveErrorMessage } from '../../../lib/utils/error-handler';
-import { fetchAllRows } from '../lib/crmFetch';
-import { isTableSchema } from '../../dashboard/components/shared/dynamic-tables.client';
 import { useLeadTasks } from '../hooks/useLeadTasks';
+import { useActorNames } from '../hooks/useActorNames';
+import { formatDate } from '../lib/dates';
 
 interface LeadTasksPanelProps {
   leadId: string;
   onChanged?: () => void;
-}
-
-interface EmployeeOption {
-  id: string;
-  name: string;
 }
 
 const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'] as const;
@@ -37,14 +32,6 @@ function PriorityBadge({ priority }: { priority: string }) {
   );
 }
 
-function formatDate(value: unknown): string {
-  const raw = String(value ?? '');
-  if (!raw) return '—';
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return raw;
-  return d.toLocaleDateString();
-}
-
 /**
  * Real CRM tasks for a single lead, rendered inside the Lead360 modal. Lists
  * the lead's tasks (toggle Done, priority, due date, owner) and offers inline
@@ -55,13 +42,16 @@ export function LeadTasksPanel({ leadId, onChanged }: LeadTasksPanelProps) {
   const { t } = useTranslation('crm');
   const { loading, error, tasks, tasksTableId, reload } = useLeadTasks(leadId);
 
-  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const { actors, actorName, schema } = useActorNames(tasksTableId, 'assigneeId');
   const [busyId, setBusyId] = useState<string | null>(null);
   // Whether the installed tasks schema has the `leadId` relation. If a tenant's
   // tasks table wasn't synced, creating would silently strip leadId (Zod drops
   // unknown keys) and the task would vanish from this lead-scoped list — so we
   // hide the create form and explain instead of producing an orphan.
-  const [supportsLeadLink, setSupportsLeadLink] = useState(false);
+  const supportsLeadLink = useMemo(
+    () => Boolean(schema?.fields.some((f) => f.name === 'leadId' && f.type === 'relation')),
+    [schema],
+  );
 
   // Inline create form state.
   const [creating, setCreating] = useState(false);
@@ -71,71 +61,6 @@ export function LeadTasksPanel({ leadId, onChanged }: LeadTasksPanelProps) {
   const [formAssignee, setFormAssignee] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-
-  // Resolve the employees table from the tasks schema's `assigneeId` relation
-  // (mirror of useOwnerFilter's owner detection), then load it once to map
-  // assigneeId → employee name. Never assume a fixed table id.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!tasksTableId) {
-        setEmployees([]);
-        setSupportsLeadLink(false);
-        return;
-      }
-      try {
-        const meta = await DynamicTableService.getTableById(tasksTableId);
-        const schema = (meta as { schema?: unknown })?.schema;
-        if (!isTableSchema(schema)) {
-          if (!cancelled) {
-            setEmployees([]);
-            setSupportsLeadLink(false);
-          }
-          return;
-        }
-        if (!cancelled) {
-          setSupportsLeadLink(schema.fields.some((f) => f.name === 'leadId' && f.type === 'relation'));
-        }
-        const field = schema.fields.find((f) => f.name === 'assigneeId' && f.type === 'relation');
-        const targetTable = field?.relation?.targetTable ?? null;
-        if (!targetTable) {
-          if (!cancelled) setEmployees([]);
-          return;
-        }
-        const rows = await fetchAllRows(targetTable);
-        const mapped = rows.map((row) => {
-          const d = row?.data || {};
-          const first = String(d.firstName || '').trim();
-          const last = String(d.lastName || '').trim();
-          const full = String(d.fullName || '').trim();
-          const name =
-            full ||
-            [first, last].filter(Boolean).join(' ').trim() ||
-            String(d.name || '').trim() ||
-            String(d.username || '').trim() ||
-            String(d.email || '').trim() ||
-            String(row.id);
-          return { id: String(row.id), name };
-        });
-        if (!cancelled) setEmployees(mapped);
-      } catch {
-        if (!cancelled) setEmployees([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [tasksTableId]);
-
-  const employeeName = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const e of employees) map.set(e.id, e.name);
-    return (id: unknown): string => {
-      const key = String(id ?? '');
-      if (!key) return '';
-      return map.get(key) ?? '';
-    };
-  }, [employees]);
 
   const toggleDone = async (taskId: string, currentStatus: string) => {
     if (!tasksTableId) return;
@@ -214,7 +139,7 @@ export function LeadTasksPanel({ leadId, onChanged }: LeadTasksPanelProps) {
           {tasks.map((task) => {
             const status = String(task.data?.status ?? 'To Do');
             const isDone = status === 'Done';
-            const owner = employeeName(task.data?.assigneeId);
+            const owner = actorName(task.data?.assigneeId);
             return (
               <li
                 key={task.id}
@@ -306,7 +231,7 @@ export function LeadTasksPanel({ leadId, onChanged }: LeadTasksPanelProps) {
                 className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-blue-500 dark:border-white/10 dark:bg-neutral-800 dark:text-gray-200"
               >
                 <option value="">{t('tasks.unassigned', 'Sem responsável')}</option>
-                {employees.map((emp) => (
+                {actors.map((emp) => (
                   <option key={emp.id} value={emp.id}>
                     {emp.name}
                   </option>

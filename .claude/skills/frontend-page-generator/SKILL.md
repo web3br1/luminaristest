@@ -57,8 +57,8 @@ my-app/public/locales/en/common.json
 7. Head: `<Head><title>X | Luminaris</title></Head>`
 8. Se namespace i18n novo: criar `my-app/public/locales/en/<resource>.json` e `pt/<resource>.json`
 9. **Estilização: aplicar a skill `frontend-design-system`** (tokens `neutral`/`lumi-*`, gradient header, font-black) — não deixe a página com Tailwind genérico
-9b. **Container consistente entre telas irmãs:** páginas de um mesmo módulo devem usar o MESMO container. Prefira o padrão full-height do shell do dashboard (`flex h-full … flex-col`, conteúdo scrollável interno) em vez de fixar `max-w-*` por página. Se variar (`max-w-3xl` numa tela, `max-w-7xl` noutra), as telas "mudam de tamanho" ao navegar — foi o defeito do CRM (largura ia de `3xl` em Atividades a `7xl` em Pipeline).
-10. **Dados derivados memoizados:** todo dado DERIVADO no corpo do render (`filter`/`sort`/`group`/`find`/`reduce` sobre listas, lookups repetidos, agregações) DEVE ser envolvido em `useMemo(() => ..., [deps])` com as dependências corretas. Sem isso, recalcula a cada render — inclusive em updates de context não relacionados — com custo O(n) ou O(n log n). Vale tanto para páginas quanto para hooks de dados.
+10. **Container consistente entre telas irmãs:** páginas de um mesmo módulo devem usar o MESMO container. Prefira o padrão full-height do shell do dashboard (`flex h-full … flex-col`, conteúdo scrollável interno) em vez de fixar `max-w-*` por página. Se variar (`max-w-3xl` numa tela, `max-w-7xl` noutra), as telas "mudam de tamanho" ao navegar — foi o defeito do CRM (largura ia de `3xl` em Atividades a `7xl` em Pipeline).
+11. **Dados derivados memoizados:** todo dado DERIVADO no corpo do render (`filter`/`sort`/`group`/`find`/`reduce` sobre listas, lookups repetidos, agregações) DEVE ser envolvido em `useMemo(() => ..., [deps])` com as dependências corretas. Sem isso, recalcula a cada render — inclusive em updates de context não relacionados — com custo O(n) ou O(n log n). Vale tanto para páginas quanto para hooks de dados.
 
 ## Files usually created or changed
 

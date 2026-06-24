@@ -17,6 +17,7 @@ const protectedApiPaths = [
   '/api/reports',         // ← cobre /api/reports/generate-chart-data
   '/api/structured-data', // ← cobre /api/structured-data/:documentId
   '/api/crm',             // ← cobre /api/crm/pipeline/*
+  '/api/accounting',      // ← cobre /api/accounting/post e /reverse
   '/api/saved-views',     // ← saved table views (per-user)
 ];
 

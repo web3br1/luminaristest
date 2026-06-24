@@ -18,11 +18,12 @@ Antes de escrever qualquer componente, classe, helper ou padrão, **procure o ca
 | Paginação | `features/dashboard/shared/components/StandardPagination.tsx` |
 | Modal / detalhe de registro | `components/ui/Modal.tsx` (portal) + estado local (padrão `KanbanCardDetailModal.tsx`). Skill: `frontend-modal-generator`. Golden refs verificadas: `features/crm/components/Lead360Modal.tsx` (detalhe), `ProposalCaptureModal.tsx` (captura), `ConfirmDeleteModal.tsx` (confirmação). **Regra: detalhe/edição = modal, nunca `router.push`.** |
 | Board/KPIs/charts de analytics | `.../finance/components/analytics/dashboard/AnalyticsDashboard.tsx` + `DashboardKpiCard.tsx` + `charts/ChartRenderer.tsx` + `widgets/analytics/GoldKpiWidgetView.tsx` |
-| Board de fluxo de trabalho (Kanban drag-drop entre etapas) | `features/dashboard/category-views/kanban/InternalKanbanView.tsx` (+ `hooks/useKanbanLogic.tsx`, `components/KanbanCardDetailModal.tsx`). Transição com efeitos colaterais → serviço no padrão `server/src/features/crm/services/CrmPipelineService.ts`. Skills: `frontend-kanban-workflow-generator` + `backend-workflow-transition-generator`. **Anti-exemplo: `pages/crm/pipeline.tsx` (board estático).** |
+| Board de fluxo de trabalho (Kanban drag-drop entre etapas) | `features/dashboard/category-views/kanban/InternalKanbanView.tsx` (+ `hooks/useKanbanLogic.tsx`, `components/KanbanCardDetailModal.tsx`). Transição com efeitos colaterais → serviço no padrão `server/src/features/crm/services/CrmPipelineService.ts`. Skills: `frontend-kanban-workflow-generator` + `backend-workflow-transition-generator`. **Anti-exemplo (histórico, já remediado): o board estático que existia em `pages/crm/pipeline.tsx` — hoje o arquivo é um wrapper fino de `CrmPipelineBoard`; não recriar o estático.** |
 | Erro de API (controller) | `handleApiError` de `lib/apiUtils` |
 | Erros tipados (service) | `lib/errors` (`ForbiddenError`, `NotFoundError`, …) |
 | Field presets (preset gen) | `server/.../presets/fields/*` |
 | Money math | `addMoney` / `DataSanitizer` / `DateUtils` de `features/analytics/utils` |
+| Formatação de exibição (data/hora/moeda no **frontend**) | `features/dashboard/shared/utils/formatters.ts` (`formatCurrency` — fan-in 14, `formatDate`, `formatDateBR`) + `useFormatCurrency` de `lib/context/CurrencyContext`. **NÃO** re-rolar `formatTimestamp`/`formatDate`/`formatDayLabel` local em panel/modal. (≠ a linha "Money math", que é cálculo backend/analytics.) **Anti-exemplo: `formatTimestamp` clonado em `LeadTimelinePanel`/`LeadNotesPanel`/`LeadAttachmentsPanel` (jaccard 1.0); `finance/utils/formatters.ts` duplicando `formatDateBR`.** |
 
 ---
 
@@ -71,6 +72,17 @@ Route → Controller → Service → Repository → Prisma
 - [ ] **Domínios DynamicTable (leads/ERP/CRM):** service orquestra `DynamicTableService` (não Repository/Policy próprios); resolve tabelas por `internalName` (preset key), nunca por índice `[0]`; o `DynamicTableService` já força `canManageData` em toda escrita.
 - [ ] **Money:** acumular com `addMoney()` (nunca `+=` — float drift); excluir negativos e status configurados; `previousValue = count>0 ? total/count : undefined` (**undefined quando sem dados, nunca 0**). Single-pass: iterar `rows` uma vez só.
 - [ ] **Escritas via agente de chat** retornam `{ status: 'PROPOSED', proposalId }` — nunca escrevem direto no banco.
+
+### 2.1 Limites da plataforma DynamicTable (caminho de dinheiro / unicidade / hierarquia)
+
+Toda linha de DynamicTable mora em `DynamicTableData.data Json` sobre **SQLite**. Isso impõe quatro limites que **nenhuma skill remove** — assumir o contrário foi o que furou o primeiro plano do módulo de Contabilidade. Respeite-os ou o gate reprova:
+
+- [ ] **Dinheiro = inteiro em centavos** (`numberFormat:'integer'`), nunca decimal/float. Não existe tipo Decimal; `number` é IEEE-754 e `0.1+0.2` deriva. Invariantes monetários (ex.: `Σdébito=Σcrédito` de um razão) são **igualdade inteira exata, sem epsilon**. (A linha "Money/`addMoney()`" da §2 continua valendo para somatórios de **exibição**; centavos é para **armazenamento** e para qualquer **invariante de fechamento**.)
+- [ ] **`unique`/`compositeUnique` de preset NÃO é constraint de banco.** É um scan `json_extract` em app-layer dentro do tx (TOCTOU) — pega re-post já commitado, **não** pega dois writes concorrentes da mesma chave. Para idempotência (ex.: `unique(sourceType,sourceId)`), use `compositeUnique` + check no service e **nomeie o teto** com um comentário `ponytail:`. Upgrade = promover a model Prisma com `@@unique` real — que **porém** perde o path de lentes schema-driven (`@@PRESET_TABLE_KEY::`), então é trade-off, não upgrade grátis. Não trate como garantia de corrida.
+- [ ] **Sem self-relation provada.** Nenhum preset aponta uma `relation` para a **própria** tabela; a resolução self-`@@PRESET_TABLE_KEY` é não-testada e não há componente de árvore no frontend (`GenericTable` é plano). Modele hierarquia por **chave codificada** (`1.1.2` → pai = prefixo do code), não por `parentId` auto-relacional; renderize com `GenericTabbedView` plano indentado pela profundidade do code. Relations **cross-table** (por id) continuam normais/provadas.
+- [ ] **Soft-delete ignora `immutableAfter`/`lifecycle`.** Esses guards declarativos só rodam em `updateTableData`, **não** em `deleteTableData`. Tornar um registro postado/terminal de fato imutável exige guarda de status na **camada de serviço** (ou `deleteConstraints` RESTRICT no pai) — o edit-block sozinho não cobre o delete.
+
+> Evidência de grafo (2026-06-22): money em `data Json`/SQLite sem Decimal; `unique` enforced via `countByFieldValue`/`findAllDataByTableId` em JS dentro do tx; zero preset com self-relation; `deleteTableData` não consulta `immutableAfter`. Detalhe na memória `dynamictable-money-and-uniqueness-limits`.
 
 ---
 

@@ -106,6 +106,7 @@ For DynamicTable-backed domains (leads, ERP, CRM) the service orchestrates `Dyna
 - Relation fields: `{ type: 'relation', relation: { targetTable: '@@PRESET_TABLE_KEY::<internalName>' } }`
 - Field presets: reuse from `presets/fields/` (e.g., `import { email, phone } from '../../fields/text/TextPresets'`)
 - Registration: Add to system preset in `presets/systems/<System>Preset.ts`
+- **Limites de plataforma (gate — ver Contrato §2.1):** dinheiro = inteiro em **centavos** (`numberFormat:'integer'`), nunca decimal/float; hierarquia por **code codificado** (`parentId` auto-relacional NÃO é suportado — não há precedente nem tree view); `compositeUnique` é app-level/TOCTOU, **não** constraint de DB.
 
 ## Analytics KPI Contract
 
@@ -127,6 +128,7 @@ For DynamicTable-backed domains (leads, ERP, CRM) the service orchestrates `Dyna
 - DTO: `dtos/<Domain>Transition.dto.ts` (Zod + `@openapi` + type guard); Controller fino (`safeParse` + factory + `handleApiError`); Route 3-toques (`index.ts` + `protectedApiPaths` + `docs.paths.ts`); Factory getter `get<Domain>Service()`
 - Test: `buildService` + mock `runInTransaction`/`findTableByInternalName`; assert atomicidade (1× `runInTransaction`) + cross-tenant `NotFoundError`
 - Golden ref: `server/src/features/crm/services/CrmPipelineService.ts` (`advanceStage`)
+- **Caminho de dinheiro (gate — ver Contrato §2.1):** valores em **centavos inteiros**; invariantes de fechamento (`Σdébito=Σcrédito`) = igualdade inteira exata; idempotência via `compositeUnique(sourceKey)` + check no service com **teto `ponytail:` nomeado** (não é constraint de DB); registro postado/terminal imutável exige **guarda de delete** na camada de serviço (soft-delete não consulta `immutableAfter`).
 
 ## Frontend Kanban Workflow Contract
 

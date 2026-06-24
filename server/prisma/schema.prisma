@@ -33,6 +33,9 @@ model User {
   actionProposals ActionProposal[] // Relation to ActionProposal
   crmAttachments CrmAttachment[] // Relation to CrmAttachment
   savedTableViews SavedTableView[] // Relation to SavedTableView
+  accounts       Account[]        // Relation to Account (accounting)
+  journalEntries JournalEntry[]   // Relation to JournalEntry (accounting)
+  postings       Posting[]        // Relation to Posting (accounting)
 }
 
 // Per-user saved table views (query/filters/sort) for the canonical table stack.
@@ -274,4 +277,84 @@ model ActionProposal {
 
   @@index([userId])
   @@map("action_proposals")
+}
+
+// ── Accounting (deterministic double-entry module) ─────────────────────────────
+// First-class Prisma tables (NOT DynamicTable): the chart-of-accounts / journal /
+// ledger structure is identical across companies, so it is modeled directly with
+// real columns, foreign keys, integer-cent money and DB-level unique constraints.
+// Tenancy is two-level: per user (userId, FK) AND per business unit (unitId).
+// `unitId` is a DynamicTable row id (units live in DynamicTable), so it is a plain
+// scoped string, NOT a Prisma FK — same convention as SavedTableView.tableId.
+
+// Chart of accounts (plano de contas). Hierarchy is modeled by the coded key
+// (`code`, e.g. "1.1.2") — the parent is the prefix; there is no self-relation.
+// Only leaf accounts (`acceptsEntries`) receive ledger lines.
+model Account {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId         String    // business unit (DynamicTable row id; scoped string, not a FK)
+  code           String    // hierarchical key, e.g. "1.1.2"
+  name           String
+  nature         String    // Asset | Liability | Equity | Revenue | Expense
+  acceptsEntries Boolean   @default(true)
+  postings       Posting[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  @@unique([userId, unitId, code]) // real DB constraint — each unit owns its chart
+  @@index([userId, unitId])
+  @@map("accounts")
+}
+
+// Journal entry header (lançamento). Groups N balanced legs (`postings`) where
+// Σdebit = Σcredit (enforced in the posting service). Posted entries are immutable —
+// corrections are made via a reversing entry (estorno). `reversedById` links an
+// original to its reversal (self-relation).
+model JournalEntry {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId       String    // business unit (scoped string, not a FK)
+  date         DateTime
+  description  String
+  status       String    @default("Draft") // Draft | Posted | Reconciled | Reversed
+  sourceType   String    @default("manual")
+  sourceId     String?
+  reversedById String?   @unique // the reversal entry that estorned this one
+  reversedBy   JournalEntry?  @relation("Reversal", fields: [reversedById], references: [id])
+  reverses     JournalEntry?  @relation("Reversal")
+  postings     Posting[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Idempotency — a real DB constraint (SQLite treats NULL sourceId as distinct, so
+  // manual entries never collide). Closes the double-post window app code cannot.
+  @@unique([userId, unitId, sourceType, sourceId])
+  @@index([userId, unitId, status])
+  @@map("journal_entries")
+}
+
+// Ledger line (partida) — one leg of a double entry. Money is INTEGER CENTS; the
+// closing invariant Σdebit = Σcredit per entry is exact integer equality. `userId`
+// and `unitId` are denormalized for fast tenant-scoped groupBy (trial balance).
+model Posting {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId      String
+  entryId     String
+  entry       JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     Account      @relation(fields: [accountId], references: [id])
+  debitCents  Int          @default(0)
+  creditCents Int          @default(0)
+  createdAt   DateTime     @default(now())
+
+  @@index([userId, unitId])
+  @@index([entryId])
+  @@index([accountId])
+  @@map("postings")
 }

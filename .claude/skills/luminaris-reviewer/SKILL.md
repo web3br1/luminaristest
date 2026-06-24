@@ -210,6 +210,10 @@ grep -n "Appointment\|<Resource>" server/src/lib/factory.ts   # verificar presen
 - [ ] **Views agrupadas (Kanban/board/grouped-by-relação):** as colunas são filtradas pelo registro-pai ativo (não renderiza TODAS as etapas/grupos da tabela-pai). Validar com **>1 registro-pai** (ex: 2 pipelines) — renderizar todos gera colunas duplicadas/vazias. Defaulte para o pai com mais filhos + seletor.
 - [ ] Hooks que leem DynamicTable resolvem tabelas por `internalName` (não por posição `[0]` — a ordem da API difere)
 - [ ] **Hooks de KPI/lista/board paginam** ao ler DynamicTable (fetch-all até `totalPages`) — a API retorna só 50 linhas por padrão (cap 200); sem paginar, a view trunca em 50 e mostra KPIs/contagens errados. Validar com **>50 registros**.
+- [ ] **Hook de widget não fura a camada de serviço** (contrato §3): hook/componente que chama `apiClient.`/`fetch(` direto = FAIL — deve passar por `lib/services/*.service.ts`. Vale **mesmo em subsistema legacy** (drift conhecido: `components/widgets/chat/hooks/*` chamam `apiClient` direto e não há `chat.service.ts`). Se o serviço não existe, **criá-lo** é o caminho — não furar a camada "porque o vizinho fura".
+  ```bash
+  grep -nE "apiClient\.|fetch\(" my-app/components/<widget>/   # em hook/componente = violação §3
+  ```
 
 ---
 
@@ -238,7 +242,7 @@ grep -n "Appointment\|<Resource>" server/src/lib/factory.ts   # verificar presen
 
 ### Camada: Kanban Workflow (frontend — `*Board.tsx` / board de etapas)
 
-- [ ] **Reusa** `InternalKanbanView`/`KanbanColumn`/`KanbanCardDetailModal` + `@dnd-kit` — **zero** board estático bespoke (anti-exemplo: `pages/crm/pipeline.tsx`)
+- [ ] **Reusa** `InternalKanbanView`/`KanbanColumn`/`KanbanCardDetailModal` + `@dnd-kit` — **zero** board estático bespoke (o board estático original de `pages/crm/pipeline.tsx` já foi remediado p/ reusar `CrmPipelineBoard` — golden ref hoje = `CrmPipelineBoard.tsx`; não recriar)
 - [ ] Drag-drop funcional (`DndContext` + `DragOverlay` + optimistic update + rollback)
 - [ ] Drag-end: `updateRecord` (simples) OU endpoint de transição (efeitos colaterais) — nunca escrita parcial não-atômica
 - [ ] Colunas filtradas pelo **pai ativo** (stage-relation) ou opções do enum; validar com **>1 pai**
@@ -267,7 +271,7 @@ grep -n "Appointment\|<Resource>" server/src/lib/factory.ts   # verificar presen
 - [ ] `confirm` reusa `ConfirmDeleteModal`/`ConfirmModal` (não recria); `capture` não escreve no cancelar (rollback no pai se otimista)
 - [ ] Ações de escrita via service layer (sem `fetch`/`apiClient` direto); props sem `any`; loading/error tratados
 - [ ] `neutral`/`rounded-2xl`/dark; i18n via `t()`
-- Golden refs: `my-app/components/ui/Modal.tsx`, `KanbanCardDetailModal.tsx`, `ConfirmDeleteModal.tsx` (+ verificadas: `my-app/features/crm/components/Lead360Modal.tsx`, `ProposalCaptureModal.tsx`)
+- Golden refs: `my-app/components/ui/Modal.tsx`, `my-app/features/dashboard/category-views/kanban/components/KanbanCardDetailModal.tsx`, `my-app/features/dashboard/shared/components/ConfirmDeleteModal.tsx` (+ verificadas: `my-app/features/crm/components/Lead360Modal.tsx`, `ProposalCaptureModal.tsx`)
 
 ---
 

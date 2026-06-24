@@ -29,6 +29,8 @@ Mesmo objeto não implica reusar cegamente. Cheque **estado**:
 | `PlanningCalendar` vs `MeetingsCalendar` | sem chave de domínio, prop-driven, schema-aware → diferente | — | manter separado (sancionado) |
 | `InternalKanbanView` vs `CrmPipelineBoard` | shape/posse diferentes → diferente | — | divergência sancionada, separados |
 | `RecordTable` vs `GenericTable` | mesmo objeto (registros DynamicTable) | `RecordTable` morto (deletado) | reusar `GenericTable` — era ilha |
+| `LeadXPanel.formatTimestamp`/`formatDate` (CRM panels) vs `formatters.ts` | mesmo shape (Date → string de display) → mesmo objeto | canônico vivo (`formatCurrency` fan-in 14); clones in-degree 1 | reusar `shared/utils/formatters.ts` — é ilha |
+| dois `FinanceService` (`category-views/finance/services` vs `lib/services/finance.service.ts`) | mesmo shape + derivação (`discoverKPIs`/`fetchChartData`, jaccard 1.0) → mesmo objeto | o de `category-views` vivo (callers 2/3); o de `lib/services` morto (in-degree 0, 0 callers, sem imports) | reusar o vivo; **não clonar o morto** (deletar após confirmar README) |
 
 ## A pergunta executável (responda ANTES de criar)
 > "O que vou criar tem o **mesmo shape e a mesma fonte** de um canônico existente (§0)?
@@ -50,6 +52,12 @@ A decisão continua sua — mas o grafo responde os **sinais baratos** das duas 
 
 O grafo **informa**, não decide a Etapa 2 (segue não-mecanizável). Mas "RecordTable morto" ou
 "MeetingsCalendar legacy" deixam de ser conhecimento de cabeça e viram in-degree + change_count observáveis.
+
+> **Nota — quando o grafo NÃO desempata a Etapa 2:** `useChatInstance`/`useChatInstances`/`useChatMessages`
+> existem em **duas pastas** (`components/widgets/chat/hooks/` E `components/widgets/shared/hooks/`) — ilha
+> confirmada na Etapa 1. Mas ambos os lados têm in-degree 1 e o índice veio sem `change_count`/`last_modified`,
+> então o grafo **não** aponta o legacy. Aqui a Etapa 2 volta a ser leitura humana (qual o `index.ts` de
+> `shared/hooks` re-exporta? qual o chat widget realmente monta?) — não presumir morte por similaridade.
 
 ---
 

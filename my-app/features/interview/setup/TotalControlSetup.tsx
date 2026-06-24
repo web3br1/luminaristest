@@ -2,9 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { getCookie } from 'cookies-next';
 import { useAuth } from '../../../lib/context/AuthContext';
-// eslint-disable-next-line no-restricted-imports -- DEBT: apiClient fora de lib/services, viola contrato §3. Backlog: docs/architecture/lint-layer-gate.md. Remover ao mover estas chamadas para um *.service.ts.
-import { apiClient } from '../../../lib/api/api-client';
-interface PresetsResponse { [key: string]: unknown }
+import { SetupService, type CustomDashboardPayload } from '../../../lib/services/setup.service';
 
 // Local lightweight types for frontend-only usage
 interface ISchemaField { name: string; label?: string; type: string; required?: boolean }
@@ -73,8 +71,7 @@ export default function TotalControlSetup() {
     async function fetchPresets() {
       setIsLoading(true);
       try {
-        const body = (await apiClient.get('/dashboard/presets')) as PresetsResponse;
-        setPresets((body.data as Preset[]) || []);
+        setPresets(await SetupService.getPresets());
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -97,11 +94,7 @@ export default function TotalControlSetup() {
     setIsFetchingDetails(true);
     setError(null);
     try {
-      const body = (await apiClient.get(`/dashboard/presets/${selectedPreset.key}`).catch((err: unknown) => {
-          const e = err as Record<string, unknown>;
-          throw new Error((e?.['error'] as string) || (e?.['message'] as string) || 'Não foi possível carregar os detalhes do preset.');
-      })) as PresetsResponse;
-      const presetData: IPresetDetails = body.data as IPresetDetails;
+      const presetData: IPresetDetails = await SetupService.getPresetDetails(selectedPreset.key);
       setPresetDetails(presetData);
 
       // Analisa as dependências e inicializa os estados de customização
@@ -177,17 +170,14 @@ export default function TotalControlSetup() {
 
       const newCustomFields = customFields; // A UI ainda não adiciona campos, mas a estrutura está pronta
 
-      const payload = {
+      const payload: CustomDashboardPayload = {
         mode: 'custom',
         presetKey: selectedPreset.key,
         removedTables: removedTableKeys,
         addedFields: newCustomFields,
       };
 
-      await apiClient.post('/dashboard/create', payload).catch((err) => {
-        const errRec = err as Record<string, unknown>;
-        throw new Error((errRec?.error as string) || (err instanceof Error ? err.message : String(err)) || 'Falha ao criar o dashboard customizado.');
-      });
+      await SetupService.createDashboard(payload);
 
       // 2. Redirecionar para o dashboard em caso de sucesso
       router.push('/dashboard');

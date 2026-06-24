@@ -25,7 +25,6 @@ Cada arquivo encapsula chamadas ao backend sobre o `apiClient`:
 | `auth.service.ts` | login/logout/sessão |
 | `user.service.ts` | usuários/perfil |
 | `document.service.ts` | documentos |
-| `finance.service.ts` | vendas/despesas |
 | `analytics.service.ts` | KPIs/charts |
 | `location.service.ts` | CEP/endereço |
 | **`dynamic-table.service.ts`** | **hub** das tabelas dinâmicas: `getTables`/`getTableById`/`getSubTables`, `getTableData`/`getRecordById`, CRUD de registros, `performLookup` (FK→display), `getSidebar`/`getSystem`. |

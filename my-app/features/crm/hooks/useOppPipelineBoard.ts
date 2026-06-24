@@ -1,15 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback } from 'react';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
-import { DynamicTableService } from '../../../lib/services/dynamic-table.service';
-import { CrmService, type AdvanceOpportunityPayload } from '../../../lib/services/crm.service';
-import type { ITableSchema } from '../../dashboard/components/shared/dynamic-tables.client';
+import { CrmService } from '../../../lib/services/crm.service';
 import { useCrmData, type CrmRecord } from './useCrmData';
-import { useOwnerFilter, type OwnerOption } from './useOwnerFilter';
-import type { PipelineColumn, ProposalCapture } from './useCrmPipelineBoard';
+import {
+  usePipelineBoard,
+  type PipelineAdvanceArgs,
+  type PipelineColumn,
+  type ProposalCapture,
+} from './usePipelineBoard';
+import type { OwnerOption } from './useOwnerFilter';
 
-export type { PipelineColumn, ProposalCapture } from './useCrmPipelineBoard';
+export type { PipelineColumn, ProposalCapture } from './usePipelineBoard';
 
 /** Pending transition awaiting proposal-capture input from the board modal. */
 export interface PendingOppProposal {
@@ -29,8 +32,7 @@ export interface OppPipelineBoardState {
   setActivePipelineId: (id: string) => void;
   columns: PipelineColumn[];
   opportunitiesByStage: Map<string, CrmRecord[]>;
-  /** Flat lookup of ALL (unfiltered) opportunities by id — for modal resolution that
-   *  must survive the owner filter. */
+  /** Flat lookup of ALL (unfiltered) opportunities by id — modal resolution survives owner filter. */
   oppById: Map<string, CrmRecord>;
   activeOpportunity: CrmRecord | null;
   /** Owner ("vendedor") filter — options + selection, applied to the board. */
@@ -38,7 +40,6 @@ export interface OppPipelineBoardState {
   selectedOwnerId: string;
   setSelectedOwnerId: (id: string) => void;
   showOwnerFilter: boolean;
-  /** "Meus registros" toggle state + gate. */
   mine: boolean;
   setMine: (mine: boolean) => void;
   canUseMine: boolean;
@@ -52,12 +53,12 @@ export interface OppPipelineBoardState {
 }
 
 /**
- * Board logic for the first-class Opportunity pipeline. Mirrors
- * `useCrmPipelineBoard` (optimistic move + rollback) but over `crmOpportunities`
- * instead of leads, running the atomic `CrmService.advanceOpportunity` transition
- * (closes the opp on `closed_won`/`closed_lost` stages). Columns are the active
- * pipeline's stages only (reused from leadStages). Degrades gracefully to an empty
- * board with `notInstalled` when the `crmOpportunities` table is absent.
+ * Board state for the first-class Opportunity pipeline. Thin wrapper over
+ * `usePipelineBoard` (shared Kanban mechanics) wired to
+ * `CrmService.advanceOpportunity` and the opportunities data slice from
+ * `useCrmData`. Re-labels generic outputs to opp-domain names so
+ * `OppPipelineBoard` needs zero changes. Degrades gracefully with `notInstalled`
+ * when the `crmOpportunities` table is absent.
  */
 export function useOppPipelineBoard(): OppPipelineBoardState {
   const {
@@ -71,236 +72,59 @@ export function useOppPipelineBoard(): OppPipelineBoardState {
     reload,
   } = useCrmData();
 
-  const [pipelineOverride, setPipelineOverride] = useState<string | null>(null);
-  const [localOpps, setLocalOpps] = useState<CrmRecord[]>([]);
-  const [activeOpportunity, setActiveOpportunity] = useState<CrmRecord | null>(null);
-  const [pendingProposal, setPendingProposal] = useState<PendingOppProposal | null>(null);
-  const [oppsSchema, setOppsSchema] = useState<ITableSchema | null>(null);
-
-  // Optimistic mirror of the server opportunities.
-  useEffect(() => {
-    setLocalOpps(opportunities);
-  }, [opportunities]);
-
-  // Resolve the opportunities table schema (needed by the owner-filter detection).
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!opportunitiesTableId) {
-        setOppsSchema(null);
-        return;
-      }
-      try {
-        const meta = await DynamicTableService.getTableById(opportunitiesTableId);
-        const schema = (meta?.schema ?? null) as ITableSchema | null;
-        if (!cancelled) setOppsSchema(schema);
-      } catch {
-        if (!cancelled) setOppsSchema(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [opportunitiesTableId]);
-
-  // Default to the pipeline holding the most opportunities so the board is never
-  // empty when several pipelines exist (mirror of the lead board logic).
-  const defaultPipelineId = useMemo(() => {
-    if (!pipelines.length) return null;
-    const counts = new Map<string, number>();
-    for (const o of opportunities) {
-      const pid = String(o.data?.pipelineId ?? '');
-      if (pid) counts.set(pid, (counts.get(pid) ?? 0) + 1);
-    }
-    let best = pipelines[0].id;
-    let max = -1;
-    for (const p of pipelines) {
-      const c = counts.get(p.id) ?? 0;
-      if (c > max) {
-        max = c;
-        best = p.id;
-      }
-    }
-    return best;
-  }, [pipelines, opportunities]);
-
-  const activePipelineId = pipelineOverride ?? defaultPipelineId;
-
-  // Columns = stages of the ACTIVE pipeline only, sorted by `order`.
-  const columns = useMemo<PipelineColumn[]>(
-    () =>
-      stages
-        .filter((s) => !activePipelineId || String(s.data?.pipelineId ?? '') === activePipelineId)
-        .sort((a, b) => Number(a.data?.order ?? 0) - Number(b.data?.order ?? 0))
-        .map((s) => ({
-          id: s.id,
-          title: String(s.data?.name ?? 'Etapa'),
-          stageType: String(s.data?.type ?? ''),
-          order: Number(s.data?.order ?? 0),
-        })),
-    [stages, activePipelineId],
+  const advance = useCallback(
+    (args: PipelineAdvanceArgs) =>
+      CrmService.advanceOpportunity({
+        opportunityId: args.recordId,
+        stageId: args.stageId,
+        stageType: args.stageType,
+        amount: args.amount,
+        currency: args.currency,
+        winProbability: args.winProbability,
+      }),
+    [],
   );
 
-  // Owner ("vendedor") filter — auto-detected from the opportunities schema relation.
-  const {
-    options: ownerOptions,
-    selectedOwnerId,
-    setSelectedOwnerId,
-    hasMultipleOwners,
-    mine,
-    setMine,
-    canUseMine,
-    filterByOwner,
-  } = useOwnerFilter(oppsSchema, opportunities);
-
-  const visibleOpps = useMemo(() => filterByOwner(localOpps), [filterByOwner, localOpps]);
-
-  // Flat lookup over the UNFILTERED optimistic opps — modal resolution must not be
-  // affected when the owner filter hides an opp while its detail modal is open.
-  const oppById = useMemo(() => {
-    const m = new Map<string, CrmRecord>();
-    for (const o of localOpps) m.set(o.id, o);
-    return m;
-  }, [localOpps]);
-
-  const opportunitiesByStage = useMemo(() => {
-    const m = new Map<string, CrmRecord[]>();
-    for (const o of visibleOpps) {
-      const sid = String(o.data?.stageId ?? '');
-      const bucket = m.get(sid);
-      if (bucket) bucket.push(o);
-      else m.set(sid, [o]);
-    }
-    return m;
-  }, [visibleOpps]);
-
-  const setActivePipelineId = useCallback((id: string) => setPipelineOverride(id), []);
-
-  const handleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      const opp = localOpps.find((o) => o.id === String(event.active.id)) ?? null;
-      setActiveOpportunity(opp);
-    },
-    [localOpps],
-  );
-
-  // Apply an optimistic stageId move and return the pre-move snapshot for rollback.
-  const applyOptimisticMove = useCallback(
-    (opportunityId: string, stageId: string): CrmRecord[] => {
-      const snapshot = localOpps.map((o) => ({ ...o, data: { ...o.data } }));
-      setLocalOpps((prev) =>
-        prev.map((o) => (o.id === opportunityId ? { ...o, data: { ...o.data, stageId } } : o)),
-      );
-      return snapshot;
-    },
-    [localOpps],
-  );
-
-  // Run the atomic transition; rollback to the snapshot on error.
-  const runTransition = useCallback(
-    async (payload: AdvanceOpportunityPayload, snapshot: CrmRecord[]) => {
-      try {
-        await CrmService.advanceOpportunity(payload);
-        await reload();
-      } catch (e) {
-        console.error('[OppPipelineBoard] advanceOpportunity failed', e);
-        setLocalOpps(snapshot);
-      }
-    },
-    [reload],
-  );
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      setActiveOpportunity(null);
-      if (!over) return;
-
-      const opportunityId = String(active.id);
-      const overId = String(over.id);
-      const overOpp = localOpps.find((o) => o.id === overId);
-      const targetStageId =
-        columns.find((c) => c.id === overId)?.id ??
-        (overOpp ? String(overOpp.data?.stageId ?? '') : undefined);
-      const targetStage = columns.find((c) => c.id === targetStageId);
-      if (!targetStage) return; // dropped outside a known column
-
-      const opp = localOpps.find((o) => o.id === opportunityId);
-      if (!opp || String(opp.data?.stageId ?? '') === targetStage.id) return; // no-op
-
-      const snapshot = applyOptimisticMove(opportunityId, targetStage.id);
-
-      // Proposal stages require extra input — defer the call to the capture modal.
-      if (targetStage.stageType === 'proposal') {
-        setPendingProposal({ opportunityId, stage: targetStage });
-        return;
-      }
-
-      void runTransition(
-        { opportunityId, stageId: targetStage.id, stageType: targetStage.stageType },
-        snapshot,
-      );
-    },
-    [columns, localOpps, applyOptimisticMove, runTransition],
-  );
-
-  const confirmProposal = useCallback(
-    async (capture: ProposalCapture) => {
-      if (!pendingProposal) return;
-      const { opportunityId, stage } = pendingProposal;
-      // localOpps already reflects the optimistic move; rebuild a rollback snapshot
-      // that restores the opp to its server-side stage.
-      const serverOpp = opportunities.find((o) => o.id === opportunityId);
-      const snapshot = localOpps.map((o) =>
-        o.id === opportunityId && serverOpp ? { ...o, data: { ...serverOpp.data } } : o,
-      );
-      setPendingProposal(null);
-      await runTransition(
-        {
-          opportunityId,
-          stageId: stage.id,
-          stageType: stage.stageType,
-          amount: capture.amount,
-          currency: capture.currency,
-          winProbability: capture.winProbability,
-        },
-        snapshot,
-      );
-    },
-    [pendingProposal, opportunities, localOpps, runTransition],
-  );
-
-  const cancelProposal = useCallback(() => {
-    if (!pendingProposal) return;
-    // Roll the optimistic move back to the server stage.
-    setLocalOpps(opportunities.map((o) => ({ ...o, data: { ...o.data } })));
-    setPendingProposal(null);
-  }, [pendingProposal, opportunities]);
-
-  return {
+  const board = usePipelineBoard({
+    records: opportunities,
+    recordsTableId: opportunitiesTableId,
+    stages,
+    pipelines,
     loading,
     error,
-    notInstalled: !loading && !opportunitiesInstalled,
-    pipelines,
-    stages,
-    activePipelineId,
-    setActivePipelineId,
-    columns,
-    opportunitiesByStage,
-    oppById,
-    activeOpportunity,
-    ownerOptions,
-    selectedOwnerId,
-    setSelectedOwnerId,
-    showOwnerFilter: hasMultipleOwners,
-    mine,
-    setMine,
-    canUseMine,
-    pendingProposal,
-    handleDragStart,
-    handleDragEnd,
-    confirmProposal,
-    cancelProposal,
     reload,
+    advance,
+    logLabel: 'OppPipelineBoard',
+  });
+
+  const pendingProposal = board.pending
+    ? { opportunityId: board.pending.recordId, stage: board.pending.stage }
+    : null;
+
+  return {
+    loading: board.loading,
+    error: board.error,
+    notInstalled: !loading && !opportunitiesInstalled,
+    pipelines: board.pipelines,
+    stages: board.stages,
+    activePipelineId: board.activePipelineId,
+    setActivePipelineId: board.setActivePipelineId,
+    columns: board.columns,
+    opportunitiesByStage: board.recordsByStage,
+    oppById: board.recordById,
+    activeOpportunity: board.activeRecord,
+    ownerOptions: board.ownerOptions,
+    selectedOwnerId: board.selectedOwnerId,
+    setSelectedOwnerId: board.setSelectedOwnerId,
+    showOwnerFilter: board.showOwnerFilter,
+    mine: board.mine,
+    setMine: board.setMine,
+    canUseMine: board.canUseMine,
+    pendingProposal,
+    handleDragStart: board.handleDragStart,
+    handleDragEnd: board.handleDragEnd,
+    confirmProposal: board.confirmProposal,
+    cancelProposal: board.cancelProposal,
+    reload: board.reload,
   };
 }

@@ -4,7 +4,8 @@ module.exports = {
     testEnvironment: 'node',
     moduleNameMapper: {
         '^@/(.*)$': '<rootDir>/src/$1',
-        '^@server/(.*)$': '<rootDir>/src/$1'
+        '^@server/(.*)$': '<rootDir>/src/$1',
+        '^generated/prisma$': '<rootDir>/generated/prisma'
     },
     testMatch: [
         "**/__tests__/**/*.spec.ts",

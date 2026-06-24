@@ -70,7 +70,7 @@ O CRM ignorou tudo isso (criou `RecordTable`, `CrmKpiCard`, `CrmBarChart`, pági
    ```
 6. Registrar no switch de renderização do dashboard
 7. Adicionar ao sidebar em `DashboardSidebar.tsx` se necessário
-8. **Views agrupadas (Kanban/board/grouped-by-relação):** as colunas/grupos devem ser filtrados pelo **registro-pai ativo** (ex: etapas DO pipeline selecionado), nunca renderizar todos os registros da tabela-pai. Com múltiplos pais (2 pipelines, várias units) renderizar tudo gera **colunas duplicadas e vazias**. Defaulte para o pai com mais filhos e ofereça um seletor quando houver mais de um. Referência da correção: `my-app/pages/crm/pipeline.tsx`.
+8. **Views agrupadas (Kanban/board/grouped-by-relação):** as colunas/grupos devem ser filtrados pelo **registro-pai ativo** (ex: etapas DO pipeline selecionado), nunca renderizar todos os registros da tabela-pai. Com múltiplos pais (2 pipelines, várias units) renderizar tudo gera **colunas duplicadas e vazias**. Defaulte para o pai com mais filhos e ofereça um seletor quando houver mais de um. Referência da correção: `my-app/features/crm/hooks/useCrmPipelineBoard.ts` (+ `CrmPipelineBoard.tsx`).
 
 ## Files usually created or changed
 
