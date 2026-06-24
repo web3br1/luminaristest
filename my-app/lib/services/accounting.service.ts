@@ -118,7 +118,7 @@ export interface Account {
   id: string;
   code: string;
   name: string;
-  type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
+  nature: 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
   acceptsEntries: boolean;
   isDefault?: boolean;
   deletedAt?: string | null;
@@ -200,33 +200,33 @@ export const accountingService = {
       page: query.page !== undefined ? String(query.page) : undefined,
       limit: query.limit !== undefined ? String(query.limit) : undefined,
     });
-    const res = await apiClient.get<ListEntriesResult>(`/accounting/entries${qs}`);
-    return res;
+    const res = await apiClient.get<ApiEnvelope<ListEntriesResult>>(`/accounting/entries${qs}`);
+    return res.data;
   },
 
   /** List accounts (plano de contas) for a unit. */
   async getAccounts(unitId: string): Promise<{ accounts: Account[] }> {
     const qs = buildQuery({ unitId });
-    return apiClient.get<{ accounts: Account[] }>(`/accounting/accounts${qs}`);
+    return (await apiClient.get<ApiEnvelope<{ accounts: Account[] }>>(`/accounting/accounts${qs}`)).data;
   },
 
   /** List journal entries (lançamentos) for a unit — raw paginated list. */
   async getEntries(unitId: string): Promise<{ entries: JournalEntry[]; total: number }> {
     const qs = buildQuery({ unitId });
-    return apiClient.get<{ entries: JournalEntry[]; total: number }>(`/accounting/entries${qs}`);
+    return (await apiClient.get<ApiEnvelope<{ entries: JournalEntry[]; total: number }>>(`/accounting/entries${qs}`)).data;
   },
 
   /** Create a new account in the chart of accounts for a unit. */
   async createAccount(data: {
     code: string;
     name: string;
-    type: string;
+    nature: string;
     acceptsEntries: boolean;
     unitId: string;
   }): Promise<{ account: Account }> {
-    const res = await apiClient.post<{ account: Account }>('/accounting/accounts', data);
+    const res = await apiClient.post<ApiEnvelope<{ account: Account }>>('/accounting/accounts', data);
     notify('Conta criada com sucesso.', 'success', 'Contabilidade');
-    return res;
+    return res.data;
   },
 
   /** Soft-delete an account from the chart of accounts. */

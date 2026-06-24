@@ -8,7 +8,7 @@ interface Account {
   id: string;
   code: string;
   name: string;
-  type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
+  nature: 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
   acceptsEntries: boolean;
   isDefault?: boolean;
   deletedAt?: string | null;
@@ -21,26 +21,26 @@ export interface ChartOfAccountsPanelProps {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const TYPE_LABEL: Record<Account['type'], string> = {
-  ASSET: 'Ativo',
-  LIABILITY: 'Passivo',
-  EQUITY: 'Patrimônio',
-  REVENUE: 'Receita',
-  EXPENSE: 'Despesa',
+const TYPE_LABEL: Record<Account['nature'], string> = {
+  Asset: 'Ativo',
+  Liability: 'Passivo',
+  Equity: 'Patrimônio',
+  Revenue: 'Receita',
+  Expense: 'Despesa',
 };
 
-const ACCOUNT_TYPES: Array<{ value: Account['type']; label: string }> = [
-  { value: 'ASSET', label: 'Ativo' },
-  { value: 'LIABILITY', label: 'Passivo' },
-  { value: 'EQUITY', label: 'Patrimônio' },
-  { value: 'REVENUE', label: 'Receita' },
-  { value: 'EXPENSE', label: 'Despesa' },
+const ACCOUNT_TYPES: Array<{ value: Account['nature']; label: string }> = [
+  { value: 'Asset', label: 'Ativo' },
+  { value: 'Liability', label: 'Passivo' },
+  { value: 'Equity', label: 'Patrimônio' },
+  { value: 'Revenue', label: 'Receita' },
+  { value: 'Expense', label: 'Despesa' },
 ];
 
 const EMPTY_FORM = {
   code: '',
   name: '',
-  type: 'ASSET' as Account['type'],
+  nature: 'Asset' as Account['nature'],
   acceptsEntries: true,
 };
 
@@ -97,7 +97,7 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
         createAccount(data: {
           code: string;
           name: string;
-          type: string;
+          nature: string;
           acceptsEntries: boolean;
           unitId: string;
         }): Promise<{ account: Account }>;
@@ -202,9 +202,9 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
               </label>
               <select
                 id="acc-type"
-                value={newAccount.type}
+                value={newAccount.nature}
                 onChange={(e) =>
-                  setNewAccount((s) => ({ ...s, type: e.target.value as Account['type'] }))
+                  setNewAccount((s) => ({ ...s, nature: e.target.value as Account['nature'] }))
                 }
                 className="rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-emerald-500"
               >
@@ -301,7 +301,7 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
                   <td className="px-4 py-2.5 font-mono text-neutral-300">{account.code}</td>
                   <td className="px-4 py-2.5 text-neutral-100">{account.name}</td>
                   <td className="px-4 py-2.5 text-neutral-400">
-                    {TYPE_LABEL[account.type] ?? account.type}
+                    {TYPE_LABEL[account.nature] ?? account.nature}
                   </td>
                   <td className="px-4 py-2.5">
                     {account.acceptsEntries ? (

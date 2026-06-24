@@ -13,7 +13,7 @@
  *  - `generated/prisma` stays REAL so `Prisma.PrismaClientKnownRequestError` is genuine.
  *
  * These tests verify (a) the balance invariant uses EXACT integer equality,
- * (b) the chart of accounts is ensured idempotently per (userId, unitId),
+ * (b) the chart of accounts is ensured idempotently per scope,
  * (c) post/reverse compose every write inside the SAME prisma.$transaction,
  * (d) idempotency by (sourceType, sourceId) on both the read and P2002 race paths,
  * (e) leaf-only / known-account guard, (f) tenant+unit-scoped reads,
@@ -23,6 +23,7 @@ import { Prisma } from 'generated/prisma';
 import { PostingService } from '../PostingService';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../../../lib/errors';
 import { CANONICAL_ACCOUNTS } from '../../fixtures/ChartOfAccountsFixture';
+import type { AccountingScope } from '../../scope/AccountingScope';
 
 // prisma.$transaction runs the callback with a fake tx handle; repos are mocked so the
 // tx is just threaded through (they ignore it here).
@@ -38,8 +39,15 @@ jest.mock('../../../../lib/logger', () => ({
   default: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
-const user = { userId: 'u1', role: 'USER' } as any;
-const unitId = 'unit-1';
+const scope: AccountingScope = {
+  ownerUserId: 'u1',
+  actorUserId: 'u1',
+  unitId: 'unit-1',
+  ledgerCode: 'DEFAULT',
+  baseCurrencyCode: 'BRL',
+  timeZone: 'America/Sao_Paulo',
+};
+const unitId = scope.unitId;
 
 function p2002(): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
@@ -55,7 +63,7 @@ function buildService(over: {
   policy?: any;
 } = {}) {
   const accountRepo = {
-    findByCode: jest.fn(async (_uid: string, _unit: string, code: string) => ({
+    findByCode: jest.fn(async (_scope: AccountingScope, code: string) => ({
       id: `acc-${code}`,
       userId: 'u1',
       unitId,
@@ -129,12 +137,19 @@ describe('PostingService', () => {
   describe('postEntry', () => {
     it('posts a balanced entry: Posted header + one leg per line, all inside one $transaction', async () => {
       const { svc, journalEntryRepo, postingRepo } = buildService();
-      await svc.postEntry(user, balancedInput);
+      await svc.postEntry(scope, balancedInput);
 
       expect($transaction).toHaveBeenCalledTimes(1);
       expect(journalEntryRepo.create).toHaveBeenCalledTimes(1);
       expect(journalEntryRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'u1', unitId, status: 'Posted', description: 'Venda à vista' }),
+        expect.objectContaining({
+          userId: 'u1',
+          unitId,
+          status: 'Posted',
+          description: 'Venda à vista',
+          createdById: 'u1',
+          postedById: 'u1',
+        }),
         txHandle,
       );
       expect(postingRepo.create).toHaveBeenCalledTimes(2);
@@ -154,7 +169,7 @@ describe('PostingService', () => {
           { accountCode: '3.1', debitCents: 0, creditCents: 9999 },
         ],
       };
-      await expect(svc.postEntry(user, unbalanced)).rejects.toBeInstanceOf(ValidationError);
+      await expect(svc.postEntry(scope, unbalanced)).rejects.toBeInstanceOf(ValidationError);
       expect($transaction).not.toHaveBeenCalled();
       expect(journalEntryRepo.create).not.toHaveBeenCalled();
       expect(postingRepo.create).not.toHaveBeenCalled();
@@ -169,7 +184,7 @@ describe('PostingService', () => {
           { accountCode: '3.1', debitCents: 0, creditCents: 0 },
         ],
       };
-      await expect(svc.postEntry(user, zero)).rejects.toBeInstanceOf(ValidationError);
+      await expect(svc.postEntry(scope, zero)).rejects.toBeInstanceOf(ValidationError);
       expect($transaction).not.toHaveBeenCalled();
       expect(journalEntryRepo.create).not.toHaveBeenCalled();
     });
@@ -179,9 +194,9 @@ describe('PostingService', () => {
       const { svc, journalEntryRepo } = buildService({
         journalEntryRepo: { findBySource: jest.fn(async () => existing) },
       });
-      const out = await svc.postEntry(user, { ...balancedInput, sourceId: 'inv-1' });
+      const out = await svc.postEntry(scope, { ...balancedInput, sourceId: 'inv-1' });
       expect(out).toBe(existing);
-      expect(journalEntryRepo.findBySource).toHaveBeenCalledWith('u1', unitId, 'manual', 'inv-1');
+      expect(journalEntryRepo.findBySource).toHaveBeenCalledWith(scope, 'manual', 'inv-1');
       expect($transaction).not.toHaveBeenCalled();
       expect(journalEntryRepo.create).not.toHaveBeenCalled();
     });
@@ -199,7 +214,7 @@ describe('PostingService', () => {
         throw p2002();
       });
 
-      const out = await svc.postEntry(user, { ...balancedInput, sourceId: 'inv-1' });
+      const out = await svc.postEntry(scope, { ...balancedInput, sourceId: 'inv-1' });
       expect(out).toBe(winner);
       expect(journalEntryRepo.create).not.toHaveBeenCalled();
       expect(findBySource).toHaveBeenCalledTimes(2);
@@ -209,7 +224,7 @@ describe('PostingService', () => {
       const { svc, journalEntryRepo } = buildService({
         accountRepo: {
           // chart ensure sees accounts, but the line code '9.9.9' is unknown
-          findByCode: jest.fn(async (_uid: string, _unit: string, code: string) =>
+          findByCode: jest.fn(async (_scope: AccountingScope, code: string) =>
             code === '9.9.9'
               ? null
               : { id: `acc-${code}`, code, acceptsEntries: true },
@@ -223,7 +238,7 @@ describe('PostingService', () => {
           { accountCode: '3.1', debitCents: 0, creditCents: 10000 },
         ],
       };
-      await expect(svc.postEntry(user, input)).rejects.toBeInstanceOf(ValidationError);
+      await expect(svc.postEntry(scope, input)).rejects.toBeInstanceOf(ValidationError);
       expect($transaction).not.toHaveBeenCalled();
       expect(journalEntryRepo.create).not.toHaveBeenCalled();
     });
@@ -231,14 +246,14 @@ describe('PostingService', () => {
     it('rejects posting to a non-leaf (synthetic) account (acceptsEntries=false)', async () => {
       const { svc } = buildService({
         accountRepo: {
-          findByCode: jest.fn(async (_uid: string, _unit: string, code: string) => ({
+          findByCode: jest.fn(async (_scope: AccountingScope, code: string) => ({
             id: `acc-${code}`,
             code,
             acceptsEntries: code !== '3.1',
           })),
         },
       });
-      await expect(svc.postEntry(user, balancedInput)).rejects.toBeInstanceOf(ValidationError);
+      await expect(svc.postEntry(scope, balancedInput)).rejects.toBeInstanceOf(ValidationError);
       expect($transaction).not.toHaveBeenCalled();
     });
 
@@ -248,13 +263,13 @@ describe('PostingService', () => {
       const { svc } = buildService({
         accountRepo: {
           // present codes resolve; everything else is missing during ensure
-          findByCode: jest.fn(async (_uid: string, _unit: string, code: string) =>
+          findByCode: jest.fn(async (_scope: AccountingScope, code: string) =>
             present.has(code) ? { id: `acc-${code}`, code, acceptsEntries: true } : null,
           ),
           create,
         },
       });
-      await svc.postEntry(user, balancedInput);
+      await svc.postEntry(scope, balancedInput);
 
       // 8 canonical accounts, 2 already present -> exactly 6 created, never the present ones
       const createdCodes = create.mock.calls.map((c) => c[0].code);
@@ -270,7 +285,7 @@ describe('PostingService', () => {
       // ensure() sees every canonical code as missing (forcing a create attempt for each),
       // but the LINE accounts the post later resolves are present so resolution succeeds —
       // the P2002 here only concerns the ensure create path.
-      const findByCode = jest.fn(async (_uid: string, _unit: string, code: string) =>
+      const findByCode = jest.fn(async (_scope: AccountingScope, code: string) =>
         code === '1.1.1' || code === '3.1'
           ? { id: `acc-${code}`, code, acceptsEntries: true }
           : null,
@@ -281,21 +296,21 @@ describe('PostingService', () => {
         .mockImplementation(async (data: any) => ({ id: `acc-${data.code}`, ...data }));
       const { svc } = buildService({ accountRepo: { findByCode, create } });
 
-      await expect(svc.postEntry(user, balancedInput)).resolves.toBeDefined();
+      await expect(svc.postEntry(scope, balancedInput)).resolves.toBeDefined();
       // attempted a create for each missing canonical account (6: all but the 2 present),
       // and the first throwing P2002 did NOT abort the loop.
       expect(create).toHaveBeenCalledTimes(CANONICAL_ACCOUNTS.length - 2);
     });
 
-    it('tenant + unit scoping: findBySource is called with userId AND unitId', async () => {
+    it('tenant + unit scoping: findBySource is called with scope', async () => {
       const { svc, journalEntryRepo } = buildService();
-      await svc.postEntry(user, { ...balancedInput, sourceId: 'inv-1' });
-      expect(journalEntryRepo.findBySource).toHaveBeenCalledWith('u1', unitId, 'manual', 'inv-1');
+      await svc.postEntry(scope, { ...balancedInput, sourceId: 'inv-1' });
+      expect(journalEntryRepo.findBySource).toHaveBeenCalledWith(scope, 'manual', 'inv-1');
     });
 
     it('throws ForbiddenError when policy.canPost is false (no chart touch, no tx)', async () => {
       const { svc, accountRepo } = buildService({ policy: { canPost: jest.fn(() => false) } });
-      await expect(svc.postEntry(user, balancedInput)).rejects.toBeInstanceOf(ForbiddenError);
+      await expect(svc.postEntry(scope, balancedInput)).rejects.toBeInstanceOf(ForbiddenError);
       expect(accountRepo.findByCode).not.toHaveBeenCalled();
       expect($transaction).not.toHaveBeenCalled();
     });
@@ -327,14 +342,20 @@ describe('PostingService', () => {
           create: jest.fn(async () => reversal),
         },
       });
-      const { reversal: rev, original: orig } = await svc.reverseEntry(user, {
+      const { reversal: rev, original: orig } = await svc.reverseEntry(scope, {
         unitId,
         lancamentoId: 'entry-1',
       });
 
       expect($transaction).toHaveBeenCalledTimes(1);
       expect(journalEntryRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'Posted', sourceType: 'reversal', sourceId: 'entry-1' }),
+        expect.objectContaining({
+          status: 'Posted',
+          sourceType: 'reversal',
+          sourceId: 'entry-1',
+          createdById: 'u1',
+          postedById: 'u1',
+        }),
         txHandle,
       );
       // SWAP: original debit leg (acc-1.1.1) becomes a credit leg, and the credit leg a debit leg
@@ -345,8 +366,8 @@ describe('PostingService', () => {
           expect.objectContaining({ accountId: 'acc-3.1', debitCents: 10000, creditCents: 0 }),
         ]),
       );
-      expect(journalEntryRepo.setStatus).toHaveBeenCalledWith('u1', unitId, 'entry-1', 'Reversed', txHandle);
-      expect(journalEntryRepo.setReversedBy).toHaveBeenCalledWith('u1', unitId, 'entry-1', 'rev-1', txHandle);
+      expect(journalEntryRepo.setStatus).toHaveBeenCalledWith(scope, 'entry-1', 'Reversed', txHandle);
+      expect(journalEntryRepo.setReversedBy).toHaveBeenCalledWith(scope, 'entry-1', 'rev-1', txHandle);
       // the returned reversal is built as { ...reversal, postings } — same id, hydrated legs
       expect(rev.id).toBe('rev-1');
       expect(orig.status).toBe('Reversed');
@@ -357,21 +378,21 @@ describe('PostingService', () => {
         journalEntryRepo: { findById: jest.fn(async () => ({ ...original, status: 'Draft' })) },
       });
       await expect(
-        svc.reverseEntry(user, { unitId, lancamentoId: 'entry-1' }),
+        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' }),
       ).rejects.toBeInstanceOf(ValidationError);
       expect($transaction).not.toHaveBeenCalled();
       expect(journalEntryRepo.create).not.toHaveBeenCalled();
     });
 
-    it('missing / other-unit entry → NotFoundError (findById is userId+unitId scoped)', async () => {
+    it('missing / other-unit entry → NotFoundError (findById is scope-scoped)', async () => {
       const findById = jest.fn(async () => null);
       const { svc, journalEntryRepo } = buildService({
         journalEntryRepo: { findById },
       });
       await expect(
-        svc.reverseEntry(user, { unitId, lancamentoId: 'entry-1' }),
+        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' }),
       ).rejects.toBeInstanceOf(NotFoundError);
-      expect(journalEntryRepo.findById).toHaveBeenCalledWith('u1', unitId, 'entry-1');
+      expect(journalEntryRepo.findById).toHaveBeenCalledWith(scope, 'entry-1');
       expect($transaction).not.toHaveBeenCalled();
     });
 
@@ -384,7 +405,7 @@ describe('PostingService', () => {
       const { svc, journalEntryRepo } = buildService({
         journalEntryRepo: { findById, findBySource: jest.fn(async () => null) },
       });
-      const { reversal } = await svc.reverseEntry(user, { unitId, lancamentoId: 'entry-1' });
+      const { reversal } = await svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' });
       expect(reversal).toBe(prior);
       expect($transaction).not.toHaveBeenCalled();
       expect(journalEntryRepo.create).not.toHaveBeenCalled();
@@ -398,9 +419,9 @@ describe('PostingService', () => {
           findBySource: jest.fn(async () => prior),
         },
       });
-      const { reversal } = await svc.reverseEntry(user, { unitId, lancamentoId: 'entry-1' });
+      const { reversal } = await svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' });
       expect(reversal).toBe(prior);
-      expect(journalEntryRepo.findBySource).toHaveBeenCalledWith('u1', unitId, 'reversal', 'entry-1');
+      expect(journalEntryRepo.findBySource).toHaveBeenCalledWith(scope, 'reversal', 'entry-1');
       expect($transaction).not.toHaveBeenCalled();
       expect(journalEntryRepo.create).not.toHaveBeenCalled();
     });
@@ -420,7 +441,7 @@ describe('PostingService', () => {
         },
       });
       await expect(
-        svc.reverseEntry(user, { unitId, lancamentoId: 'entry-1' }),
+        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' }),
       ).rejects.toBeInstanceOf(ValidationError);
       expect($transaction).not.toHaveBeenCalled();
     });
@@ -428,7 +449,7 @@ describe('PostingService', () => {
     it('throws ForbiddenError when policy.canPost is false', async () => {
       const { svc, journalEntryRepo } = buildService({ policy: { canPost: jest.fn(() => false) } });
       await expect(
-        svc.reverseEntry(user, { unitId, lancamentoId: 'entry-1' }),
+        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' }),
       ).rejects.toBeInstanceOf(ForbiddenError);
       expect(journalEntryRepo.findById).not.toHaveBeenCalled();
     });

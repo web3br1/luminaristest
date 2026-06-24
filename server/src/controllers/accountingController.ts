@@ -3,6 +3,7 @@ import { getUserContextFromRequest } from '../lib/authUtils';
 import { handleApiError } from '../lib/apiUtils';
 import { UnauthorizedError, ValidationError } from '../lib/errors';
 import { getFactory } from '../lib/factory';
+import { resolveAccountingScope } from '../features/accounting/scope/AccountingScope';
 import {
   PostEntrySchema,
   ReverseEntrySchema,
@@ -20,7 +21,8 @@ export const postEntry = async (req: Request, res: Response) => {
     if (!parsed.success) {
       return res.status(400).json({ success: false, error: parsed.error.flatten() });
     }
-    const data = await getFactory().getPostingService().postEntry(user, parsed.data);
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const data = await getFactory().getPostingService().postEntry(scope, parsed.data);
     return res.status(201).json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
@@ -35,7 +37,8 @@ export const reverseEntry = async (req: Request, res: Response) => {
     if (!parsed.success) {
       return res.status(400).json({ success: false, error: parsed.error.flatten() });
     }
-    const data = await getFactory().getPostingService().reverseEntry(user, parsed.data);
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const data = await getFactory().getPostingService().reverseEntry(scope, parsed.data);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
@@ -50,7 +53,8 @@ export const getTrialBalance = async (req: Request, res: Response) => {
     if (!parsed.success) {
       return res.status(400).json({ success: false, error: parsed.error.flatten() });
     }
-    const data = await getFactory().getAccountingReportService().trialBalance(user, parsed.data);
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const data = await getFactory().getAccountingReportService().trialBalance(scope);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
@@ -69,9 +73,8 @@ export const getAccountLedger = async (req: Request, res: Response) => {
     if (typeof accountCode !== 'string' || accountCode.length === 0) {
       throw new ValidationError('accountCode é obrigatório.');
     }
-    const data = await getFactory()
-      .getAccountingReportService()
-      .accountLedger(user, parsed.data, accountCode);
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const data = await getFactory().getAccountingReportService().accountLedger(scope, accountCode);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
@@ -86,8 +89,9 @@ export const listAccounts = async (req: Request, res: Response) => {
     if (!parsed.success) {
       return res.status(400).json({ success: false, error: parsed.error.flatten() });
     }
-    const accounts = await getFactory().getPostingService().listAccounts(user, parsed.data.unitId);
-    return res.json({ accounts });
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const accounts = await getFactory().getPostingService().listAccounts(scope);
+    return res.json({ success: true, data: { accounts } });
   } catch (error) {
     return handleApiError(error, res);
   }
@@ -101,8 +105,12 @@ export const listEntries = async (req: Request, res: Response) => {
     if (!parsed.success) {
       return res.status(400).json({ success: false, error: parsed.error.flatten() });
     }
-    const result = await getFactory().getPostingService().listEntries(user, parsed.data);
-    return res.json({ entries: result.entries, total: result.total });
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const result = await getFactory().getPostingService().listEntries(scope, {
+      page: parsed.data.page,
+      limit: parsed.data.limit,
+    });
+    return res.json({ success: true, data: { entries: result.entries, total: result.total } });
   } catch (error) {
     return handleApiError(error, res);
   }
@@ -116,8 +124,9 @@ export const createAccount = async (req: Request, res: Response) => {
     if (!parsed.success) {
       return res.status(400).json({ success: false, error: parsed.error.flatten() });
     }
-    const account = await getFactory().getPostingService().createAccount(user, parsed.data);
-    return res.status(201).json({ account });
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const account = await getFactory().getPostingService().createAccount(scope, parsed.data);
+    return res.status(201).json({ success: true, data: { account } });
   } catch (error) {
     return handleApiError(error, res);
   }
@@ -131,7 +140,11 @@ export const deleteAccount = async (req: Request, res: Response) => {
     if (typeof id !== 'string' || id.length === 0) {
       throw new ValidationError('id é obrigatório.');
     }
-    await getFactory().getPostingService().deleteAccount(user, id);
+    // deleteAccount discovers the account's unitId by userId-only lookup internally,
+    // so we resolve a scope with a placeholder unitId (overridden per account in the service).
+    const unitId = (req.query.unitId as string) ?? '';
+    const scope = resolveAccountingScope(user, unitId);
+    await getFactory().getPostingService().deleteAccount(scope, id);
     return res.json({ success: true });
   } catch (error) {
     return handleApiError(error, res);

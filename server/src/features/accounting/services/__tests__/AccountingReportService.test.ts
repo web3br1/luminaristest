@@ -14,10 +14,16 @@
  */
 import { AccountingReportService } from '../AccountingReportService';
 import { ForbiddenError, NotFoundError } from '../../../../lib/errors';
+import type { AccountingScope } from '../../scope/AccountingScope';
 
-const user = { userId: 'u1', role: 'USER' } as any;
-const unitId = 'unit-1';
-const query = { unitId };
+const scope: AccountingScope = {
+  ownerUserId: 'u1',
+  actorUserId: 'u1',
+  unitId: 'unit-1',
+  ledgerCode: 'DEFAULT',
+  baseCurrencyCode: 'BRL',
+  timeZone: 'America/Sao_Paulo',
+};
 
 function buildService(over: {
   accountRepo?: any;
@@ -68,8 +74,8 @@ describe('AccountingReportService.trialBalance', () => {
   it('aggregates over BOTH Posted AND Reversed statuses (excludes only Draft)', async () => {
     const groupByAccount = jest.fn(async () => []);
     const { svc } = buildService({ postingRepo: { groupByAccount } });
-    await svc.trialBalance(user, query);
-    expect(groupByAccount).toHaveBeenCalledWith('u1', unitId, ['Posted', 'Reversed']);
+    await svc.trialBalance(scope);
+    expect(groupByAccount).toHaveBeenCalledWith(scope, ['Posted', 'Reversed']);
   });
 
   it('builds rows in INTEGER CENTS, joined to the chart, sorted by code asc', async () => {
@@ -87,7 +93,7 @@ describe('AccountingReportService.trialBalance', () => {
         ]),
       },
     });
-    const report = await svc.trialBalance(user, query);
+    const report = await svc.trialBalance(scope);
 
     expect(report.rows.map((r) => r.code)).toEqual(['1.1.1', '3.1']); // sorted asc
     const bank = report.rows.find((r) => r.code === '1.1.1')!;
@@ -124,7 +130,7 @@ describe('AccountingReportService.trialBalance', () => {
         ]),
       },
     });
-    const report = await svc.trialBalance(user, query);
+    const report = await svc.trialBalance(scope);
     expect(report.totals).toEqual({ debitCents: 10000, creditCents: 10000, balanceCents: 0 });
     expect(report.balanced).toBe(true);
     expect(Number.isInteger(report.totals.debitCents)).toBe(true);
@@ -149,7 +155,7 @@ describe('AccountingReportService.trialBalance', () => {
         ]),
       },
     });
-    const report = await svc.trialBalance(user, query);
+    const report = await svc.trialBalance(scope);
     // each account nets to zero, and the grand total is balanced
     expect(report.rows.every((r) => r.balanceCents === 0)).toBe(true);
     expect(report.totals).toEqual({ debitCents: 20000, creditCents: 20000, balanceCents: 0 });
@@ -171,7 +177,7 @@ describe('AccountingReportService.trialBalance', () => {
         ]),
       },
     });
-    const report = await svc.trialBalance(user, query);
+    const report = await svc.trialBalance(scope);
     expect(report.balanced).toBe(false);
     expect(report.totals.balanceCents).toBe(1);
   });
@@ -185,13 +191,13 @@ describe('AccountingReportService.trialBalance', () => {
       },
       accountRepo: { findManyByUnit: jest.fn(async () => []) }, // chart has no such account
     });
-    const report = await svc.trialBalance(user, query);
+    const report = await svc.trialBalance(scope);
     expect(report.rows[0]).toMatchObject({ code: '?', name: '(conta removida)', nature: '?' });
   });
 
   it('throws ForbiddenError when policy.canRead is false', async () => {
     const { svc, postingRepo } = buildService({ policy: { canRead: jest.fn(() => false) } });
-    await expect(svc.trialBalance(user, query)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(svc.trialBalance(scope)).rejects.toBeInstanceOf(ForbiddenError);
     expect(postingRepo.groupByAccount).not.toHaveBeenCalled();
   });
 });
@@ -203,18 +209,18 @@ describe('AccountingReportService.accountLedger', () => {
     const { svc } = buildService({
       accountRepo: { findByCode: jest.fn(async () => null) },
     });
-    await expect(svc.accountLedger(user, query, '9.9.9')).rejects.toBeInstanceOf(NotFoundError);
+    await expect(svc.accountLedger(scope, '9.9.9')).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it('throws ForbiddenError when policy.canRead is false', async () => {
     const { svc, accountRepo } = buildService({ policy: { canRead: jest.fn(() => false) } });
-    await expect(svc.accountLedger(user, query, '1.1.1')).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(svc.accountLedger(scope, '1.1.1')).rejects.toBeInstanceOf(ForbiddenError);
     expect(accountRepo.findByCode).not.toHaveBeenCalled();
   });
 
   it('hydrates Posted+Reversed legs only, sorted by entry date, with a running balance in cents', async () => {
     const account = { id: 'acc-1.1.1', code: '1.1.1', name: 'Banco', nature: 'Asset' };
-    const findById = jest.fn(async (_u: string, _un: string, id: string) => {
+    const findById = jest.fn(async (_scope: AccountingScope, id: string) => {
       if (id === 'e-draft') return { status: 'Draft', date: new Date('2026-01-03'), description: 'd' };
       if (id === 'e1') return { status: 'Posted', date: new Date('2026-01-01'), description: 'a' };
       if (id === 'e2') return { status: 'Reversed', date: new Date('2026-01-02'), description: 'b' };
@@ -232,7 +238,7 @@ describe('AccountingReportService.accountLedger', () => {
       },
       journalEntryRepo: { findById },
     });
-    const report = await svc.accountLedger(user, query, '1.1.1');
+    const report = await svc.accountLedger(scope, '1.1.1');
 
     // Draft dropped; two rows remain, sorted by entry date asc
     expect(report.rows.map((r) => r.postingId)).toEqual(['p1', 'p2']);
