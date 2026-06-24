@@ -223,11 +223,9 @@ export class PostingService {
     if (!original) {
       throw new NotFoundError(`Lançamento '${input.lancamentoId}' não foi encontrado.`);
     }
-    if (original.status !== 'Posted') {
-      throw new ValidationError('Apenas lançamentos postados podem ser estornados.');
-    }
 
-    // IDEMPOTENCY / no double-reversal.
+    // IDEMPOTENCY — must come BEFORE the status gate: a reversed entry has status 'Reversed',
+    // so checking status first would throw instead of returning the prior reversal.
     if (original.reversedById) {
       const existing = await this.journalEntryRepo.findById(scope, original.reversedById);
       if (existing) {
@@ -245,6 +243,10 @@ export class PostingService {
         reversalId: priorReversal.id,
       });
       return { reversal: priorReversal, original };
+    }
+
+    if (original.status !== 'Posted') {
+      throw new ValidationError('Apenas lançamentos postados podem ser estornados.');
     }
 
     // Re-assert the original is balanced before mirroring.

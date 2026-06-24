@@ -169,6 +169,7 @@ function JournalEntryRow({ entry, onReverseClick }: JournalEntryRowProps) {
 
 interface JournalEntriesPanelProps {
   unitId: string;
+  onReversalComplete?: () => void;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -178,7 +179,7 @@ interface JournalEntriesPanelProps {
  * given business unit. Each row is expandable to show its individual postings.
  * Supports reversal (estorno) with a confirmation modal.
  */
-export function JournalEntriesPanel({ unitId }: JournalEntriesPanelProps) {
+export function JournalEntriesPanel({ unitId, onReversalComplete }: JournalEntriesPanelProps) {
   const [entries, setEntries] = useState<JournalEntryWithFullPostings[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -218,6 +219,7 @@ export function JournalEntriesPanel({ unitId }: JournalEntriesPanelProps) {
       await accountingService.reverseEntry({ unitId, lancamentoId: confirmReverseId });
       setConfirmReverseId(null);
       await fetchEntries();
+      onReversalComplete?.();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao estornar lançamento.';
       setError(msg);

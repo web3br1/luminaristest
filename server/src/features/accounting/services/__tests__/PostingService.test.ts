@@ -396,11 +396,14 @@ describe('PostingService', () => {
       expect($transaction).not.toHaveBeenCalled();
     });
 
-    it('idempotent when original already carries reversedById: returns the prior reversal', async () => {
+    it('idempotent when original already carries reversedById (realistic: status Reversed): returns prior reversal', async () => {
+      // Realistic post-reversal state: status is 'Reversed', reversedById is set.
+      // Idempotency check must fire BEFORE the status gate — otherwise re-reversing a
+      // 'Reversed' entry would throw ValidationError instead of returning the prior reversal.
       const prior = { id: 'rev-prior', sourceType: 'reversal', sourceId: 'entry-1', postings: [] };
       const findById = jest
         .fn()
-        .mockResolvedValueOnce({ ...original, reversedById: 'rev-prior' }) // initial fetch
+        .mockResolvedValueOnce({ ...original, status: 'Reversed', reversedById: 'rev-prior' }) // realistic state
         .mockResolvedValueOnce(prior); // lookup of original.reversedById
       const { svc, journalEntryRepo } = buildService({
         journalEntryRepo: { findById, findBySource: jest.fn(async () => null) },
