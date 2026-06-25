@@ -11,6 +11,7 @@ import {
   ListAccountsQuerySchema,
   ListEntriesQuerySchema,
   CreateAccountSchema,
+  DeleteAccountQuerySchema,
 } from '../features/accounting/dtos/PostingDto';
 
 export const postEntry = async (req: Request, res: Response) => {
@@ -140,10 +141,11 @@ export const deleteAccount = async (req: Request, res: Response) => {
     if (typeof id !== 'string' || id.length === 0) {
       throw new ValidationError('id é obrigatório.');
     }
-    // deleteAccount discovers the account's unitId by userId-only lookup internally,
-    // so we resolve a scope with a placeholder unitId (overridden per account in the service).
-    const unitId = (req.query.unitId as string) ?? '';
-    const scope = resolveAccountingScope(user, unitId);
+    const parsed = DeleteAccountQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
     await getFactory().getPostingService().deleteAccount(scope, id);
     return res.json({ success: true });
   } catch (error) {

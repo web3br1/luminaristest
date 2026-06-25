@@ -119,8 +119,8 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
     setDeleteError(null);
     try {
       await (accountingService as unknown as {
-        deleteAccount(id: string): Promise<{ success: boolean }>;
-      }).deleteAccount(confirmDeleteId);
+        deleteAccount(id: string, unitId: string): Promise<{ success: boolean }>;
+      }).deleteAccount(confirmDeleteId, unitId);
       setConfirmDeleteId(null);
       await fetchAccounts();
     } catch (err) {

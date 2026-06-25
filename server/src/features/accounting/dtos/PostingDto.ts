@@ -113,11 +113,33 @@ export const ListEntriesQuerySchema = z.object({
  * DTO for creating a user-defined account (chart-of-accounts management).
  * `nature` matches the AccountNature union from the fixture/schema (string column).
  */
+/** @openapi
+ * components:
+ *   schemas:
+ *     CreateAccountInput:
+ *       type: object
+ *       required: [code, name, nature, unitId]
+ *       properties:
+ *         code:           { type: string }
+ *         name:           { type: string }
+ *         nature:         { type: string, enum: [Asset, Liability, Equity, Revenue, Expense] }
+ *         acceptsEntries: { type: boolean, default: true }
+ *         unitId:         { type: string }
+ */
 export const CreateAccountSchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
   nature: z.enum(['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']),
   acceptsEntries: z.boolean().optional().default(true),
+  unitId: z.string().min(1),
+});
+
+/**
+ * Query DTO for delete-account. unitId is REQUIRED so the delete is unit-scoped like
+ * every other accounting endpoint (Contract §2 tenancy): the account is looked up by
+ * (ownerUserId + unitId + id), closing the cross-unit-by-id deletion gap.
+ */
+export const DeleteAccountQuerySchema = z.object({
   unitId: z.string().min(1),
 });
 
@@ -127,6 +149,7 @@ export type ReportQueryInput = z.infer<typeof ReportQuerySchema>;
 export type ListAccountsQueryInput = z.infer<typeof ListAccountsQuerySchema>;
 export type ListEntriesQueryInput = z.infer<typeof ListEntriesQuerySchema>;
 export type CreateAccountInput = z.infer<typeof CreateAccountSchema>;
+export type DeleteAccountQueryInput = z.infer<typeof DeleteAccountQuerySchema>;
 
 /** Type guard for PostEntryInput. */
 export function isPostEntryInput(obj: unknown): obj is PostEntryInput {
