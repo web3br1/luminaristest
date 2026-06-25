@@ -42,6 +42,16 @@ wastes work and muddies logs.
 
 Do not represent the process-local lock as distributed.
 
+### ✅ Resolved — Gate 1 (single-process), decided 2026-06-25
+
+**Gate 1 applies.** The backend runs as a single process/replica: persistence is
+**local-file SQLite** (`provider = "sqlite"`, `DATABASE_URL=file:/data/dev.db` on the
+single `sqlite_data` volume), which cannot be shared across replicas, and `docker-compose.yml`
+defines a single `server` service with no replicas/scaling. The in-process scheduler is
+therefore correct, no external scheduler or distributed lease is needed, and **no ADR is
+required**. B.1 is production-ready under this model. Full rationale + the upgrade path for a
+future multi-replica topology: `docs/runbooks/DEPLOYMENT.md`.
+
 ## Environment variables
 
 | Variable | Default | Meaning |
