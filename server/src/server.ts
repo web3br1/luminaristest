@@ -13,6 +13,7 @@ import path from 'path';
 import prisma from './lib/prisma';
 import { logger } from './lib/logger';
 import { purgeOldDeletedRecords } from './jobs/PurgeDeletedRecords';
+import { accountingSyncScheduler } from './jobs/AccountingSyncScheduler';
 import { DocumentStatus } from './features/documents/models/Document.model';
 
 const app = express();
@@ -146,9 +147,15 @@ setInterval(() => {
   });
 }, 300000);
 
+// B.1 — AccountingSync reconciliation: re-drive Won opportunities lacking a journal
+// entry. Periodic, non-overlapping (process-local lock). Interval/delay configurable
+// via env (defaults: 5 min interval, 1 min initial delay); no-op under NODE_ENV=test.
+accountingSyncScheduler.start();
+
 // Graceful shutdown
 function gracefulShutdown() {
   logger.info('Shutting down gracefully...');
+  accountingSyncScheduler.stop();
 
   // Force-exit safety net after 10 seconds
   const forceExitTimer = setTimeout(() => {

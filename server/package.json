@@ -15,6 +15,7 @@
     "prisma:reset": "prisma migrate reset",
     "db:seed": "ts-node prisma/seed.ts",
     "docs:generate": "node ./scripts/generate-openapi.js",
+    "accounting:reconcile": "node dist/jobs/accountingSyncReconcileCli.js",
     "lint": "eslint src",
     "test": "jest"
   },
