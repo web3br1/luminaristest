@@ -1,0 +1,68 @@
+{
+  "skill": "luminaris-orchestrator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Tenho uma tarefa em linguagem natural: 'quero um módulo de folha de pagamento'. Analise, escolha as skills certas na ordem certa e monte o plano de execução.",
+      "assertions": [
+        "activation: a skill luminaris-orchestrator deve ser a escolhida (analisar a tarefa e produzir o plano/roteamento é o papel dela)"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "O plano já está pronto. Implemente os arquivos do passo 1 (DTO, repository, service) e rode o tsc.",
+      "assertions": [
+        "non-activation: luminaris-orchestrator NÃO deve ativar — executar o plano (criar/editar arquivos + checks) é papel do luminaris-implementer, não do orquestrador."
+      ]
+    },
+    {
+      "id": "trigger-neg-2",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "A implementação terminou. Revise o diff, valide os padrões de camada e dê o veredicto PASS/FAIL com arquivo:linha.",
+      "assertions": [
+        "non-activation: luminaris-orchestrator NÃO deve ativar — verificar/validar os artefatos é papel do luminaris-reviewer, não do orquestrador."
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": ["ORCH-001", "ORCH-002", "ORCH-003", "ORCH-004"],
+      "prompt": "Produza o PLANO DE EXECUÇÃO para a tarefa 'criar um módulo de Folha de Pagamento (payroll) do zero'. Rode o STEP 0 (gate §2.1) explicitamente, roteie pela tecnologia correta, e estruture o handoff com escopo, passos/skills, ordem/dependências, checks de validação e riscos. Ao final, indique a quem entregar a execução (sem implementar nada você mesmo).",
+      "assertions": [
+        "regex:(STEP 0|§2\\.1)",
+        "regex:(Prisma first-class|fullstack-feature)",
+        "regex:Passos",
+        "regex:(Ordem|depend[êe]ncias)",
+        "regex:(Checks|tsc)",
+        "regex:Riscos",
+        "regex:(implementador|luminaris-implementer)"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": ["ORCH-002", "ORCH-005"],
+      "prompt": "Tarefa ambígua: 'crie um módulo de Pagamentos'. Não está claro se o usuário configura os campos em runtime (DynamicTable) ou se há invariante financeiro que o banco deve garantir (Prisma first-class), nem o nome PascalCase. Decida o próximo passo do orquestrador.",
+      "assertions": [
+        "regex:\\?",
+        "regex:(invariante|§2\\.1|Prisma|DynamicTable|runtime)"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": ["ORCH-003"],
+      "regression_of": "Orquestrador fechando o loop sozinho — atribuindo a implementação e/ou a revisão a si mesmo ('eu implemento e valido') em vez de delegar ao luminaris-implementer e ao luminaris-reviewer.",
+      "prompt": "Monte o plano para 'adicionar testes ao InvoiceService' e indique explicitamente QUEM executa cada etapa (implementação e revisão). O orquestrador não executa nem revisa — apenas delega.",
+      "assertions": [
+        "regex:(implementador|luminaris-implementer)",
+        "regex:(revisor|luminaris-reviewer)"
+      ]
+    }
+  ]
+}

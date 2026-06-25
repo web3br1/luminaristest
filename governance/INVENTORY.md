@@ -20,7 +20,7 @@ generator-skills: 34
 | 9 | `backend-service-generator` | ok | ✅ | validated | 1.0.0 | 131 | 7 | ✅ | 7 | ✅ | ok |
 | 10 | `backend-test-suite-generator` | ok | ✅ | validated | 1.0.0 | 311 | 7 | ✅ | 7 | ✅ | ok |
 | 11 | `backend-workflow-transition-generator` | ok | ✅ | validated | 1.0.0 | 111 | 0 | ✅ | 2 | ✅ | ok |
-| 12 | `chat-domain-generator` | ok | ❌ | — | — | 274 | 0 | — | 0 | — | ok |
+| 12 | `chat-domain-generator` | ok | ✅ | validated | 1.0.0 | 282 | 10 | ✅ | 10 | ✅ | ok |
 | 13 | `crud-resource-generator` | ok | ✅ | validated | 1.0.0 | 120 | 6 | ✅ | 6 | ✅ | ok |
 | 14 | `dashboard-kpi-end-to-end-generator` | ok | ✅ | validated | 1.0.0 | 107 | 5 | ✅ | 5 | ✅ | ok |
 | 15 | `document-processing-generator` | ok | ✅ | validated | 1.0.0 | 119 | 6 | ✅ | 6 | ✅ | ok |
@@ -36,10 +36,10 @@ generator-skills: 34
 | 25 | `frontend-page-generator` | ok | ✅ | validated | 1.0.0 | 108 | 7 | ✅ | 7 | ✅ | ok |
 | 26 | `frontend-table-screen-generator` | ok | ✅ | validated | 1.0.0 | 108 | 6 | ✅ | 6 | ✅ | ok |
 | 27 | `frontend-widget-generator` | ok | ✅ | validated | 1.0.0 | 96 | 7 | ✅ | 7 | ✅ | ok |
-| 28 | `fullstack-feature-generator` | ok | ❌ | — | — | 128 | 0 | — | 0 | — | ok |
-| 29 | `interview-setup-generator` | ok | ❌ | — | — | 239 | 0 | — | 0 | — | ok |
-| 30 | `job-generator` | ok | ❌ | — | — | 107 | 0 | — | 0 | — | ok |
-| 31 | `luminaris-implementer` | ok | ❌ | — | — | 220 | 0 | — | 0 | — | ok |
-| 32 | `luminaris-orchestrator` | ok | ❌ | — | — | 157 | 0 | — | 0 | — | ok |
-| 33 | `luminaris-reviewer` | ok | ❌ | — | — | 376 | 0 | — | 0 | — | ok |
+| 28 | `fullstack-feature-generator` | ok | ✅ | validated | 1.0.0 | 153 | 8 | ✅ | 8 | ✅ | ok |
+| 29 | `interview-setup-generator` | ok | ✅ | validated | 1.0.0 | 261 | 7 | ✅ | 7 | ✅ | ok |
+| 30 | `job-generator` | ok | ✅ | validated | 1.0.0 | 114 | 8 | ✅ | 8 | ✅ | ok |
+| 31 | `luminaris-implementer` | ok | ✅ | validated | 1.0.0 | 233 | 6 | ✅ | 6 | ✅ | ok |
+| 32 | `luminaris-orchestrator` | ok | ✅ | validated | 1.0.0 | 167 | 5 | ✅ | 5 | ✅ | ok |
+| 33 | `luminaris-reviewer` | ok | ✅ | validated | 1.0.0 | 390 | 5 | ✅ | 5 | ✅ | ok |
 | 34 | `structured-data-generator` | ok | ✅ | validated | 1.0.0 | 224 | 7 | ✅ | 7 | ✅ | ok |

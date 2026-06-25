@@ -47,5 +47,33 @@
     "file": "chunk.tsx",
     "good": "export const A = () => <GenericTable />;",
     "bad": "export const A = () => <GenericTable cols={ ;"
+  },
+  {
+    "rule": "absent-code/ignores-comment-catches-code",
+    "assertion": "absent-code:prisma.",
+    "file": "chunk.ts",
+    "good": "// nunca prisma.* direto — vai por repository\nawait this.repo.create({});",
+    "bad": "await prisma.actionProposal.create({ data: {} });"
+  },
+  {
+    "rule": "absent-code/slashes-in-string-not-a-comment",
+    "assertion": "absent-code:secret",
+    "file": "chunk.ts",
+    "good": "const u = 'http://ok'; // secret only in a real comment",
+    "bad": "const u = 'a//secret';"
+  },
+  {
+    "rule": "absent-code/regex-literal-not-eaten",
+    "assertion": "absent-code:flagx",
+    "file": "chunk.ts",
+    "good": "const re = /a/; // flagx note in comment",
+    "bad": "const re = /flagx\\/\\//;"
+  },
+  {
+    "rule": "absent-code/block-comment-marker-in-template",
+    "assertion": "absent-code:tok",
+    "file": "chunk.ts",
+    "good": "const s = 1; /* tok */",
+    "bad": "const s = `a /* tok */ b`;"
   }
 ]

@@ -1,0 +1,304 @@
+Now I have everything I need. I'll generate the four sections following the skill's checklist precisely.
+
+===happy-1===
+// server/scripts/seed-suppliers-demo.js
+/**
+ * Suppliers (Fornecedores) demo seed — populates the Fornecedores screens with volume test data.
+ *
+ * - Idempotent: every seeded record is tagged `data.__demo = true`; a re-run calls
+ *   `clearDemo(tableId)` (findMany → filter `r.data.__demo === true` → deleteMany) BEFORE
+ *   re-inserting, so it never duplicates.
+ * - Creates the `suppliers` / `supplierCategories` tables for the user if missing
+ *   (the Suppliers module is selectable and may not be installed).
+ * - Resolves tables/parents by `internalName` (findFirst where internalName), never by
+ *   array position `[0]` — the dynamic-tables API orders `createdAt desc` while the default
+ *   `prisma.findMany` differs, so position is not stable.
+ * - Covers the variability the views branch on: multiple statuses, varied past/future dates,
+ *   and >1 parent category, so view bugs hidden by happy-path data get caught.
+ *
+ * ⚠️ Writes directly via Prisma — this BYPASSES the factory, Zod schema-validation, the
+ *    rule engine (rules/plugins) and policy checks. Acceptable in a dev-only volume seed,
+ *    but explicit. Dev-only: guarded against NODE_ENV=production, standalone (never an
+ *    endpoint), scoped to a single `userId` resolved by `--email`.
+ *
+ * Usage:  cd server && node scripts/seed-suppliers-demo.js [--email=user@x] [--suppliers=120]
+ *         (default email: testuser@luminaris.test)
+ */
+const { PrismaClient } = require('../generated/prisma');
+
+// [JOB-006] Production guard — volume seed is dev-only. Abort before touching the DB.
+if (process.env.NODE_ENV === 'production') {
+  throw new Error('seed de volume é dev-only — abortado (NODE_ENV=production)');
+}
+
+const prisma = new PrismaClient();
+
+const args = Object.fromEntries(
+  process.argv.slice(2).map((a) => {
+    const [k, v] = a.replace(/^--/, '').split('=');
+    return [k, v ?? true];
+  }),
+);
+const EMAIL = args.email || process.env.SEED_EMAIL || 'testuser@luminaris.test';
+const N_CATEGORIES = Number(args.categories || 8);
+const N_SUPPLIERS = Number(args.suppliers || 120);
+
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const chance = (p) => Math.random() < p;
+const daysFromNow = (d) => new Date(Date.now() + d * 86400000).toISOString();
+
+const COMPANIES = ['Acme', 'Globex', 'Initech', 'Umbrella', 'Soylent', 'Hooli', 'Stark', 'Wayne', 'Wonka', 'Cyberdyne', 'Tyrell', 'Pied Piper', 'Massive Dynamic', 'Aperture', 'Black Mesa', 'Nakatomi', 'Oscorp', 'Gekko & Co', 'Vandelay', 'Prestige'];
+const SUFFIX = ['Ltda', 'S.A.', 'ME', 'Distribuidora', 'Comércio', 'Indústria'];
+const SEGMENTS = ['Matéria-prima', 'Embalagens', 'Logística', 'TI', 'Serviços', 'Manutenção', 'Limpeza', 'Marketing'];
+const CITIES = [['São Paulo', 'SP'], ['Rio de Janeiro', 'RJ'], ['Belo Horizonte', 'MG'], ['Curitiba', 'PR'], ['Porto Alegre', 'RS'], ['Recife', 'PE'], ['Salvador', 'BA']];
+const FIRST = ['Ana', 'Bruno', 'Carla', 'Diego', 'Eduarda', 'Felipe', 'Gabriela', 'Henrique', 'Isabela', 'João', 'Karina', 'Lucas', 'Mariana', 'Nelson', 'Olívia', 'Paulo', 'Renata', 'Sérgio', 'Tatiana', 'Vinícius'];
+const LAST = ['Silva', 'Souza', 'Oliveira', 'Santos', 'Pereira', 'Costa', 'Almeida', 'Lima', 'Carvalho', 'Rocha'];
+const PAYMENT_TERMS = ['À vista', '15 dias', '30 dias', '30/60 dias', '30/60/90 dias'];
+const CURRENCIES = ['BRL', 'BRL', 'BRL', 'USD', 'EUR'];
+// weighted toward Ativo so most rows land in the common branch
+const SUPPLIER_STATUS = ['Ativo', 'Ativo', 'Ativo', 'Ativo', 'Pendente', 'Bloqueado', 'Inativo'];
+const RATINGS = [1, 2, 3, 4, 5];
+
+const CATEGORIES_SCHEMA = {
+  defaultDisplayField: 'name',
+  fields: [
+    { name: 'name', label: 'Categoria', type: 'string', required: true },
+    { name: 'description', label: 'Descrição', type: 'textarea' },
+  ],
+};
+const SUPPLIERS_SCHEMA = {
+  defaultDisplayField: 'name',
+  fields: [
+    { name: 'name', label: 'Razão Social', type: 'string', required: true },
+    { name: 'tradeName', label: 'Nome Fantasia', type: 'string' },
+    { name: 'taxId', label: 'CNPJ', type: 'string' },
+    { name: 'segment', label: 'Segmento', type: 'string' },
+    { name: 'categoryId', label: 'Categoria', type: 'string' },
+    { name: 'status', label: 'Status', type: 'select', options: ['Ativo', 'Pendente', 'Bloqueado', 'Inativo'] },
+    { name: 'contactName', label: 'Contato', type: 'string' },
+    { name: 'email', label: 'E-mail', type: 'string' },
+    { name: 'phone', label: 'Telefone', type: 'string' },
+    { name: 'city', label: 'Cidade', type: 'string' },
+    { name: 'state', label: 'UF', type: 'string' },
+    { name: 'paymentTerms', label: 'Condições de Pagamento', type: 'select', options: PAYMENT_TERMS },
+    { name: 'currency', label: 'Moeda', type: 'select', options: ['BRL', 'USD', 'EUR'] },
+    { name: 'rating', label: 'Avaliação', type: 'number' },
+    { name: 'lastPurchaseAt', label: 'Última Compra', type: 'date' },
+    { name: 'nextReviewAt', label: 'Próxima Revisão', type: 'date' },
+    { name: 'notes', label: 'Observações', type: 'textarea' },
+  ],
+};
+
+// [JOB-007] Resolve by internalName — never by position [0].
+async function getTable(userId, internalName) {
+  return prisma.dynamicTable.findFirst({ where: { userId, internalName } });
+}
+async function ensureTable(userId, internalName, name, schema) {
+  let t = await getTable(userId, internalName);
+  if (!t) {
+    t = await prisma.dynamicTable.create({ data: { userId, name, internalName, category: 'leads', schema } });
+    console.log(`  + tabela criada: ${internalName} (${t.id})`);
+  }
+  return t;
+}
+// [JOB-002] clearDemo — findMany → filter __demo === true → deleteMany. Makes re-runs safe.
+async function clearDemo(tableId) {
+  const rows = await prisma.dynamicTableData.findMany({ where: { dynamicTableId: tableId } });
+  const ids = rows.filter((r) => r.data && r.data.__demo === true).map((r) => r.id);
+  if (ids.length) await prisma.dynamicTableData.deleteMany({ where: { id: { in: ids } } });
+  return ids.length;
+}
+async function createRow(tableId, data) {
+  const r = await prisma.dynamicTableData.create({ data: { dynamicTableId: tableId, data: { ...data, __demo: true } } });
+  return r.id;
+}
+async function createMany(tableId, records) {
+  if (!records.length) return;
+  await prisma.dynamicTableData.createMany({ data: records.map((d) => ({ dynamicTableId: tableId, data: { ...d, __demo: true } })) });
+}
+
+async function main() {
+  const user = await prisma.user.findUnique({ where: { email: EMAIL } });
+  if (!user) throw new Error(`Usuário não encontrado: ${EMAIL}`);
+  const userId = user.id;
+  console.log(`🌱 Seed Fornecedores para ${EMAIL}`);
+
+  // Tables resolved/created by internalName, never by [0].
+  const categoriesT = await ensureTable(userId, 'supplierCategories', 'Categorias de Fornecedores', CATEGORIES_SCHEMA);
+  const suppliersT = await ensureTable(userId, 'suppliers', 'Fornecedores', SUPPLIERS_SCHEMA);
+
+  // [JOB-002] Clear prior demo rows BEFORE re-inserting (idempotency).
+  let removed = 0;
+  for (const t of [suppliersT, categoriesT]) removed += await clearDemo(t.id);
+  console.log(`  limpou ${removed} registros demo anteriores`);
+
+  // Categories (>1 parent so the supplier view branches across categories)
+  const categoryIds = [];
+  for (let i = 0; i < N_CATEGORIES; i++) {
+    categoryIds.push(await createRow(categoriesT.id, {
+      name: SEGMENTS[i % SEGMENTS.length],
+      description: `Fornecedores de ${SEGMENTS[i % SEGMENTS.length]}`,
+    }));
+  }
+
+  // Suppliers (volume via createMany; multiple statuses + varied past/future dates)
+  const suppliers = [];
+  for (let i = 0; i < N_SUPPLIERS; i++) {
+    const [city, state] = pick(CITIES);
+    const name = `${pick(COMPANIES)} ${pick(SUFFIX)}`;
+    suppliers.push({
+      name,
+      tradeName: name.split(' ')[0],
+      taxId: `${randInt(10, 99)}.${randInt(100, 999)}.${randInt(100, 999)}/0001-${randInt(10, 99)}`,
+      segment: pick(SEGMENTS),
+      categoryId: pick(categoryIds),
+      status: pick(SUPPLIER_STATUS),
+      contactName: `${pick(FIRST)} ${pick(LAST)}`,
+      email: `compras${i}@fornecedor.com.br`,
+      phone: `+55 11 9${randInt(1000, 9999)}-${randInt(1000, 9999)}`,
+      city, state,
+      paymentTerms: pick(PAYMENT_TERMS),
+      currency: pick(CURRENCIES),
+      rating: pick(RATINGS),
+      lastPurchaseAt: daysFromNow(-randInt(1, 180)),       // past
+      nextReviewAt: chance(0.6) ? daysFromNow(randInt(1, 90)) : undefined, // future
+    });
+  }
+  await createMany(suppliersT.id, suppliers);
+
+  console.log(`✅ Seed concluída:`);
+  console.log(`   categorias=${categoryIds.length}  fornecedores=${suppliers.length}`);
+}
+
+main()
+  .catch((e) => { console.error('❌', e.message); process.exitCode = 1; })
+  .finally(() => prisma.$disconnect());
+
+===happy-2===
+// server/src/jobs/PurgeExpiredProposals.ts
+/**
+ * PurgeExpiredProposals — maintenance job.
+ *
+ * Hard-deletes ActionProposal rows with status EXPIRED that are older than 30 days.
+ *
+ * Uses Prisma directly (default import from ../lib/prisma) — jobs do NOT go through
+ * getFactory(). This BYPASSES the factory, DTO/schema-validation, the rule engine
+ * (rules/plugins) and policy checks; acceptable for a maintenance job, but explicit.
+ *
+ * Idempotent: a deleteMany over `status=EXPIRED AND createdAt < cutoff` is reentrant —
+ * re-running purges only what still matches and never duplicates side effects.
+ *
+ * Scheduling: this is a PERIODIC job. Register it at boot in `server/src/server.ts`, e.g.:
+ *
+ *     import { purgeExpiredProposals } from './jobs/PurgeExpiredProposals';
+ *     // run daily (every 24h); fire once shortly after boot, then on an interval
+ *     setInterval(() => { void purgeExpiredProposals(); }, 24 * 60 * 60 * 1000);
+ *     void purgeExpiredProposals();
+ */
+
+import prisma from '../lib/prisma';
+import { logger } from '../lib/logger';
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+export async function purgeExpiredProposals(): Promise<void> {
+  const job = 'PurgeExpiredProposals';
+  const cutoffDate = new Date(Date.now() - THIRTY_DAYS_MS);
+
+  logger.info('Job started', { job, cutoff: cutoffDate.toISOString() });
+
+  try {
+    const result = await prisma.actionProposal.deleteMany({
+      where: {
+        status: 'EXPIRED',
+        createdAt: { lt: cutoffDate },
+      },
+    });
+
+    logger.info('Job completed', { job, affected: result.count });
+  } catch (err) {
+    logger.error('Job failed', { job, error: err instanceof Error ? err.message : String(err) });
+    throw err;
+  }
+}
+
+===edge-1===
+// server/scripts/seed-suppliers-demo.js
+// [JOB-002] Idempotency: tag every seeded row with data.__demo = true; clearDemo wipes the
+// prior demo rows (findMany → filter r.data.__demo === true → deleteMany) BEFORE re-inserting.
+async function clearDemo(tableId) {
+  const rows = await prisma.dynamicTableData.findMany({ where: { dynamicTableId: tableId } });
+  const ids = rows.filter((r) => r.data && r.data.__demo === true).map((r) => r.id);
+  if (ids.length) await prisma.dynamicTableData.deleteMany({ where: { id: { in: ids } } });
+  return ids.length;
+}
+
+async function main() {
+  const user = await prisma.user.findUnique({ where: { email: EMAIL } });
+  if (!user) throw new Error(`Usuário não encontrado: ${EMAIL}`);
+  const userId = user.id;
+
+  // Resolve by internalName (never [0]); ensureTable creates them if the module isn't installed.
+  const categoriesT = await ensureTable(userId, 'supplierCategories', 'Categorias de Fornecedores', CATEGORIES_SCHEMA);
+  const suppliersT = await ensureTable(userId, 'suppliers', 'Fornecedores', SUPPLIERS_SCHEMA);
+
+  // Clear prior demo rows for EACH table BEFORE createMany — makes re-runs non-duplicating.
+  let removed = 0;
+  for (const t of [suppliersT, categoriesT]) removed += await clearDemo(t.id);
+  console.log(`  limpou ${removed} registros demo anteriores`);
+
+  // ... build category rows, then:
+  await createMany(suppliersT.id, suppliers);
+}
+
+===regression-1===
+// server/scripts/seed-suppliers-demo.js
+const { PrismaClient } = require('../generated/prisma');
+
+// [JOB-006] Production guard at the very top — abort before opening a Prisma client.
+if (process.env.NODE_ENV === 'production') {
+  throw new Error('seed de volume é dev-only — abortado (NODE_ENV=production)');
+}
+
+const prisma = new PrismaClient();
+
+// [JOB-007] Always resolve by internalName via findFirst — NEVER by array position [0].
+// The dynamic-tables API orders `createdAt desc`; the default prisma.findMany order differs,
+// so `[0]` is not a stable handle on the same table/parent across the two read paths.
+async function getTable(userId, internalName) {
+  return prisma.dynamicTable.findFirst({ where: { userId, internalName } });
+}
+
+async function main() {
+  const user = await prisma.user.findUnique({ where: { email: EMAIL } });
+  if (!user) throw new Error(`Usuário não encontrado: ${EMAIL}`);
+  const userId = user.id;
+
+  // Suppliers table — resolved by internalName, created on demand if absent.
+  const suppliersT = await ensureTable(userId, 'suppliers', 'Fornecedores', SUPPLIERS_SCHEMA);
+  // Parent (Categorias) — resolved by internalName, never by [0].
+  const categoriesT = await ensureTable(userId, 'supplierCategories', 'Categorias de Fornecedores', CATEGORIES_SCHEMA);
+
+  // Idempotent cleanup before inserting.
+  let removed = 0;
+  for (const t of [suppliersT, categoriesT]) removed += await clearDemo(t.id);
+  console.log(`  limpou ${removed} registros demo anteriores`);
+
+  // Resolve the parent category rows by their stored ids (not by position) for FK linkage.
+  const categoryRows = await prisma.dynamicTableData.findMany({ where: { dynamicTableId: categoriesT.id } });
+  const categoryIds = categoryRows.filter((r) => r.data && r.data.__demo === true).map((r) => r.id);
+
+  // Insert suppliers linking each to a resolved categoryId (never an array index).
+  const suppliers = [];
+  for (let i = 0; i < N_SUPPLIERS; i++) {
+    suppliers.push({
+      name: `${pick(COMPANIES)} ${pick(SUFFIX)}`,
+      status: pick(SUPPLIER_STATUS),
+      categoryId: categoryIds.length ? pick(categoryIds) : undefined,
+      lastPurchaseAt: daysFromNow(-randInt(1, 180)),
+      nextReviewAt: chance(0.6) ? daysFromNow(randInt(1, 90)) : undefined,
+    });
+  }
+  await createMany(suppliersT.id, suppliers);
+}

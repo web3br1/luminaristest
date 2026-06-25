@@ -1,0 +1,112 @@
+{
+  "skill": "fullstack-feature-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Preciso de um domínio de negócio inteiramente novo, do zero: Agendamentos (appointments), do model Prisma até a tela no frontend — backend completo (DTO, repo, policy, service, controller, rota) e o frontend (service + página).",
+      "assertions": [
+        "activation: a skill fullstack-feature-generator deve ser a escolhida (vertical slice ponta-a-ponta do zero é o domínio dela; invocação explícita por disable-model-invocation)"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie apenas o Service e o Repository do recurso Invoice no backend, injetando policy e repo no factory. Nada de frontend.",
+      "assertions": [
+        "non-activation: fullstack-feature-generator NÃO deve ativar — pedido é só de uma camada backend (Service+Repository); isso é backend-service-generator/backend-repository-generator, não o slice ponta-a-ponta."
+      ]
+    },
+    {
+      "id": "trigger-neg-2",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie apenas uma página React de listagem de faturas reusando GenericTable, consumindo um endpoint que já existe.",
+      "assertions": [
+        "non-activation: fullstack-feature-generator NÃO deve ativar — pedido é só de UI sobre backend existente; isso é frontend-page-generator/frontend-table-screen-generator, não o slice completo."
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": ["FULL-001", "FULL-002", "FULL-003", "FULL-004", "FULL-005"],
+      "prompt": "Componha a vertical slice de Invoices (faturas), na ordem canônica, espelhando a feature `users`. Gere um trecho representativo de CADA elo da cadeia, cada um com seu marcador de arquivo `// path` na primeira linha do trecho: (1) server/src/features/invoices/dtos/InvoiceDto.ts — `CreateInvoiceSchema`/`UpdateInvoiceSchema` (Update=.partial()) + bloco `@openapi`, sem z.any(); (2) server/src/features/invoices/services/InvoiceService.ts — policy-first (`if (!this.policy.canX) throw new ForbiddenError()`), DI por construtor, usa o repository (zero prisma.*), zero React/JSX, zero res.json/Express; (3) server/src/controllers/invoiceController.ts — `Schema.safeParse` + `getUserContextFromRequest` + `getFactory().getInvoiceService()` + `handleApiError`; (4) os 3 toques de rota: server/src/routes/index.ts (mount de invoices), server/src/middleware/auth.ts (`'/api/invoices'` em protectedApiPaths), server/src/routes/docs.paths.ts (bloco `@openapi`); (5) my-app/lib/services/invoice.service.ts — `apiClient`, tipos locais, zero prisma; (6) my-app/pages/invoices/index.tsx — `withAuth` + `serverSideTranslations`, reusa `GenericTable` (não recria tabela), zero prisma. Delegue os contratos às sub-skills; não reescreva as instruções delas.",
+      "target_files": [
+        "server/src/features/invoices/dtos/InvoiceDto.ts",
+        "server/src/features/invoices/services/InvoiceService.ts",
+        "server/src/controllers/invoiceController.ts",
+        "server/src/routes/index.ts",
+        "server/src/middleware/auth.ts",
+        "server/src/routes/docs.paths.ts",
+        "my-app/lib/services/invoice.service.ts",
+        "my-app/pages/invoices/index.tsx"
+      ],
+      "assertions": [
+        "@InvoiceDto.ts::regex:Create\\w*Schema",
+        "@InvoiceDto.ts::regex:@openapi",
+        "@InvoiceDto.ts::absent-code:z.any(",
+        "@InvoiceService.ts::regex:ForbiddenError",
+        "@InvoiceService.ts::absent-code:prisma.",
+        "@InvoiceService.ts::absent-code:from 'react'",
+        "@InvoiceService.ts::absent-code:res.json",
+        "@invoiceController.ts::regex:getFactory\\(\\)",
+        "@invoiceController.ts::regex:safeParse",
+        "@invoiceController.ts::regex:handleApiError",
+        "@routes/index.ts::regex:invoice",
+        "@auth.ts::regex:/api/invoices",
+        "@docs.paths.ts::regex:@openapi",
+        "@invoice.service.ts::regex:apiClient",
+        "@invoice.service.ts::absent-code:prisma",
+        "@index.tsx::regex:withAuth",
+        "@index.tsx::regex:GenericTable",
+        "@index.tsx::absent-code:prisma"
+      ]
+    },
+    {
+      "id": "happy-2",
+      "type": "happy",
+      "rules": ["FULL-007"],
+      "prompt": "Gere os testes dos DOIS lados da slice de Invoices, cada um com seu marcador de arquivo na primeira linha: (1) server/src/features/invoices/services/InvoiceService.test.ts — `describe`/`it` cobrindo policy-first (lança ForbiddenError quando a policy nega) e NotFoundError (incl. cross-tenant); (2) my-app/lib/services/invoice.service.test.ts — verifica que o tipo de retorno de listagem do service espelha o envelope do backend (`{ data: Invoice[]; pagination }`, campo `amountCents`).",
+      "target_files": [
+        "server/src/features/invoices/services/InvoiceService.test.ts",
+        "my-app/lib/services/invoice.service.test.ts"
+      ],
+      "assertions": [
+        "@InvoiceService.test.ts::regex:describe\\(",
+        "@InvoiceService.test.ts::regex:(ForbiddenError|NotFoundError)",
+        "@invoice.service.test.ts::regex:(data:|pagination|amountCents)"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": ["FULL-003", "FULL-004"],
+      "prompt": "Mostre as duas fronteiras da slice de Invoices, cada trecho com seu marcador de arquivo na primeira linha: (1) server/src/features/invoices/services/InvoiceService.ts — o serviço de domínio importa e usa o `IInvoiceRepository` (zero prisma.*), e é backend puro: sem import de React/JSX e sem `res.json`/`Response` (transporte fica no controller); (2) my-app/pages/invoices/index.tsx — a página consome `invoiceService` via `apiClient` e NUNCA importa `prisma`/`@/lib/prisma` nem toca o banco.",
+      "assertions": [
+        "@InvoiceService.ts::absent-code:prisma.",
+        "@InvoiceService.ts::absent-code:from 'react'",
+        "@InvoiceService.ts::absent-code:res.json",
+        "@index.tsx::absent-code:@/lib/prisma",
+        "@index.tsx::absent-code:prisma",
+        "@index.tsx::regex:(invoiceService|apiClient)"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": ["FULL-006"],
+      "regression_of": "Backend e frontend cada um VÁLIDO isoladamente, mas em DESACORDO de contrato: o backend retorna o envelope `{ data: Invoice[]; pagination }` com o campo `amountCents`, e o frontend service tipa outro envelope (`{ items; total }`) ou outro nome de campo (`amount`). Cada `tsc` passa; o contrato quebra em runtime.",
+      "prompt": "Gere o trecho do backend e o do frontend que DEVEM concordar no contrato de listagem de Invoices, cada um com seu marcador de arquivo na primeira linha: (1) server/src/controllers/invoiceController.ts — o handler de listagem faz `res.json({ data, pagination })` e a Invoice tem o campo `amountCents` (centavos inteiros); (2) my-app/lib/services/invoice.service.ts — o método de listagem tipa EXATAMENTE o mesmo envelope `Promise<{ data: Invoice[]; pagination: PaginationMetadata }>` e a interface `Invoice` usa o MESMO nome de campo `amountCents`. Espelhe o slice `users`.",
+      "assertions": [
+        "@invoiceController.ts::regex:res\\.json\\(\\{[\\s\\S]*\\bdata\\b",
+        "@invoiceController.ts::contains:amountCents",
+        "@invoiceController.ts::regex:pagination",
+        "@invoice.service.ts::regex:\\{\\s*data:",
+        "@invoice.service.ts::contains:amountCents",
+        "@invoice.service.ts::contains:pagination"
+      ]
+    }
+  ]
+}

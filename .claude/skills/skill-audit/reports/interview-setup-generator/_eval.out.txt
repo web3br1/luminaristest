@@ -1,0 +1,287 @@
+I have all canonical shapes. Generating the four sections now.
+
+===happy-1===
+// server/src/features/interview/models/InterviewTypes.ts
+```
+export type InterviewStage =
+  | 'GREETING'
+  | 'DISCOVERING_BUSINESS'
+  | 'CONFIRMING_BUSINESS'
+  | 'MATCHING_PRESET'
+  | 'AWAITING_CREATION_TYPE_CONFIRMATION'
+  | 'CUSTOMIZATION_INTRO'
+  | 'CUSTOMIZATION_IN_PROGRESS'
+  | 'CUSTOMIZATION_COMPLETED'
+  | 'IDENTIFYING_ENTITIES'
+  | 'COLLECTING_INDUSTRY'
+  | 'CANNOT_PROCEED'
+  | 'COMPLETED';
+
+/**
+ * Estágios que podem ser processados com lógica especializada
+ */
+export type ProcessableStage =
+  | 'DISCOVERING_BUSINESS'
+  | 'CONFIRMING_BUSINESS'
+  | 'IDENTIFYING_ENTITIES'
+  | 'COLLECTING_INDUSTRY';
+```
+
+// server/src/features/interview/InterviewService/PromptConfig.ts
+```
+export const stageConfig: Record<ProcessableStage, IStageConfig> = {
+  DISCOVERING_BUSINESS: {
+    systemPrompt: `Você é um analista de negócios especializado. Seu objetivo é entender o negócio do usuário. Após o usuário descrever seu negócio, faça APENAS UMA pergunta para obter mais detalhes. Depois que o usuário responder sua pergunta, você DEVE resumir o negócio em uma única frase, prefixada com a palavra-chave "SUMMARY:". Exemplo: "SUMMARY: Um salão de beleza que atende mulheres e vende produtos para cabelo." NÃO peça confirmação. Apenas forneça o resumo. Responda SEMPRE em português do Brasil.`,
+    completionCheckPrompt: '',
+    nextStage: 'CONFIRMING_BUSINESS',
+  },
+  CONFIRMING_BUSINESS: {
+    systemPrompt: `Seu objetivo é APENAS reconhecer a confirmação do usuário com um breve "Obrigado" ou similar. NÃO FAÇA PERGUNTAS ADICIONAIS. Não pergunte como você pode ajudar ou melhorar o negócio. O sistema avançará automaticamente para a próxima etapa. Apenas responda com um breve reconhecimento. Responda SEMPRE em português do Brasil.`,
+    completionCheckPrompt: `Analise a seguinte conversa. O usuário confirmou explicitamente que o resumo de seu negócio feito pela IA está correto? Procure por palavras como 'sim', 'correto', 'exatamente', ou respostas afirmativas curtas como 'y', 's', 'sim', 'ok'. Responda apenas com 'true' ou 'false'.`,
+    nextStage: 'MATCHING_PRESET',
+  },
+  IDENTIFYING_ENTITIES: {
+    systemPrompt: `Seu objetivo é identificar as principais entidades ou substantivos que o usuário precisa gerenciar. Por exemplo, para um salão, podem ser 'Clientes', 'Agendamentos', 'Serviços'. Peça ao usuário para listar as principais coisas que ele precisa controlar. Responda SEMPRE em português do Brasil.`,
+    completionCheckPrompt: `O usuário listou pelo menos duas entidades para gerenciar? Responda apenas com 'true' ou 'false'.`,
+    nextStage: 'COMPLETED',
+  },
+  COLLECTING_INDUSTRY: {
+    systemPrompt: `Você está coletando o setor/segmento de atuação da empresa do usuário. Faça APENAS UMA pergunta clara sobre o ramo de atuação (ex: varejo, alimentação, serviços de saúde, tecnologia). Quando o usuário responder com um setor específico, encerre sua mensagem com o marcador "INDUSTRY_CONFIRMED: <setor>", substituindo <setor> pelo setor informado. Responda SEMPRE em português do Brasil.`,
+    completionCheckPrompt: `O usuário informou um setor/segmento de atuação específico? Responda apenas com 'true' ou 'false'.`,
+    nextStage: 'MATCHING_PRESET',
+  },
+};
+```
+
+// server/src/features/interview/InterviewService/InterviewService.ts
+```
+      else if (stage === 'COLLECTING_INDUSTRY') {
+        const config = stageConfig['COLLECTING_INDUSTRY'];
+        const aiResponse = await this.stageHandlers.getAiResponseWithHistory(config.systemPrompt, messages);
+
+        const industryMatch = aiResponse?.match(/INDUSTRY_CONFIRMED:\s*(.+)/);
+        const nextStage: InterviewStage = industryMatch
+          ? config.nextStage          // setor confirmado → avança (MATCHING_PRESET)
+          : 'COLLECTING_INDUSTRY';    // sem marcador → permanece no estágio (loop)
+
+        return { response: aiResponse ?? '', nextStage };
+      }
+```
+
+===happy-2===
+// server/src/features/interview/FieldCustomizationService/FieldIntentParser.ts
+```
+import { logger } from '../../../lib/logger';
+import { z } from 'zod';
+import { IStructuredAiResponse, IFieldModification } from './Types';
+import { FieldPresetMatcher } from './FieldPresetMatcher';
+import { ISchemaField } from '../../../features/dynamicTables/models/DynamicTable.model';
+
+/**
+ * Esquema de validação para o campo
+ */
+const fieldSchema = z.object({
+  name: z.string(),
+  label: z.string(),
+  type: z.string(),
+  required: z.boolean().optional(),
+  hidden: z.boolean().optional(),
+  description: z.string().optional()
+});
+
+/**
+ * Esquema de validação para uma modificação
+ */
+const fieldModificationSchema = z.object({
+  action: z.enum(['add', 'remove', 'update', 'reorder']),
+  field: fieldSchema,
+  originalFieldName: z.string().optional()
+}).refine(data => {
+  // Para ações de remove, update e reorder, originalFieldName é obrigatório
+  if (data.action === 'remove' || data.action === 'update' || data.action === 'reorder') {
+    return !!data.originalFieldName;
+  }
+  return true;
+}, {
+  message: "Campo 'originalFieldName' é obrigatório para ações de 'remove', 'update' e 'reorder'"
+});
+
+/**
+ * Esquema de validação para resposta da IA
+ */
+const aiResponseSchema = z.object({
+  modifications: z.array(fieldModificationSchema),
+  friendlyMessage: z.string()
+});
+
+/**
+ * Responsável por analisar a resposta da IA e convertê-la em um objeto estruturado.
+ */
+export class FieldIntentParser {
+  private fieldPresetMatcher: FieldPresetMatcher;
+
+  constructor() {
+    // [INTV-006] tenta o FieldPresetMatcher antes de criar campo custom
+    this.fieldPresetMatcher = new FieldPresetMatcher();
+  }
+
+  /**
+   * Converte a resposta em string da IA (esperada como JSON) em um objeto IStructuredAiResponse.
+   * @param aiResponse A resposta em string da IA.
+   * @returns Um objeto IStructuredAiResponse ou null em caso de erro.
+   */
+  public parse(aiResponse: string): IStructuredAiResponse | null {
+    try {
+      // Extrair o bloco JSON da resposta da IA
+      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+
+      if (!jsonMatch) {
+        logger.error('[FieldIntentParser] Nenhum JSON encontrado na resposta');
+        return null;
+      }
+
+      const jsonString = jsonMatch[0];
+      const jsonResponse = JSON.parse(jsonString);
+
+      // Validar a estrutura do objeto com Zod
+      const validationResult = aiResponseSchema.safeParse(jsonResponse);
+
+      if (!validationResult.success) {
+        logger.error(`[FieldIntentParser] Validação falhou: ${validationResult.error.toString()}`);
+        return null;
+      }
+
+      return validationResult.data;
+    } catch (error) {
+      logger.error(`[FieldIntentParser] Erro ao analisar a resposta da IA: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * Para uma modificação 'add', tenta primeiro casar com um preset de campo
+   * conhecido antes de criar um campo custom ([INTV-006]).
+   * @param modification A modificação de campo a resolver
+   * @param existingFields Campos já presentes na tabela
+   * @returns O preset casado, ou o campo original (custom) se nenhum preset bater
+   */
+  public async resolveFieldPreset(
+    modification: IFieldModification,
+    existingFields: ISchemaField[]
+  ): Promise<ISchemaField> {
+    // Tenta o FieldPresetMatcher antes de criar um campo custom
+    const match = await this.fieldPresetMatcher.findFieldPreset(
+      modification.field.label || modification.field.name,
+      existingFields
+    );
+
+    if (match.found && match.preset) {
+      logger.info(`[FieldIntentParser] Preset reaproveitado para "${modification.field.name}": ${match.matchedKey}`);
+      return match.preset;
+    }
+
+    // Sem preset adequado → cria campo custom a partir da modificação da IA
+    return modification.field;
+  }
+
+  /**
+   * Verifica se uma resposta contém modificações válidas.
+   * @param response A resposta estruturada da IA
+   * @returns True se a resposta contém modificações válidas
+   */
+  public hasValidModifications(response: IStructuredAiResponse | null): boolean {
+    return !!response && Array.isArray(response.modifications) && response.modifications.length > 0;
+  }
+}
+```
+
+// server/src/features/interview/CustomizationService/StateManager.ts
+```
+export class StateManager {
+  private static instance: StateManager;
+
+  // Armazena os estados de customização ativos, indexados pelo sessionId (in-memory Map)
+  private activeCustomizations: Map<string, ICustomizationState> = new Map();
+
+  // O construtor é privado para evitar a criação de novas instâncias
+  private constructor() {
+    logger.info('[StateManager] Singleton StateManager inicializado.');
+  }
+
+  // Método estático para obter a instância única da classe
+  public static getInstance(): StateManager {
+    if (!StateManager.instance) {
+      StateManager.instance = new StateManager();
+    }
+    return StateManager.instance;
+  }
+
+  /**
+   * Armazena (set) o estado de customização de uma sessão pelo sessionId
+   */
+  public setSessionState(sessionId: string, state: ICustomizationState): void {
+    this.activeCustomizations.set(sessionId, state);
+    logger.info(`[StateManager] Estado armazenado para sessão ${sessionId}`);
+  }
+
+  /**
+   * Obtém (get) o estado atual de uma sessão de customização pelo sessionId
+   */
+  public getSessionState(sessionId: string): ICustomizationState | null {
+    const state = this.activeCustomizations.get(sessionId);
+    if (!state) {
+      logger.error(`[StateManager] Sessão com ID ${sessionId} não encontrada`);
+      return null;
+    }
+    return state;
+  }
+}
+```
+
+===edge-1===
+// server/src/features/interview/InterviewService/InterviewService.ts
+```
+      else if (stage === 'COLLECTING_INDUSTRY') {
+        const config = stageConfig['COLLECTING_INDUSTRY'];
+        const aiResponse = await this.stageHandlers.getAiResponseWithHistory(config.systemPrompt, messages);
+
+        // [INTV-003] detecta o marcador de conclusão no texto da resposta
+        const industryMatch = aiResponse?.match(/INDUSTRY_CONFIRMED:\s*(.+)/);
+        const nextStage: InterviewStage = industryMatch
+          ? config.nextStage          // marcador presente → avança (MATCHING_PRESET)
+          : 'COLLECTING_INDUSTRY';    // marcador ausente → permanece no estágio (loop)
+
+        return { response: aiResponse ?? '', nextStage };
+      }
+```
+
+===regression-1===
+// server/src/features/interview/InterviewService/InterviewService.ts
+```
+export class InterviewService {
+  private static instance: InterviewService;
+  private openaiService: OpenAIService;
+  private presetMatcher: PresetMatcher;
+  private stageHandlers: StageHandlers;
+  private customizationService: CustomizationService;
+
+  // [INTV-001] dependências obtidas via getInstance() — nunca `new` em singletons;
+  // backend puro (zero React/JSX/hooks), apenas serviços de servidor.
+  private constructor() {
+    this.openaiService = OpenAIService.getInstance();
+    this.customizationService = CustomizationService.getInstance();
+    this.presetMatcher = new PresetMatcher(this.openaiService);
+    this.stageHandlers = new StageHandlers(this.openaiService, this.customizationService);
+    logger.info('[InterviewService] Initialized');
+  }
+
+  public static getInstance(): InterviewService {
+    if (!InterviewService.instance) {
+      InterviewService.instance = new InterviewService();
+    }
+    return InterviewService.instance;
+  }
+}
+```
+
+All four sections generated against the verified canonical shapes: `stageConfig: Record<ProcessableStage, IStageConfig>` (`{ systemPrompt, completionCheckPrompt, nextStage }`), `this.stageHandlers.getAiResponseWithHistory(config.systemPrompt, messages)` in that argument order, `INDUSTRY_CONFIRMED:` completion marker, `getInstance()` singletons (no `new` for service deps obtained via singleton), and the `FieldPresetMatcher`-before-custom path with a `'reorder'` Zod enum member.

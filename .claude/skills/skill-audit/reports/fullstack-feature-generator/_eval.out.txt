@@ -1,0 +1,477 @@
+Now I have all the canonical patterns internalized. Generating the snippets.
+
+===happy-1===
+// server/src/features/invoices/dtos/InvoiceDto.ts
+import { z } from 'zod';
+
+/**
+ * Schema for creating an invoice
+ * @openapi
+ * components:
+ *   schemas:
+ *     CreateInvoice:
+ *       type: object
+ *       required: [customerName, amountCents, dueDate]
+ *       properties:
+ *         customerName: { type: string, minLength: 1, maxLength: 200 }
+ *         amountCents: { type: integer, minimum: 0, description: Amount in integer cents }
+ *         currency: { type: string, enum: [BRL, USD, EUR] }
+ *         dueDate: { type: string, format: date-time }
+ *         status: { type: string, enum: [DRAFT, ISSUED, PAID, CANCELLED] }
+ */
+export const CreateInvoiceSchema = z.object({
+  customerName: z.string().min(1, 'Customer name is required').max(200, 'Customer name cannot exceed 200 characters'),
+  amountCents: z.number().int('Amount must be integer cents').nonnegative('Amount cannot be negative'),
+  currency: z.enum(['BRL', 'USD', 'EUR']).default('BRL'),
+  dueDate: z.coerce.date(),
+  status: z.enum(['DRAFT', 'ISSUED', 'PAID', 'CANCELLED']).default('DRAFT'),
+});
+
+/**
+ * Schema for updating an invoice (all fields optional)
+ * @openapi
+ * components:
+ *   schemas:
+ *     UpdateInvoice:
+ *       type: object
+ *       properties:
+ *         customerName: { type: string, maxLength: 200 }
+ *         amountCents: { type: integer, minimum: 0 }
+ *         currency: { type: string, enum: [BRL, USD, EUR] }
+ *         dueDate: { type: string, format: date-time }
+ *         status: { type: string, enum: [DRAFT, ISSUED, PAID, CANCELLED] }
+ */
+export const UpdateInvoiceSchema = CreateInvoiceSchema.partial();
+
+export type CreateInvoiceDto = z.infer<typeof CreateInvoiceSchema>;
+export type UpdateInvoiceDto = z.infer<typeof UpdateInvoiceSchema>;
+
+export function isCreateInvoiceInput(obj: unknown): obj is CreateInvoiceDto {
+  return CreateInvoiceSchema.safeParse(obj).success;
+}
+
+export function isUpdateInvoiceInput(obj: unknown): obj is UpdateInvoiceDto {
+  return UpdateInvoiceSchema.safeParse(obj).success;
+}
+
+// server/src/features/invoices/services/InvoiceService.ts
+import type { IInvoiceRepository } from '../repositories/IInvoiceRepository';
+import type { IInvoicePolicy } from '../policies/IInvoicePolicy';
+import { CreateInvoiceDto, isCreateInvoiceInput } from '../dtos/InvoiceDto';
+import type { IInvoice } from '../models/Invoice.model';
+import type { IUser } from '../../users/models/User.model';
+import { ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
+
+export class InvoiceService {
+  constructor(
+    private invoiceRepository: IInvoiceRepository,
+    private invoicePolicy: IInvoicePolicy
+  ) {}
+
+  public async createInvoice(data: CreateInvoiceDto, actor: IUser): Promise<IInvoice> {
+    // policy-first — authorize before touching any data
+    if (!this.invoicePolicy.canCreate(actor)) {
+      throw new ForbiddenError('You are not authorized to create invoices');
+    }
+    if (!isCreateInvoiceInput(data)) {
+      throw new ValidationError('Invalid invoice creation data');
+    }
+    return this.invoiceRepository.create({ ...data, ownerUserId: actor.id });
+  }
+
+  public async getInvoiceById(id: string, actor: IUser): Promise<IInvoice> {
+    if (!this.invoicePolicy.canView(actor, id)) {
+      throw new ForbiddenError('You are not authorized to view this invoice');
+    }
+    // repo scopes by tenant + soft-delete; cross-tenant reads surface as NotFound
+    const invoice = await this.invoiceRepository.findById(id, actor.id);
+    if (!invoice) {
+      throw new NotFoundError('Invoice not found');
+    }
+    return invoice;
+  }
+
+  public async listInvoices(actor: IUser, page = 1, limit = 10) {
+    if (!this.invoicePolicy.canListAll(actor)) {
+      throw new ForbiddenError('You are not authorized to list invoices');
+    }
+    return this.invoiceRepository.findAll(actor.id, page, limit);
+  }
+}
+
+// server/src/controllers/invoiceController.ts
+import { Request, Response } from 'express';
+import { handleApiError } from '../lib/apiUtils';
+import { getFactory } from '@/lib/factory';
+import { getUserContextFromRequest } from '@/lib/authUtils';
+import { CreateInvoiceSchema } from '@/features/invoices/dtos/InvoiceDto';
+
+export const getInvoices = async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const actor = getUserContextFromRequest(req);
+
+    const service = getFactory().getInvoiceService();
+    const { data, pagination } = await service.listInvoices(actor, page, limit);
+
+    return res.json({ data, pagination });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+export const createInvoice = async (req: Request, res: Response) => {
+  try {
+    const parse = CreateInvoiceSchema.safeParse(req.body);
+    if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });
+
+    const actor = getUserContextFromRequest(req);
+    const service = getFactory().getInvoiceService();
+    const created = await service.createInvoice(parse.data, actor);
+
+    return res.status(201).json({ data: created });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+// server/src/routes/index.ts
+import invoiceRoutes from './invoices';
+// ...
+router.use('/invoices', invoiceRoutes);
+
+// server/src/middleware/auth.ts
+const protectedApiPaths = [
+  // ...existing entries...
+  '/api/invoices',        // ← invoices CRUD (tenant-scoped)
+];
+
+// server/src/routes/docs.paths.ts
+/**
+ * @openapi
+ * /api/invoices:
+ *   get:
+ *     tags: [Invoices]
+ *     summary: List invoices (paginated)
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 10 }
+ *     responses:
+ *       200:
+ *         description: Paginated invoice envelope
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items: { $ref: '#/components/schemas/Invoice' }
+ *                 pagination: { $ref: '#/components/schemas/PaginationMetadata' }
+ *   post:
+ *     tags: [Invoices]
+ *     summary: Create an invoice
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/CreateInvoice' }
+ *     responses:
+ *       201:
+ *         description: Created invoice
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data: { $ref: '#/components/schemas/Invoice' }
+ */
+
+// my-app/lib/services/invoice.service.ts
+import { apiClient } from '../api/api-client';
+
+interface PaginationMetadata { page: number; limit: number; total: number; hasMore?: boolean; totalPages?: number; totalCount?: number }
+
+export interface Invoice {
+  id: string;
+  customerName: string;
+  amountCents: number;
+  currency: string;
+  dueDate: string;
+  status: 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateInvoicePayload {
+  customerName: string;
+  amountCents: number;
+  currency?: string;
+  dueDate: string;
+  status?: Invoice['status'];
+}
+
+export const invoiceService = {
+  async listInvoices(page: number, limit: number): Promise<{ data: Invoice[]; pagination: PaginationMetadata }> {
+    return apiClient.get<{ data: Invoice[]; pagination: PaginationMetadata }>(`/invoices?page=${page}&limit=${limit}`);
+  },
+
+  async createInvoice(payload: CreateInvoicePayload): Promise<Invoice> {
+    const res = await apiClient.post<{ data: Invoice }>('/invoices', payload);
+    return res.data;
+  },
+};
+
+// my-app/pages/invoices/index.tsx
+import type { GetServerSideProps, NextPage } from 'next';
+import { useCallback, useEffect, useState } from 'react';
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import { useTranslation } from 'next-i18next';
+import { withAuth } from '@/components/auth/withAuth';
+import { GenericTable } from '@/components/ui/GenericTable';
+import { StandardPagination } from '@/components/ui/StandardPagination';
+import { invoiceService, type Invoice } from '@/lib/services/invoice.service';
+
+const InvoicesPage: NextPage = () => {
+  const { t } = useTranslation('invoices');
+  const [rows, setRows] = useState<Invoice[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const load = useCallback(async () => {
+    const { data, pagination } = await invoiceService.listInvoices(page, 10);
+    setRows(data);
+    setTotalPages(pagination.totalPages ?? 1);
+  }, [page]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-semibold text-neutral-900">{t('title')}</h1>
+      {/* reuse the canonical table — never recreate a bespoke <table> */}
+      <GenericTable<Invoice>
+        rows={rows}
+        columns={[
+          { key: 'customerName', header: t('columns.customer') },
+          { key: 'amountCents', header: t('columns.amount'), render: (r) => (r.amountCents / 100).toFixed(2) },
+          { key: 'status', header: t('columns.status') },
+          { key: 'dueDate', header: t('columns.dueDate') },
+        ]}
+      />
+      <StandardPagination page={page} totalPages={totalPages} onPageChange={setPage} />
+    </div>
+  );
+};
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
+  props: { ...(await serverSideTranslations(locale ?? 'en', ['common', 'invoices'])) },
+});
+
+export default withAuth(InvoicesPage);
+
+===happy-2===
+// server/src/features/invoices/services/InvoiceService.test.ts
+import { InvoiceService } from './InvoiceService';
+import type { IInvoiceRepository } from '../repositories/IInvoiceRepository';
+import type { IInvoicePolicy } from '../policies/IInvoicePolicy';
+import type { IUser } from '../../users/models/User.model';
+import { ForbiddenError, NotFoundError } from '../../../lib/errors';
+
+const actor = { id: 'user-1', role: 'USER' } as IUser;
+
+function makeRepo(overrides: Partial<IInvoiceRepository> = {}): jest.Mocked<IInvoiceRepository> {
+  return {
+    create: jest.fn(),
+    findById: jest.fn(),
+    findAll: jest.fn(),
+    update: jest.fn(),
+    softDelete: jest.fn(),
+    ...overrides,
+  } as unknown as jest.Mocked<IInvoiceRepository>;
+}
+
+function makePolicy(overrides: Partial<IInvoicePolicy> = {}): jest.Mocked<IInvoicePolicy> {
+  return {
+    canCreate: jest.fn().mockReturnValue(true),
+    canView: jest.fn().mockReturnValue(true),
+    canListAll: jest.fn().mockReturnValue(true),
+    canUpdate: jest.fn().mockReturnValue(true),
+    canDelete: jest.fn().mockReturnValue(true),
+    ...overrides,
+  } as unknown as jest.Mocked<IInvoicePolicy>;
+}
+
+describe('InvoiceService', () => {
+  describe('createInvoice (policy-first)', () => {
+    it('throws ForbiddenError and never touches the repo when policy denies', async () => {
+      const repo = makeRepo();
+      const policy = makePolicy({ canCreate: jest.fn().mockReturnValue(false) });
+      const service = new InvoiceService(repo, policy);
+
+      await expect(
+        service.createInvoice({ customerName: 'Acme', amountCents: 1000, currency: 'BRL', dueDate: new Date(), status: 'DRAFT' }, actor)
+      ).rejects.toBeInstanceOf(ForbiddenError);
+
+      expect(policy.canCreate).toHaveBeenCalledWith(actor);
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getInvoiceById (not found)', () => {
+    it('throws NotFoundError when the invoice does not exist', async () => {
+      const repo = makeRepo({ findById: jest.fn().mockResolvedValue(null) });
+      const service = new InvoiceService(repo, makePolicy());
+
+      await expect(service.getInvoiceById('missing', actor)).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('throws NotFoundError for a cross-tenant invoice (repo scopes by actor.id)', async () => {
+      // repo returns null because the row belongs to another tenant
+      const repo = makeRepo({ findById: jest.fn().mockResolvedValue(null) });
+      const service = new InvoiceService(repo, makePolicy());
+
+      await expect(service.getInvoiceById('other-tenant-invoice', actor)).rejects.toBeInstanceOf(NotFoundError);
+      expect(repo.findById).toHaveBeenCalledWith('other-tenant-invoice', actor.id);
+    });
+  });
+});
+
+// my-app/lib/services/invoice.service.test.ts
+import type { Invoice } from './invoice.service';
+
+interface PaginationMetadata { page: number; limit: number; total: number; totalPages?: number; totalCount?: number }
+
+describe('invoice.service contract', () => {
+  it('list return type mirrors the backend envelope { data: Invoice[]; pagination }', () => {
+    // compile-time mirror of what the controller returns via res.json({ data, pagination })
+    const envelope: { data: Invoice[]; pagination: PaginationMetadata } = {
+      data: [
+        {
+          id: 'inv-1',
+          customerName: 'Acme',
+          amountCents: 12500, // integer cents — same field name as the backend
+          currency: 'BRL',
+          dueDate: '2026-07-01T00:00:00.000Z',
+          status: 'ISSUED',
+          createdAt: '2026-06-25T00:00:00.000Z',
+          updatedAt: '2026-06-25T00:00:00.000Z',
+        },
+      ],
+      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+    };
+
+    expect(envelope.data[0].amountCents).toBe(12500);
+    expect(Number.isInteger(envelope.data[0].amountCents)).toBe(true);
+    expect(envelope.pagination.page).toBe(1);
+  });
+});
+
+===edge-1===
+// server/src/features/invoices/services/InvoiceService.ts
+import type { IInvoiceRepository } from '../repositories/IInvoiceRepository';
+import type { IInvoicePolicy } from '../policies/IInvoicePolicy';
+import type { IInvoice } from '../models/Invoice.model';
+import type { IUser } from '../../users/models/User.model';
+import { ForbiddenError, NotFoundError } from '../../../lib/errors';
+// NOTE: no `prisma` import, no React/JSX, no express Request/Response — pure backend domain.
+
+export class InvoiceService {
+  constructor(
+    private invoiceRepository: IInvoiceRepository,
+    private invoicePolicy: IInvoicePolicy
+  ) {}
+
+  public async getInvoiceById(id: string, actor: IUser): Promise<IInvoice> {
+    if (!this.invoicePolicy.canView(actor, id)) {
+      throw new ForbiddenError('You are not authorized to view this invoice');
+    }
+    // all data access goes through the repository — zero prisma.* here
+    const invoice = await this.invoiceRepository.findById(id, actor.id);
+    if (!invoice) {
+      throw new NotFoundError('Invoice not found');
+    }
+    return invoice;
+  }
+}
+
+// my-app/pages/invoices/index.tsx
+import type { GetServerSideProps, NextPage } from 'next';
+import { useEffect, useState } from 'react';
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import { withAuth } from '@/components/auth/withAuth';
+import { GenericTable } from '@/components/ui/GenericTable';
+import { invoiceService, type Invoice } from '@/lib/services/invoice.service';
+// NOTE: the page talks ONLY to invoiceService (apiClient) — never imports prisma / @/lib/prisma.
+
+const InvoicesPage: NextPage = () => {
+  const [rows, setRows] = useState<Invoice[]>([]);
+
+  useEffect(() => {
+    void invoiceService.listInvoices(1, 10).then(({ data }) => setRows(data));
+  }, []);
+
+  return (
+    <GenericTable<Invoice>
+      rows={rows}
+      columns={[{ key: 'customerName', header: 'Customer' }, { key: 'amountCents', header: 'Amount' }]}
+    />
+  );
+};
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
+  props: { ...(await serverSideTranslations(locale ?? 'en', ['common', 'invoices'])) },
+});
+
+export default withAuth(InvoicesPage);
+
+===regression-1===
+// server/src/controllers/invoiceController.ts
+import { Request, Response } from 'express';
+import { handleApiError } from '../lib/apiUtils';
+import { getFactory } from '@/lib/factory';
+import { getUserContextFromRequest } from '@/lib/authUtils';
+
+export const getInvoices = async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const actor = getUserContextFromRequest(req);
+
+    const service = getFactory().getInvoiceService();
+    // service returns { data, pagination }; each invoice carries amountCents (integer cents)
+    const { data, pagination } = await service.listInvoices(actor, page, limit);
+
+    return res.json({ data, pagination });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+// my-app/lib/services/invoice.service.ts
+import { apiClient } from '../api/api-client';
+
+interface PaginationMetadata { page: number; limit: number; total: number; hasMore?: boolean; totalPages?: number; totalCount?: number }
+
+export interface Invoice {
+  id: string;
+  customerName: string;
+  amountCents: number; // SAME field name as the backend — integer cents
+  currency: string;
+  dueDate: string;
+  status: 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const invoiceService = {
+  // EXACT same envelope the controller returns: { data: Invoice[]; pagination }
+  async listInvoices(page: number, limit: number): Promise<{ data: Invoice[]; pagination: PaginationMetadata }> {
+    return apiClient.get<{ data: Invoice[]; pagination: PaginationMetadata }>(`/invoices?page=${page}&limit=${limit}`);
+  },
+};

@@ -1,0 +1,34 @@
+[
+  {
+    "rule": "CHAT-010a",
+    "corrected": "happy-1: `absent:from 'react'` virou `absent-code:from 'react'` — serviço de chat é camada de servidor pura; import de React só falha se estiver no código.",
+    "assertion": "absent-code:from 'react'",
+    "file": "chunk.ts",
+    "good": "// agente é backend puro — sem React\nasync handleToolCall(user, fn, args) { return { status: 'OK', result: [] }; }",
+    "bad": "import React from 'react';\nasync function handleToolCall() { return null; }"
+  },
+  {
+    "rule": "CHAT-010b",
+    "corrected": "happy-1: `absent:res.json` virou `absent-code:res.json` — o transporte (Express Response) é do controller, não do serviço; só falha se o serviço realmente chamar res.json no código.",
+    "assertion": "absent-code:res.json",
+    "file": "chunk.ts",
+    "good": "// o agente NÃO fala HTTP (sem res.json) — só decide e propõe\nasync handleToolCall(user, fn, args) { return { status: 'OK', result: [] }; }",
+    "bad": "async function handleToolCall(req, res) { res.json({ ok: true }); }"
+  },
+  {
+    "rule": "CHAT-009a",
+    "corrected": "regression-1: `absent:PostingService` tropeçava no comentário 'NÃO chama prisma.* nem PostingService'. Trocado por `absent-code:PostingService` (falha só se o handler instanciar/chamar o serviço Prisma first-class).",
+    "assertion": "absent-code:PostingService",
+    "file": "chunk.ts",
+    "good": "// NÃO chama PostingService — vai por ActionProposal\nconst proposal = await this.proposalRepository.create({ status: 'PENDING' });\nreturn { status: 'PROPOSED', proposalId: proposal.id };",
+    "bad": "const posting = new PostingService(this.repo);\nawait posting.post(entryData);\nreturn { status: 'OK' };"
+  },
+  {
+    "rule": "CHAT-009b",
+    "corrected": "regression-1: `absent:prisma.` tropeçava no comentário 'NÃO chama prisma.*'. Trocado por `absent-code:prisma.` (falha só se o handler escrever direto via cliente prisma; `Prisma.JsonValue` (maiúsculo) não casa).",
+    "assertion": "absent-code:prisma.",
+    "file": "chunk.ts",
+    "good": "// nunca prisma.* direto no handler\nconst proposal = await this.proposalRepository.create({ status: 'PENDING', data: d as Prisma.JsonValue });\nreturn { status: 'PROPOSED', proposalId: proposal.id };",
+    "bad": "const row = await prisma.actionProposal.create({ data: { status: 'EXECUTED' } });\nreturn { status: 'OK', row };"
+  }
+]

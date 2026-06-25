@@ -295,3 +295,28 @@ Agendar antes de provar manualmente é exatamente como loops explodem dormindo.
 /skill-audit frontend-modal        # uma corrida avulsa, escopo a uma skill (sem loop)
 ```
 Saída sempre = verdict per-skill + FAILs + patches propostos + 1 linha por achado. **Nunca aplica** — humano aprova quais entram (Patches 1–5 desta sessão foram exatamente esse fluxo).
+
+---
+
+## Baseline congelada — contrato operacional (v1, 2026-06-25)
+
+Rollout de governança completo: **34/34 skills geradoras `validated`**, `run --all` limpo (0 findings), todo controle
+discrimina. A partir daqui o auditor **barra drift**, não constrói baseline. Regras de operação:
+
+1. **Baseline imutável por commit/tag** — `skills-governance-v1` marca o estado 34/34. Reverter a baseline exige novo tag.
+2. **Gate de CI obrigatório** — o job `skill-governance` em `.github/workflows/ci.yml` roda `skill-audit run --all`
+   em PR e na branch principal; **exit ≠ 0 bloqueia o merge**. É determinístico (estático) — não usa model-in-loop.
+3. **PR = incremental, sweep = periódico** — o gate de CI é o `run --all` (barato, < 1s). A **re-geração comportamental**
+   (subagente gera em contexto limpo → `batch-eval`) é a varredura completa human-run via `/loop /skill-audit --sweep`,
+   periódica — nunca no CI (model-in-loop é caro e não-determinístico).
+4. **Mudança de regra = change-set atômico** — alterar/adicionar uma regra (`[PREFIX-NNN]`) exige, no MESMO commit:
+   o **gate** (`governance.md`), a **eval** (`evals.json`) e o **control** quando a assertion foi de-brittled
+   (`controls/<skill>.json`), o **REPORT.md** atualizado e o **bump de `governance-version`**. `eval-score`/`last-evaluated`
+   são projeção do REPORT (SG-011) — nunca editados à mão.
+5. **Harness só cresce com falha real** — nenhum novo kind de assertion / gate sem um caso reproduzível que a baseline
+   atual deixa passar. (`absent-code` nasceu de um falso-positivo de comentário real; o char-scanner, de URL/regex/template
+   reais.) Sem evidência de falha, não expandir — YAGNI.
+
+> **Contrato de fontes (o que decide o quê):** *skill define* (SKILL.md + contratos) · *governance relaciona* (governance.md:
+> regra→gate→eval) · *cbm localiza* (estrutural, não-autoritativo — CBM-001) · *código/testes confirmam* (verdade objetiva) ·
+> *skill-audit impede drift* (gate determinístico no CI + sweep comportamental human-run).

@@ -3,7 +3,19 @@ name: fullstack-feature-generator
 description: Gera vertical slice completa — Prisma, DTO, Repository, Policy, Service, Controller, Route, OpenAPI, Frontend service e Page
 argument-hint: "[nome-do-recurso] [--com-prisma] [--sem-frontend]"
 allowed-tools: Read, Grep, Glob, Write, Edit, Bash
+disable-model-invocation: true
+metadata:
+  governance-skill-id: "SKL-FULLSTACK-FEATURE"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
+
+> **[FULL-008] Invocação só explícita** (`disable-model-invocation: true`): com `--com-prisma` esta skill
+> **executa `prisma migrate`** (efeito externo: altera o schema do banco). Por isso nunca é auto-invocada pelo
+> router — o usuário a chama de propósito, em branch separada, e revisa o diff antes do commit.
 
 # Fullstack Feature Generator
 
@@ -14,6 +26,19 @@ Orquestra a geração de TODOS os átomos de um novo recurso, do Prisma ao front
 ## Contrato obrigatório
 
 Esta skill gera múltiplas camadas — TODO arquivo gerado deve cumprir `.claude/skills/_ARCHITECTURE-CONTRACT.md` (camadas, DI, soft-delete, policy-first, registro de rota = 3 toques, no-`any`, frontend service layer, reuse de canônicos, design system, testes). O contrato é o gate final; as sub-skills herdam-no.
+
+## Regras de composição (gated) — esta skill COMPÕE, não duplica os contratos-filhos
+
+São as regras próprias da camada de orquestração. O **texto** de cada contrato-filho (DTO/Repo/Policy/…) é
+canônico nas sub-skills — aqui só garantimos a **costura** e as **fronteiras** da fatia inteira:
+
+- **[FULL-001] Compor a cadeia canônica na ordem** — contrato (DTO + `@openapi`) → backend (repo → policy → service → factory → controller → route) → frontend (service → page). Nunca pular elos nem inverter a ordem (Service depende de Repo+Policy).
+- **[FULL-002] Delegar, não copiar** — aplicar os **contratos das sub-skills** (`backend-*-generator`, `frontend-api-service-generator`, `frontend-page-generator`) por referência; não reescrever as instruções delas aqui, e reusar os canônicos (`GenericTable`/`Modal`/`StandardPagination`) em vez de recriar (anti "módulo ilha").
+- **[FULL-003] UI livre de Prisma/DB** — page e frontend service nunca importam `prisma`/`@/lib/prisma` nem acessam o banco; falam **só** com a service layer via `apiClient`.
+- **[FULL-004] Domínio/serviço livre de React e transporte** — `Service`/`Repository` nunca importam React/JSX nem usam `Request`/`Response`/`res.json`; o transporte (HTTP) fica no controller.
+- **[FULL-005] Rota = 3 toques** — mount em `routes/index.ts` + `'/api/<resource>'` em `protectedApiPaths` (`middleware/auth.ts`) + bloco `@openapi` em `routes/docs.paths.ts`.
+- **[FULL-006] Contrato compatível ponta-a-ponta** — o **envelope** e os **nomes de campo** que o backend retorna (`res.json({ data, pagination })`, ex. `amountCents`) são **idênticos** aos que o frontend service tipa/consome. Cada lado válido isolado mas discordando = bug de runtime que o `tsc` não pega.
+- **[FULL-007] Testes dos dois lados** — backend (`jest` no Service: policy-first + not-found) **e** frontend, incluindo a compatibilidade de contrato (tipo do service espelha o envelope do backend).
 
 ## ⭐ Exemplo de referência canônico (espelhe este slice)
 

@@ -606,9 +606,56 @@ function cmdEvalAssert(skillDirArg, caseId, outFile) {
 
 // batch-eval <skill> <combinedfile> — split em ===HAPPY===/===EDGE===/===REGRESSION===
 // e roda as assertions de happy-1/edge-1/regression-1 contra a SEÇÃO isolada (evita contaminação).
+// remove comentários de linha (// …) e de bloco (/* … */) para asserts que olham só CÓDIGO.
+// Scanner por caractere (não regex) com estados string/template/regex — `//` dentro de string
+// ("a//b"), URL ("http://x"), regex literal (/a\/\//) ou template (`/* x */`) NÃO são comentário
+// e ficam intactos. Direção segura: na dúvida, removemos MENOS (mantém o token) → nunca um
+// PASS falso de `absent-code` (no máximo um FAIL conservador). ponytail: teto conhecido — um
+// regex logo após `)`/`]`/identificador (contexto de divisão) pode ser lido como divisão; os
+// casos reais de regex aqui vêm após `=`/`(`/`.match(`/keyword (contexto de regex), cobertos.
+const REGEX_PRECEDING_KW = /(?:return|typeof|instanceof|in|of|new|delete|void|do|else|case|yield|await|throw)$/;
+function stripCodeComments(text) {
+  let out = '';
+  let prevSig = '';   // último caractere significativo (não-espaço) emitido — decide regex vs divisão
+  let lastWord = '';  // identificador à esquerda (preservado por espaços) — detecta `return /re/`
+  const emit = (ch) => {
+    out += ch;
+    if (/\S/.test(ch)) { prevSig = ch; lastWord = /[A-Za-z0-9_$]/.test(ch) ? lastWord + ch : ''; }
+  };
+  let i = 0; const n = text.length;
+  while (i < n) {
+    const c = text[i], d = text[i + 1];
+    if (c === '/' && d === '/') { i += 2; while (i < n && text[i] !== '\n') i++; continue; }      // linha
+    if (c === '/' && d === '*') { i += 2; while (i < n && !(text[i] === '*' && text[i + 1] === '/')) i++; i += 2; out += ' '; continue; } // bloco → espaço
+    if (c === '"' || c === "'") {  // string
+      out += c; i++;
+      while (i < n) { const ch = text[i]; out += ch; if (ch === '\\') { out += text[i + 1] ?? ''; i += 2; continue; } i++; if (ch === c) break; }
+      prevSig = c; lastWord = ''; continue;
+    }
+    if (c === '`') {  // template (mantido inteiro — conservador; comentário interno raro fica)
+      out += c; i++;
+      while (i < n) { const ch = text[i]; out += ch; if (ch === '\\') { out += text[i + 1] ?? ''; i += 2; continue; } i++; if (ch === '`') break; }
+      prevSig = '`'; lastWord = ''; continue;
+    }
+    if (c === '/') {  // regex literal só em contexto de valor (não após identificador/`)`/`]`)
+      const division = /[A-Za-z0-9_$)\]}`'".]/.test(prevSig) && !REGEX_PRECEDING_KW.test(lastWord);
+      if (!division) {
+        out += c; i++; let inClass = false;
+        while (i < n) { const ch = text[i]; out += ch; if (ch === '\\') { out += text[i + 1] ?? ''; i += 2; continue; } i++; if (ch === '[') inClass = true; else if (ch === ']') inClass = false; else if (ch === '/' && !inClass) break; }
+        prevSig = '/'; lastWord = ''; continue;
+      }
+      emit(c); i++; continue;
+    }
+    emit(c); i++;
+  }
+  return out;
+}
 function runKind(kind, arg, text) {
   if (kind === 'contains') return text.includes(arg);
   if (kind === 'absent') return !text.includes(arg);
+  // *-code: ignora comentários — limite arquitetural por arquivo sem falso-positivo de comentário
+  if (kind === 'contains-code') return stripCodeComments(text).includes(arg);
+  if (kind === 'absent-code') return !stripCodeComments(text).includes(arg);
   if (kind === 'regex') { try { return new RegExp(arg).test(text); } catch { return false; } }
   return null; // qualitativa (model-judged)
 }

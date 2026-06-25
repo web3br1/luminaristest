@@ -60,6 +60,32 @@ jobs:
       - name: Build
         run: npm run build
 
+  # Gate de governança de skills. `skill-audit run --all` é determinístico (estático: validate +
+  # governance-check + sync-metadata + coverage + eval-estrutural + controls + self-check) — sem
+  # model-in-loop, roda em < 1s. Barra drift: regra sem gate, gate órfão, eval-score divergente do
+  # REPORT, controle que deixou de discriminar, ou self-check do auditor quebrado. A varredura
+  # COMPORTAMENTAL (re-geração via subagente / `/skill-audit --sweep`) continua human-run, fora do CI.
+  # Precisa do `typescript` de server/ para as assertions AST (ast-jsx/ast-import/ast-noclass).
+  skill-governance:
+    name: Skill governance – skill-audit run --all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server deps (typescript for AST assertions)
+        working-directory: server
+        run: npm ci
+
+      - name: skill-audit run --all (0 findings required)
+        run: node .claude/skills/skill-audit/skill-audit.mjs run
+
   # Diff-scoped design gate. A base ainda tem ~33 ocorrências de `zinc-` pré-existentes
   # (contrato §4: superfícies dark = neutral-*). Em vez de reprovar nelas (refactor =
   # fatia própria), este job falha SÓ quando a mudança INTRODUZ um `zinc-` novo — mesmo

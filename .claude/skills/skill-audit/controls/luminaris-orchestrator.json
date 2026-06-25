@@ -1,0 +1,18 @@
+[
+  {
+    "rule": "ORCH-003",
+    "corrected": "regression-1: separação de papéis via sinal POSITIVO — o plano delega a revisão ao luminaris-reviewer (não fecha o loop sozinho). Bom: delega; ruim: orquestrador se auto-atribui a revisão.",
+    "assertion": "regex:(revisor|luminaris-reviewer)",
+    "file": "chunk.md",
+    "good": "Revisão (valida o artefato): luminaris-reviewer confere os padrões. O orquestrador não revisa.",
+    "bad": "Revisão: eu mesmo (orquestrador) valido o resultado e aprovo o commit."
+  },
+  {
+    "rule": "ORCH-004",
+    "corrected": "happy-1: handoff carrega os campos obrigatórios — presença da seção de checks de validação. Bom: tem Checks; ruim: plano sem checks.",
+    "assertion": "regex:(Checks|tsc)",
+    "file": "chunk.md",
+    "good": "### Checks de validação ao final\n- [ ] cd server && npx tsc --noEmit",
+    "bad": "### Passos\n1. fullstack-feature-generator payroll"
+  }
+]

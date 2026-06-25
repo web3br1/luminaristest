@@ -1,0 +1,87 @@
+{
+  "skill": "job-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Preciso de um seed de volume para popular a tela de Fornecedores com centenas de registros de teste no ambiente de desenvolvimento, idempotente, rodando Prisma direto.",
+      "assertions": [
+        "activation: a skill job-generator deve ser a escolhida (seed de volume / background script é o domínio dela)"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Adicione um novo estágio ao wizard de onboarding AI que pergunta o setor da empresa e ajusta o preset matching.",
+      "assertions": [
+        "non-activation: job-generator NÃO deve ativar — estender a máquina de estados do wizard de onboarding (estágio/prompt/preset matcher) é trabalho de interview-setup-generator (skill recíproca). 'job' aqui é tarefa de background, não emprego nem onboarding."
+      ]
+    },
+    {
+      "id": "trigger-neg-2",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Monte um fluxo de recrutamento: cadastro de vagas de emprego e agendamento de entrevistas com candidatos.",
+      "assertions": [
+        "non-activation: job-generator NÃO deve ativar — 'job' nesta skill é cron/seed de manutenção, NÃO vaga de emprego; recrutamento/vaga/candidato não pertence a esta skill (nem é o wizard de onboarding). Decoy lexical de 'job'."
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": ["JOB-001", "JOB-002", "JOB-005", "JOB-006", "JOB-007", "JOB-008"],
+      "prompt": "Gere um seed de VOLUME de Fornecedores em server/scripts/seed-suppliers-demo.js (Node + Prisma direto). Requisitos: (1) guard de produção no topo — aborta se process.env.NODE_ENV === 'production'; (2) idempotência — cada registro inserido leva data.__demo = true, e um clearDemo(tableId) faz findMany → filtra r.data.__demo === true → deleteMany ANTES de reinserir; (3) resolve a tabela por internalName (getTable/findFirst com where internalName), nunca por posição [0]; (4) usa createMany para volume com múltiplos status e datas variadas; (5) cabeçalho documenta que Prisma direto bypassa factory/validação/rules/policy. Escopa a um userId resolvido por --email. Saída: conteúdo completo do arquivo, com o marcador de arquivo na primeira linha.",
+      "target_files": ["server/scripts/seed-suppliers-demo.js"],
+      "assertions": [
+        "@seed-suppliers-demo.js::regex:process\\.env\\.NODE_ENV\\s*===\\s*['\"]production['\"]",
+        "@seed-suppliers-demo.js::regex:__demo:\\s*true",
+        "@seed-suppliers-demo.js::regex:__demo\\s*===\\s*true",
+        "@seed-suppliers-demo.js::regex:deleteMany\\(",
+        "@seed-suppliers-demo.js::regex:internalName",
+        "@seed-suppliers-demo.js::contains:createMany",
+        "@seed-suppliers-demo.js::regex:(bypass|factory|rule engine|valida)"
+      ]
+    },
+    {
+      "id": "happy-2",
+      "type": "happy",
+      "rules": ["JOB-003", "JOB-004", "JOB-005"],
+      "prompt": "Gere um background job periódico server/src/jobs/PurgeExpiredProposals.ts que hard-deleta ActionProposal com status EXPIRED há mais de 30 dias. Requisitos: (1) export async function sem args retornando Promise<void>; (2) usa prisma diretamente (import default de ../lib/prisma) — NÃO usa getFactory(); (3) logger (import de ../lib/logger) com log de início e fim com métrica de afetados, e try/catch com logger.error; (4) comente onde/como registrar o agendamento no boot (server.ts). Saída: conteúdo completo do arquivo, com o marcador de arquivo na primeira linha.",
+      "target_files": ["server/src/jobs/PurgeExpiredProposals.ts"],
+      "assertions": [
+        "@PurgeExpiredProposals.ts::regex:export\\s+async\\s+function\\s+\\w+\\s*\\(\\s*\\)\\s*:\\s*Promise<void>",
+        "@PurgeExpiredProposals.ts::ast-import:prisma@../lib/prisma",
+        "@PurgeExpiredProposals.ts::ast-import:logger@../lib/logger",
+        "@PurgeExpiredProposals.ts::regex:logger\\.info\\(",
+        "@PurgeExpiredProposals.ts::regex:logger\\.error\\(",
+        "@PurgeExpiredProposals.ts::absent-code:getFactory("
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": ["JOB-001", "JOB-002"],
+      "prompt": "No seed de Fornecedores, ao re-rodar, os registros de demo anteriores devem sumir antes de qualquer inserção. Gere a função clearDemo(tableId) que faz prisma.dynamicTableData.findMany → filtra r.data.__demo === true → prisma.dynamicTableData.deleteMany pelos ids filtrados, e o trecho do main() que chama clearDemo para cada tabela ANTES de createMany. Saída: o trecho, com o marcador de arquivo na primeira linha (server/scripts/seed-suppliers-demo.js).",
+      "assertions": [
+        "@seed-suppliers-demo.js::regex:__demo\\s*===\\s*true",
+        "@seed-suppliers-demo.js::regex:findMany\\(",
+        "@seed-suppliers-demo.js::regex:deleteMany\\(",
+        "@seed-suppliers-demo.js::contains:clearDemo"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": ["JOB-006", "JOB-007"],
+      "regression_of": "Seed resolvendo a tabela/pai por posição de array [0] (ordenação instável entre API e findMany) e/ou sem guard de produção, podendo rodar em prod e cruzar dados entre usuários.",
+      "prompt": "Gere o trecho do seed que resolve a DynamicTable de Fornecedores e a tabela-pai (Categorias) e insere os registros — resolvendo SEMPRE por internalName (findFirst where internalName), NUNCA por posição [0], e com o guard de produção (process.env.NODE_ENV === 'production') no topo. Saída: o trecho, com o marcador de arquivo na primeira linha (server/scripts/seed-suppliers-demo.js).",
+      "assertions": [
+        "@seed-suppliers-demo.js::regex:internalName",
+        "@seed-suppliers-demo.js::regex:NODE_ENV\\s*===\\s*['\"]production['\"]",
+        "@seed-suppliers-demo.js::absent-code:[0]"
+      ]
+    }
+  ]
+}

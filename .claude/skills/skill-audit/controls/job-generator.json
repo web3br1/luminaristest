@@ -1,0 +1,18 @@
+[
+  {
+    "rule": "JOB-005",
+    "corrected": "happy-2: `absent:getFactory(` tropeçava no comentário 'jobs do NOT go through getFactory()'. Trocado por `absent-code:getFactory(` (ignora comentário; falha só se o job realmente chamar a factory).",
+    "assertion": "absent-code:getFactory(",
+    "file": "chunk.ts",
+    "good": "// jobs do NOT use getFactory()\nimport prisma from '../lib/prisma';\nexport async function run(): Promise<void> { await prisma.actionProposal.deleteMany({ where: {} }); }",
+    "bad": "import { getFactory } from '../lib/factory';\nexport async function run(): Promise<void> { const f = getFactory(); await f.proposalService.purge(); }"
+  },
+  {
+    "rule": "JOB-007",
+    "corrected": "regression-1: `absent:[0]` tropeçava nos comentários 'NEVER by array position [0]' / 'never an array index'. Trocado por `absent-code:[0]` (falha só se o código resolver a tabela por posição).",
+    "assertion": "absent-code:[0]",
+    "file": "chunk.js",
+    "good": "// resolve by internalName, never by [0]\nconst t = await prisma.dynamicTable.findFirst({ where: { userId, internalName: 'suppliers' } });",
+    "bad": "const tables = await prisma.dynamicTable.findMany({ where: { userId } });\nconst t = tables[0];"
+  }
+]

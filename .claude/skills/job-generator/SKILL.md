@@ -3,6 +3,13 @@ name: job-generator
 description: Gera job de background (scheduled task) ou seed fixture de desenvolvimento seguindo os padrões do Luminaris
 argument-hint: "[NomeDoJob] [schedule|seed]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+metadata:
+  governance-skill-id: "SKL-JOB"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Job Generator
@@ -17,14 +24,14 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 
 ## Checklist obrigatório — Job / Seed
 
-- [ ] **Idempotência:** re-rodar o job/seed **não duplica** nem corrompe. Operações de manutenção são reentrantes; seeds marcam e limpam antes de reinserir.
-- [ ] **Seeds tagueiam os registros** — cada registro semeado leva `data.__demo = true`; no início, o seed apaga os `__demo` anteriores (`findMany` → filtra → `deleteMany`) antes de reinserir. Sem tag + cleanup, duplica a cada execução.
-- [ ] **Cron/agendamento explícito** — se o job roda periodicamente, registrar a chamada/agendamento no boot (`server.ts`) com o intervalo documentado. Se é one-shot, declarar isso.
-- [ ] **Logs de início e fim com métricas** — `logger.info('Job started', { job })` + `logger.info('Job completed', { affected: N })`; `try/catch` com `logger.error(msg, { context })` (string primeiro, contexto depois).
-- [ ] **Prisma direto é aceitável em script de seed/job — mas documentar** que bypassa factory, schema-validation, rules/plugins e policy. Anotar no topo do arquivo o que está sendo contornado.
-- [ ] **Guard de produção em seed:** `if (process.env.NODE_ENV === 'production') throw/return` no topo. Seed de volume é dev-only, standalone (nunca endpoint), escopado a um `userId` resolvido por `--email`.
-- [ ] **Resolver tabelas/pais por `internalName`/`id`, nunca por `[0]`** — a API ordena `createdAt desc` e o `prisma.findMany` default difere; posição não é estável.
-- [ ] **Cobrir a variabilidade que a view ramifica** (seed): múltiplos status/scores, **>1 registro-pai** (ex.: 2 pipelines) e datas passadas/futuras — é assim que se pega bug de view (colunas duplicadas de Kanban) escondido por dados happy-path.
+- [ ] **[JOB-001] Idempotência:** re-rodar o job/seed **não duplica** nem corrompe. Operações de manutenção são reentrantes; seeds marcam e limpam antes de reinserir.
+- [ ] **[JOB-002] Seeds tagueiam os registros** — cada registro semeado leva `data.__demo = true`; no início, o seed apaga os `__demo` anteriores (`findMany` → filtra `r.data.__demo === true` → `deleteMany`) antes de reinserir. Sem tag + cleanup, duplica a cada execução.
+- [ ] **[JOB-003] Cron/agendamento explícito** — se o job roda periodicamente, registrar a chamada/agendamento no boot (`server.ts`) com o intervalo documentado. Se é one-shot, declarar isso.
+- [ ] **[JOB-004] Logs de início e fim com métricas** — `logger.info('Job started', { job })` + `logger.info('Job completed', { affected: N })`; `try/catch` com `logger.error(msg, { context })` (string primeiro, contexto depois).
+- [ ] **[JOB-005] Prisma direto é aceitável em script de seed/job — mas documentar** que bypassa factory, schema-validation, rules/plugins e policy. Anotar no topo do arquivo o que está sendo contornado.
+- [ ] **[JOB-006] Guard de produção em seed:** `if (process.env.NODE_ENV === 'production') throw/return` no topo. Seed de volume é dev-only, standalone (nunca endpoint), escopado a um `userId` resolvido por `--email`.
+- [ ] **[JOB-007] Resolver tabelas/pais por `internalName`/`id`, nunca por `[0]`** — a API ordena `createdAt desc` e o `prisma.findMany` default difere; posição não é estável.
+- [ ] **[JOB-008] Cobrir a variabilidade que a view ramifica** (seed): múltiplos status/scores, **>1 registro-pai** (ex.: 2 pipelines) e datas passadas/futuras — é assim que se pega bug de view (colunas duplicadas de Kanban) escondido por dados happy-path.
 
 ## When to use
 

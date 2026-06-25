@@ -86,3 +86,18 @@ triaged_drift:
   - formatters island (formatTimestamp ×3 + FinanceService gêmeo): aceito — virou Patch 1/2/3 da sessão de revisão
   - chat hooks bypass service layer: aceito — virou Patch 4
   - rejeitado over-read: orchestrator:24 / implementer:37 cadeia users — shorthand correto, NÃO é defeito
+
+# --- rollout de evals/governança (governance.md + evals + controls + promoção a validated) ---
+# Por lote (D). Cada skill: governance.md + evals/evals.json + controls + _eval.out.txt (output BRUTO) + REPORT.md.
+eval_rollout:
+  validated: 34   # TODAS as 34 skills geradoras validated (D2 +3, D3 +1, D4 +3 fecharam o rollout)
+  final_state: "34 governed · 34 eval-enabled · 34 stable-id · validate/governance/sync-metadata/controls/self-check/run --all todos exit 0 · 0 findings"
+  promote_gate: "run --all + controls + self-check + inventory + sync-metadata + REPORT concordam"
+  D2 (2026-06-25): domínio job/interview/chat — TODAS validated, score 1.00
+    - job-generator: validated 1.00 — neg recíproco↔interview + decoy 'vaga/recrutamento'; absent-code p/ comentário
+    - interview-setup-generator: validated 1.00 — neg recíproco↔job + decoy 'entrevista de emprego'; PATCH P3 (stageConfig/IStageConfig + ordem de args de getAiResponseWithHistory)
+    - chat-domain-generator: validated 1.00 — neg visual (rejeita estilo/React) + CHAT-010 boundary (sem React/res.json); absent-code p/ §2.1-B
+  harness_new: "kind de assertion absent-code/contains-code (ignora comentários) — agora char-scanner com estados string/template/regex (URL/regex/template não viram comentário; controle no _ast-harness)"
+  D3 (2026-06-25): fullstack-feature-generator — validated 1.00; tratada como skill de COMPOSIÇÃO (não re-testa contratos-filhos); rejeita backend-only/UI-only; regressão FULL-006 = backend×frontend válidos isolados mas discordando de envelope/campo; disable-model-invocation:true (--com-prisma roda prisma migrate); toda assertion multi-arquivo escopada
+  D4 (2026-06-25): luminaris-orchestrator/implementer/reviewer — validated 1.00; separação estrita de papéis + negatives recíprocos entre os 3; evals de ARTEFATO (plano/relatório), não código; críticos: impl claim-PASS-sem-rodar → reviewer BLOCKED; evidência ausente → BLOCKED nunca PASS; reviewer devolve em vez de consertar; orchestrator não se auto-atribui. Lição: "não-X" de agente prova-se por sinal POSITIVO (handoff/devolução), não por absent de palavra que o artefato discute
+  pendentes: nenhum — rollout completo (34/34)

@@ -1,0 +1,256 @@
+I have everything needed. Generating the three sections now per the chat-domain-generator contract.
+
+===happy-1===
+```
+// server/src/features/chat/services/LuminarisAgentService.ts
+async getTools(userId: string): Promise<OpenAI.Chat.Completions.ChatCompletionTool[]> {
+    const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+        // ... ferramentas existentes (list_my_tables, get_table_schema, query_table_data, request_record_creation, request_record_update) ...
+        {
+            type: 'function',
+            function: {
+                name: 'query_supplier_data',
+                description: 'Search for supplier records in the user supplier table (read-only).',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        filters: { type: 'object', description: 'Optional key-value filters to narrow the supplier search.' }
+                    }
+                }
+            }
+        },
+        {
+            type: 'function',
+            function: {
+                name: 'request_supplier_creation',
+                description: 'Triggers a UI modal for the user to confirm the creation of a new supplier record. YOU MUST PROVIDE ALL DATA HERE. Calling this IS the way to ask for confirmation.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        data: { type: 'object', description: 'The data for the new supplier. MUST NOT BE EMPTY. Include all mandatory fields from the schema.' }
+                    },
+                    required: ['data']
+                }
+            }
+        }
+    ];
+
+    return tools;
+}
+
+async handleToolCall(user: UserContext, functionName: string, args: Record<string, unknown>): Promise<unknown> {
+    logger.info(`Agent Tool Call: ${functionName}`, { userId: user.userId, args });
+
+    switch (functionName) {
+        // ... cases existentes (list_my_tables, get_table_schema, query_table_data, request_record_creation, request_record_update) ...
+
+        case 'query_supplier_data': {
+            // [CHAT-002] Leitura: retorna o resultado direto, nunca vira ActionProposal.
+            // [CHAT-004] Resolve a tabela por internalName (preset key) escopado ao user — nunca [0] nem id presumido.
+            const table = await this.dynamicTableService.getTableByInternalName(user, 'suppliers');
+            const data = await this.dynamicTableService.getAllTableData(user, table.id);
+            let filtered = data;
+            if (args.filters) {
+                filtered = data.filter((row) => {
+                    return Object.entries(args.filters as Record<string, unknown>).every(([key, val]) => (row.data as Record<string, unknown>)?.[key] === val);
+                });
+            }
+            return { status: 'OK', result: filtered.slice(0, 10) };
+        }
+
+        case 'request_supplier_creation': {
+            // [CHAT-001] Escrita: SEMPRE via ActionProposal status=PENDING — nunca escreve no DB direto.
+            const creationData = args.data as Record<string, unknown> | undefined;
+            if (!creationData || Object.keys(creationData).length === 0) {
+                return { error: 'ERRO: Você deve fornecer o objeto "data" com os campos preenchidos. Não posso criar uma proposta vazia.' };
+            }
+            // [CHAT-004] Resolve por internalName escopado ao user.
+            const table = await this.dynamicTableService.getTableByInternalName(user, 'suppliers');
+            const proposal = await this.proposalRepository.create({
+                userId: user.userId,
+                action: 'CREATE',
+                tableId: table.id,
+                tableName: table.name,
+                tableLabel: table.name,
+                status: 'PENDING',
+                data: creationData as unknown as Prisma.JsonValue
+            });
+            return { status: 'PROPOSED', proposalId: proposal.id };
+        }
+
+        default:
+            throw new Error(`Unknown function: ${functionName}`);
+    }
+}
+```
+```
+// server/src/lib/factory.ts
+// Lib - External Services / Features - Services (imports já existentes)
+import { NotificationService } from '../features/notifications/services/NotificationService';
+
+// ... dentro do constructor, após knowledgeGraphService / dynamicTableService ...
+const notificationService = new NotificationService(this.repositories.user);
+
+const luminarisAgentService = new LuminarisAgentService(
+  dynamicTableService,
+  this.repositories.actionProposal,
+  notificationService // ← [CHAT-008] nova dep injetada via factory, nunca `new` dentro do agente
+);
+```
+
+===edge-1===
+```
+// server/src/features/chat/services/ChatService.ts
+async generateResponse(request: ChatRequest & { user: UserContext }): Promise<ChatResponse> {
+  const { documentIds, history, confirmedProposalId, user } = request;
+  const query = sanitizeUserInput(request.query ?? '');
+
+  // 0. Confirmação de proposta tem precedência (executeProposal) — omitido aqui.
+
+  // [CHAT-006] Decide o modo: RAG só quando há documentos; AGENT é o default.
+  const hasSelectedDocuments = Array.isArray(documentIds) && documentIds.length > 0;
+
+  if (!hasSelectedDocuments) {
+    // ... MODO AGENTE ERP (loop de tool calls) — ver regression-1 ...
+    return this.runAgentMode(request, query);
+  }
+
+  // MODO RAG
+  // [CHAT-005] Barreira de segurança: verifica que TODOS os documentIds pertencem ao
+  // usuário ANTES de tocar no Qdrant. Previne leak cross-tenant.
+  const ownedDocs = await prisma.document.findMany({
+    where: { id: { in: documentIds }, userId: user.id },
+    select: { id: true },
+  });
+  if (ownedDocs.length !== documentIds.length) {
+    logger.warn('RAG ownership check failed: one or more documents do not belong to the requesting user', {
+      requestedIds: documentIds,
+      userId: user.id,
+      foundCount: ownedDocs.length,
+    });
+    throw new ForbiddenError('One or more documents do not belong to this user');
+  }
+
+  let contextualQuery = query;
+  if (history && history.length > 1) {
+    contextualQuery = await this.rewriteQueryWithHistory(query, history);
+  }
+  const queryEmbedding = await this.embeddingService.embedText(contextualQuery);
+
+  // [CHAT-005] search escopado: docIds do dono + userId para isolamento de tenant no índice.
+  const searchResults = await this.vectorRepository.search(queryEmbedding, 10, documentIds, user.id);
+  const context = searchResults.map(result => result.payload.textContent as string).join('\n\n---\n\n');
+
+  if (searchResults.length === 0) {
+    return {
+      answer: 'Desculpe, não encontrei informações relevantes nos documentos selecionados.',
+      type: 'TEXT',
+      sourceDocuments: [],
+    };
+  }
+
+  const finalPrompt = `Contexto:\n---\n${context}\n---\nPergunta: "${contextualQuery}"`;
+  const answer = await this.openaiService.getChatCompletion(finalPrompt, wrapSystemPrompt(RAG_SYSTEM_PROMPT, user.id));
+
+  return {
+    answer: answer || 'Não foi possível gerar uma resposta.',
+    type: 'TEXT',
+    sourceDocuments: searchResults.map(result => ({
+      id: String(result.id),
+      score: result.score,
+      payload: result.payload as { documentId: string; userId: string; textContent: string; fileName: string; chunkId: string; index: number }
+    })),
+  };
+}
+```
+
+===regression-1===
+```
+// server/src/features/chat/services/LuminarisAgentService.ts
+case 'request_journal_entry_posting': {
+    // [CHAT-001 + CHAT-009] Ação que toca o módulo contábil (Prisma first-class):
+    // cria um ActionProposal status=PENDING e retorna { status: 'PROPOSED', proposalId }.
+    // NÃO chama prisma.* nem PostingService aqui — o invariante de partida-dobrada é
+    // aplicado pela API própria do módulo na confirmação (executeProposal), pelo mesmo
+    // fluxo proposta→confirmação. Misturar os dois mundos no handler é o anti-padrão §2.1.
+    const entryData = args.data as Record<string, unknown> | undefined;
+    if (!entryData || Object.keys(entryData).length === 0) {
+        return { error: 'ERRO: Você deve fornecer o objeto "data" com as linhas do lançamento contábil.' };
+    }
+    const proposal = await this.proposalRepository.create({
+        userId: user.userId,
+        action: 'CREATE',
+        tableId: args.tableId as string,
+        tableName: 'journal_entries',
+        tableLabel: 'Lançamento Contábil',
+        status: 'PENDING',
+        data: entryData as unknown as Prisma.JsonValue
+    });
+    return { status: 'PROPOSED', proposalId: proposal.id };
+}
+```
+```
+// server/src/features/chat/services/ChatService.ts
+// [CHAT-007] MODO AGENTE ERP — o loop de tool calls mantém o limite de 5 iterações.
+// Limite NÃO é incrementado: se 5 não bastam, a tool está mal modelada.
+let iterations = 0;
+while (iterations < 5) {
+  iterations++;
+  const response = await this.openaiService.getChatCompletionWithToolsAndHistory(messages, tools);
+  if (!response) break;
+
+  if (response.tool_calls && response.tool_calls.length > 0) {
+    messages.push(response as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam);
+
+    for (const toolCall of response.tool_calls) {
+      let toolArgs: Record<string, unknown>;
+      try {
+        toolArgs = JSON.parse(toolCall.function.arguments);
+      } catch (parseError) {
+        logger.warn('Failed to parse tool args, skipping', { toolName: toolCall.function.name });
+        continue;
+      }
+      const result = await this.agentService.handleToolCall(user, toolCall.function.name, toolArgs);
+
+      // [CHAT-001] Se o handler devolveu uma proposta, interrompe e devolve ao frontend.
+      const toolResult = result as { status?: string; proposalId?: string };
+      if (toolResult.status === 'PROPOSED') {
+        const proposal = await this.agentService.getProposal(toolResult.proposalId!);
+        if (!proposal) throw new Error('Proposal not found');
+        return {
+          answer: `Entendido! Estou propondo a seguinte ação na tabela **${proposal.tableName}**. Por favor, confirme os detalhes no modal abaixo para prosseguir.`,
+          type: 'ACTION_PROPOSAL',
+          proposal: {
+            id: proposal.id,
+            action: proposal.action as 'CREATE' | 'UPDATE' | 'DELETE',
+            tableName: proposal.tableName,
+            tableLabel: proposal.tableLabel,
+            data: proposal.data
+          },
+          sourceDocuments: []
+        };
+      }
+
+      messages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: JSON.stringify(result)
+      } as { role: 'tool'; tool_call_id: string; content: string });
+    }
+
+    const nextCompletion = await this.openaiService.getChatCompletionWithHistory(messages);
+    if (nextCompletion) {
+      return { answer: nextCompletion, type: 'TEXT', sourceDocuments: [] };
+    }
+    break;
+  } else {
+    return {
+      answer: response.content || 'Não foi possível gerar uma resposta.',
+      type: 'TEXT',
+      sourceDocuments: [],
+    };
+  }
+}
+
+return { answer: 'O limite de processamento do agente foi atingido.', type: 'TEXT', sourceDocuments: [] };
+```
