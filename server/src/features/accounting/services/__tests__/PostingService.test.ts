@@ -73,7 +73,7 @@ function buildService(over: {
       acceptsEntries: true,
     })),
     create: jest.fn(async (data: any) => ({ id: `acc-${data.code}`, ...data })),
-    findById: jest.fn(async (_uid: string, id: string) => ({ id, userId: 'u1', unitId, code: '9.9', name: 'test', nature: 'Asset', acceptsEntries: true })),
+    findById: jest.fn(async (_scope: AccountingScope, id: string) => ({ id, userId: 'u1', unitId, code: '9.9', name: 'test', nature: 'Asset', acceptsEntries: true })),
     findManyByUnit: jest.fn(async () => []),
     softDelete: jest.fn(),
     // null = no soft-deleted row to revive → a P2002 in ensureChartOfAccounts is a benign race.
@@ -455,6 +455,58 @@ describe('PostingService', () => {
         svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' }),
       ).rejects.toBeInstanceOf(ForbiddenError);
       expect(journalEntryRepo.findById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('soft-deletes a user-defined account, scoping every step to (ownerUserId + unitId)', async () => {
+      const { svc, accountRepo, postingRepo } = buildService();
+      await svc.deleteAccount(scope, 'acc-9.9');
+
+      // Unit-isolation regression: lookup, posting-check and delete are all scoped to the
+      // FULL request scope — never a userId-only lookup nor a placeholder-unit scope.
+      expect(accountRepo.findById).toHaveBeenCalledWith(scope, 'acc-9.9');
+      expect(postingRepo.findByAccount).toHaveBeenCalledWith(scope, 'acc-9.9');
+      expect(accountRepo.softDelete).toHaveBeenCalledWith(scope, 'acc-9.9');
+    });
+
+    it('throws NotFoundError when the id is not visible in the caller scope (cross-unit isolation)', async () => {
+      // findById returns null: the id belongs to another unit, so it is invisible in this
+      // scope. The delete must NOT fall through to the posting-check or softDelete.
+      const { svc, accountRepo, postingRepo } = buildService({
+        accountRepo: { findById: jest.fn(async () => null) },
+      });
+      await expect(svc.deleteAccount(scope, 'acc-other-unit')).rejects.toBeInstanceOf(NotFoundError);
+      expect(accountRepo.findById).toHaveBeenCalledWith(scope, 'acc-other-unit');
+      expect(postingRepo.findByAccount).not.toHaveBeenCalled();
+      expect(accountRepo.softDelete).not.toHaveBeenCalled();
+    });
+
+    it('refuses to delete a canonical (seeded) account with 409', async () => {
+      const { svc, accountRepo, postingRepo } = buildService({
+        accountRepo: {
+          findById: jest.fn(async (_s: AccountingScope, id: string) => ({
+            id, userId: 'u1', unitId, code: '1', name: 'Ativo', nature: 'Asset', acceptsEntries: false,
+          })),
+        },
+      });
+      await expect(svc.deleteAccount(scope, 'acc-canon')).rejects.toMatchObject({ statusCode: 409 });
+      expect(postingRepo.findByAccount).not.toHaveBeenCalled();
+      expect(accountRepo.softDelete).not.toHaveBeenCalled();
+    });
+
+    it('refuses to delete an account that has postings with 409', async () => {
+      const { svc, accountRepo, postingRepo } = buildService({
+        postingRepo: { findByAccount: jest.fn(async () => [{ id: 'p-1' }]) },
+      });
+      await expect(svc.deleteAccount(scope, 'acc-9.9')).rejects.toMatchObject({ statusCode: 409 });
+      expect(accountRepo.softDelete).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenError (before any read) when policy.canManage is false', async () => {
+      const { svc, accountRepo } = buildService({ policy: { canManage: jest.fn(() => false) } });
+      await expect(svc.deleteAccount(scope, 'acc-9.9')).rejects.toBeInstanceOf(ForbiddenError);
+      expect(accountRepo.findById).not.toHaveBeenCalled();
     });
   });
 });

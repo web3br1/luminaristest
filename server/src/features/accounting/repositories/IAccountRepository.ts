@@ -40,10 +40,10 @@ export interface IAccountRepository {
   ): Promise<Account | null>;
 
   /**
-   * Finds an active account by its id, scoped only to ownerUserId (not unitId). Used
-   * by deleteAccount to discover the account's unitId before the policy+posting guards.
+   * Finds an active account by its id within the scope (ownerUserId + unitId). Used by
+   * deleteAccount — the unit scoping closes the cross-unit-by-id deletion gap.
    */
-  findById(userId: string, id: string): Promise<Account | null>;
+  findById(scope: AccountingScope, id: string): Promise<Account | null>;
 
   /** Lists all active accounts for the scope, ordered by code. */
   findManyByUnit(scope: AccountingScope): Promise<Account[]>;

@@ -395,16 +395,19 @@ export class PostingService {
 
   /**
    * Soft-delete a user-defined account. Guards:
-   * 1. Account must exist and belong to this user+unit.
+   * 1. Account must exist within this scope (ownerUserId + unitId).
    * 2. Account must not be a canonical/seeded account.
    * 3. Account must have no postings.
+   *
+   * The lookup is unit-scoped (Contract §2 tenancy): an account can only be deleted
+   * while acting in its own unit, so there is no cross-unit-by-id deletion path.
    */
   async deleteAccount(scope: AccountingScope, accountId: string): Promise<void> {
     if (!this.policy.canManage(scope)) {
       throw new ForbiddenError('Você não tem permissão para excluir contas.');
     }
 
-    const account = await this.accountRepo.findById(scope.ownerUserId, accountId);
+    const account = await this.accountRepo.findById(scope, accountId);
     if (!account) {
       throw new NotFoundError(`Conta '${accountId}' não encontrada.`);
     }
@@ -420,9 +423,7 @@ export class PostingService {
     }
 
     // Guard: cannot delete an account that has postings.
-    // Build a minimal scope for the account's actual unitId (it was fetched by userId only).
-    const accountScope: AccountingScope = { ...scope, unitId: account.unitId };
-    const postings = await this.postingRepo.findByAccount(accountScope, accountId);
+    const postings = await this.postingRepo.findByAccount(scope, accountId);
     if (postings.length > 0) {
       throw new AppError(
         'Conta possui lançamentos e não pode ser excluída.',
@@ -431,7 +432,7 @@ export class PostingService {
       );
     }
 
-    await this.accountRepo.softDelete(accountScope, accountId);
+    await this.accountRepo.softDelete(scope, accountId);
     logger.info('Account soft-deleted', { accountId, userId: scope.ownerUserId });
   }
 }

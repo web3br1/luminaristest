@@ -229,9 +229,10 @@ export const accountingService = {
     return res.data;
   },
 
-  /** Soft-delete an account from the chart of accounts. */
-  async deleteAccount(id: string): Promise<{ success: boolean }> {
-    const res = await apiClient.delete<{ success: boolean }>(`/accounting/accounts/${id}`);
+  /** Soft-delete an account from the chart of accounts (unit-scoped). */
+  async deleteAccount(id: string, unitId: string): Promise<{ success: boolean }> {
+    const qs = buildQuery({ unitId });
+    const res = await apiClient.delete<{ success: boolean }>(`/accounting/accounts/${id}${qs}`);
     notify('Conta excluída com sucesso.', 'success', 'Contabilidade');
     return res;
   },
