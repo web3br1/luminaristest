@@ -1117,6 +1117,106 @@
         }
       }
     },
+    "/api/dynamic-tables/sync-preset": {
+      "post": {
+        "summary": "Additively evolve an installed table's schema from its preset (admin-only)",
+        "description": "Computes the additive delta (new fields + new select options) between the preset module and the user's installed table identified by internalName, then applies it via the engine's revalidating schema update. Never removes/renames fields or options. Idempotent: a second call with no preset changes is a no-op. Requires ADMIN role.\n",
+        "tags": [
+          "DynamicTables"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "internalName"
+                ],
+                "properties": {
+                  "internalName": {
+                    "type": "string",
+                    "description": "Stable preset key of the installed table (e.g. 'leads')"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied delta { added, optionsAdded }"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/dynamic-tables/install-table": {
+      "post": {
+        "summary": "Install ONE new table from its preset into an already-installed tenant (admin-only)",
+        "description": "Idempotently installs a single preset table (identified by internalName) for the current tenant. If the table already exists it is a no-op (created=false). Relation markers (@@PRESET_TABLE_KEY::x) are resolved to the user's REAL installed table ids; a missing dependency table yields 404. Requires ADMIN role.\n",
+        "tags": [
+          "DynamicTables"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "internalName"
+                ],
+                "properties": {
+                  "internalName": {
+                    "type": "string",
+                    "description": "Stable preset key of the table to install (e.g. 'crmOpportunities')"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Install result { tableId, created }"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
     "/api/dynamic-tables/{tableId}": {
       "get": {
         "summary": "Get a dynamic table schema by ID",
@@ -1321,6 +1421,69 @@
         "responses": {
           "204": {
             "description": "Row deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/dynamic-tables/{tableId}/data/batch-delete": {
+      "post": {
+        "summary": "Soft-delete multiple data rows in a dynamic table (atomic)",
+        "description": "Deletes up to 200 rows in a single transaction. Every id must belong to the given table and the caller; if any id is cross-tenant or foreign the whole batch rolls back (404).\n",
+        "tags": [
+          "DynamicTables"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tableId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "cuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "items": {
+                      "type": "string",
+                      "format": "cuid"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rows deleted; returns { deleted: number }"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
@@ -1745,6 +1908,153 @@
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/saved-views": {
+      "get": {
+        "summary": "List the current user's saved views for a table",
+        "tags": [
+          "SavedViews"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tableId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of saved views"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a saved view",
+        "tags": [
+          "SavedViews"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSavedTableView"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved view created"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/saved-views/{id}": {
+      "patch": {
+        "summary": "Update a saved view",
+        "tags": [
+          "SavedViews"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "cuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSavedTableView"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated saved view"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a saved view (soft-delete)",
+        "tags": [
+          "SavedViews"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "cuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved view deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
           }
         }
       }
@@ -2585,6 +2895,1290 @@
           }
         }
       }
+    },
+    "/api/crm/pipeline/advance": {
+      "post": {
+        "summary": "Advance a lead to a target stage (with optional proposal side-effect)",
+        "tags": [
+          "CRM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvanceStageInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated lead record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/crm/pipeline/proposal": {
+      "post": {
+        "summary": "Create a standalone proposal and refresh the lead snapshot",
+        "tags": [
+          "CRM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "leadId",
+                  "amount"
+                ],
+                "properties": {
+                  "leadId": {
+                    "type": "string"
+                  },
+                  "amount": {
+                    "type": "number"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "BRL",
+                      "USD",
+                      "EUR"
+                    ]
+                  },
+                  "winProbability": {
+                    "type": "number"
+                  },
+                  "estimatedCloseDate": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created proposal record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/crm/pipeline/no-show": {
+      "post": {
+        "summary": "Record a meeting no-show (reschedule or revert the lead stage)",
+        "tags": [
+          "CRM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "leadId",
+                  "option"
+                ],
+                "properties": {
+                  "leadId": {
+                    "type": "string"
+                  },
+                  "option": {
+                    "type": "string",
+                    "enum": [
+                      "reschedule",
+                      "revert"
+                    ]
+                  },
+                  "rescheduleAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "previousStageId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Acknowledgement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/crm/pipeline/convert-lead": {
+      "post": {
+        "summary": "Convert a lead into an Account (+ optional Contact), atomically",
+        "tags": [
+          "CRM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConvertLeadInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created account + contact and the updated (converted) lead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "account": {
+                          "type": "object"
+                        },
+                        "contact": {
+                          "type": "object"
+                        },
+                        "lead": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/crm/pipeline/advance-opportunity": {
+      "post": {
+        "summary": "Advance an opportunity to a target stage (first-class Opportunity)",
+        "tags": [
+          "CRM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvanceOpportunityInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated opportunity"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/crm/pipeline/convert-lead-to-opportunity": {
+      "post": {
+        "summary": "Create a first-class opportunity from a lead (the lead is NOT consumed)",
+        "tags": [
+          "CRM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConvertLeadToOpportunityInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created opportunity"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/crm/pipeline-analytics": {
+      "get": {
+        "summary": "Aggregated CRM KPI bundle over the leads dataset",
+        "tags": [
+          "CRM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "datePreset",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "today",
+                "thisWeek",
+                "thisMonth",
+                "last30Days",
+                "lastMonth",
+                "thisYear"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Keyed bundle of chart-ready KPI series (cards, funnel, source, status, bant, proposals, activities)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/crm/attachments": {
+      "post": {
+        "summary": "Upload a downloadable file attachment for a CRM record",
+        "tags": [
+          "CRM Attachments"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "entityType",
+                  "entityId"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "entityType": {
+                    "type": "string",
+                    "enum": [
+                      "lead",
+                      "account",
+                      "contact"
+                    ]
+                  },
+                  "entityId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created attachment metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Attachment"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "413": {
+            "description": "File too large (max 25 MB)"
+          },
+          "415": {
+            "description": "File type not supported or content/type mismatch"
+          }
+        }
+      },
+      "get": {
+        "summary": "List active attachments for a CRM record",
+        "tags": [
+          "CRM Attachments"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "entityType",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "lead",
+                "account",
+                "contact"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "entityId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of attachment metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Attachment"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/crm/attachments/{id}/download": {
+      "get": {
+        "summary": "Download an attachment binary (streamed)",
+        "tags": [
+          "CRM Attachments"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The attachment file stream",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/crm/attachments/{id}": {
+      "delete": {
+        "summary": "Soft-delete an attachment (and remove its binary)",
+        "tags": [
+          "CRM Attachments"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Acknowledgement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/accounting/post": {
+      "post": {
+        "summary": "Post a balanced double-entry journal entry",
+        "description": "ΣdebitCents must equal ΣcreditCents (exact integer equality). Idempotent on (sourceType, sourceId) per unit.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "unitId",
+                  "date",
+                  "description",
+                  "lines"
+                ],
+                "properties": {
+                  "unitId": {
+                    "type": "string"
+                  },
+                  "date": {
+                    "type": "string",
+                    "description": "ISO date/datetime string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "sourceType": {
+                    "type": "string",
+                    "default": "manual"
+                  },
+                  "sourceId": {
+                    "type": "string"
+                  },
+                  "lines": {
+                    "type": "array",
+                    "minItems": 2,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "accountCode",
+                        "debitCents",
+                        "creditCents"
+                      ],
+                      "properties": {
+                        "accountCode": {
+                          "type": "string",
+                          "description": "Code of a leaf account (acceptsEntries=true)"
+                        },
+                        "debitCents": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "creditCents": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Journal entry posted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "The posted journal entry with its postings"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/accounting/reverse": {
+      "post": {
+        "summary": "Reverse a posted journal entry (estorno)",
+        "description": "Posted entries are immutable; corrections are made via a reversing entry. Idempotent — reversing twice returns the existing reversal.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "unitId",
+                  "lancamentoId"
+                ],
+                "properties": {
+                  "unitId": {
+                    "type": "string"
+                  },
+                  "lancamentoId": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reversing entry created (or the existing one if already reversed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/accounting/trial-balance": {
+      "get": {
+        "summary": "Trial balance (balancete) for a unit",
+        "description": "Aggregates Posted + Reversed postings (Draft excluded) per account.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO date — inclusive lower bound"
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO date — inclusive upper bound"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trial balance rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/accounting/ledger": {
+      "get": {
+        "summary": "Per-account ledger (razão) for a unit",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "accountCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ledger entries for the account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/accounting/accounts": {
+      "get": {
+        "summary": "List the chart of accounts for a unit",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accounts list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "accounts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a user-defined account in the chart of accounts",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "name",
+                  "nature",
+                  "unitId"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "nature": {
+                    "type": "string",
+                    "enum": [
+                      "Asset",
+                      "Liability",
+                      "Equity",
+                      "Revenue",
+                      "Expense"
+                    ]
+                  },
+                  "acceptsEntries": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "unitId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Account created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "account": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/accounting/accounts/{id}": {
+      "delete": {
+        "summary": "Soft-delete a user-defined account (unit-scoped)",
+        "description": "unitId is required so the delete is scoped to its unit. Canonical accounts and accounts with postings cannot be deleted.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account soft-deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "409": {
+            "description": "Account is canonical or has postings — cannot be deleted"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/accounting/entries": {
+      "get": {
+        "summary": "List journal entries (lançamentos) for a unit, paginated",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Journal entries page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "entries": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
     }
   },
   "tags": [
@@ -2613,6 +4207,10 @@
       "description": "Saved widget layouts per user"
     },
     {
+      "name": "SavedViews",
+      "description": "Per-user saved table views (query/filters/sort)"
+    },
+    {
       "name": "Analytics",
       "description": "Analytics presets, chart data and KPI discovery"
     },
@@ -2639,6 +4237,10 @@
     {
       "name": "StructuredData",
       "description": "Structured data extracted from documents"
+    },
+    {
+      "name": "Accounting",
+      "description": "Double-entry accounting — journal entries, reversals, reports, chart of accounts (first-class Prisma)"
     }
   ]
 }
