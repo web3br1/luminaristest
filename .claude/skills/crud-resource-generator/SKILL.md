@@ -1,8 +1,16 @@
 ---
 name: crud-resource-generator
-description: Gera CRUD completo com soft-delete em todas as camadas backend + frontend service para recursos simples
+description: Gera o slice CRUD completo de um recurso simples — DTO → Repository → Policy → Service → Controller → Route + frontend service — com soft-delete em todas as camadas e reuso dos canônicos. Use quando o pedido for "criar CRUD", "novo recurso com listar/criar/editar/excluir", "API própria para uma tabela ERP" sem regra de negócio especial. Decide entre Prisma first-class e DynamicTable pelo teste §2.1 (invariante financeiro/legal → Prisma). Domínio/arquivos: server/src/features/<resource>/ + my-app/lib/services/.
 argument-hint: "[nome-do-recurso] [dynamic-table|prisma]"
 allowed-tools: Read, Grep, Glob, Write, Edit, Bash
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com Prisma + zod + tsc e my-app/ com tsc). Sem efeitos externos nem migration por padrão — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-CRUD"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # CRUD Resource Generator
@@ -40,18 +48,19 @@ Por que é o par perfeito: camadas estritas + DI + policy-first + erros tipados,
 ## Inputs
 
 - `$ARGUMENTS[0]`: nome do recurso (ex: `comments`)
-- `$ARGUMENTS[1]`: `dynamic-table` | `prisma`
+- `$ARGUMENTS[1]`: `dynamic-table` | `prisma` — **[CRUD-005]** decidido pelo teste do `_ARCHITECTURE-CONTRACT.md §2.1`, não por gosto: `prisma` quando há invariante financeiro/legal/regulatório ou integridade que o banco deve garantir (`@@unique`/FK/tipos reais); `dynamic-table` só quando o usuário configura o schema em runtime. **Em dúvida → `prisma`.** Recurso com campo de dinheiro que entra em saldo/fechamento é **sempre** `prisma` (money em `data: Json` é float em SQLite e `unique()` de preset é scan TOCTOU, não constraint).
 
 ## Execution steps (mesma ordem que fullstack-feature-generator)
 
 1. Ler feature `users/` como referência de pattern
-2. Repository: soft-delete em todos os finds (`where: { deletedAt: null }`) e delete (`data: { deletedAt: new Date() }`)
-3. Policy: ADMIN pode tudo, USER só o que é seu (ownership por `userId`)
-4. Service: métodos simples delegando para repository sem lógica complexa
-5. Controller + Route: GET list (paginado), GET by ID, POST create, PUT update, DELETE (soft) — **e registrar `'/api/<resource>'` no `protectedApiPaths` de `middleware/auth.ts`** (senão dá 401 com token válido)
-6. Frontend service: wrapper tipado com todos os métodos
+2. **[CRUD-002]** Gerar TODAS as camadas do slice na ordem `DTO → Repository → Policy → Service → Controller → Route` + o frontend service — nenhuma pode faltar nem ser inlinada (sem service sem repo, sem controller chamando Prisma direto, sem policy embutida no service)
+3. **[CRUD-001]** Repository: soft-delete em todos os finds (`where: { deletedAt: null }`) e no delete (`update({ data: { deletedAt: new Date() } })`) — nunca `prisma.<model>.delete()`
+4. Policy: ADMIN pode tudo, USER só o que é seu (ownership por `userId`)
+5. Service: métodos simples delegando para repository sem lógica complexa
+6. Controller + Route: GET list (paginado), GET by ID, POST create, PUT update, DELETE (soft) — **[CRUD-006]** registro em 3 toques: mount em `routes/index.ts` + `'/api/<resource>'` no `protectedApiPaths` de `middleware/auth.ts` (senão dá 401 com token válido) + bloco `@openapi` em `routes/docs.paths.ts`
+7. **[CRUD-003]** Frontend: wrapper tipado em `lib/services/` e, na tela, reuso dos canônicos (`GenericTable`/`StandardPagination`, `Modal`, `AnalyticsDashboard`/`ChartRenderer`/`DashboardKpiCard`) — não recriar tabela/modal/analytics bespoke
 
-## Soft-delete pattern obrigatório
+## Soft-delete pattern obrigatório — [CRUD-001]
 
 ```ts
 // Repository: delete
@@ -102,8 +111,9 @@ cd my-app && npx tsc --noEmit
 
 ## Anti-patterns
 
-- Não use `prisma.model.delete()` — sempre soft-delete com `deletedAt`
-- Não esqueça `where: { deletedAt: null }` em TODOS os finds
-- **Bug silencioso do `protectedApiPaths`:** esquecer o 3º toque (`'/api/<resource>'` no array de `middleware/auth.ts`) faz a rota retornar **401 mesmo com token válido** — `getUserContextFromRequest` devolve `null`. O `tsc` NÃO pega; só aparece em runtime.
-- **"Módulo ilha":** não recrie tabela/modal/analytics próprios (`RecordTable`/`CrmKpiCard`/`CrmBarChart` foram o erro do CRM) — reuse os canônicos (`GenericTable`, `Modal`, `AnalyticsDashboard`/`ChartRenderer`/`DashboardKpiCard`).
-- Registros soft-deleted devem ser limpos pelo job `PurgeDeletedRecords` após 90 dias
+- **[CRUD-001]** Não use `prisma.model.delete()` — sempre soft-delete com `deletedAt`; não esqueça `where: { deletedAt: null }` em TODOS os finds.
+- **[CRUD-006] Bug silencioso do `protectedApiPaths`:** esquecer o 3º toque (`'/api/<resource>'` no array de `middleware/auth.ts`) faz a rota retornar **401 mesmo com token válido** — `getUserContextFromRequest` devolve `null`. O `tsc` NÃO pega; só aparece em runtime.
+- **[CRUD-003] "Módulo ilha":** não recrie tabela/modal/analytics próprios (`RecordTable`/`CrmKpiCard`/`CrmBarChart` foram o erro do CRM) — reuse os canônicos (`GenericTable`, `Modal`, `AnalyticsDashboard`/`ChartRenderer`/`DashboardKpiCard`).
+- Registros soft-deleted devem ser limpos pelo job `PurgeDeletedRecords` após 90 dias.
+- **[CRUD-005] Nunca gere um recurso com invariante financeiro/legal como `dynamic-table`** — money em `data: Json` é float em SQLite e `unique()` de preset é scan TOCTOU (não constraint). Isso é Prisma first-class; ver `_ARCHITECTURE-CONTRACT.md §2.1`.
+- **[CRUD-004] Fronteira dura DynamicTable × Prisma:** NUNCA injete um serviço Prisma first-class (`PostingService`, `PayrollService`…) em `DynamicTableService`, `RuleContext` ou `RulePlugin`, e NUNCA modifique `DynamicTableService.ts` para integrar dois módulos. Integração cross-módulo sobe ao nível de controller/route/serviço de integração — nunca dentro do motor de plugins. Ver `_ARCHITECTURE-CONTRACT.md §2.1`.

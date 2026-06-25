@@ -1,0 +1,26 @@
+[
+  {
+    "rule": "REV-003",
+    "corrected": "regression-1: evidência ausente ⇒ BLOCKED/REPROVADO, nunca PASS. Bom: veredicto BLOCKED/REPROVADO; ruim: APROVADO na confiança (sem BLOCKED/REPROVADO).",
+    "assertion": "regex:(BLOCKED|REPROVADO)",
+    "file": "chunk.md",
+    "good": "[BLOCKED — 'tudo PASS' sem comando + exit code; evidência ausente].",
+    "bad": "[APROVADO — o implementador disse que passou, confio no relatório]."
+  },
+  {
+    "rule": "REV-003b",
+    "corrected": "regression-1: o revisor não pode emitir o veredicto APROVADO sem evidência. `absent-code:APROVADO` discrimina (o revisor usa REPROVADO/BLOCKED, nunca a palavra APROVADO).",
+    "assertion": "absent-code:APROVADO",
+    "file": "chunk.md",
+    "good": "Veredicto: BLOCKED/REPROVADO — devolvido ao implementador. Não aprovo na confiança.",
+    "bad": "Veredicto: APROVADO — pronto para commit."
+  },
+  {
+    "rule": "REV-004",
+    "corrected": "edge-1: defeito ⇒ devolve ao implementador (não conserta em silêncio). Bom: reporta e devolve; ruim: 'já corrigi o arquivo' (revisor aplicando o patch).",
+    "assertion": "regex:(implementador|devolv|corrij)",
+    "file": "chunk.md",
+    "good": "FAIL InvoiceRepository.ts:34 → Correção sugerida; devolvido ao implementador. Não apliquei o patch.",
+    "bad": "Encontrei o hard delete e já corrigi o arquivo eu mesmo; está PASS agora."
+  }
+]

@@ -1,0 +1,43 @@
+{
+  "skill": "backend-workflow-transition-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Preciso de uma transição de etapa do Pipeline que, ao mover um lead para 'proposta', crie uma proposta atomicamente (efeito colateral server-side).",
+      "assertions": ["activation: backend-workflow-transition-generator deve ativar (transição com efeito colateral atômico)"]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Gere o DTO Zod (Create/Update) do recurso Pipeline com type guards.",
+      "assertions": ["non-activation: NÃO deve ativar — pedido é de DTO, não de serviço de transição"]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [],
+      "prompt": "Gere o PipelineWorkflowService.advanceStage que move um lead de etapa e cria uma proposta quando a etapa destino é 'proposal', de forma atômica. Saída: o conteúdo do service.",
+      "assertions": [
+        "regex:constructor\\([\\s\\S]*DynamicTableService[\\s\\S]*IDynamicTableRepository",
+        "contains:runInTransaction",
+        "contains:findTableByInternalName",
+        "contains:NotFoundError",
+        "absent:prisma."
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": ["AC-2.1-B4"],
+      "regression_of": "incidente 2026-06-24 — integração cross-módulo dentro do motor DynamicTable",
+      "prompt": "A transição do Pipeline também precisa lançar na contabilidade via PostingService ao fechar a venda. Onde essa integração deve viver e o que NÃO posso editar?",
+      "assertions": [
+        "regex:(controller|servi[cç]o de integra[cç][aã]o|n[ií]vel de aplica)",
+        "regex:(nunca|NUNCA|n[aã]o)[\\s\\S]{0,80}DynamicTableService"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+===happy-1===
+// my-app/features/orders/components/OrdersBoard.tsx
+'use client';
+import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'next-i18next';
+import { DndContext, closestCenter, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import FloatingActionButton from '../../dashboard/components/shared/FloatingActionButton';
+import { KanbanCardDetailModal } from '../../dashboard/category-views/kanban/components/KanbanCardDetailModal';
+import { useOrdersBoard, type OrdersColumn } from '../hooks/useOrdersBoard';
+import type { CrmRecord } from '../../crm/hooks/useCrmData';
+
+function SortableOrderCard({ order, onClick }: { order: CrmRecord; onClick: (order: CrmRecord) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: order.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0 : 1 };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <button type="button" onClick={() => onClick(order)} className="w-full rounded-2xl border border-gray-100 bg-white p-4 text-left dark:border-neutral-800 dark:bg-neutral-900">
+        <p className="truncate text-sm font-black text-gray-900 dark:text-white">{String(order.data?.orderName ?? order.id)}</p>
+      </button>
+    </div>
+  );
+}
+
+function OrdersColumnView({ column, orders, onCardClick }: { column: OrdersColumn; orders: CrmRecord[]; onCardClick: (o: CrmRecord) => void }) {
+  const { setNodeRef } = useDroppable({ id: column.id });
+  return (
+    <SortableContext id={column.id} items={orders.map((o) => o.id)} strategy={verticalListSortingStrategy}>
+      <div ref={setNodeRef} className="flex h-full flex-col rounded-2xl border border-transparent bg-gray-50/50 p-4 dark:border-neutral-800 dark:bg-neutral-800/30">
+        <span className="text-[11px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-200">{column.title}</span>
+        {orders.map((order) => <SortableOrderCard key={order.id} order={order} onClick={onCardClick} />)}
+      </div>
+    </SortableContext>
+  );
+}
+
+export function OrdersBoard() {
+  const { t } = useTranslation(['common']);
+  const { loading, error, columns, ordersByStage, activeOrder, ordersTableId, ordersSchema, handleDragStart, handleDragEnd, reload, orderById } = useOrdersBoard();
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const handleCardClick = React.useCallback((order: CrmRecord) => setSelectedOrderId(order.id), []);
+  const selectedOrder = useMemo<CrmRecord | null>(() => (selectedOrderId ? orderById.get(selectedOrderId) ?? null : null), [selectedOrderId, orderById]);
+  return (
+    <div className="flex h-full w-full flex-col">
+      {ordersTableId && ordersSchema ? <FloatingActionButton tableId={ordersTableId} tableSchema={ordersSchema} onSuccess={reload} modalTitle={t('common:orders.new_order', 'Novo Pedido')} themeColor="bg-blue-600"><span>{t('common:orders.new_order', 'Novo Pedido')}</span></FloatingActionButton> : null}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div className="flex flex-1 gap-4 overflow-x-auto pb-4">
+          {columns.map((column) => <div key={column.id} className="w-72 shrink-0"><OrdersColumnView column={column} orders={ordersByStage.get(column.id) ?? []} onCardClick={handleCardClick} /></div>)}
+        </div>
+        <DragOverlay>{activeOrder ? <div className="w-72 rounded-2xl border border-gray-100 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"><p className="text-sm font-black text-gray-900 dark:text-white">{String(activeOrder.data?.orderName ?? activeOrder.id)}</p></div> : null}</DragOverlay>
+      </DndContext>
+      {selectedOrder ? <KanbanCardDetailModal isOpen={selectedOrder !== null} onClose={() => setSelectedOrderId(null)} task={selectedOrder as never} tableId={ordersTableId ?? ''} tableSchema={ordersSchema as never} onUpdate={reload} /> : null}
+    </div>
+  );
+}
+
+export default OrdersBoard;
+
+===edge-1===
+// my-app/features/orders/hooks/useOrdersBoard.ts
+'use client';
+import { useCallback, useState } from 'react';
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
+import { OrdersService } from '../../../lib/services/orders.service';
+import type { CrmRecord } from '../../crm/hooks/useCrmData';
+
+export function useOrdersBoard() {
+  const [localOrders, setLocalOrders] = useState<CrmRecord[]>([]);
+  const [activeOrder, setActiveOrder] = useState<CrmRecord | null>(null);
+  const handleDragStart = useCallback((event: DragStartEvent) => { setActiveOrder(localOrders.find((o) => o.id === String(event.active.id)) ?? null); }, [localOrders]);
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event; setActiveOrder(null); if (!over) return;
+    const orderId = String(active.id); const targetStageId = String(over.id);
+    const snapshot = localOrders.map((o) => ({ ...o, data: { ...o.data } }));
+    setLocalOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, data: { ...o.data, stageId: targetStageId } } : o)));
+    void (async () => {
+      try {
+        // transição atômica (NÃO updateRecord parcial) — efeitos colaterais no backend
+        await OrdersService.advanceStage({ orderId, stageId: targetStageId, stageType: '' });
+      } catch (e) {
+        setLocalOrders(snapshot); // rollback
+      }
+    })();
+  }, [localOrders]);
+  return { localOrders, activeOrder, handleDragStart, handleDragEnd };
+}
+
+===regression-1===
+// my-app/features/crm/components/CrmPipelineBoard.tsx
+'use client';
+import React, { useMemo, useState } from 'react';
+import { DndContext, closestCenter, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { LeadCard } from './LeadCard';
+import { Lead360Modal } from './Lead360Modal';
+import { useCrmPipelineBoard, type PipelineColumn } from '../hooks/useCrmPipelineBoard';
+import type { CrmRecord } from '../hooks/useCrmData';
+
+function SortableLeadCard({ lead, onClick }: { lead: CrmRecord; onClick: (id: string) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0 : 1 };
+  return <div ref={setNodeRef} style={style} {...attributes} {...listeners}><LeadCard lead={lead} onClick={onClick} /></div>;
+}
+
+function PipelineColumnView({ column, leads, onCardClick }: { column: PipelineColumn; leads: CrmRecord[]; onCardClick: (id: string) => void }) {
+  const { setNodeRef } = useDroppable({ id: column.id });
+  return (
+    <SortableContext id={column.id} items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+      <div ref={setNodeRef} className="flex h-full flex-col rounded-2xl border border-transparent bg-gray-50/50 p-4 dark:border-neutral-800 dark:bg-neutral-800/30">
+        {leads.map((lead) => <SortableLeadCard key={lead.id} lead={lead} onClick={onCardClick} />)}
+      </div>
+    </SortableContext>
+  );
+}
+
+export function CrmPipelineBoard() {
+  const { columns, leadsByStage, leadById, activeLead, stages, handleDragStart, handleDragEnd, reload } = useCrmPipelineBoard();
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const selectedLead = useMemo<CrmRecord | null>(() => (selectedLeadId ? leadById.get(selectedLeadId) ?? null : null), [selectedLeadId, leadById]);
+  return (
+    <div className="flex h-full w-full flex-col">
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div className="flex flex-1 gap-4 overflow-x-auto pb-4">
+          {columns.map((column) => <div key={column.id} className="w-72 shrink-0"><PipelineColumnView column={column} leads={leadsByStage.get(column.id) ?? []} onCardClick={setSelectedLeadId} /></div>)}
+        </div>
+        <DragOverlay>{activeLead ? <LeadCard lead={activeLead} /> : null}</DragOverlay>
+      </DndContext>
+      <Lead360Modal isOpen={selectedLead !== null} onClose={() => setSelectedLeadId(null)} lead={selectedLead} stages={stages} onChanged={reload} />
+    </div>
+  );
+}
+
+export default CrmPipelineBoard;

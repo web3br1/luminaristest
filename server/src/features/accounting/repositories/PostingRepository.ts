@@ -1,5 +1,7 @@
 import prisma from '../../../lib/prisma';
 import type { Posting, Prisma } from 'generated/prisma';
+import type { AccountingScope } from '../scope/AccountingScope';
+import { accountingScopeWhere } from '../scope/AccountingScope';
 import type {
   AccountPostingTotals,
   CreatePostingInput,
@@ -17,36 +19,30 @@ export class PostingRepository implements IPostingRepository {
   }
 
   public async findByEntryId(
-    userId: string,
-    unitId: string,
+    scope: AccountingScope,
     entryId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<Posting[]> {
     return (tx ?? prisma).posting.findMany({
-      where: { entryId, userId, unitId },
+      where: { entryId, ...accountingScopeWhere(scope) },
       orderBy: { createdAt: 'asc' },
     });
   }
 
-  public async findByAccount(
-    userId: string,
-    unitId: string,
-    accountId: string,
-  ): Promise<Posting[]> {
+  public async findByAccount(scope: AccountingScope, accountId: string): Promise<Posting[]> {
     return prisma.posting.findMany({
-      where: { userId, unitId, accountId },
+      where: { ...accountingScopeWhere(scope), accountId },
       orderBy: { createdAt: 'asc' },
     });
   }
 
   public async groupByAccount(
-    userId: string,
-    unitId: string,
+    scope: AccountingScope,
     statuses: string[],
   ): Promise<AccountPostingTotals[]> {
     const grouped = await prisma.posting.groupBy({
       by: ['accountId'],
-      where: { userId, unitId, entry: { status: { in: statuses } } },
+      where: { ...accountingScopeWhere(scope), entry: { status: { in: statuses } } },
       _sum: { debitCents: true, creditCents: true },
     });
 

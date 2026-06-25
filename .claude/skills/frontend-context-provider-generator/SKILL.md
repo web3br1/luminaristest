@@ -1,8 +1,16 @@
 ---
 name: frontend-context-provider-generator
-description: Gera React Context + Provider + useX hook seguindo o padrão dos 4 contexts existentes do Luminaris
+description: Gera o trio React Context + Provider + hook de consumo `use<Name>()` em my-app/lib/context/, espelhando o padrão dos contexts existentes (Auth, Currency, Dashboard, Toast): createContext tipado, Provider que envolve children, hook que lança erro se usado fora do Provider, e registro no _app.tsx. Use quando um novo estado global precisa ser compartilhado entre componentes, ao substituir prop-drilling por context, ou ao adicionar provider ao _app.tsx. Domínio/arquivos: my-app/lib/context/<Name>Context.tsx e pages/_app.tsx.
 argument-hint: "[NomeDoContexto]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (my-app/ com React + Next.js Pages Router + tsc). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-FE-CONTEXT"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Frontend Context Provider Generator
@@ -41,20 +49,22 @@ my-app/pages/_app.tsx
 
 ## Generation contract
 
+Cada item marcado `[FECTX-*]` abaixo é uma REGRA DE GERAÇÃO auditável (espelha o padrão dos 4 contexts existentes — Auth/Currency/Dashboard/Toast — em `my-app/lib/context/`). Gere já em conformidade.
+
 1. Arquivo: `my-app/lib/context/<Name>Context.tsx`
 2. Interface do estado: `interface <Name>ContextType { ... }`
-3. Context:
+3. **[FECTX-001]** Context criado com `createContext` (importado de `react`) e **tipado** com a interface do estado, inicializado como `undefined` para habilitar o guard do hook:
    ```ts
    const <Name>Context = createContext<<Name>ContextType | undefined>(undefined)
    ```
-4. Provider:
+4. **[FECTX-002]** Provider exportado que recebe `children` e os envolve com `<<Name>Context.Provider>`:
    ```ts
    export function <Name>Provider({ children }: { children: ReactNode }) {
      // state + logic here
      return <<Name>Context.Provider value={...}>{children}</<Name>Context.Provider>
    }
    ```
-5. Hook de consumo com guard:
+5. **[FECTX-003]** Hook de consumo `use<Name>()` que lê o context via `useContext`. **[FECTX-004]** O hook DEVE lançar erro se usado fora do Provider (`ctx === undefined`):
    ```ts
    export function use<Name>() {
      const ctx = useContext(<Name>Context)
@@ -63,7 +73,7 @@ my-app/pages/_app.tsx
    }
    ```
 6. Registrar em `pages/_app.tsx`: adicionar `<<Name>Provider>` no wrapper de providers
-7. **Memoize o objeto `value` com `useMemo`** — `const value = useMemo(() => ({ ...state, ...handlers }), [deps])`. Um objeto-literal novo a cada render força **todos** os consumidores a re-renderizar mesmo sem mudança real de estado. Handlers passados no value devem ser estáveis (`useCallback`).
+7. **[FECTX-005]** **Memoize o objeto `value` com `useMemo`** — `const value = useMemo(() => ({ ...state, ...handlers }), [deps])`. Um objeto-literal novo a cada render força **todos** os consumidores a re-renderizar mesmo sem mudança real de estado. Handlers passados no value devem ser estáveis (`useCallback`).
 8. **Estado de loading/error explícito no value** quando o provider faz fetch: exponha `isLoading: boolean` e `error: string | null` para os consumidores reagirem — não esconda o estado de carregamento dentro do provider.
 9. **Não faça fetch no corpo do render** — todo fetch de inicialização vai em `useEffect` (com cleanup/cancelamento), e fetch via service layer (`lib/services/*.service.ts`), nunca `apiClient`/`fetch` direto no provider.
 

@@ -1,0 +1,72 @@
+===happy-1===
+// server/src/lib/vector/extractors/markdown.ts
+export async function extractMarkdown(buffer: Buffer): Promise<{ text: string }> {
+  if (!buffer || buffer.length === 0) throw new Error('extractMarkdown: empty or missing buffer');
+  const raw = buffer.toString('utf-8');
+  const text = raw
+    .replace(/```[\w-]*\n?([\s\S]*?)```/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .trim();
+  return { text };
+}
+
+// server/src/features/documents/services/DocumentProcessingPipeline.ts
+import { chunkText } from '@/lib/vector/chunking';
+import { VectorRepository } from '../repositories/VectorRepository';
+import { DocumentStatus, DocumentPurpose } from '../models/Document.model';
+import { logger } from '@/lib/logger';
+
+export class DocumentProcessingPipeline {
+  private async processChunks(document: IDocument, text: string, context: DocumentContext): Promise<void> {
+    const chunks = chunkText(text); // reuse lib/vector/, não reimplementa
+    const vectors = await this.processingService.generateEmbeddings(chunks);
+    const points = chunks.map((c, j) => ({ id: c.id, payload: { documentId: document.id, userId: document.userId }, vector: vectors[j] }));
+    await this.vectorRepository.upsertChunks(points); // Qdrant
+    await this.documentRepository.update(document.id, { status: DocumentStatus.COMPLETED, processingDate: new Date(), processingError: null });
+  }
+}
+
+===edge-1===
+// server/src/features/documents/services/DocumentProcessingPipeline.ts
+import { DocumentStatus } from '../models/Document.model';
+import { logger } from '@/lib/logger';
+
+async function handleProcessingError(documentRepository: IDocumentRepository, document: IDocument, error: unknown, context: DocumentContext): Promise<void> {
+  const errorMessage = error instanceof Error ? error.message : 'Unknown processing error';
+  logger.error(`Fatal error processing document ${document.id} (likely Qdrant outage)`, { error });
+  // PROCESSING → ERROR; nunca deixa preso em PROCESSING
+  await documentRepository.update(document.id, { status: DocumentStatus.ERROR, processingError: errorMessage, processingDate: new Date(), contextJson: context });
+}
+
+// server/src/features/documents/services/DocumentRagSearchService.ts
+import { VectorRepository } from '../repositories/VectorRepository';
+export class DocumentRagSearchService {
+  async search(userId: string, query: string, limit = 10) {
+    // ownership check ANTES do Qdrant — isolamento por tenant
+    const owned = await this.documentRepository.findByUserId(userId);
+    const docIds = owned.map((d) => d.id);
+    if (docIds.length === 0) return [];
+    const [queryVector] = await this.processingService.generateEmbeddings([query]);
+    return this.vectorRepository.search(queryVector, limit, docIds, userId);
+  }
+}
+
+===regression-1===
+// server/src/features/documents/services/DocumentProcessingPipeline.ts
+import { chunkText } from '@/lib/vector/chunking';
+import { DocumentPurpose, DocumentStatus } from '../models/Document.model';
+
+const TABULAR_MIME_TYPES = new Set<string>(['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv']);
+export function resolveDocumentPurpose(mimeType: string): DocumentPurpose {
+  // XLSX/CSV → DATA_ANALYSIS; prosa → KNOWLEDGE_BASE
+  return TABULAR_MIME_TYPES.has(mimeType) ? DocumentPurpose.DATA_ANALYSIS : DocumentPurpose.KNOWLEDGE_BASE;
+}
+
+export async function processPlainTextDocument(deps: any, document: IDocument, text: string): Promise<void> {
+  const chunks = chunkText(text); // reusa lib/vector/chunking — não reimplementa, não new OpenAI()
+  const vectors = await deps.processingService.generateEmbeddings(chunks);
+  await deps.vectorRepository.upsertChunks(chunks.map((c: any, j: number) => ({ id: c.id, payload: { documentId: document.id }, vector: vectors[j] })));
+}

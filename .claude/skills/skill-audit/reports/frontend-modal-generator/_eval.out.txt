@@ -1,0 +1,79 @@
+===happy-1===
+// my-app/features/crm/components/Lead360Modal.tsx
+import React, { useState } from 'react';
+import { useTranslation } from 'next-i18next';
+import { Modal } from '../../../components/ui/Modal';
+import { CrmService } from '../../../lib/services/crm.service';
+import { resolveErrorMessage } from '../../../lib/utils/error-handler';
+import { notify } from '../../../lib/notifications/notify';
+import { ScoreGauge } from './ui/ScoreGauge';
+import type { CrmRecord } from '../hooks/useCrmData';
+
+interface Lead360ModalProps { isOpen: boolean; onClose: () => void; lead: CrmRecord | null; onChanged?: () => void | Promise<void>; }
+
+export function Lead360Modal({ isOpen, onClose, lead, onChanged }: Lead360ModalProps) {
+  const { t } = useTranslation('crm');
+  const [advancing, setAdvancing] = useState(false);
+  if (!lead) return null;
+  const d = lead.data ?? {};
+  const leadName = String(d.leadName ?? t('detail.unnamed_lead', 'Unnamed lead'));
+  const score = Number(d.score ?? 0);
+  const handleAdvance = async () => {
+    if (advancing) return;
+    setAdvancing(true);
+    try {
+      await CrmService.advanceStage({ leadId: lead.id, stageId: String(d.nextStageId ?? ''), stageType: String(d.nextStageType ?? '') });
+      await onChanged?.();
+      onClose();
+    } catch (err) {
+      notify(resolveErrorMessage(err, t), 'error', 'CRM');
+    } finally {
+      setAdvancing(false);
+    }
+  };
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={leadName} maxWidth="max-w-4xl" themeColor="bg-blue-600" headerActions={
+      <button type="button" onClick={handleAdvance} disabled={advancing} className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 px-4 py-2.5 text-sm font-black text-white">
+        {advancing ? t('detail.advancing', 'Avançando…') : t('detail.advance_stage', 'Avançar etapa')}
+      </button>
+    }>
+      <div className="space-y-6 p-5">
+        <header className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-white/5 dark:bg-neutral-900">
+          <h2 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">{leadName}</h2>
+          <ScoreGauge score={score} size={56} />
+        </header>
+      </div>
+    </Modal>
+  );
+}
+
+export default Lead360Modal;
+
+===edge-1===
+// my-app/features/crm/components/LeadsView.tsx
+import { ConfirmDeleteModal } from '../../dashboard/shared/components/ConfirmDeleteModal';
+import { CrmService } from '../../../lib/services/crm.service';
+import { resolveErrorMessage } from '../../../lib/utils/error-handler';
+
+const [deleting, setDeleting] = useState<CrmRecord | null>(null);
+const [isDeleting, setIsDeleting] = useState(false);
+const [deleteError, setDeleteError] = useState<string | null>(null);
+
+const handleConfirmDelete = async () => {
+  if (!deleting) return;
+  setIsDeleting(true); setDeleteError(null);
+  try { await CrmService.deleteLead(deleting.id); await refetch(); setDeleting(null); }
+  catch (err) { setDeleteError(resolveErrorMessage(err, t)); }
+  finally { setIsDeleting(false); }
+};
+
+<ConfirmDeleteModal isOpen={!!deleting} onClose={() => { if (!isDeleting) { setDeleting(null); setDeleteError(null); } }} onConfirm={handleConfirmDelete} title={t('leads.delete_title', 'Inativar lead?')} isLoading={isDeleting} error={deleteError} />
+
+===regression-1===
+// my-app/features/crm/components/LeadsView.tsx
+import { Lead360Modal } from './Lead360Modal';
+
+const [selected, setSelected] = useState<CrmRecord | null>(null);
+const handleRowClick = (lead: CrmRecord) => setSelected(lead);
+
+<Lead360Modal isOpen={!!selected} onClose={() => setSelected(null)} lead={selected} onChanged={refetch} />

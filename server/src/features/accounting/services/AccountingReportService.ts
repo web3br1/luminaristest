@@ -1,10 +1,9 @@
-import type { UserContext } from '../../../types/UserContext';
 import { ForbiddenError, NotFoundError } from '../../../lib/errors';
-import type { ReportQueryInput } from '../dtos/PostingDto';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
 import type { IPostingRepository } from '../repositories/IPostingRepository';
 import type { IJournalEntryRepository } from '../repositories/IJournalEntryRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
+import type { AccountingScope } from '../scope/AccountingScope';
 
 /** One trial-balance row, all money in INTEGER CENTS. */
 export interface TrialBalanceRow {
@@ -65,22 +64,19 @@ export class AccountingReportService {
   ) {}
 
   /**
-   * Trial balance for a unit: per-account debit/credit totals (cents) joined to the
-   * chart, plus a grand total and a `balanced` audit flag (Σdebit === Σcredit exact).
+   * Trial balance for a scope unit: per-account debit/credit totals (cents) joined to
+   * the chart, plus a grand total and a `balanced` audit flag (Σdebit === Σcredit exact).
    */
-  async trialBalance(user: UserContext, query: ReportQueryInput): Promise<TrialBalanceReport> {
-    if (!this.policy.canRead(user)) {
+  async trialBalance(scope: AccountingScope): Promise<TrialBalanceReport> {
+    if (!this.policy.canRead(scope)) {
       throw new ForbiddenError('Você não tem permissão para ler o balancete.');
     }
-    const { userId } = user;
-    const { unitId } = query;
 
     const totals = await this.postingRepo.groupByAccount(
-      userId,
-      unitId,
+      scope,
       AccountingReportService.LEDGER_STATUSES,
     );
-    const accounts = await this.accountRepo.findManyByUnit(userId, unitId);
+    const accounts = await this.accountRepo.findManyByUnit(scope);
     const accountById = new Map(accounts.map((a) => [a.id, a]));
 
     const rows: TrialBalanceRow[] = totals
@@ -102,7 +98,7 @@ export class AccountingReportService {
     const grandCredit = rows.reduce((acc, r) => acc + r.creditCents, 0);
 
     return {
-      unitId,
+      unitId: scope.unitId,
       rows,
       totals: {
         debitCents: grandDebit,
@@ -115,28 +111,22 @@ export class AccountingReportService {
   }
 
   /**
-   * Ledger of a single account (by code) for a unit: each leg with a running balance.
+   * Ledger of a single account (by code) for the scope: each leg with a running balance.
    * Includes Posted + Reversed legs (excludes only Draft) so reversals net to zero.
    */
-  async accountLedger(
-    user: UserContext,
-    query: ReportQueryInput,
-    accountCode: string,
-  ): Promise<AccountLedgerReport> {
-    if (!this.policy.canRead(user)) {
+  async accountLedger(scope: AccountingScope, accountCode: string): Promise<AccountLedgerReport> {
+    if (!this.policy.canRead(scope)) {
       throw new ForbiddenError('Você não tem permissão para ler o razão.');
     }
-    const { userId } = user;
-    const { unitId } = query;
 
-    const account = await this.accountRepo.findByCode(userId, unitId, accountCode);
+    const account = await this.accountRepo.findByCode(scope, accountCode);
     if (!account) {
       throw new NotFoundError(`Conta '${accountCode}' não foi encontrada.`);
     }
 
     // This account's raw legs (tenant+unit scoped), then hydrate each parent entry for
     // date/description/status and drop Draft entries (keep Posted + Reversed so reversals net).
-    const postings = await this.postingRepo.findByAccount(userId, unitId, account.id);
+    const postings = await this.postingRepo.findByAccount(scope, account.id);
     const entryCache = new Map<string, { date: Date; description: string; status: string }>();
 
     const hydrated: Array<{
@@ -151,7 +141,7 @@ export class AccountingReportService {
     for (const p of postings) {
       let entry = entryCache.get(p.entryId);
       if (!entry) {
-        const head = await this.journalEntryRepo.findById(userId, unitId, p.entryId);
+        const head = await this.journalEntryRepo.findById(scope, p.entryId);
         if (!head || !AccountingReportService.LEDGER_STATUSES.includes(head.status)) continue;
         entry = { date: head.date, description: head.description, status: head.status };
         entryCache.set(p.entryId, entry);
@@ -176,7 +166,7 @@ export class AccountingReportService {
     });
 
     return {
-      unitId,
+      unitId: scope.unitId,
       account: {
         accountId: account.id,
         code: account.code,

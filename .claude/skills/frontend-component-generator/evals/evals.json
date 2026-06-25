@@ -1,0 +1,88 @@
+{
+  "skill": "frontend-component-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Crie um componente React reutilizável AppointmentCard que recebe um appointment e exibe título, data e status num card seguindo o Galaxy theme.",
+      "assertions": [
+        "activation: a skill frontend-component-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie um modal de confirmação de exclusão ancorado no Modal canônico (Modal.tsx via portal), seguindo a regra modal-não-rota.",
+      "assertions": [
+        "non-activation: frontend-component-generator NÃO deve ativar — modal ancorado no Modal canônico é trabalho do frontend-modal-generator"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "FECOMP-001",
+        "FECOMP-002",
+        "FECOMP-003",
+        "FECOMP-004",
+        "FECOMP-005",
+        "FECOMP-006"
+      ],
+      "prompt": "Gere o componente completo AppointmentCard em my-app/components/cards/AppointmentCard.tsx seguindo o Galaxy theme. Props: appointment (objeto tipado com title/date/status), isLoading e onOpen (handler de modal de detalhe). Quando isLoading, exiba o LoadingSpinner; quando appointment for nulo, exiba empty state. O card abre um modal de detalhe via props isOpen/onClose/onConfirm. Saída: o conteúdo completo do arquivo TSX.",
+      "target_files": [
+        "my-app/components/cards/AppointmentCard.tsx"
+      ],
+      "assertions": [
+        "@AppointmentCard.tsx::regex:interface AppointmentCardProps\\s*\\{",
+        "@AppointmentCard.tsx::contains:React.FC<AppointmentCardProps>",
+        "@AppointmentCard.tsx::regex:export const AppointmentCard\\s*:\\s*React.FC",
+        "@AppointmentCard.tsx::absent:: any",
+        "@AppointmentCard.tsx::ast-noclass:zinc-",
+        "@AppointmentCard.tsx::contains:rounded-2xl",
+        "@AppointmentCard.tsx::contains:dark:bg-neutral-900",
+        "@AppointmentCard.tsx::regex:dark:text-(white|gray-400|neutral-)",
+        "@AppointmentCard.tsx::ast-jsx:LoadingSpinner",
+        "@AppointmentCard.tsx::regex:isLoading",
+        "@AppointmentCard.tsx::ast-jsx:Modal",
+        "@AppointmentCard.tsx::regex:isOpen={"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "FECOMP-001"
+      ],
+      "prompt": "Gere um form field componente CurrencyInput em my-app/components/form/CurrencyInput.tsx. As props devem ser totalmente tipadas (value number, onChange handler, label string, disabled opcional) sem usar any. Saída: o conteúdo completo do arquivo TSX.",
+      "target_files": [
+        "my-app/components/form/CurrencyInput.tsx"
+      ],
+      "assertions": [
+        "@CurrencyInput.tsx::regex:interface CurrencyInputProps\\s*\\{",
+        "@CurrencyInput.tsx::contains:React.FC<CurrencyInputProps>",
+        "@CurrencyInput.tsx::regex:value\\s*:\\s*number",
+        "@CurrencyInput.tsx::regex:onChange\\s*:\\s*\\(",
+        "@CurrencyInput.tsx::absent:: any",
+        "@CurrencyInput.tsx::absent:<any>"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "FECOMP-003"
+      ],
+      "regression_of": "componentes gerados usavam zinc-* para superfícies dark (Tailwind genérico off-brand) em vez de neutral-* do Galaxy theme",
+      "prompt": "Gere um StatusBadge em my-app/components/ui/StatusBadge.tsx com superfícies para dark mode seguindo o Galaxy theme do Luminaris. Saída: o conteúdo completo do arquivo TSX.",
+      "target_files": [
+        "my-app/components/ui/StatusBadge.tsx"
+      ],
+      "assertions": [
+        "@StatusBadge.tsx::ast-noclass:zinc-",
+        "@StatusBadge.tsx::regex:dark:bg-neutral-(800|900)"
+      ]
+    }
+  ]
+}

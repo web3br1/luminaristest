@@ -306,6 +306,7 @@ model Account {
 
   @@unique([userId, unitId, code]) // real DB constraint — each unit owns its chart
   @@index([userId, unitId])
+  @@index([deletedAt])
   @@map("accounts")
 }
 
@@ -327,6 +328,8 @@ model JournalEntry {
   reversedBy   JournalEntry?  @relation("Reversal", fields: [reversedById], references: [id])
   reverses     JournalEntry?  @relation("Reversal")
   postings     Posting[]
+  createdById  String?   // actor who created this entry (authorship trail)
+  postedById   String?   // actor who posted/confirmed this entry (SoD trail)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -352,6 +355,7 @@ model Posting {
   debitCents  Int          @default(0)
   creditCents Int          @default(0)
   createdAt   DateTime     @default(now())
+  updatedAt   DateTime?    @updatedAt
 
   @@index([userId, unitId])
   @@index([entryId])

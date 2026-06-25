@@ -1,6 +1,6 @@
 ---
 name: skill-audit
-description: Audita as skills geradoras contra o grafo (codebase-memory) em loop com gate objetivo — verifica que os golden refs existem no path, que os anti-exemplos continuam mortos, que todo hotspot de fan-in alto tem dono, que os clones SIMILAR_TO de um canônico não cresceram desde o último baseline, e que os limites de plataforma DynamicTable do Contrato §2.1 (money=centavos, sem self-relation, `unique`≠constraint, guarda de delete) são respeitados. Propõe patches de skill por evidência de grafo; NÃO aplica. Use com `/loop` para rodar até o gate fechar.
+description: Audita as skills geradoras contra o grafo (codebase-memory) em loop com gate objetivo — verifica que os golden refs existem no path, que os anti-exemplos continuam mortos, que todo hotspot de fan-in alto tem dono, que os clones SIMILAR_TO de um canônico não cresceram desde o último baseline, e que o Contrato §2.1 é respeitado nas DUAS metades — limites de plataforma DynamicTable (money=centavos, sem self-relation, `unique`≠constraint, guarda de delete) E a fronteira de routing/injeção (sem serviço Prisma first-class no motor; ERP-com-invariante roteia para Prisma, não preset). Propõe patches de skill por evidência de grafo; NÃO aplica. Use com `/loop` para rodar até o gate fechar.
 argument-hint: "[skill ou pasta a auditar — vazio = todas as skills geradoras + os 3 contratos]"
 allowed-tools: Read, Grep, Glob, Bash, mcp__codebase-memory-mcp__search_graph, mcp__codebase-memory-mcp__query_graph, mcp__codebase-memory-mcp__get_architecture, mcp__codebase-memory-mcp__search_code, mcp__codebase-memory-mcp__trace_path
 ---
@@ -152,7 +152,94 @@ A única trava do §2.1 detectável no grafo/source é a **self-relation** (as o
 - **FAIL** se algum preset referencia a **própria** tabela (self-relation embarcou no canon, apesar de não-suportada) → patch: trocar por hierarquia codificada (`code` prefix) + ajustar a skill `dynamic-table-preset` se foi ela que ensinou.
 - Sem baseline novo: qualquer self-relation > 0 é FAIL direto.
 
+### G6 — §2.1 Metade-B: routing & injeção (a outra metade, que P6/G5 NÃO cobrem)
+P6/G5 cobrem só os **limites de plataforma** do §2.1 (money/self-relation/unique/delete). A metade de **routing & injeção** — onde o incidente real aconteceu — precisa de trava própria:
+- **Injeção no motor (objetivo):** `search_code("PostingService\|PayrollService\|FiscalService", mode=files)` restrito a `server/src/features/dynamicTables/**` + qualquer `RulePlugin`/`RuleContext`/`RuleTypes` → **deve ser vazio**. Qualquer hit = serviço Prisma first-class injetado no engine = **FAIL direto** (foi exatamente o incidente). Patch: mover a integração para controller/serviço de integração + remover a injeção.
+- **Mis-route do orquestrador (objetivo):** ler a tabela de sinais de `luminaris-orchestrator` → nenhuma linha pode rotear `"módulo ERP"`/invariante (contábil/folha/fiscal/RH) para `dynamic-table-preset-generator` sem o gate STEP 0. **FAIL** se "ERP" mapeia para o motor sem o teste binário §2.1. Patch: re-rotear para `fullstack-feature-generator`.
+- **Guardrail §2.1-B presente nas skills que tocam a fronteira** (`crud-resource`, `dynamic-table-preset`, `backend-service` variante orquestração, `workflow-transition`, `chat-domain`): cada uma deve ter o anti-pattern "nunca injete serviço Prisma first-class / integração cross-módulo sobe a controller". Aqui **omissão É FAIL** (≠ P6): essas skills *ensinam ativamente* o padrão de orquestração/injeção, então o guardrail tem de estar inline — não é pointer redundante, é a trava do isco que a própria skill cria.
+
 > **Sempre re-confirme o símbolo no grafo antes de propor** — não confie em símbolo lembrado (mesma regra do `luminaris-reviewer`). Memória recém-recordada reflete o que era verdade quando escrita; o grafo é o agora.
+
+---
+
+## CLI executável (Fase 2+) — `skill-audit.mjs`
+
+A partir da Fase 2 da migração (`governance/SKILLS_STANDARD.md` + `governance/MIGRATION.md`),
+os checks **mecanizáveis** vivem num CLI Node co-localizado, não só no protocolo do agente:
+
+```
+node .claude/skills/skill-audit/skill-audit.mjs <comando>
+
+inventory          # Fase 1: gap matrix -> governance/INVENTORY.md
+validate           # estrutura + frontmatter + nomes + ids + referências
+governance-check   # malha regra↔gate↔target↔eval (aceita dialeto-piloto E dialeto-padrão)
+sync-metadata      # status/eval-score do SKILL.md == projeção do REPORT.md
+coverage           # materializa governance/coverage-auto.md + verifica gates
+eval [--changed]   # valida ESTRUTURA dos evals; execução comportamental é BLOCKED (model-in-loop)
+self-check         # prova contra fixtures que o auditor detecta cada código de falha
+run                # suíte completa; exit≠0 se qualquer finding
+```
+
+Exit code `0` = sem findings; `1` = findings; `2` = comando inválido. Códigos de falha
+materializados (mapeiam 1:1 com `governance/MIGRATION.md`): `INVALID_SKILL_STRUCTURE`,
+`INVALID_FRONTMATTER`, `NAME_DIRECTORY_MISMATCH`, `DUPLICATE_SKILL_NAME`, `DUPLICATE_SKILL_ID`,
+`BROKEN_REFERENCE`, `SKILL_TOO_LARGE`, `RULE_WITHOUT_GATE`, `GATE_WITHOUT_RULE`,
+`GATE_TARGET_NOT_FOUND`, `RULE_WITHOUT_EVAL_COVERAGE`, `MISSING_TRIGGER_EVAL`,
+`UNSAFE_AUTO_INVOCATION`, `EVAL_FAILED`, `STALE_EVALUATION`, `METADATA_REPORT_MISMATCH`,
+`AUDITOR_SELF_CHECK_FAILED`, `DUPLICATE_RULE_ID`.
+
+> **`self-check` é a trava do auditor (SG/“auditar o auditor”).** As fixtures vivem em
+> `fixtures/` (geradas por `make-fixtures.mjs`): uma válida que passa limpa + uma quebrada por
+> código de falha. Erro interno, fixture ausente ou teste não-executado **nunca** vira PASS.
+> A regra de eval só exige eval para regra de gate **não-determinístico** — gate executável
+> (grep G5/G6) já é evidência mais forte (SG-035), não pede eval redundante.
+>
+> O CLI mecaniza os gates objetivos; o **protocolo per-skill P1–P6 + gates de grafo G1–G6**
+> (abaixo) seguem como julgamento do agente — cbm localiza, código/teste confirmam (CBM-001).
+
+## Governance-check — coerência regra ↔ gate ↔ eval (Fase 1)
+
+Modo separado da varredura per-skill. Lê o `_ARCHITECTURE-CONTRACT.md` (regras com ID) + cada
+`governance.md` de skill governada e valida a **malha regra→gate→eval**. É a trava que faltava:
+garante que toda regra com ID tem gate, todo gate aponta pra alvo real, e o `eval-score`/`last-evaluated`
+é projeção do `REPORT.md` (não número editado à mão). **Não aplica nada — reporta FAIL.**
+
+Escopo Fase 1: só skills com `governance.md` (hoje: `dynamic-table-preset-generator`,
+`backend-workflow-transition-generator`). Skill ainda não governada **não** falha — adoção incremental.
+
+### Códigos de falha (qualquer um = FAIL)
+
+| Código | Dispara quando |
+|---|---|
+| `DUPLICATE_RULE_ID` | dois IDs de regra iguais no contrato (ou colidindo entre arquivos) |
+| `RULE_WITHOUT_GATE` | regra com ID **reivindicada** em algum `governs-rules` sem entrada correspondente em `gates:` |
+| `GATE_WITHOUT_RULE` | `governance.md` referencia um rule-ID que **não existe** no contrato |
+| `GATE_TARGET_NOT_FOUND` | o gate aponta pra check/comando/arquivo inexistente (G-gate não documentado, path fantasma, comando que não roda) |
+| `STALE_EVALUATION` | `last-evaluated` do `governance.md` mais antigo que a última corrida do `REPORT.md` daquela skill |
+| `SKILL_WITHOUT_STABLE_ID` | skill com `governance.md` mas sem `metadata.governance-skill-id` no `SKILL.md` (ou os dois divergem) |
+| `AUDITOR_SELF_CHECK_FAILED` | a `description` deste skill-audit cita um gate (GX) ausente da seção de gates, **ou** um gate referenciado por algum `governance.md` não está documentado aqui (auditar o auditor) |
+
+### Como rodar (protocolo do agente — não é CLI compilada nesta fase)
+
+```
+skill-audit governance-check
+  1. parse dos IDs de regra do contrato (regex `\[AC-\d\.\d-[A-Z0-9-]+\]`) → set; duplicado ⇒ DUPLICATE_RULE_ID
+  2. para cada governance.md: cada rule em governs-rules existe no contrato? não ⇒ GATE_WITHOUT_RULE
+  3. cada rule em governs-rules tem entrada em gates:? não ⇒ RULE_WITHOUT_GATE
+  4. cada gate aponta pra G-gate documentado nesta SKILL.md / reviewer callout / comando válido? não ⇒ GATE_TARGET_NOT_FOUND
+  5. governance-skill-id do governance.md == metadata.governance-skill-id do SKILL.md? não ⇒ SKILL_WITHOUT_STABLE_ID
+  6. last-evaluated >= data da última entrada do REPORT.md pra skill? não ⇒ STALE_EVALUATION
+  7. auditor-self-check (passo abaixo)
+
+skill-audit auditor-self-check
+  - todo `GX` citado na description/frontmatter existe como gate G1–G6 nesta SKILL.md;
+  - todo gate referenciado por qualquer governance.md (`skill-audit/GX`, `skill-audit/PX`) existe aqui;
+  - falha ⇒ AUDITOR_SELF_CHECK_FAILED.
+```
+
+Saída materializa `governance/coverage.md` (matriz regra→gate→status) + lista de códigos de falha.
+`eval-score` no frontmatter é **sempre projeção** do `REPORT.md`; se materializado e divergente do
+relatório ⇒ `STALE_EVALUATION` (nunca confie no número editado à mão).
 
 ---
 
@@ -204,6 +291,32 @@ Agendar antes de provar manualmente é exatamente como loops explodem dormindo.
 ```
 /loop /skill-audit --sweep         # VARREDURA COMPLETA: cada skill individualmente, uma por iteração, até a fila zerar
 /loop /skill-audit                 # incremental: só o que mudou + gates grafo-wide
+/skill-audit governance-check      # Fase 1: coerência regra↔gate↔eval nas skills governadas + self-check do auditor
 /skill-audit frontend-modal        # uma corrida avulsa, escopo a uma skill (sem loop)
 ```
 Saída sempre = verdict per-skill + FAILs + patches propostos + 1 linha por achado. **Nunca aplica** — humano aprova quais entram (Patches 1–5 desta sessão foram exatamente esse fluxo).
+
+---
+
+## Baseline congelada — contrato operacional (v1, 2026-06-25)
+
+Rollout de governança completo: **34/34 skills geradoras `validated`**, `run --all` limpo (0 findings), todo controle
+discrimina. A partir daqui o auditor **barra drift**, não constrói baseline. Regras de operação:
+
+1. **Baseline imutável por commit/tag** — `skills-governance-v1` marca o estado 34/34. Reverter a baseline exige novo tag.
+2. **Gate de CI obrigatório** — o job `skill-governance` em `.github/workflows/ci.yml` roda `skill-audit run --all`
+   em PR e na branch principal; **exit ≠ 0 bloqueia o merge**. É determinístico (estático) — não usa model-in-loop.
+3. **PR = incremental, sweep = periódico** — o gate de CI é o `run --all` (barato, < 1s). A **re-geração comportamental**
+   (subagente gera em contexto limpo → `batch-eval`) é a varredura completa human-run via `/loop /skill-audit --sweep`,
+   periódica — nunca no CI (model-in-loop é caro e não-determinístico).
+4. **Mudança de regra = change-set atômico** — alterar/adicionar uma regra (`[PREFIX-NNN]`) exige, no MESMO commit:
+   o **gate** (`governance.md`), a **eval** (`evals.json`) e o **control** quando a assertion foi de-brittled
+   (`controls/<skill>.json`), o **REPORT.md** atualizado e o **bump de `governance-version`**. `eval-score`/`last-evaluated`
+   são projeção do REPORT (SG-011) — nunca editados à mão.
+5. **Harness só cresce com falha real** — nenhum novo kind de assertion / gate sem um caso reproduzível que a baseline
+   atual deixa passar. (`absent-code` nasceu de um falso-positivo de comentário real; o char-scanner, de URL/regex/template
+   reais.) Sem evidência de falha, não expandir — YAGNI.
+
+> **Contrato de fontes (o que decide o quê):** *skill define* (SKILL.md + contratos) · *governance relaciona* (governance.md:
+> regra→gate→eval) · *cbm localiza* (estrutural, não-autoritativo — CBM-001) · *código/testes confirmam* (verdade objetiva) ·
+> *skill-audit impede drift* (gate determinístico no CI + sweep comportamental human-run).

@@ -1,0 +1,96 @@
+{
+  "skill": "analytics-kpi-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Preciso de um novo KPI de Ticket Médio na categoria revenue — só a camada de analytics do backend: o processor single-pass sobre as rows retornando ChartDataPoint[] e o template registrado. Sem frontend.",
+      "assertions": [
+        "activation: a skill analytics-kpi-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Quero o KPI de Ticket Médio ponta a ponta, com o card aparecendo no frontend do dashboard de revenue — o cálculo no backend E o widget renderizando o card canônico.",
+      "assertions": [
+        "non-activation: analytics-kpi-generator NÃO deve ativar — pedido ponta a ponta (backend + frontend), trabalho do dashboard-kpi-end-to-end-generator (sibling)",
+        "activation: a skill esperada é dashboard-kpi-end-to-end-generator"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "AKPI-001",
+        "AKPI-002",
+        "AKPI-003",
+        "AKPI-005"
+      ],
+      "prompt": "Gere o KPI 'TicketMedio' na categoria 'revenue', backend-only: (1) TicketMedioKpiProcessor.ts — processor single-pass sobre rows retornando ChartDataPoint[], acumulando dinheiro só via addMoney(); (2) TicketMedioKpiTemplate.ts — template com requiredFields/optionalFields, auto-registrado via registerTemplate; (3) o trecho de revenue/index.ts que registra o processor via registerProcessor e importa o template. Cada arquivo precedido de um marcador `// <path>`.",
+      "target_files": [
+        "server/src/features/analytics/kpis/revenue/TicketMedioKpiProcessor.ts",
+        "server/src/features/analytics/kpis/revenue/TicketMedioKpiTemplate.ts",
+        "server/src/features/analytics/kpis/revenue/index.ts"
+      ],
+      "assertions": [
+        "@TicketMedioKpiProcessor.ts::contains:ChartDataPoint",
+        "@TicketMedioKpiProcessor.ts::ast-import:ChartDataPoint@../../core",
+        "@TicketMedioKpiProcessor.ts::regex:AnalyticsProcessor[\\s\\S]*Promise<ChartDataPoint\\[\\]>",
+        "@TicketMedioKpiProcessor.ts::regex:const\\s*\\{[\\s\\S]*rows[\\s\\S]*\\}\\s*=\\s*context",
+        "@TicketMedioKpiProcessor.ts::contains:addMoney(",
+        "@TicketMedioKpiProcessor.ts::absent:import React",
+        "@TicketMedioKpiProcessor.ts::absent:apiClient",
+        "@TicketMedioKpiProcessor.ts::absent:res.json(",
+        "@TicketMedioKpiProcessor.ts::absent:res.status(",
+        "@TicketMedioKpiProcessor.ts::absent:prisma.",
+        "@TicketMedioKpiTemplate.ts::ast-import:registerTemplate@../../core",
+        "@TicketMedioKpiTemplate.ts::contains:registerTemplate(",
+        "@TicketMedioKpiTemplate.ts::contains:processor:",
+        "@index.ts::ast-import:registerProcessor@../../core",
+        "@index.ts::contains:registerProcessor(",
+        "@index.ts::regex:import\\s+['\"]\\./TicketMedioKpiTemplate['\"]"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "AKPI-001",
+        "AKPI-004"
+      ],
+      "prompt": "No TicketMedioKpiProcessor, garanta em um único passe sobre as rows que: rows vazios produzam um value 0 finito (nunca NaN), e previousValue seja undefined quando não há período anterior (nunca 0). Gere apenas o processor, precedido de `// <path>`.",
+      "target_files": [
+        "server/src/features/analytics/kpis/revenue/TicketMedioKpiProcessor.ts"
+      ],
+      "assertions": [
+        "@TicketMedioKpiProcessor.ts::contains:ChartDataPoint",
+        "@TicketMedioKpiProcessor.ts::regex:number\\s*\\|\\s*undefined",
+        "@TicketMedioKpiProcessor.ts::contains:Number.isFinite(",
+        "@TicketMedioKpiProcessor.ts::regex:previousValue[\\s\\S]*undefined"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "AKPI-002",
+        "AKPI-003"
+      ],
+      "regression_of": "processor acumulando dinheiro com += (drift de float) e/ou acessando prisma direto / vazando camada HTTP (res.json) em vez de ser função pura do context devolvendo ChartDataPoint[]",
+      "prompt": "Gere o corpo do TicketMedioKpiProcessor acumulando o total de vendas sem usar += em floats e sem tocar prisma nem Express — apenas sobre as rows do context. Precedido de `// <path>`.",
+      "target_files": [
+        "server/src/features/analytics/kpis/revenue/TicketMedioKpiProcessor.ts"
+      ],
+      "assertions": [
+        "@TicketMedioKpiProcessor.ts::contains:addMoney(",
+        "@TicketMedioKpiProcessor.ts::absent:prisma.",
+        "@TicketMedioKpiProcessor.ts::absent:res.json(",
+        "@TicketMedioKpiProcessor.ts::absent:res.status(",
+        "@TicketMedioKpiProcessor.ts::absent:import React"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "skill": "backend-controller-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Crie o controller do recurso Invoice com as actions list, getById, create e update.",
+      "assertions": [
+        "activation: a skill backend-controller-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie um componente React de tabela para listar faturas no dashboard.",
+      "assertions": [
+        "non-activation: backend-controller-generator NÃO deve ativar (pedido é de frontend/componente)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "CTL-001",
+        "CTL-002",
+        "CTL-003",
+        "CTL-004",
+        "CTL-005"
+      ],
+      "prompt": "Gere o controller completo do recurso Invoice em server/src/controllers/invoiceController.ts com as funções listInvoices, createInvoice e updateInvoice. Schema Zod inline com campos number (string), amount (number), status. Saída: o conteúdo completo do arquivo.",
+      "target_files": [
+        "server/src/controllers/invoiceController.ts"
+      ],
+      "assertions": [
+        "regex:Schema\\.safeParse\\(req\\.body\\)",
+        "contains:res.status(400)",
+        "contains:getUserContextFromRequest(req)",
+        "regex:getFactory\\(\\)\\.getInvoiceService\\(\\)",
+        "contains:success: true",
+        "contains:res.status(201)",
+        "regex:handleApiError\\(error,\\s*res\\)",
+        "absent:new InvoiceService(",
+        "absent:prisma."
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "CTL-004",
+        "CTL-006"
+      ],
+      "prompt": "No controller de Invoice, gere o handler getInvoiceById que retorna 404 quando não encontra e 200 com o registro quando encontra. Garanta que nenhum res.json possa rodar depois de outro (sem 'headers already sent').",
+      "assertions": [
+        "regex:return\\s+res\\.(status\\(404\\)|json)",
+        "regex:return\\s+res\\.json\\(\\{\\s*success:\\s*true",
+        "absent:res.send("
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "CTL-001"
+      ],
+      "regression_of": "userController.ts chama o service/prisma antes de validar o body — validação precisa ser a PRIMEIRA coisa do handler",
+      "prompt": "Gere o handler createInvoice. A validação Zod do body deve acontecer ANTES de obter o service ou chamar qualquer lógica.",
+      "assertions": [
+        "regex:safeParse\\(req\\.body\\)[\\s\\S]*getFactory\\(\\)",
+        "regex:if\\s*\\(!parse\\.success\\)\\s*\\{?\\s*return\\s+res\\.status\\(400\\)"
+      ]
+    }
+  ]
+}

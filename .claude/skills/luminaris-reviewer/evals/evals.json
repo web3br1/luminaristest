@@ -1,0 +1,70 @@
+{
+  "skill": "luminaris-reviewer",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "A implementação terminou. Valide os arquivos gerados contra os padrões de camada e a fronteira §2.1, rode o tsc e produza o veredicto PASS/FAIL com arquivo:linha.",
+      "assertions": [
+        "activation: a skill luminaris-reviewer deve ser a escolhida (verificar independentemente + reportar evidência é o papel dela)"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Recebi a tarefa do usuário. Decida quais skills usar, em que ordem, e monte o plano de execução.",
+      "assertions": [
+        "non-activation: luminaris-reviewer NÃO deve ativar — analisar/rotear/planejar é papel do luminaris-orchestrator."
+      ]
+    },
+    {
+      "id": "trigger-neg-2",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie os arquivos do recurso Invoice conforme o passo 1 do plano (DTO, repository, service) e rode o tsc.",
+      "assertions": [
+        "non-activation: luminaris-reviewer NÃO deve ativar — criar/editar os arquivos é papel do luminaris-implementer; o revisor não conserta o código sob revisão."
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": ["REV-001", "REV-002", "REV-005"],
+      "prompt": "Revise esta implementação: um orchestration service `SalesPostingService.ts` que injeta o `PostingService` (serviço Prisma first-class do módulo contábil) ao lado do `DynamicTableService` para lançar contabilidade na venda (server/src/features/sales/services/SalesPostingService.ts:42). Produza o relatório de revisão: veredicto PASS/FAIL com evidência arquivo:linha, citando a fronteira §2.1, rodando o tsc, e sugerindo a correção — sem editar o arquivo você mesmo.",
+      "assertions": [
+        "regex:(FAIL|REPROVADO)",
+        "regex:(§2\\.1|PostingService|DynamicTable)",
+        "regex:\\w+\\.ts:\\d+",
+        "regex:(npx tsc|tsc --noEmit)",
+        "regex:(Corre[çc][ãa]o|sugest|→)",
+        "absent-code:APROVADO"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": ["REV-004"],
+      "prompt": "Ao revisar `InvoiceRepository.ts`, você encontra `prisma.invoice.delete()` (hard delete) na linha 34 onde o recurso usa soft-delete — um defeito real. Produza a entrada do relatório para esse arquivo: reporte o FAIL com arquivo:linha e a correção sugerida, e devolva ao implementador. Você NÃO aplica o patch.",
+      "assertions": [
+        "regex:(FAIL|REPROVADO)",
+        "regex:InvoiceRepository\\.ts:34",
+        "regex:(Corre[çc][ãa]o|→ Corre)",
+        "regex:(implementador|devolv|corrij)"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": ["REV-003"],
+      "regression_of": "Revisor aprovando na confiança — o implementador afirma 'tudo PASS' mas o relatório não mostra os comandos executados nem exit codes (evidência de tsc/jest ausente), e mesmo assim o revisor marca APROVADO.",
+      "prompt": "O implementador entregou um relatório que afirma 'tudo PASS', mas SEM mostrar os comandos executados nem os exit codes — não há evidência de que o tsc ou o jest rodaram. Produza o seu veredicto de revisor.",
+      "assertions": [
+        "regex:(BLOCKED|REPROVADO)",
+        "absent-code:APROVADO",
+        "regex:(evid[êe]ncia|exit|tsc|jest|n[ãa]o exec|sem comando)"
+      ]
+    }
+  ]
+}

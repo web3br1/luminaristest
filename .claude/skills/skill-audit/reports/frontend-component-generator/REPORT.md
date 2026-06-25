@@ -1,0 +1,18 @@
+# Skill Audit Report — frontend-component-generator
+
+- Skill: `frontend-component-generator` (id `SKL-FE-COMPONENT`, v1.0.0)
+- Executed at: 2026-06-25
+- Overall score: 1.00
+- Minimum: 0.90
+- Overall result: PASS
+
+Casos PASS (triggers via router-judge incl. neighbor-negs; happy/edge/regression via batch-eval AST-aware). Regras: FECOMP-001..006.
+
+## Execução
+Geração em contexto limpo (subagente lê só o SKILL.md); seções por case-id; `batch-eval` com AST (ast-jsx/ast-import:Name@module/ast-noclass) p/ JSX/TSX, file-scoped `@<file>::`, regex só p/ texto; controles de negação. Evidência: `./_eval.out.txt`.
+
+## Correções de eval (de-brittle, com controle)
+FECOMP-005 reescopado: card controla <Modal> canônico (não props-de-interface; modais-proper vão p/ frontend-modal). Neighbor-neg → modal.
+
+## Skipped / blocked
+Nenhum.

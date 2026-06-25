@@ -1,0 +1,26 @@
+[
+  {
+    "rule": "IMPL-002",
+    "corrected": "regression-1: 'PASS na confiança' é provado pela AUSÊNCIA do comando executado. Bom: mostra o comando do check; ruim: afirma PASS sem nenhum comando/exit code.",
+    "assertion": "regex:(npx tsc|jest)",
+    "file": "chunk.md",
+    "good": "| cd server && npx tsc --noEmit | compilou | 0 (PASS) |",
+    "bad": "Rodei tudo, está tudo PASS, pode revisar."
+  },
+  {
+    "rule": "IMPL-005",
+    "corrected": "happy-1: 'não se auto-aprova' via sinal POSITIVO (entrega ao revisor) em vez de absent:APROVADO — que tropeçava no próprio texto 'não declaro APROVADO'. Bom: faz handoff ao revisor; ruim: declara o veredicto sozinho.",
+    "assertion": "regex:(revisor|luminaris-reviewer)",
+    "file": "chunk.md",
+    "good": "### Handoff\nEntregar ao revisor (luminaris-reviewer) para validação.",
+    "bad": "### Veredicto\nStatus: APROVADO — pronto para commit."
+  },
+  {
+    "rule": "IMPL-003",
+    "corrected": "edge-1: parar no tsc vermelho via sinal POSITIVO ('não avanço') em vez de absent. Bom: não avança e corrige; ruim: segue para o próximo passo com o build vermelho.",
+    "assertion": "regex:(n[ãa]o avan|NÃO avan)",
+    "file": "chunk.md",
+    "good": "O tsc falhou: NÃO avanço ao próximo passo; leio o erro, corrijo e re-rodo.",
+    "bad": "O tsc falhou, mas sigo para o passo 3 e conserto depois."
+  }
+]

@@ -1,0 +1,71 @@
+I have real evidence: `tsc` exits 0, but `jest features/invoice` exits 1 (no tests found / no InvoiceService implemented). The honest implementer artifacts must reflect this — I cannot claim PASS without execution, and the InvoiceService does not actually exist in the tree.
+
+Here are the three artifacts.
+
+===happy-1===
+## IMPLEMENTAÇÃO CONCLUÍDA — InvoiceService
+
+> [IMPL-002] Os checks abaixo foram **executados de fato** e os exit codes são os reais observados. Não há auto-aprovação ([IMPL-005]) nem alteração de governança ([IMPL-006]).
+
+### Arquivos criados
+- (nenhum confirmado em disco)
+
+### Arquivos editados
+- (nenhum confirmado em disco)
+
+### BLOQUEIO DE EVIDÊNCIA — o passo não pôde ser dado como concluído
+Antes de reportar "concluído" tentei localizar o artefato do passo. Resultado real:
+- `find server/src/features -iname "*invoice*"` → exit 0, **nenhum arquivo**
+- `Glob server/src/features/**/*nvoice*` → **No files found**
+
+Não existe `InvoiceService` (nem DTO/IRepository/Repository/IPolicy/Policy/Factory/Controller/Route) no tree. Pela Etapa 1 do protocolo eu deveria ter lido `.claude/skills/_ARCHITECTURE-CONTRACT.md` + a slice de referência `server/src/features/users/` e gerado a cadeia `Prisma → DTO → IRepository → Repository → IPolicy → Policy → Service → Factory → Controller → Route`. Como nada disso está em disco, **não posso afirmar que o passo "criar InvoiceService" foi implementado** — afirmar o contrário seria fabricar resultado.
+
+### Checks executados (exit codes reais)
+- [x] `cd server && npx tsc --noEmit` → **PASS (exit 0)** — compila, mas porque não há código novo de InvoiceService introduzido.
+- [ ] `cd server && npx jest features/invoice` → **FAIL (exit 1)** — `No tests found, Pattern: features/invoice - 0 matches`. Sem suíte de InvoiceService, sem cobertura.
+
+### Pendências / riscos
+- InvoiceService e toda a sua vertical-slice **não existem** — o passo está, na verdade, **não implementado**; o "PASS" do tsc é vazio (não prova nada sobre o passo).
+- Decisão de camada por resolver: invoice tem invariante financeiro/legal → contrato §2.1 manda **Prisma first-class** (Model + Service + Repo + Policy próprios), **não** DynamicTable. Precisa ser confirmado no plano antes de gerar.
+- Sem suíte de teste (jest 0 matches) — viola "Required checks" da camada service.
+
+### Handoff
+IMPLEMENTAÇÃO NÃO PRONTA PARA REVISÃO (passo não materializado em disco; jest falhou). Não declaro APROVADO/validated — não é meu papel ([IMPL-005]).
+Ação: este resultado deve voltar à execução para gerar de fato a slice; só depois entregar ao revisor (`.claude/skills/luminaris-reviewer/SKILL.md`).
+
+===edge-1===
+Próxima ação como implementador, seguindo "Protocolo para erros durante implementação" + [IMPL-003]:
+
+1. **NÃO avanço ao próximo passo.** `cd server && npx tsc --noEmit` falhou depois do passo 2 — um erro em cadeia é pior que parar cedo.
+2. **Leio o erro de compilação** (a saída do tsc) e identifico o arquivo/linha que o causou — tipicamente o arquivo gerado no passo 2 (import inexistente, tipo divergente, DI quebrada). Se for import inventado, uso `Grep` para achar o path real em vez de adivinhar.
+3. **Corrijo no próprio arquivo** que introduziu o erro, dentro da camada certa (sem mover lógica entre camadas).
+4. **Re-rodo `cd server && npx tsc --noEmit`** e registro o **exit code real**.
+5. **Só com exit 0 sigo** para o passo 3.
+
+O que eu explicitamente **NÃO** faço:
+- **NÃO** avanço para o próximo passo com o tsc vermelho ([IMPL-003]).
+- **NÃO** me auto-aprovo nem marco APROVADO/validated ([IMPL-005]) — corrigir um erro de build não é revisão.
+- **NÃO** toco em governança / status de aprovação (`governance-status`, `eval-score`, veredicto) — o plano não pediu essa tarefa ([IMPL-006]).
+- **NÃO** mascaro o vermelho (sem `// @ts-ignore`, sem `--passWithNoTests`, sem `any` para calar o compilador) nem reporto PASS sem re-rodar o check ([IMPL-002]).
+- **NÃO** improviso novos passos fora do plano ([IMPL-001]) — apenas conserto o que quebrou e retomo o plano original.
+
+===regression-1===
+Resultado real dos checks após o passo "criar InvoiceService" (cada um com comando + exit code observado; sem PASS sem evidência - [IMPL-002]):
+
+| # | Comando executado | Resultado real | Exit code |
+|---|---|---|---|
+| 1 | `cd server && npx tsc --noEmit` | compilou sem erros | **0 (PASS)** |
+| 2 | `cd server && npx jest features/invoice` | `No tests found … Pattern: features/invoice - 0 matches` (675 files checked, 0 matches) | **1 (FAIL)** |
+
+Saída literal do jest:
+```
+No tests found, exiting with code 1
+Run with `--passWithNoTests` to exit with code 0
+Pattern: features/invoice - 0 matches
+---jest exit:1---
+```
+
+Interpretação honesta (não inflo o veredicto):
+- O **tsc PASS (exit 0) não é prova de que o passo foi implementado** — uma checagem prévia (`find`/Glob por `*invoice*`) retornou **zero arquivos**: não há `InvoiceService` nem sua slice em disco. O tsc passa por ausência de código novo, não por código correto.
+- O **jest FALHOU (exit 1)** porque não existe suíte `features/invoice` — sem cobertura, o passo não satisfaz "Required checks" da camada service.
+- Portanto: **não declaro PASS global.** Há um check vermelho (jest, exit 1) e o artefato do passo não está materializado. Conforme [IMPL-003] não avanço; conforme [IMPL-005] não me auto-aprovo; conforme [IMPL-006] não altero governança. O caso volta para gerar de fato a slice + a suíte antes de qualquer handoff ao revisor.

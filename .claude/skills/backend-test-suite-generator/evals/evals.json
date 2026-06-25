@@ -1,0 +1,101 @@
+{
+  "skill": "backend-test-suite-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Quero testes Jest para o InvoiceService recém-criado: getById, delete e isolamento de tenant.",
+      "assertions": [
+        "activation: a skill backend-test-suite-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Gere o DTO Zod (Create/Update) para o recurso Invoice com campos number e amount.",
+      "assertions": [
+        "non-activation: backend-test-suite-generator NÃO deve ativar (pedido é de DTO, não de teste)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "TEST-001",
+        "TEST-002",
+        "TEST-003",
+        "TEST-005"
+      ],
+      "prompt": "Gere a suíte Jest de service para InvoiceService em server/src/features/invoices/services/__tests__/InvoiceService.test.ts. Cubra getById (sucesso, NotFoundError quando null, ForbiddenError quando a policy nega), delete via softDelete e uma asserção de tenant isolation (usuário B acessando recurso do usuário A). Saída: o conteúdo completo do arquivo de teste.",
+      "target_files": [
+        "server/src/features/invoices/services/__tests__/InvoiceService.test.ts"
+      ],
+      "assertions": [
+        "contains:jest.clearAllMocks()",
+        "contains:function buildService",
+        "contains:new InvoiceService",
+        "absent:new PrismaClient",
+        "regex:findById:\\s*jest\\.fn\\(\\)",
+        "regex:canView:\\s*jest\\.fn\\(\\)\\.mockReturnValue\\(true\\)",
+        "regex:rejects\\.toThrow\\(\\s*NotFoundError\\s*\\)",
+        "regex:rejects\\.toThrow\\(\\s*ForbiddenError\\s*\\)",
+        "regex:softDelete[\\s\\S]*?toHaveBeenCalled",
+        "regex:(tenant|isolation)[\\s\\S]*?toThrow\\(\\s*NotFoundError\\s*\\)"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "TEST-004",
+        "TEST-007"
+      ],
+      "prompt": "Gere a suíte Jest do KPI processor RevenueKpiProcessor em server/src/features/analytics/kpis/revenue/__tests__/RevenueKpiProcessor.test.ts. Inclua as suítes Math, Float Safety (1000 × R$0,10) e Empty Safety (rows vazios). Use referenceDate fixo. Saída: o conteúdo completo do arquivo.",
+      "target_files": [
+        "server/src/features/analytics/kpis/revenue/__tests__/RevenueKpiProcessor.test.ts"
+      ],
+      "assertions": [
+        "regex:referenceDate\\s*=\\s*new Date\\('20\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z'\\)",
+        "regex:data:\\s*\\{?\\s*[\\s\\S]*?amount",
+        "contains:Number.isFinite",
+        "contains:rows: []",
+        "regex:toBeCloseTo\\(\\s*100\\s*,\\s*2\\s*\\)",
+        "absent:jest.mock('../RevenueKpiProcessor')",
+        "absent:DataSanitizer"
+      ]
+    },
+    {
+      "id": "edge-2",
+      "type": "edge",
+      "rules": [
+        "TEST-006"
+      ],
+      "prompt": "Gere a suíte Jest de middleware de autenticação em server/src/middleware/__tests__/auth.test.ts: rejeita token ausente, rejeita token inválido/expirado e popula o user context em req quando o token é válido. Saída: o conteúdo completo do arquivo.",
+      "target_files": [
+        "server/src/middleware/__tests__/auth.test.ts"
+      ],
+      "assertions": [
+        "@auth.test.ts:: contains:jest.clearAllMocks()",
+        "@auth.test.ts:: regex:(sem token|missing token|no token|token[\\s\\S]{0,20}ausente)",
+        "@auth.test.ts:: regex:(invalid|expired|inválido|expirado)",
+        "@auth.test.ts:: regex:req\\.(user|userId)"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "TEST-003"
+      ],
+      "regression_of": "Suíte cross-tenant usava ForbiddenError, vazando existência do recurso (enumeration attack); deve ser NotFoundError + repo chamado com userId do actor",
+      "prompt": "Gere apenas o teste de tenant isolation do InvoiceService: usuário B tenta acessar recurso do usuário A, e a asserção de que o repositório recebe o userId do actor.",
+      "assertions": [
+        "regex:rejects\\.toThrow\\(\\s*NotFoundError\\s*\\)",
+        "regex:objectContaining\\(\\s*\\{?\\s*userId",
+        "absent:rejects.toThrow(ForbiddenError)"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "skill": "frontend-context-provider-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Preciso compartilhar o estado de notificações entre vários componentes do dashboard sem prop-drilling. Crie um React Context + Provider + hook useNotifications.",
+      "assertions": [
+        "activation: a skill frontend-context-provider-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Gere um DTO Zod (Create/Update/Response) para o recurso Invoice no backend.",
+      "assertions": [
+        "non-activation: frontend-context-provider-generator NÃO deve ativar (pedido é de DTO backend)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "FECTX-001",
+        "FECTX-002",
+        "FECTX-003",
+        "FECTX-004",
+        "FECTX-005"
+      ],
+      "prompt": "Gere o context completo para Notifications seguindo o padrão dos contexts existentes (Auth, Currency, Dashboard, Toast). Estado: notifications (array) e markAllRead (handler). Saída: o conteúdo completo do arquivo NotificationsContext.tsx (um único arquivo TSX).",
+      "target_files": [
+        "my-app/lib/context/NotificationsContext.tsx"
+      ],
+      "assertions": [
+        "ast-import:createContext@react",
+        "ast-import:useContext@react",
+        "regex:createContext<\\s*NotificationsContextType\\s*\\|\\s*undefined\\s*>\\(\\s*undefined\\s*\\)",
+        "ast-jsx:NotificationsContext.Provider",
+        "regex:export function NotificationsProvider\\s*\\(\\s*\\{\\s*children",
+        "regex:export function useNotifications\\s*\\(",
+        "contains:useContext(NotificationsContext)",
+        "regex:if\\s*\\(\\s*!ctx\\s*\\)\\s*throw new Error\\(",
+        "regex:const value = useMemo\\s*(<[^>]+>)?\\s*\\("
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "FECTX-004"
+      ],
+      "prompt": "No hook useNotifications, garanta que usar o context fora do NotificationsProvider falhe de forma explícita em vez de retornar undefined silenciosamente. Gere apenas o hook de consumo.",
+      "assertions": [
+        "regex:const ctx = useContext\\(NotificationsContext\\)",
+        "regex:if\\s*\\(\\s*!ctx\\s*\\)\\s*\\{?\\s*throw new Error\\(",
+        "absent:return ctx as"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "FECTX-005"
+      ],
+      "regression_of": "value passado como objeto-literal sem useMemo re-renderiza todos os consumidores a cada render",
+      "prompt": "No NotificationsProvider, monte o objeto value passado ao Provider de forma que não recrie o objeto a cada render. Gere apenas o trecho do value e o return do Provider.",
+      "assertions": [
+        "regex:const value = useMemo\\s*(<[^>]+>)?\\s*\\(\\s*\\(\\)\\s*=>\\s*\\(\\{[\\s\\S]*\\}\\)\\s*,\\s*\\[",
+        "absent:<NotificationsContext.Provider value={{"
+      ]
+    }
+  ]
+}

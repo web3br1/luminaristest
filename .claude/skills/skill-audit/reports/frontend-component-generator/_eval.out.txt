@@ -1,0 +1,77 @@
+===happy-1===
+// my-app/components/cards/AppointmentCard.tsx
+import React, { useState } from 'react';
+import { LoadingSpinner } from '@/components/ui/feedback/LoadingSpinner';
+import { Modal } from '@/components/ui/Modal';
+
+export type AppointmentStatus = 'scheduled' | 'confirmed' | 'cancelled' | 'completed';
+export interface Appointment { title: string; date: string; status: AppointmentStatus; }
+export interface AppointmentCardProps { appointment: Appointment | null; isLoading?: boolean; onOpen?: (appointment: Appointment) => void; }
+
+export const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, isLoading = false, onOpen }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const handleOpen = () => { if (!appointment) return; setIsOpen(true); onOpen?.(appointment); };
+  const handleClose = () => setIsOpen(false);
+  const handleConfirm = () => { handleClose(); };
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10"><LoadingSpinner /></div>
+      ) : !appointment ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+          <p className="text-sm font-semibold text-gray-700 dark:text-white">Nenhum agendamento</p>
+        </div>
+      ) : (
+        <>
+          <h3 className="truncate text-lg font-black text-gray-900 dark:text-white">{appointment.title}</h3>
+          <button type="button" onClick={handleOpen} className="mt-4 w-full rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white dark:bg-white dark:text-neutral-900">Ver detalhes</button>
+          <Modal isOpen={isOpen} onClose={handleClose} title={appointment.title}>
+            <button type="button" onClick={handleConfirm}>Confirmar</button>
+          </Modal>
+        </>
+      )}
+    </div>
+  );
+};
+
+===edge-1===
+// my-app/components/form/CurrencyInput.tsx
+import React, { useCallback } from 'react';
+
+export interface CurrencyInputProps { value: number; onChange: (value: number) => void; label: string; disabled?: boolean; placeholder?: string; id?: string; }
+
+export const CurrencyInput: React.FC<CurrencyInputProps> = ({ value, onChange, label, disabled = false, placeholder = 'R$ 0,00', id }) => {
+  const handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = event.target.value.replace(/\D/g, '');
+    onChange(digits ? Number(digits) / 100 : 0);
+  }, [onChange]);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">{label}</label>
+      <input type="text" inputMode="decimal" onChange={handleChange} disabled={disabled} placeholder={placeholder} className="w-full rounded-xl border border-gray-300 bg-white py-2 px-3 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white" />
+    </div>
+  );
+};
+
+===regression-1===
+// my-app/components/ui/StatusBadge.tsx
+import React from 'react';
+
+export type StatusVariant = 'success' | 'warning' | 'error' | 'info' | 'neutral';
+export interface StatusBadgeProps { label: string; variant?: StatusVariant; className?: string; }
+
+const VARIANT_STYLES: Record<StatusVariant, string> = {
+  success: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
+  warning: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
+  error: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
+  info: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300',
+  neutral: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
+};
+
+export const StatusBadge: React.FC<StatusBadgeProps> = ({ label, variant = 'neutral', className = '' }) => {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest ${VARIANT_STYLES[variant]} ${className}`.trim()}>
+      {label}
+    </span>
+  );
+};

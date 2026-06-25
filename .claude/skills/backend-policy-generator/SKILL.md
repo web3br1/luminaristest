@@ -1,8 +1,16 @@
 ---
 name: backend-policy-generator
-description: Gera classe Policy + interface IPolicy com métodos canXxx de autorização baseados em role e ownership
+description: Gera a camada Policy (classe `<Resource>Policy` + interface `I<Resource>Policy`) com métodos `canXxx` de autorização puramente booleanos, baseados em role (`Role.ADMIN`) e ownership (`actor.id === ownerId`). Use ao criar um recurso que precisa de controle de acesso, ao adicionar regra de autorização a recurso existente, ou ao diferenciar permissões ADMIN vs USER vs proprietário. Trigger terms: policy, autorização, authorization, canCreate/canView/canUpdate/canDelete/canListAll, role, ownership, ForbiddenError. Domínio/arquivos: server/src/features/<resource>/policies/.
 argument-hint: "[NomeDoRecurso]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com tsc + Role/IUser em users/models/User.model). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-BACKEND-POL"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Backend Policy Generator
@@ -19,15 +27,15 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 
 Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatamente isto na camada Policy). Gere já em conformidade.
 
-- [ ] **Todo método `can*` retorna `boolean`** — nenhum retorna `void`, `Promise`, ou lança exceção.
-- [ ] **Métodos obrigatórios presentes:** `canCreate`, `canView`, `canUpdate`, `canDelete`, `canListAll`.
-- [ ] **`canListAll` checa `actor?.role === Role.ADMIN`** (listar todos os registros do tenant é privilégio admin).
-- [ ] **Ownership em `canView`/`canUpdate`/`canDelete`:** `actor?.id === ownerId || actor?.role === Role.ADMIN`.
-- [ ] **`implements I<Resource>Policy`** — a interface declara as mesmas assinaturas booleanas.
-- [ ] **ZERO `throw`** dentro de qualquer método `can*` — quem lança `ForbiddenError` é o service, depois de checar a policy.
-- [ ] **Actor `IUser | null`** — `null` = não autenticado; retorna `false` (exceto signup público explícito).
-- [ ] **Zero acesso a dados** — a policy só inspeciona campos do `actor` já carregado; nunca consulta o banco.
-- [ ] Imports: `import type { IUser } from '../../users/models/User.model'` + `import { Role } from '../../users/models/User.model'`.
+- [ ] **[POL-001]** **Todo método `can*` retorna `boolean`** — nenhum retorna `void`, `Promise`, ou lança exceção.
+- [ ] **[POL-002]** **Métodos obrigatórios presentes:** `canCreate`, `canView`, `canUpdate`, `canDelete`, `canListAll`.
+- [ ] **[POL-003]** **`canListAll` checa `actor?.role === Role.ADMIN`** (listar todos os registros do tenant é privilégio admin).
+- [ ] **[POL-004]** **Ownership em `canView`/`canUpdate`/`canDelete`:** `actor?.id === ownerId || actor?.role === Role.ADMIN`.
+- [ ] **[POL-005]** **`implements I<Resource>Policy`** — a interface declara as mesmas assinaturas booleanas.
+- [ ] **[POL-001]** **ZERO `throw`** dentro de qualquer método `can*` — quem lança `ForbiddenError` é o service, depois de checar a policy.
+- [ ] **[POL-007]** **Actor `IUser | null`** — `null` = não autenticado; retorna `false` (exceto signup público explícito).
+- [ ] **[POL-006]** **Zero acesso a dados** — a policy só inspeciona campos do `actor` já carregado; nunca consulta o banco.
+- [ ] **[POL-008]** Imports: `import type { IUser } from '../../users/models/User.model'` + `import { Role } from '../../users/models/User.model'`.
 
 ## When to use
 

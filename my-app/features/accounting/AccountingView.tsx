@@ -146,7 +146,7 @@ export function AccountingView() {
 
       {/* ── Lançamentos tab ────────────────────────────────────────────────── */}
       {activeTab === 'lancamentos' && unitId && (
-        <JournalEntriesPanel unitId={unitId} />
+        <JournalEntriesPanel unitId={unitId} onReversalComplete={reload} />
       )}
 
       {/* ── Plano de Contas tab ────────────────────────────────────────────── */}

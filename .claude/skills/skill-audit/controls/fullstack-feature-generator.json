@@ -1,0 +1,34 @@
+[
+  {
+    "rule": "FULL-006a",
+    "corrected": "regression-1: `regex:res.json({...data:` exigia `data:` mas o canônico usa shorthand de objeto `res.json({ data, pagination })` (sem dois-pontos). Generalizado para `\\bdata\\b` — casa shorthand E keyed; o envelope errado (`{ items, total }`) ainda falha.",
+    "assertion": "regex:res\\.json\\(\\{[\\s\\S]*\\bdata\\b",
+    "file": "chunk.ts",
+    "good": "return res.json({ data, pagination });",
+    "bad": "return res.json({ items, total });"
+  },
+  {
+    "rule": "FULL-006b",
+    "corrected": "regression-1: o campo do envelope tem de bater nos DOIS lados — o frontend service que usa outro nome (`amount`) discorda do backend (`amountCents`) e falha o `contains:amountCents` do lado frontend.",
+    "assertion": "contains:amountCents",
+    "file": "chunk.ts",
+    "good": "export interface Invoice { amountCents: number }",
+    "bad": "export interface Invoice { amount: number }"
+  },
+  {
+    "rule": "FULL-003",
+    "corrected": "happy-1/edge-1: UI livre de Prisma — `absent-code:prisma` ignora um comentário que cite prisma, mas pega um import/uso real na página.",
+    "assertion": "absent-code:prisma",
+    "file": "chunk.tsx",
+    "good": "// page never touches prisma\nimport { invoiceService } from '@/lib/services/invoice.service';",
+    "bad": "import prisma from '@/lib/prisma';\nconst rows = await prisma.invoice.findMany();"
+  },
+  {
+    "rule": "FULL-004",
+    "corrected": "happy-1/edge-1: serviço de domínio livre de transporte — `absent-code:res.json` pega um `res.json` real no service (vazamento de transporte), ignorando menção em comentário.",
+    "assertion": "absent-code:res.json",
+    "file": "chunk.ts",
+    "good": "// service never speaks HTTP\nreturn this.invoiceRepository.findById(id, actor.id);",
+    "bad": "res.json({ data });"
+  }
+]

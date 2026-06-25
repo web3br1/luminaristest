@@ -1,0 +1,10 @@
+[
+  {
+    "rule": "FETABLE-002",
+    "corrected": "edge-1: `useMemo(` não aceitava o genérico `useMemo<T>(`. Permite `<...>`.",
+    "assertion": "regex:useMemo\\s*(<[^>]+>)?\\s*\\(\\s*\\(\\)\\s*=>",
+    "file": "chunk.tsx",
+    "good": "const table = useMemo<IDynamicTable | undefined>(() => tables.find((x) => x.internalName === n), [tables, n]);",
+    "bad": "const table = tables[0];"
+  }
+]

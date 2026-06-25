@@ -1,0 +1,84 @@
+{
+  "skill": "frontend-modal-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Hoje ver um lead troca de tela com router.push('/crm/leads/[id]'). Quero abrir o detalhe do lead em um modal sobre o primitivo Modal.tsx, com estado local na view, em vez de navegar. Crie o Lead360Modal.",
+      "assertions": [
+        "activation: a skill frontend-modal-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie um widget de dashboard com estados de loading/error/empty, compatível com react-grid-layout e integrado ao DashboardDataContext.",
+      "assertions": [
+        "non-activation: frontend-modal-generator NÃO deve ativar (pedido é de widget de dashboard — trabalho do frontend-widget-generator)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "FEMODAL-001",
+        "FEMODAL-004",
+        "FEMODAL-005",
+        "FEMODAL-006"
+      ],
+      "prompt": "Gere o modal de detalhe Lead360Modal sobre o primitivo canônico components/ui/Modal.tsx. Props: { isOpen, onClose, lead, onChanged? }. Conteúdo: header com nome e score do lead, e um botão 'Avançar etapa' que chama o service layer (lib/services/crm.service.ts) e dispara onChanged(). i18n via t(). Saída: o conteúdo completo do arquivo Lead360Modal.tsx (um único arquivo TSX).",
+      "target_files": [
+        "my-app/features/crm/components/Lead360Modal.tsx"
+      ],
+      "assertions": [
+        "ast-import:Modal@components/ui/Modal",
+        "ast-jsx:Modal",
+        "ast-noclass:zinc-",
+        "@Lead360Modal.tsx::regex:interface Lead360ModalProps\\s*\\{[\\s\\S]*isOpen:\\s*boolean",
+        "@Lead360Modal.tsx::regex:onClose:\\s*\\(\\)\\s*=>\\s*void",
+        "@Lead360Modal.tsx::absent:: any",
+        "@Lead360Modal.tsx::absent:apiClient",
+        "@Lead360Modal.tsx::regex:from ['\"][^'\"]*services/[^'\"]*service",
+        "@Lead360Modal.tsx::contains:rounded-2xl",
+        "@Lead360Modal.tsx::contains:t("
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "FEMODAL-003"
+      ],
+      "prompt": "Preciso confirmar a exclusão (soft-delete) de um lead a partir da lista. Não recrie um modal de confirmação do zero — reuse o ConfirmDeleteModal canônico do stack compartilhado, com onConfirm e estado de loading/erro. Gere apenas o trecho que renderiza a confirmação na view-pai.",
+      "target_files": [
+        "my-app/features/crm/components/LeadsView.tsx"
+      ],
+      "assertions": [
+        "@LeadsView.tsx::ast-jsx:ConfirmDeleteModal",
+        "@LeadsView.tsx::regex:onConfirm=\\{",
+        "@LeadsView.tsx::absent:document.body",
+        "@LeadsView.tsx::absent:role=\"dialog\""
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "FEMODAL-002"
+      ],
+      "regression_of": "o detalhe de lead do CRM trocava de tela com router.push('/crm/leads/[id]') em vez de abrir um modal com estado local na view-pai",
+      "prompt": "Na LeadsView, ao clicar em uma linha o app deve ABRIR o Lead360Modal com estado local — não navegar para uma rota de detalhe. Gere o trecho da view com o estado selected e o render condicional do modal.",
+      "target_files": [
+        "my-app/features/crm/components/LeadsView.tsx"
+      ],
+      "assertions": [
+        "@LeadsView.tsx::regex:useState<[\\s\\S]*\\|\\s*null>\\(\\s*null\\s*\\)",
+        "@LeadsView.tsx::ast-jsx:Lead360Modal",
+        "@LeadsView.tsx::regex:isOpen=\\{!!selected\\}",
+        "@LeadsView.tsx::absent:router.push('/crm/leads"
+      ]
+    }
+  ]
+}

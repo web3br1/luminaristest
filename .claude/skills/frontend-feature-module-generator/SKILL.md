@@ -1,8 +1,16 @@
 ---
 name: frontend-feature-module-generator
-description: Cria scaffold de módulo de feature no dashboard com View principal, hooks de dados e registro em pages/dashboard/index.tsx
+description: Cria o scaffold multi-arquivo de um módulo de feature no dashboard — View principal (named export) + hooks de dados + barrel `index.ts` público + registro do dynamic import em `pages/dashboard/index.tsx`. Mantém as fronteiras de camada do frontend: UI (View/components) consome STATE via hook, e o acesso a dados (service / DynamicTableService) vive no hook, nunca direto na View. Use ao criar um novo módulo de categoria em `features/dashboard/category-views/<name>/`, ao adicionar categoria ao sidebar, ou ao dar tela a um novo preset de tabela dinâmica. Domínio/arquivos: `my-app/features/dashboard/category-views/<name>/` (`<Name>View.tsx`, `hooks/use<Name>Data.ts`, `index.ts`) + `pages/dashboard/index.tsx`. NÃO use para uma rota/página standalone com auth guard + getServerSideProps — isso é `frontend-page-generator`.
 argument-hint: "[nome-do-modulo] [categoria-erp]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (my-app/ com React + Next.js Pages Router + tsc). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-FE-FEATMOD"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Frontend Feature Module Generator
@@ -56,11 +64,13 @@ O CRM ignorou tudo isso (criou `RecordTable`, `CrmKpiCard`, `CrmBarChart`, pági
 
 ## Generation contract
 
-1. Diretório: `my-app/features/dashboard/category-views/<name>/`
-2. View principal: `<Name>View.tsx` — FC exportada como **named export**
-3. Sub-pastas: `components/`, `hooks/`
-4. Hook de dados: `hooks/use<Name>Data.ts` — retorna `{ data, isLoading, error, refetch }`
-5. Dynamic import em `pages/dashboard/index.tsx`:
+Cada item marcado `[FEMOD-*]` abaixo é uma REGRA DE GERAÇÃO auditável. Gere já em conformidade.
+
+1. **[FEMOD-001] Scaffold do módulo — View principal + hook de dados, separados.** Diretório `my-app/features/dashboard/category-views/<name>/` com sub-pastas `components/` e `hooks/`. View principal `<Name>View.tsx` exportada como **named export** (FC). Hook de dados `hooks/use<Name>Data.ts` retornando `{ data, isLoading, error, refetch }`. View e hook são arquivos distintos — a View NÃO declara fetch inline.
+2. **[FEMOD-002] Barrel público `index.ts`.** O módulo expõe sua API pública por um único `index.ts` que **re-exporta a View** (`export { <Name>View } from './<Name>View'`) — esse é o ponto de import do resto do app, não o caminho profundo do arquivo. Hooks/components internos só são re-exportados se forem API pública intencional.
+3. **[FEMOD-003] Fronteira de camada — UI consome STATE, não dados.** `<Name>View.tsx` (e os `components/`) consomem estado **via o hook** (`import { use<Name>Data } from './hooks/use<Name>Data'`) e **nunca** acessam dados diretamente: **proibido** `apiClient`, `fetch` cru ou `lib/services/*` na View. A View renderiza; o estado vem do hook.
+4. **[FEMOD-004] Acesso a dados vive no hook.** O `use<Name>Data.ts` é a única camada do módulo que toca dados — importa o **service layer** (`lib/services/<...>.service`) ou `DynamicTableService` e expõe `{ data, isLoading, error, refetch }`. A fronteira UI↔dados fica entre `[FEMOD-003]` (View sem dados) e esta regra (hook com dados).
+5. **[FEMOD-005] Registro do dynamic import em `pages/dashboard/index.tsx`** e no switch de renderização do dashboard:
    ```ts
    const <Name>View = dynamic(
      () => import('../../features/dashboard/category-views/<name>/<Name>View')
@@ -68,9 +78,8 @@ O CRM ignorou tudo isso (criou `RecordTable`, `CrmKpiCard`, `CrmBarChart`, pági
      { ssr: false, loading: viewLoading }
    )
    ```
-6. Registrar no switch de renderização do dashboard
-7. Adicionar ao sidebar em `DashboardSidebar.tsx` se necessário
-8. **Views agrupadas (Kanban/board/grouped-by-relação):** as colunas/grupos devem ser filtrados pelo **registro-pai ativo** (ex: etapas DO pipeline selecionado), nunca renderizar todos os registros da tabela-pai. Com múltiplos pais (2 pipelines, várias units) renderizar tudo gera **colunas duplicadas e vazias**. Defaulte para o pai com mais filhos e ofereça um seletor quando houver mais de um. Referência da correção: `my-app/features/crm/hooks/useCrmPipelineBoard.ts` (+ `CrmPipelineBoard.tsx`).
+   A View entra no app **só** por `dynamic({ ssr: false })` — nunca import estático na página. Adicionar ao sidebar em `DashboardSidebar.tsx` quando necessário.
+6. **Views agrupadas (Kanban/board/grouped-by-relação):** as colunas/grupos devem ser filtrados pelo **registro-pai ativo** (ex: etapas DO pipeline selecionado), nunca renderizar todos os registros da tabela-pai. Com múltiplos pais (2 pipelines, várias units) renderizar tudo gera **colunas duplicadas e vazias**. Defaulte para o pai com mais filhos e ofereça um seletor quando houver mais de um. Referência da correção: `my-app/features/crm/hooks/useCrmPipelineBoard.ts` (+ `CrmPipelineBoard.tsx`).
 
 ## Files usually created or changed
 
@@ -89,8 +98,9 @@ cd my-app && npx tsc --noEmit
 
 ## Anti-patterns
 
-- Não importe a View diretamente na página — sempre via `dynamic()` com `ssr: false`
-- Não coloque lógica de fetch na View — extraia para hook
+- Não importe a View diretamente na página — sempre via `dynamic()` com `ssr: false` (`[FEMOD-005]`)
+- Não coloque lógica de fetch na View — extraia para o hook; `apiClient`/`fetch`/`lib/services` na View viola a fronteira (`[FEMOD-003]`); dados vivem no hook (`[FEMOD-004]`)
+- Não importe o módulo pelo caminho profundo do arquivo — exponha a API pública pelo barrel `index.ts` (`[FEMOD-002]`)
 - Não esqueça de registrar no switch do dashboard
 - Não use default export na View se o módulo exporta múltiplas coisas — use named export
 - **Não renderize um board agrupando por TODAS as etapas/relações** — filtre pelo pai ativo, senão múltiplos pais (pipelines/units) produzem colunas duplicadas. Sempre teste a view com >1 registro-pai.

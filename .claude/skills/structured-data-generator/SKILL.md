@@ -1,8 +1,16 @@
 ---
 name: structured-data-generator
-description: Gera ou estende o pipeline de extração de dados estruturados (XLSX → tabela editável) — DocumentPurpose DATA_ANALYSIS, StructuredDataService e integração com o frontend de spreadsheet
+description: Gera ou estende o pipeline de dados estruturados (XLSX/planilha → tabela editável) do Luminaris — extractor `extractStructuredDataFromExcel`, `DocumentPurpose.DATA_ANALYSIS`, `StructuredDataService` (persistência em coluna JSON SQL, editável) e integração com o frontend de spreadsheet. Use quando o pedido for "importar XLSX como tabela", "extrair planilha", "novo tipo de coluna (HeaderType)", "multi-sheet", "export CSV/JSON de StructuredData", "widget de spreadsheet", ou "por que o XLSX não virou tabela editável (DATA_ANALYSIS vs KNOWLEDGE_BASE)". Domínio/arquivos: `server/src/features/structuredData/**`, `server/src/lib/vector/extractors/*StructuredExtractor.ts`, `DocumentProcessingPipeline.ts`. NÃO é para ingestão RAG (PDF → chunk → embedding → Qdrant) — isso é `document-processing-generator`.
 argument-hint: "[acao: novo-extrator|novo-tipo-coluna|multi-sheet|frontend-widget]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com Prisma + tsc, lib `xlsx`/`exceljs`, `features/structuredData/` e `lib/vector/extractors/`). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-STRUCTURED-DATA"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Structured Data Generator
@@ -17,14 +25,13 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 
 ## Checklist obrigatório — Structured Data
 
-- [ ] **Importar via lib de planilha** (`xlsx`) — não parsear bytes na mão. O extractor devolve `{ sheets: SheetStructured[] }` com headers inferidos.
-- [ ] **Preservar o tipo de cada célula** — não coagir tudo a `string`. Número permanece `number`, data vira `DATE`, percentual `PERCENTAGE`, moeda `CURRENCY`. A inferência de coluna (`inferColumnType`) determina o `HeaderType`; coagir tudo a texto quebra ordenação/formatação no frontend.
-- [ ] **`null` para célula vazia — nunca `undefined`.** O tipo de valor é `(string | number | null)[][]`; `undefined` não serializa em JSON e some na coluna SQL, desalinhando a linha.
-- [ ] **Paginar ao ler** grandes volumes — não materializar a planilha inteira em memória de uma vez quando há suporte a leitura em páginas/streams; o frontend pagina a tabela editável.
-- [ ] **Armazenar em SQL (JSON column) via `StructuredDataService`** — nunca no Qdrant (esse é exclusivo de embeddings). Update sempre via `StructuredDataService.update()` (valida schema), nunca `prisma` direto na coluna.
-- [ ] **`DocumentPurpose.DATA_ANALYSIS`** para tabular; `KNOWLEDGE_BASE` pula a extração estruturada e perde o dado.
-- [ ] **Novo `HeaderType`** propaga em 4 pontos casados: enum em `StructuredData.model.ts`, `ExcelHeader` em `Sheet.types.ts`, detecção em `inferColumnType`, e o `z.enum` do DTO. Esquecer um deixa o tipo inválido em runtime.
-- [ ] **Normalizar single-sheet vs multi-sheet** ao ler — `getByDocumentId()` já normaliza; não assumir que `data` é sempre `(string|number|null)[][]`.
+- [ ] **[SDATA-001] Importar via lib de planilha** (`xlsx`/`exceljs`) — não parsear bytes na mão. O extractor (`extractStructuredDataFromExcel`) devolve `{ sheets: SheetStructured[] }` com headers inferidos.
+- [ ] **[SDATA-002] Preservar o tipo de cada célula** — não coagir tudo a `string`. Número permanece `number`, data vira `DATE`, percentual `PERCENTAGE`, moeda `CURRENCY`. A inferência de coluna (`inferColumnType`) determina o `HeaderType`; coagir tudo a texto quebra ordenação/formatação no frontend. **`null` para célula vazia — nunca `undefined`** (o tipo é `(string | number | null)[][]`; `undefined` não serializa em JSON e some na coluna SQL, desalinhando a linha).
+- [ ] **[SDATA-003] Armazenar em SQL (JSON column) via `StructuredDataService`** — nunca no Qdrant (esse é exclusivo de embeddings). Update sempre via `StructuredDataService.update()` (valida schema), nunca `prisma` direto na coluna.
+- [ ] **[SDATA-004] `DocumentPurpose.DATA_ANALYSIS`** para tabular; `KNOWLEDGE_BASE` pula a extração estruturada e perde o dado.
+- [ ] **[SDATA-005] O extractor/serviço é camada de servidor — ZERO React/JSX.** O pipeline (`*StructuredExtractor.ts`, `StructuredDataService`, `DocumentProcessingPipeline`) é agnóstico a apresentação: nunca `import React`, JSX, hooks ou componentes. A tabela editável é consumida pelo widget de spreadsheet no frontend, que apenas lê o shape `(string|number|null)[][]` exposto pelo serviço.
+- [ ] **[SDATA-006] Novo `HeaderType`** propaga em 4 pontos casados: enum em `StructuredData.model.ts`, `ExcelHeader` em `Sheet.types.ts`, detecção em `inferColumnType`, e o `z.enum` do DTO. Esquecer um deixa o tipo inválido em runtime.
+- [ ] **[SDATA-007] Normalizar single-sheet vs multi-sheet** ao ler — `getByDocumentId()` já normaliza; não assumir que `data` é sempre `(string|number|null)[][]`. **Paginar** grandes volumes — não materializar a planilha inteira em memória quando há leitura paginada; o frontend pagina a tabela editável.
 
 ## When to use
 

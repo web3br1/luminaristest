@@ -1,4 +1,5 @@
 import type { Account, Prisma } from 'generated/prisma';
+import type { AccountingScope } from '../scope/AccountingScope';
 
 /** Input for creating an Account (chart-of-accounts node). */
 export interface CreateAccountInput {
@@ -12,46 +13,41 @@ export interface CreateAccountInput {
 
 /**
  * Contract for chart-of-accounts data access. First-class Prisma (NOT DynamicTable).
- * Every read is scoped userId + unitId + deletedAt: null (two-level tenancy, soft-delete).
+ * Every read is scoped by AccountingScope (ownerUserId + unitId) + deletedAt: null.
  * Repositories accept an optional tx so the service can compose atomic writes.
  */
 export interface IAccountRepository {
   /** Persists a new account node. */
   create(data: CreateAccountInput, tx?: Prisma.TransactionClient): Promise<Account>;
 
-  /** Finds an active account by its code within (userId, unitId), or null. */
+  /** Finds an active account by its code within the scope, or null. */
   findByCode(
-    userId: string,
-    unitId: string,
+    scope: AccountingScope,
     code: string,
     tx?: Prisma.TransactionClient,
   ): Promise<Account | null>;
 
   /**
-   * Restores a SOFT-DELETED account by its code within (userId, unitId): clears deletedAt
-   * and returns the revived row. Returns null if no soft-deleted row with that code exists
-   * (i.e. the code is either free or already held by an ACTIVE account). Exists so the chart
-   * seeder can revive a canonical account that survives only as a soft-deleted row — the one
-   * case where the @@unique([userId,unitId,code]) collision (P2002) is NOT benign, because
-   * findByCode (which filters deletedAt:null) would otherwise leave the leaf permanently
-   * missing and every postEntry to that code failing in resolveLeafAccount.
+   * Restores a SOFT-DELETED account by its code within the scope. Returns null if no
+   * soft-deleted row with that code exists. Exists so the chart seeder can revive a
+   * canonical account that survives only as a soft-deleted row (P2002 from @@unique is
+   * NOT benign in that case — findByCode would leave the leaf permanently missing).
    */
   restoreByCode(
-    userId: string,
-    unitId: string,
+    scope: AccountingScope,
     code: string,
     tx?: Prisma.TransactionClient,
   ): Promise<Account | null>;
 
   /**
-   * Finds an active account by its id, scoped only to userId (not unitId). Used by
-   * deleteAccount to discover the account's unitId before the policy+posting guards.
+   * Finds an active account by its id, scoped only to ownerUserId (not unitId). Used
+   * by deleteAccount to discover the account's unitId before the policy+posting guards.
    */
   findById(userId: string, id: string): Promise<Account | null>;
 
-  /** Lists all active accounts for a (userId, unitId), ordered by code. */
-  findManyByUnit(userId: string, unitId: string): Promise<Account[]>;
+  /** Lists all active accounts for the scope, ordered by code. */
+  findManyByUnit(scope: AccountingScope): Promise<Account[]>;
 
   /** Soft-deletes an account (sets deletedAt). */
-  softDelete(userId: string, unitId: string, id: string): Promise<Account>;
+  softDelete(scope: AccountingScope, id: string): Promise<Account>;
 }

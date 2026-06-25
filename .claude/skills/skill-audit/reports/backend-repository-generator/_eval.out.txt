@@ -1,0 +1,58 @@
+===HAPPY===
+// server/src/features/invoices/repositories/IInvoiceRepository.ts
+import { Prisma } from 'generated/prisma';
+
+export interface IInvoiceRepository {
+  create(data: Prisma.InvoiceCreateInput): Promise<Invoice>;
+  findById(id: string): Promise<Invoice | null>;
+  findAll(page?: number, limit?: number): Promise<{ data: Invoice[]; total: number }>;
+  update(id: string, data: Prisma.InvoiceUpdateInput): Promise<Invoice>;
+  delete(id: string): Promise<Invoice>;
+}
+
+export interface Invoice { id: string; number: string; amount: number; dueDate: Date; status: string; createdAt: Date; updatedAt: Date; deletedAt: Date | null; }
+
+// server/src/features/invoices/repositories/InvoiceRepository.ts
+import prisma from '../../../lib/prisma';
+import { Prisma } from 'generated/prisma';
+import { IInvoiceRepository, Invoice } from './IInvoiceRepository';
+
+const invoiceSelect = { id: true, number: true, amount: true, dueDate: true, status: true, createdAt: true, updatedAt: true, deletedAt: true } satisfies Prisma.InvoiceSelect;
+
+export class InvoiceRepository implements IInvoiceRepository {
+  async create(data: Prisma.InvoiceCreateInput): Promise<Invoice> {
+    return prisma.invoice.create({ data, select: invoiceSelect });
+  }
+  async findById(id: string): Promise<Invoice | null> {
+    return prisma.invoice.findFirst({ where: { id, deletedAt: null }, select: invoiceSelect });
+  }
+  async findAll(page = 1, limit = 10): Promise<{ data: Invoice[]; total: number }> {
+    const skip = (page - 1) * limit;
+    const [data, total] = await prisma.$transaction([
+      prisma.invoice.findMany({ where: { deletedAt: null }, select: invoiceSelect, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+      prisma.invoice.count({ where: { deletedAt: null } }),
+    ]);
+    return { data, total };
+  }
+  async update(id: string, data: Prisma.InvoiceUpdateInput): Promise<Invoice> {
+    return prisma.invoice.update({ where: { id }, data, select: invoiceSelect });
+  }
+  async delete(id: string): Promise<Invoice> {
+    return prisma.invoice.update({ where: { id }, data: { deletedAt: new Date() }, select: invoiceSelect });
+  }
+}
+===EDGE===
+const publicUserSelect = { id: true, name: true, email: true, createdAt: true, updatedAt: true } satisfies Prisma.UserSelect;
+
+async findAll(page = 1, limit = 10): Promise<{ data: PublicUser[]; total: number }> {
+  const skip = (page - 1) * limit;
+  const [data, total] = await prisma.$transaction([
+    prisma.user.findMany({ select: publicUserSelect, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+    prisma.user.count(),
+  ]);
+  return { data, total };
+}
+===REGRESSION===
+async delete(id: string): Promise<Invoice> {
+  return prisma.invoice.update({ where: { id }, data: { deletedAt: new Date() }, select: invoiceSelect });
+}

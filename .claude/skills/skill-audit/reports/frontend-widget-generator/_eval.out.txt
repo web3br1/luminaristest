@@ -1,0 +1,65 @@
+===happy-1===
+// my-app/components/dashboard/RevenueSummaryWidget.tsx
+'use client';
+import React, { useMemo } from 'react';
+import { HiOutlineCurrencyDollar, HiOutlineExclamationCircle, HiOutlineInbox } from 'react-icons/hi';
+import { useTranslation } from 'next-i18next';
+import { useDashboardData } from '@/lib/context/DashboardDataContext';
+
+export interface RevenueSummaryWidgetProps { widgetId: string; title?: string; isLoading?: boolean; error?: string | null; onRetry?: () => void; onClose?: () => void; }
+interface RevenueRow { name: string; value: number; }
+function isRevenueRow(row: unknown): row is RevenueRow { if (typeof row !== 'object' || row === null) return false; const r = row as Record<string, unknown>; return typeof r.name === 'string' && typeof r.value === 'number'; }
+
+export const RevenueSummaryWidget = ({ widgetId, title, isLoading = false, error = null, onRetry, onClose }: RevenueSummaryWidgetProps) => {
+  const { t } = useTranslation(['common', 'analytics']);
+  const { chartData } = useDashboardData();
+  const rows = useMemo<RevenueRow[]>(() => chartData.filter(isRevenueRow), [chartData]);
+  const total = useMemo(() => rows.reduce((acc, r) => acc + r.value, 0), [rows]);
+  return (
+    <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900" data-widget-id={widgetId}>
+      <div className="drag-handle flex items-center justify-between border-b border-neutral-200 bg-neutral-50/60 px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-800/30">
+        <HiOutlineCurrencyDollar className="h-4 w-4 text-lumi-500" />
+      </div>
+      <div className="relative flex flex-grow flex-col overflow-hidden">
+        {isLoading ? (
+          <div className="flex h-full w-full flex-col gap-3 p-4"><div className="h-8 w-2/3 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" /></div>
+        ) : error ? (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-4 text-center">
+            <HiOutlineExclamationCircle className="h-8 w-8 text-red-500" />
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">{error}</p>
+            {onRetry && <button type="button" onClick={onRetry} className="rounded-xl bg-lumi-500 px-3 py-1.5 text-xs font-semibold text-white">{t('common.retry', 'Tentar novamente') as string}</button>}
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center">
+            <HiOutlineInbox className="h-8 w-8 text-neutral-400" />
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">{t('dashboard.widgets.revenue.empty', 'Sem dados de receita.') as string}</p>
+          </div>
+        ) : (
+          <div className="flex h-full w-full flex-col gap-4 overflow-y-auto p-4">
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-800/40">
+              <p className="mt-1 text-2xl font-semibold text-neutral-900 dark:text-white">{total}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+===edge-1===
+// my-app/components/dashboard/RevenueSummaryWidget.tsx
+<div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900" data-widget-id={widgetId}>
+  <div className="drag-handle flex shrink-0 items-center justify-between border-b border-neutral-200 px-3 py-2.5 dark:border-neutral-800">
+    <h3 className="truncate text-xs font-semibold uppercase tracking-wide text-neutral-700 dark:text-neutral-300">{titleText}</h3>
+  </div>
+  <div className="relative flex flex-grow flex-col overflow-hidden" />
+</div>
+
+===regression-1===
+// my-app/components/dashboard/RevenueSummaryWidget.tsx
+<div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-800/40">
+    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{t('dashboard.widgets.revenue.total', 'Receita total') as string}</span>
+    <p className="mt-1 text-2xl font-semibold text-neutral-900 dark:text-white">{total}</p>
+  </div>
+</div>

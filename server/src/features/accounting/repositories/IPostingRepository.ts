@@ -1,4 +1,5 @@
 import type { Posting, Prisma } from 'generated/prisma';
+import type { AccountingScope } from '../scope/AccountingScope';
 
 /** Input for creating a Posting (one leg of a double entry). */
 export interface CreatePostingInput {
@@ -25,26 +26,21 @@ export interface IPostingRepository {
   /** Persists one ledger leg. */
   create(data: CreatePostingInput, tx?: Prisma.TransactionClient): Promise<Posting>;
 
-  /** Lists all legs of a given entry, scoped to (userId, unitId). */
+  /** Lists all legs of a given entry, scoped via AccountingScope. */
   findByEntryId(
-    userId: string,
-    unitId: string,
+    scope: AccountingScope,
     entryId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<Posting[]>;
 
-  /** Lists one account's legs scoped to (userId, unitId), ordered by createdAt. */
-  findByAccount(userId: string, unitId: string, accountId: string): Promise<Posting[]>;
+  /** Lists one account's legs scoped via AccountingScope, ordered by createdAt. */
+  findByAccount(scope: AccountingScope, accountId: string): Promise<Posting[]>;
 
   /**
    * Sums debit/credit per account across all postings whose parent entry has one of
-   * the given statuses, scoped to (userId, unitId). Backs the trial balance.
+   * the given statuses, scoped via AccountingScope. Backs the trial balance.
    */
-  groupByAccount(
-    userId: string,
-    unitId: string,
-    statuses: string[],
-  ): Promise<AccountPostingTotals[]>;
+  groupByAccount(scope: AccountingScope, statuses: string[]): Promise<AccountPostingTotals[]>;
 
   /**
    * Runs `fn` inside a Prisma transaction and returns its result. Services use this

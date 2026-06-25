@@ -1,0 +1,23 @@
+[
+  {
+    "rule": "SYNC-003",
+    "corrected": "happy-1: regex exigia `router.post('/invoices')`; a convenção Luminaris é path-relativo (router montado em /invoices, `router.post('/')`)",
+    "assertion": "regex:router\\.post\\(",
+    "good": "const router = Router();\nrouter.post('/', createInvoice);\nexport default router;",
+    "bad": "const router = Router();\nrouter.get('/', listInvoices);\nexport default router;"
+  },
+  {
+    "rule": "SYNC-006",
+    "corrected": "happy-1: regex `data\\s*\\}` não casava `data: IInvoice }` (tipo entre data e })",
+    "assertion": "regex:\\{\\s*success[\\s\\S]*?data",
+    "good": "const r = await apiClient.post<{ success: boolean; data: IInvoice }>('/invoices', body);\n  return r.data;",
+    "bad": "const r = await apiClient.post<IInvoice>('/invoices', body);\n  return r;"
+  },
+  {
+    "rule": "SYNC-005",
+    "corrected": "regression-1: exigia `import ... types/Invoice`, mas o arquivo gerado É types/Invoice.ts (define local). Trocado por: define tipo local de Invoice.",
+    "assertion": "regex:(export type|export interface)[\\s\\S]*?Invoice",
+    "good": "export type UpdateInvoiceDto = Partial<{ number: string; amount: number; status: InvoiceStatus }>;",
+    "bad": "import { UpdateInvoiceDto } from '../../../server/src/features/invoices/dtos/InvoiceDto';"
+  }
+]

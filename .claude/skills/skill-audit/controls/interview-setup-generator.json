@@ -1,0 +1,34 @@
+[
+  {
+    "rule": "INTV-004",
+    "corrected": "happy-1: `regex:case\\s+'COLLECTING_INDUSTRY'` assumia switch/case, mas o canônico (processTurn) usa `else if (stage === '...')`. Generalizado para casar as duas formas de ramo do estágio.",
+    "assertion": "regex:(case\\s+|stage\\s*===\\s*)['\"]COLLECTING_INDUSTRY['\"]",
+    "file": "chunk.ts",
+    "good": "else if (stage === 'COLLECTING_INDUSTRY') { const config = stageConfig['COLLECTING_INDUSTRY']; return { nextStage: config.nextStage }; }",
+    "bad": "else if (stage === 'MATCHING_PRESET') { return { nextStage: 'COMPLETED' }; }"
+  },
+  {
+    "rule": "INTV-003",
+    "corrected": "happy-1: `absent:STAGE_PROMPTS` virou `absent-code:STAGE_PROMPTS` — o canônico é `stageConfig: Record<…, IStageConfig>`; o shape obsoleto `STAGE_PROMPTS` não pode aparecer no código (comentário citando-o é OK).",
+    "assertion": "absent-code:STAGE_PROMPTS",
+    "file": "chunk.ts",
+    "good": "// não usar STAGE_PROMPTS — shape obsoleto\nexport const stageConfig: Record<ProcessableStage, IStageConfig> = { COLLECTING_INDUSTRY: { systemPrompt: 'x', completionCheckPrompt: '', nextStage: 'MATCHING_PRESET' } };",
+    "bad": "export const STAGE_PROMPTS: Record<ProcessableStage, string> = { COLLECTING_INDUSTRY: 'x' };"
+  },
+  {
+    "rule": "INTV-001",
+    "corrected": "regression-1: `absent:new InterviewService(` falhava no PRÓPRIO singleton (getInstance() faz `new InterviewService()` legitimamente). Trocado pela asserção positiva do padrão singleton `private static instance`.",
+    "assertion": "regex:private static instance",
+    "file": "chunk.ts",
+    "good": "export class InterviewService { private static instance: InterviewService; public static getInstance(): InterviewService { if (!this.instance) this.instance = new InterviewService(); return this.instance; } }",
+    "bad": "export class InterviewService { constructor() {} } export const svc = new InterviewService();"
+  },
+  {
+    "rule": "INTV-007",
+    "corrected": "regression-1: `absent:from 'react'` virou `absent-code:from 'react'` — o backend da máquina de estados é camada de servidor pura; import de React só falha se estiver no código, não num comentário.",
+    "assertion": "absent-code:from 'react'",
+    "file": "chunk.ts",
+    "good": "// backend puro — sem React\nexport class InterviewService { private static instance: InterviewService; }",
+    "bad": "import { useState } from 'react';\nexport class InterviewService {}"
+  }
+]

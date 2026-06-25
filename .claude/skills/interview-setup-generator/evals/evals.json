@@ -1,0 +1,94 @@
+{
+  "skill": "interview-setup-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Quero que o wizard de onboarding AI faça uma pergunta nova sobre o setor da empresa antes de fazer o matching de preset — adicione esse estágio à máquina de estados.",
+      "assertions": [
+        "activation: a skill interview-setup-generator deve ser a escolhida (estender estágios/prompts do wizard de onboarding é o domínio dela)"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Preciso de um job de background que purga ActionProposals expiradas, e um seed de volume para popular tabelas de teste em dev com Prisma direto.",
+      "assertions": [
+        "non-activation: interview-setup-generator NÃO deve ativar — background job / seed de volume é trabalho de job-generator (skill recíproca); o wizard de onboarding não cria jobs nem seeds."
+      ]
+    },
+    {
+      "id": "trigger-neg-2",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Monte o processo de entrevista de emprego: cadastro da vaga de vendedor, triagem de currículos e agendamento de entrevistas com os candidatos.",
+      "assertions": [
+        "non-activation: interview-setup-generator NÃO deve ativar — 'entrevista' aqui é o wizard de ONBOARDING AI do produto, NÃO entrevista de emprego; vaga/candidato/recrutamento é um domínio fora de ambas as skills (não redefine o que job-generator faz: job-generator é background job, não recrutamento). Decoy lexical de 'entrevista/vaga'."
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": ["INTV-002", "INTV-003", "INTV-004"],
+      "prompt": "Adicione o estágio COLLECTING_INDUSTRY ao wizard. Gere os três trechos editados, cada um com seu marcador de arquivo na primeira linha: (1) server/src/features/interview/models/InterviewTypes.ts — COLLECTING_INDUSTRY adicionado à enum InterviewStage E à ProcessableStage (usa AI com history); (2) server/src/features/interview/InterviewService/PromptConfig.ts — nova entrada em stageConfig: Record<ProcessableStage, IStageConfig> com systemPrompt (terminando com o marcador 'INDUSTRY_CONFIRMED:'), completionCheckPrompt e nextStage; NÃO use STAGE_PROMPTS; (3) server/src/features/interview/InterviewService/InterviewService.ts — case 'COLLECTING_INDUSTRY' que lê config = stageConfig['COLLECTING_INDUSTRY'], chama this.stageHandlers.getAiResponseWithHistory(config.systemPrompt, messages), detecta o marcador no texto e roteia nextStage (avança se confirmado, senão fica no estágio).",
+      "target_files": [
+        "server/src/features/interview/models/InterviewTypes.ts",
+        "server/src/features/interview/InterviewService/PromptConfig.ts",
+        "server/src/features/interview/InterviewService/InterviewService.ts"
+      ],
+      "assertions": [
+        "@InterviewTypes.ts::contains:COLLECTING_INDUSTRY",
+        "@InterviewTypes.ts::regex:ProcessableStage[\\s\\S]*COLLECTING_INDUSTRY",
+        "@PromptConfig.ts::regex:stageConfig",
+        "@PromptConfig.ts::regex:INDUSTRY_CONFIRMED",
+        "@PromptConfig.ts::regex:nextStage",
+        "@PromptConfig.ts::absent-code:STAGE_PROMPTS",
+        "@InterviewService.ts::regex:(case\\s+|stage\\s*===\\s*)['\"]COLLECTING_INDUSTRY['\"]",
+        "@InterviewService.ts::regex:getAiResponseWithHistory\\(\\s*config\\.systemPrompt\\s*,\\s*messages",
+        "@InterviewService.ts::regex:INDUSTRY_CONFIRMED"
+      ]
+    },
+    {
+      "id": "happy-2",
+      "type": "happy",
+      "rules": ["INTV-005", "INTV-006"],
+      "prompt": "Gere dois trechos, cada um com seu marcador de arquivo na primeira linha: (1) server/src/features/interview/FieldCustomizationService/FieldIntentParser.ts — adicionar o tipo de modificação 'reorder' ao Zod ModificationSchema (z.enum) e tentar o FieldPresetMatcher antes de criar campo custom; (2) server/src/features/interview/CustomizationService/StateManager.ts — guardar ICustomizationState por sessionId num Map in-memory (get/set por sessionId).",
+      "target_files": [
+        "server/src/features/interview/FieldCustomizationService/FieldIntentParser.ts",
+        "server/src/features/interview/CustomizationService/StateManager.ts"
+      ],
+      "assertions": [
+        "@FieldIntentParser.ts::regex:z\\.enum\\(",
+        "@FieldIntentParser.ts::contains:reorder",
+        "@FieldIntentParser.ts::regex:FieldPresetMatcher",
+        "@StateManager.ts::regex:sessionId",
+        "@StateManager.ts::regex:Map"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": ["INTV-003", "INTV-004"],
+      "prompt": "Gere apenas o case 'COLLECTING_INDUSTRY' de InterviewService.processTurn (marcador de arquivo server/src/features/interview/InterviewService/InterviewService.ts na primeira linha): quando o marcador INDUSTRY_CONFIRMED NÃO aparece na resposta da IA, o nextStage deve permanecer 'COLLECTING_INDUSTRY' (loop), avançando só quando o marcador é detectado. Mostre a detecção por match() e o ternário das duas ramificações.",
+      "assertions": [
+        "@InterviewService.ts::regex:INDUSTRY_CONFIRMED",
+        "@InterviewService.ts::regex:\\.match\\(",
+        "@InterviewService.ts::regex::\\s*['\"]COLLECTING_INDUSTRY['\"]"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": ["INTV-001", "INTV-007"],
+      "regression_of": "Serviço de interview instanciado com `new InterviewService()` (quebra o singleton e o estado compartilhado in-memory) e/ou o backend da máquina de estados importando React/JSX/hooks (vazamento de camada server→client).",
+      "prompt": "Gere o trecho de InterviewService.ts (marcador de arquivo server/src/features/interview/InterviewService/InterviewService.ts na primeira linha) que obtém as dependências de serviço SEM `new` — via getInstance() — e mantém o arquivo como backend puro (sem qualquer import de React/JSX/hooks). Mostre o padrão singleton (private static instance + public static getInstance()).",
+      "assertions": [
+        "@InterviewService.ts::regex:getInstance\\(\\)",
+        "@InterviewService.ts::regex:private static instance",
+        "@InterviewService.ts::absent-code:from 'react'"
+      ]
+    }
+  ]
+}

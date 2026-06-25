@@ -1,8 +1,16 @@
 ---
 name: backend-dto-generator
-description: Gera DTOs com Zod schemas (Create, Update, Response), tipos inferidos e type guards isXxxDto com comentários OpenAPI
+description: Gera DTOs Zod (Create/Update/Response) com tipos inferidos, type guards isXxxDto e comentários @openapi para um recurso backend. Use ao criar um recurso que precisa de validação de entrada, ao adicionar campo a um DTO existente, ou ao sincronizar validação com regra de negócio nova. Domínio/arquivos: server/src/features/<resource>/dtos/ e models/.
 argument-hint: "[NomeDoRecurso]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com zod + tsc). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-BACKEND-DTO"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Backend DTO Generator
@@ -21,20 +29,20 @@ Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatame
 
 ### Arquivo `<Resource>Dto.ts`
 
-- [ ] Comentário `@openapi` JSDoc acima do schema principal (`<Resource>Schema`) — `docs.paths.ts` depende dele para os tipos de request/response.
+- [ ] **[DTO-002]** Comentário `@openapi` JSDoc acima do schema principal (`<Resource>Schema`) — `docs.paths.ts` depende dele para os tipos de request/response.
 - [ ] `Create<Resource>Schema` com `z.object({...})`.
-- [ ] `Update<Resource>Schema` derivado via `.partial()` (NÃO redefinir o objeto à mão — `Create<Resource>Schema.partial()`).
+- [ ] **[DTO-001]** `Update<Resource>Schema` derivado via `.partial()` (NÃO redefinir o objeto à mão — `Create<Resource>Schema.partial()`).
 - [ ] Type exportado via `z.infer`: `export type <Resource>Dto = z.infer<typeof <Resource>Schema>` (idem para Create/Update).
-- [ ] Type guard `isCreate<Resource>Input(v: unknown): v is Create<Resource>Dto { return Create<Resource>Schema.safeParse(v).success }` (e `is<Resource>Dto` para o schema principal).
-- [ ] **ZERO `z.any()`** — todo campo tipado. Para JSON dinâmico use `z.record(z.unknown())`, nunca `z.any()`.
-- [ ] Campos de data usam `z.coerce.date()` (ou `z.string().datetime()` quando a fronteira é string ISO) — nunca `z.date()` cru sobre payload HTTP.
+- [ ] **[DTO-004]** Type guard `isCreate<Resource>Input(v: unknown): v is Create<Resource>Dto { return Create<Resource>Schema.safeParse(v).success }` (e `is<Resource>Dto` para o schema principal).
+- [ ] **[DTO-003]** **ZERO `z.any()`** — todo campo tipado. Para JSON dinâmico use `z.record(z.unknown())`, nunca `z.any()`.
+- [ ] **[DTO-006]** Campos de data usam `z.coerce.date()` (ou `z.string().datetime()` quando a fronteira é string ISO) — nunca `z.date()` cru sobre payload HTTP.
 - [ ] Restrições de domínio: campos monetários/quantidade onde `0`/negativo é inválido usam `.positive()`/`.nonnegative()`.
 - [ ] Obrigatoriedade condicional fica no schema (`.superRefine()` ou `z.discriminatedUnion()`), nunca em runtime no service.
 - [ ] Nenhum campo sensível (password, tokens) no schema de resposta.
 
 ### Arquivo companion `models/<Resource>.model.ts`
 
-- [ ] `export interface I<Resource>` com `id`, `userId`, campos do domínio, `createdAt: Date`, `updatedAt: Date`, `deletedAt?: Date`.
+- [ ] **[DTO-005]** `export interface I<Resource>` com `id`, `userId`, campos do domínio, `createdAt: Date`, `updatedAt: Date`, `deletedAt?: Date`.
 - [ ] Enums locais do domínio declarados aqui (não em `@prisma/client`).
 
 ## When to use

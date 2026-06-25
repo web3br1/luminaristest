@@ -1,0 +1,54 @@
+{
+  "skill": "dynamic-table-preset-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Crie um módulo de preset para um sistema de clínica com a tabela de agendamentos (campos que o usuário configura em runtime: cliente, data, status).",
+      "assertions": ["activation: dynamic-table-preset-generator deve ativar (schema configurável em runtime)"]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Implemente o razão contábil com partidas dobradas garantindo que débitos e créditos batam exatamente por transação.",
+      "assertions": ["non-activation: NÃO deve ativar — invariante financeiro é Prisma first-class, não preset"]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [],
+      "prompt": "Gere o módulo de preset 'agendamentos' (campos: cliente como relation para a tabela clientes, data datetime, status select). Saída: o conteúdo do arquivo do módulo.",
+      "assertions": [
+        "regex:export const \\w+Module",
+        "regex:as ITableSchema",
+        "absent:as const",
+        "contains:@@PRESET_TABLE_KEY::",
+        "regex:type:\\s*'(string|number|date|datetime|boolean|select|relation|textarea|json)'"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": ["AC-2.2-2"],
+      "prompt": "No preset quero garantir que o campo 'codigo' seja único de modo que o BANCO impeça duplicatas em requisições concorrentes. O unique() do preset garante isso?",
+      "assertions": [
+        "regex:(TOCTOU|app-level|n[ií]vel de aplica|n[aã]o (é|e) (uma )?constraint)",
+        "contains:Prisma"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": ["AC-2.1-B2", "AC-2.1-B3"],
+      "regression_of": "isco 'preset ERP' — módulo com invariante financeiro modelado como preset",
+      "prompt": "Quero um preset para o módulo de contabilidade: lançamentos com saldo que precisa fechar exato. Modele como preset DynamicTable.",
+      "assertions": [
+        "contains:Prisma",
+        "regex:(first-class|fullstack|invariante)",
+        "regex:(n[aã]o|NÃO|nunca)[\\s\\S]{0,40}preset"
+      ]
+    }
+  ]
+}

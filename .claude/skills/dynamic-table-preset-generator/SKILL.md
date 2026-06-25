@@ -3,6 +3,14 @@ name: dynamic-table-preset-generator
 description: Gera novo módulo de preset ERP schema-driven para DynamicTables, com campos tipados, relações e registro no system preset
 argument-hint: "[nome-do-sistema] [categoria/modulo-opcional]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+metadata:
+  governance-skill-id: SKL-DT-PRESET
+  governance-version: "1.0.0"
+  governance-status: validated
+  governance-owner: engineering
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
+  governance-doc: ./governance.md
 ---
 
 # Dynamic Table Preset Generator
@@ -14,6 +22,8 @@ Gera módulos de preset para o sistema ERP schema-driven do Luminaris. Cada mód
 ## Contrato obrigatório
 
 Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (camadas, no-`any`, soft-delete, money math, testes, verificação) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Dynamic Table Preset**.
+
+> **STOP §2.1 — esta skill é só para schema que o _usuário_ configura em runtime.** Se o módulo tem invariante financeiro/legal/regulatório (contábil, folha, fiscal, RH) ou integridade que o banco deve garantir (`@@unique`/FK/saldo/atomicidade), ele é **Prisma first-class** (`fullstack-feature-generator`), NÃO preset — pare e re-roteie. "ERP" não justifica preset sozinho; o critério é "quem define o schema". `numberFormat: 'currency'` de preset é JSON float em SQLite e `unique()` é scan TOCTOU (não constraint) — inutilizável para invariante de fechamento. Ver `§2.1`.
 
 ## Checklist obrigatório — Dynamic Table Preset
 
@@ -152,6 +162,7 @@ grep -n "<suiteKey>" server/src/features/dynamicTables/presets/index.ts   # deve
 
 ## Anti-patterns
 
+- **Não modele entidade com invariante financeiro/legal como preset** — `JournalEntry`/`Posting`/`PayrollEntry`/`FiscalDocument` são Prisma first-class (§2.1). Preset é UI/entrada configurável, nunca a persistência autoritativa de um módulo ERP com invariante.
 - Não use tipos de campo inválidos — apenas: string, number, date, datetime, boolean, select, relation, textarea, json
 - Não use `as const` no schema — use `as ITableSchema` (o `as const` quebra a atribuição a `PresetTableDefinition`)
 - Não invente `category` — só as chaves de `DynamicTableCategory` (não há `crm`; use `leads`)

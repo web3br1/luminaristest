@@ -3,6 +3,13 @@ name: interview-setup-generator
 description: Estende o wizard de onboarding AI (InterviewService + CustomizationService + FieldCustomizationService) — adiciona estágios, prompts, lógica de preset matching ou customização de campos
 argument-hint: "[acao: novo-estagio|novo-prompt|field-customization|preset-matcher] [nome]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+metadata:
+  governance-skill-id: "SKL-INTERVIEW-SETUP"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Interview Setup Generator
@@ -32,7 +39,7 @@ Por que é o slice perfeito: `InterviewService.processTurn()` + `PromptConfig` +
 ## Checklist de wizard/onboarding (frontend)
 
 - [ ] A tela do wizard/onboarding tem auth guard (`withAuth`/`useAuth`) e i18n (`serverSideTranslations` + strings em `public/locales/{en,pt}/<namespace>.json`; nada hardcoded).
-- [ ] Chama a **service layer** (`lib/services/*.service.ts` via `apiClient`) — nunca `fetch`/`apiClient` direto no componente.
+- [ ] **[INTV-007] DOMAIN-BOUNDARY** — a UI do wizard chama a **service layer** (`lib/services/*.service.ts` via `apiClient`), nunca `fetch`/`apiClient` direto no componente; e o **backend** da máquina de estados (`InterviewService`/`PromptConfig`/`StageHandlers`/`CustomizationService`) é camada de servidor pura — zero React/JSX/hooks. Os dois lados nunca se misturam.
 - [ ] **Reusa componentes canônicos** (`Modal`, `GenericTable`, etc.) — não recria modal/tabela próprios.
 - [ ] **Pagina** se ler DynamicTable (fetch-all até `totalPages`, `limit=200`) — a API retorna só 50 por padrão.
 - [ ] Trata estados de **loading/error** (não só happy path).
@@ -72,7 +79,7 @@ InterviewService.processTurn(stage, messages, presetKey?, sessionId?)
   └── CANNOT_PROCEED / COMPLETED → terminais
 ```
 
-**Todos os serviços são singletons** — sempre acessar via `getInstance()`, nunca `new`.
+**[INTV-001] Todos os serviços são singletons** — sempre acessar via `getInstance()`, nunca `new`.
 
 ## Repository patterns to inspect first
 
@@ -112,35 +119,50 @@ export type ProcessableStage =
   | 'COLLECTING_INDUSTRY';   // ← se usa AI com history
 ```
 
-### 2. Adicionar prompt em `InterviewService/PromptConfig.ts`
+### 2. Adicionar a config do estágio em `InterviewService/PromptConfig.ts`
+
+O canônico é `stageConfig: Record<ProcessableStage, IStageConfig>` — **não** um `Record<…, string>`. Cada entrada é um
+`IStageConfig` = `{ systemPrompt, completionCheckPrompt, nextStage }`. Como o `Record` cobre **todo** `ProcessableStage`,
+adicionar o estágio à enum `ProcessableStage` (passo 1) obriga a adicionar a entrada aqui:
 
 ```typescript
-export const STAGE_PROMPTS: Record<ProcessableStage, string> = {
-  DISCOVERING_BUSINESS: `...`,
-  CONFIRMING_BUSINESS: `...`,
-  IDENTIFYING_ENTITIES: `...`,
-  COLLECTING_INDUSTRY: `
-    Você está coletando informações sobre o setor/segmento da empresa.
-    Faça UMA pergunta clara sobre o ramo de atuação.
-    Quando o usuário responder com um setor específico, encerre com "INDUSTRY_CONFIRMED: <setor>".
-  `,
+export interface IStageConfig {
+  systemPrompt: string;
+  completionCheckPrompt: string;
+  nextStage: InterviewStage;
+}
+
+export const stageConfig: Record<ProcessableStage, IStageConfig> = {
+  DISCOVERING_BUSINESS: { systemPrompt: `...`, completionCheckPrompt: '', nextStage: 'CONFIRMING_BUSINESS' },
+  CONFIRMING_BUSINESS:  { systemPrompt: `...`, completionCheckPrompt: `...`, nextStage: 'MATCHING_PRESET' },
+  IDENTIFYING_ENTITIES: { systemPrompt: `...`, completionCheckPrompt: `...`, nextStage: 'COMPLETED' },
+  COLLECTING_INDUSTRY: {
+    systemPrompt: `
+      Você está coletando informações sobre o setor/segmento da empresa.
+      Faça UMA pergunta clara sobre o ramo de atuação.
+      Quando o usuário responder com um setor específico, encerre com "INDUSTRY_CONFIRMED: <setor>".
+    `,
+    completionCheckPrompt: `O usuário informou um setor específico? Responda apenas 'true' ou 'false'.`,
+    nextStage: 'MATCHING_PRESET',
+  },
 };
 ```
 
 ### 3. Implementar o handler em `InterviewService.processTurn()`
 
+`getAiResponseWithHistory` é **método de instância** (`this.stageHandlers.…`) e recebe `(systemPrompt, messages)`
+**nessa ordem** — leia a config via `stageConfig[stage]` e detecte o marcador no texto da resposta:
+
 ```typescript
 case 'COLLECTING_INDUSTRY': {
-  const response = await StageHandlers.getAiResponseWithHistory(
-    messages,
-    STAGE_PROMPTS.COLLECTING_INDUSTRY
-  );
-  // Detectar marcador de conclusão
-  const industryMatch = response.match(/INDUSTRY_CONFIRMED:\s*(.+)/);
+  const config = stageConfig['COLLECTING_INDUSTRY'];
+  const response = await this.stageHandlers.getAiResponseWithHistory(config.systemPrompt, messages);
+  // Detectar marcador de conclusão no texto da resposta
+  const industryMatch = response?.match(/INDUSTRY_CONFIRMED:\s*(.+)/);
   const nextStage: InterviewStage = industryMatch
-    ? 'MATCHING_PRESET'          // avançar quando confirmado
-    : 'COLLECTING_INDUSTRY';     // continuar loop se não confirmou
-  return { response, nextStage };
+    ? config.nextStage           // avançar quando confirmado (MATCHING_PRESET)
+    : 'COLLECTING_INDUSTRY';      // continuar loop se não confirmou
+  return { response: response ?? '', nextStage };
 }
 ```
 
@@ -230,9 +252,9 @@ cd server && npx tsc --noEmit
 
 ## Anti-patterns
 
-- **Não instanciar serviços com `new`** — sempre `getInstance()`. Todos são singletons; `new` cria instância isolada sem estado compartilhado.
-- **Não adicionar estágio sem atualizar a sequência** — o switch do estágio anterior deve apontar para o novo `nextStage`, senão o wizard fica preso.
-- **Não confiar que StateManager persiste** — estado de customização é in-memory. Nunca depender de ele existir em requests subsequentes de sessões antigas sem verificar se a sessão ainda está ativa.
-- **Não criar AI prompts sem marcador de conclusão** — stages em loop (DISCOVERING_BUSINESS, COLLECTING_INDUSTRY) precisam de um marcador detectável no texto ("SUMMARY:", "INDUSTRY_CONFIRMED:") para avançar. Sem marcador, o wizard nunca avança.
-- **Não pular o `FieldPresetMatcher`** — ao adicionar campos custom, sempre tentar match primeiro. Campos sem preset têm menos validação de schema.
-- **Não modificar `InterviewStage` sem atualizar `ProcessableStage`** — se o novo estágio usa AI com history, precisa estar em ambas as types.
+- **[INTV-001] Não instanciar serviços com `new`** — sempre `getInstance()`. Todos são singletons; `new` cria instância isolada sem estado compartilhado.
+- **[INTV-004] Não adicionar estágio sem atualizar a sequência** — o switch do estágio anterior deve apontar para o novo `nextStage`, senão o wizard fica preso.
+- **[INTV-005] Não confiar que StateManager persiste** — estado de customização é in-memory. Nunca depender de ele existir em requests subsequentes de sessões antigas sem verificar se a sessão ainda está ativa.
+- **[INTV-003] Não criar AI prompts sem marcador de conclusão** — stages em loop (DISCOVERING_BUSINESS, COLLECTING_INDUSTRY) precisam de um marcador detectável no texto ("SUMMARY:", "INDUSTRY_CONFIRMED:") para avançar. Sem marcador, o wizard nunca avança.
+- **[INTV-006] Não pular o `FieldPresetMatcher`** — ao adicionar campos custom, sempre tentar match primeiro. Campos sem preset têm menos validação de schema.
+- **[INTV-002] Não modificar `InterviewStage` sem atualizar `ProcessableStage`** — se o novo estágio usa AI com history, precisa estar em ambas as types.

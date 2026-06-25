@@ -1,4 +1,5 @@
 import type { Account, JournalEntry, Posting, Prisma } from 'generated/prisma';
+import type { AccountingScope } from '../scope/AccountingScope';
 
 /** Input for creating a JournalEntry header. */
 export interface CreateJournalEntryInput {
@@ -9,6 +10,8 @@ export interface CreateJournalEntryInput {
   status: string;
   sourceType: string;
   sourceId?: string | null;
+  createdById?: string | null;
+  postedById?: string | null;
 }
 
 /** A JournalEntry with its postings eagerly loaded. */
@@ -22,35 +25,31 @@ export type JournalEntryWithFullPostings = JournalEntry & { postings: PostingWit
 
 /**
  * Contract for journal-entry (lançamento) data access. First-class Prisma.
- * Scoped userId + unitId. Posted/Reversed entries are immutable except for the
+ * Scoped via AccountingScope. Posted/Reversed entries are immutable except for the
  * status transition to 'Reversed' and the reversedById link (set via setStatus / setReversedBy).
  */
 export interface IJournalEntryRepository {
   /** Persists a new entry header. */
   create(data: CreateJournalEntryInput, tx?: Prisma.TransactionClient): Promise<JournalEntry>;
 
-  /** Finds an entry by id within (userId, unitId), with its postings, or null. */
+  /** Finds an entry by id within the scope, with its postings, or null. */
   findById(
-    userId: string,
-    unitId: string,
+    scope: AccountingScope,
     id: string,
     tx?: Prisma.TransactionClient,
   ): Promise<JournalEntryWithPostings | null>;
 
-  /** Finds an entry by its (sourceType, sourceId) idempotency key within (userId, unitId). */
+  /** Finds an entry by its (sourceType, sourceId) idempotency key within the scope. */
   findBySource(
-    userId: string,
-    unitId: string,
+    scope: AccountingScope,
     sourceType: string,
     sourceId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<JournalEntryWithPostings | null>;
 
-  /** Transitions an entry's status (e.g. Posted -> Reversed). Tenant-scoped: throws if the
-   * (userId, unitId, id) row does not exist. */
+  /** Transitions an entry's status (e.g. Posted -> Reversed). Throws if not found in scope. */
   setStatus(
-    userId: string,
-    unitId: string,
+    scope: AccountingScope,
     id: string,
     status: string,
     tx?: Prisma.TransactionClient,
@@ -58,20 +57,18 @@ export interface IJournalEntryRepository {
 
   /** Links an original entry to its reversal (sets reversedById). Tenant-scoped. */
   setReversedBy(
-    userId: string,
-    unitId: string,
+    scope: AccountingScope,
     id: string,
     reversedById: string,
     tx?: Prisma.TransactionClient,
   ): Promise<void>;
 
   /**
-   * Lists entries for a (userId, unitId) paginated, with postings including account code+name.
+   * Lists entries for the scope paginated, with postings including account code+name.
    * Ordered by date descending.
    */
   findManyByUnit(
-    userId: string,
-    unitId: string,
+    scope: AccountingScope,
     skip: number,
     take: number,
   ): Promise<{ entries: JournalEntryWithFullPostings[]; total: number }>;

@@ -1,0 +1,79 @@
+{
+  "skill": "chat-domain-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Quero que o agente AI do chat consiga criar um registro numa tabela quando o usuário pedir — adicione essa nova tool call ao agente ERP.",
+      "assertions": [
+        "activation: a skill chat-domain-generator deve ser a escolhida (nova tool call / intenção do agente ERP é o domínio dela)"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Estilize a bolha de mensagem do chat: deixe as mensagens do usuário alinhadas à direita com fundo azul e bordas arredondadas, e adicione um indicador de digitação animado no componente React.",
+      "assertions": [
+        "non-activation: chat-domain-generator NÃO deve ativar — pedido é PURAMENTE VISUAL (estilo/componente React da UI do chat). O domínio de chat (agente/RAG/regras) não estiliza UI; trabalho de frontend-component-generator/design-system."
+      ]
+    },
+    {
+      "id": "trigger-neg-2",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Adicione suporte a ingestão de arquivos Markdown no pipeline documental: extractor de texto, chunking, embedding e indexação no Qdrant.",
+      "assertions": [
+        "non-activation: chat-domain-generator NÃO deve ativar — construir o pipeline de ingestão/embedding (PDF/MD → chunk → Qdrant) é document-processing-generator; o chat apenas CONSOME o RAG, não constrói a ingestão."
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": ["CHAT-001", "CHAT-002", "CHAT-003", "CHAT-004", "CHAT-008", "CHAT-010"],
+      "prompt": "Adicione duas tools ao agente ERP. Gere os trechos editados, cada um com seu marcador de arquivo na primeira linha: (1) server/src/features/chat/services/LuminarisAgentService.ts — em getTools(), declarar a tool de LEITURA 'query_supplier_data' e a tool de ESCRITA 'request_supplier_creation' (ambas snake_case); em handleToolCall(user, functionName, args), o case de leitura retorna { status: 'OK', result } (resolvendo a tabela por internalName/getTableById escopado ao user, nunca [0]); o case de escrita cria um ActionProposal via this.proposalRepository.create({ ..., status: 'PENDING' }) e retorna { status: 'PROPOSED', proposalId: proposal.id } — NUNCA escreve direto no banco. O arquivo é backend puro: sem import de React/JSX e sem res.json/Response. (2) server/src/lib/factory.ts — instanciar o NotificationService e injetá-lo no construtor `new LuminarisAgentService(...)`.",
+      "target_files": [
+        "server/src/features/chat/services/LuminarisAgentService.ts",
+        "server/src/lib/factory.ts"
+      ],
+      "assertions": [
+        "@LuminarisAgentService.ts::regex:name:\\s*['\"]query_supplier_data['\"]",
+        "@LuminarisAgentService.ts::regex:case\\s+['\"]request_supplier_creation['\"]",
+        "@LuminarisAgentService.ts::regex:status:\\s*['\"]OK['\"]",
+        "@LuminarisAgentService.ts::regex:status:\\s*['\"]PENDING['\"]",
+        "@LuminarisAgentService.ts::regex:status:\\s*['\"]PROPOSED['\"]",
+        "@LuminarisAgentService.ts::regex:proposalRepository\\.create\\(",
+        "@LuminarisAgentService.ts::regex:(internalName|getTableById)",
+        "@LuminarisAgentService.ts::absent-code:from 'react'",
+        "@LuminarisAgentService.ts::absent-code:res.json",
+        "@factory.ts::regex:new LuminarisAgentService\\("
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": ["CHAT-005", "CHAT-006"],
+      "prompt": "Gere o trecho de ChatService.generateResponse (marcador de arquivo server/src/features/chat/services/ChatService.ts na primeira linha) que dispara o modo RAG apenas quando documentIds.length > 0 (senão é AGENT), faz a ownership check de que TODOS os documentIds pertencem ao user (where { id: { in: documentIds }, userId: user.id }) ANTES do Qdrant, e então chama this.vectorRepository.search(queryEmbedding, 10, documentIds, user.id).",
+      "assertions": [
+        "@ChatService.ts::regex:documentIds\\.length\\s*>\\s*0",
+        "@ChatService.ts::regex:userId:\\s*user\\.id",
+        "@ChatService.ts::regex:vectorRepository\\.search\\([\\s\\S]*documentIds",
+        "@ChatService.ts::regex:vectorRepository\\.search\\([\\s\\S]*user\\.id"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": ["CHAT-001", "CHAT-007", "CHAT-009"],
+      "regression_of": "handleToolCall escrevendo direto no banco (prisma.*) ou cravando um serviço Prisma first-class (PostingService) para aplicar invariante no agente, em vez de criar um ActionProposal; e/ou loop de tool calls aumentado além de 5 iterações.",
+      "prompt": "Gere dois trechos, cada um com seu marcador de arquivo na primeira linha: (1) server/src/features/chat/services/LuminarisAgentService.ts — o handler de uma ação que toca o módulo contábil deve criar um ActionProposal (status PENDING → retorna { status: 'PROPOSED', proposalId }) e NÃO chamar prisma.* nem PostingService direto no handler; (2) server/src/features/chat/services/ChatService.ts — o loop de tool calls do modo AGENT mantém o limite `while (iterations < 5)`.",
+      "assertions": [
+        "@LuminarisAgentService.ts::regex:status:\\s*['\"]PROPOSED['\"]",
+        "@LuminarisAgentService.ts::absent-code:PostingService",
+        "@LuminarisAgentService.ts::absent-code:prisma.",
+        "@ChatService.ts::regex:iterations\\s*<\\s*5"
+      ]
+    }
+  ]
+}

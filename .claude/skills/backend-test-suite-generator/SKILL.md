@@ -1,8 +1,16 @@
 ---
 name: backend-test-suite-generator
-description: Gera suítes Jest para service, repository, KPI processor e middleware — com mocks padronizados, factory builders e asserções de segurança
+description: Gera suítes Jest para backend Luminaris (service, repository, KPI processor, middleware, security/tenant-isolation) com mocks padronizados, factory builders `buildService`, `referenceDate` fixo, `toBeCloseTo` para money e asserções de isolamento de tenant (cross-tenant → NotFoundError). Use ao pedir "quero testes para X", ao adicionar suíte de regressão a um KPI processor novo, ao cobrir service/repository recém-gerados, ou ao testar isolamento multi-usuário/middleware de auth. Domínio/arquivos: server/src/**/__tests__/*.test.ts.
 argument-hint: "[tipo: service|repository|kpi-processor|middleware|security] [nome-do-recurso]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com Jest + ts-jest + tsc). Sem efeitos externos — apenas gera/edita arquivos de teste no repositório; não roda migrations nem toca banco real.
+metadata:
+  governance-skill-id: "SKL-BACKEND-TEST"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Backend Test Suite Generator
@@ -20,30 +28,22 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 Toda suíte gerada cumpre, por tipo:
 
 **Universal (todos os tipos):**
-- [ ] `beforeEach(() => jest.clearAllMocks())` — sempre, no topo do `describe` raiz. Sem isso, mocks vazam estado entre testes.
-- [ ] Floats monetários comparados com `toBeCloseTo(value, 2)` — **nunca** `toBe`/`toEqual` (drift de ponto flutuante).
-- [ ] `referenceDate` **fixo** (`new Date('YYYY-MM-DDT00:00:00Z')` hardcoded) — nunca `new Date()` sem âncora; senão o teste vira não-determinístico.
+- [ ] **[TEST-001]** Mocks padronizados isolados do mundo externo: `beforeEach(() => jest.clearAllMocks())` no topo do `describe` raiz (sem isso mocks vazam estado entre testes) **e nenhum banco real** — repositório/prisma sempre mockados (`jest.fn()` / `jest.mock('@/lib/prisma')`); NUNCA conexão real, migration ou `PrismaClient` vivo no teste.
+- [ ] **[TEST-007]** Determinismo de tempo e money: floats monetários comparados com `toBeCloseTo(value, 2)` — **nunca** `toBe`/`toEqual` (drift de ponto flutuante); e `referenceDate` **fixo** (`new Date('YYYY-MM-DDT00:00:00Z')` hardcoded) — nunca `new Date()` sem âncora, senão o teste vira não-determinístico.
 - [ ] Não testar só happy path — cobrir também NotFoundError, ForbiddenError e input inválido onde aplicável.
 
 **Service test:**
-- [ ] Factory builder `buildService(overrides?)` presente — `new <Resource>Service({ ...mockRepo, ...overrides }, mockPolicy)`.
-- [ ] `mockPolicy` com todos os `can*` mockados; default `mockReturnValue(true)`, override pontual com `mockReturnValueOnce(false)`.
-- [ ] Cobre: `getById` retorna recurso; `getById` lança `NotFoundError` quando `null`; `getById` lança `ForbiddenError` quando policy nega; `delete` chama `softDelete` (não hard-delete).
+- [ ] **[TEST-002]** Factory builder `buildService(overrides?)` presente — `new <Resource>Service({ ...mockRepo, ...overrides }, mockPolicy)`; nunca instanciar o service inline em cada teste. `mockPolicy` com todos os `can*` mockados; default `mockReturnValue(true)`, override pontual com `mockReturnValueOnce(false)`.
+- [ ] **[TEST-005]** Suíte service cobre o shape mínimo: `getById` retorna recurso; `getById` lança `NotFoundError` quando `null`; `getById` lança `ForbiddenError` quando policy nega; `delete` chama `softDelete` (não hard-delete).
 
 **Security / tenant isolation test:**
-- [ ] Acesso a recurso de **outro** usuário lança `NotFoundError` (**NÃO** `ForbiddenError`) — não revelar existência previne enumeration attack.
-- [ ] Verifica que o repositório é chamado com o `userId` do actor (`expect.objectContaining({ userId })`).
+- [ ] **[TEST-003]** Acesso a recurso de **outro** usuário lança `NotFoundError` (**NÃO** `ForbiddenError`) — não revelar existência previne enumeration attack — e o repositório é chamado com o `userId` do actor (`expect.objectContaining({ userId })`).
 
 **KPI processor test:**
-- [ ] **Suíte Empty Safety obrigatória:** rows vazios (`rows: []`) → todo `value` é finito (`Number.isFinite`) e **0**, nunca `NaN`/`Infinity`.
-- [ ] **Math Suite:** acumula corretamente excluindo negativos e status configurados (ex.: `1500 + 500`, `-100` excluído).
-- [ ] **Float Safety Suite:** 1000 × R$0,10 = R$100,00 exatos via `toBeCloseTo(100, 2)`.
-- [ ] `previousValue` é `undefined` (ou number) quando não há dados no período anterior — nunca asserir `0`.
-- [ ] Rows no shape real `{ id, data: { ...campos } }`; pontos identificados por `name`, não `id`.
-- [ ] Chamar o processor **direto** com dados mock (sem `jest.mock`) — é função pura; não mocke `DataSanitizer`.
+- [ ] **[TEST-004]** Suíte KPI no shape real do engine: rows `{ id, data: { ...campos } }` (pontos identificados por `name`, não `id`); processor chamado **direto** com dados mock (sem `jest.mock`, é função pura — não mocke `DataSanitizer`); cobre **Empty Safety** (rows `[]` → todo `value` finito via `Number.isFinite`, nunca `NaN`/`Infinity`), **Math** (acumula excluindo negativos/status configurados, ex.: `1500 + 500`, `-100` excluído), **Float Safety** (1000 × R$0,10 = R$100,00 via `toBeCloseTo(100, 2)`) e `previousValue` `undefined` (ou number) quando não há período anterior — nunca asserir `0`.
 
 **Middleware test:**
-- [ ] Cobre token ausente/inválido (rejeita) e token válido (popula `req` user context) — ver `auth.test.ts`.
+- [ ] **[TEST-006]** Cobre token ausente/inválido (rejeita) e token válido (popula `req` user context) — ver `auth.test.ts`.
 
 > Referências por tipo (já existem; complete a partir delas): `kpi` → `revenue/__tests__/RevenueKpiProcessor.test.ts`; `service` → `users/__tests__/user-deletion-qdrant.test.ts`; `security` → `documents/__tests__/rag-tenant-isolation.test.ts`; `middleware` → `middleware/__tests__/auth.test.ts`.
 

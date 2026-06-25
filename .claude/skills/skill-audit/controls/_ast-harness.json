@@ -1,0 +1,79 @@
+[
+  {
+    "rule": "ast-jsx/self-closing",
+    "assertion": "ast-jsx:GenericTable",
+    "file": "chunk.tsx",
+    "good": "export const A = () => <div><GenericTable cols={c} /></div>;",
+    "bad": "export const A = () => <div><table /></div>;"
+  },
+  {
+    "rule": "ast-jsx/opening",
+    "assertion": "ast-jsx:Modal",
+    "file": "chunk.tsx",
+    "good": "export const A = () => <Modal title=\"x\">body</Modal>;",
+    "bad": "export const A = () => <dialog>body</dialog>;"
+  },
+  {
+    "rule": "ast-import/positive+wrong-module",
+    "assertion": "ast-import:Modal@@/components/Modal",
+    "file": "chunk.tsx",
+    "good": "import Modal from '@/components/Modal';\nexport const A = () => null;",
+    "bad": "import Modal from 'antd';\nexport const A = () => null;"
+  },
+  {
+    "rule": "ast-import/aliased+wrong-export",
+    "assertion": "ast-import:Modal@@/components/Modal",
+    "file": "chunk.tsx",
+    "good": "import { Modal as M } from '@/components/Modal';\nexport const A = () => null;",
+    "bad": "import { Foo as Modal } from '@/components/Modal';\nexport const A = () => null;"
+  },
+  {
+    "rule": "ast-noclass/static",
+    "assertion": "ast-noclass:zinc-",
+    "file": "chunk.tsx",
+    "good": "export const A = () => <div className=\"neutral-800 p-2\" />;",
+    "bad": "export const A = () => <div className=\"zinc-800 p-2\" />;"
+  },
+  {
+    "rule": "ast-noclass/dynamic-not-pass",
+    "assertion": "ast-noclass:zinc-",
+    "file": "chunk.tsx",
+    "good": "export const A = () => <div className=\"p-2\" />;",
+    "bad": "export const A = () => <div className={cx(styles)} />;"
+  },
+  {
+    "rule": "ast/malformed-blocked",
+    "assertion": "ast-jsx:GenericTable",
+    "file": "chunk.tsx",
+    "good": "export const A = () => <GenericTable />;",
+    "bad": "export const A = () => <GenericTable cols={ ;"
+  },
+  {
+    "rule": "absent-code/ignores-comment-catches-code",
+    "assertion": "absent-code:prisma.",
+    "file": "chunk.ts",
+    "good": "// nunca prisma.* direto — vai por repository\nawait this.repo.create({});",
+    "bad": "await prisma.actionProposal.create({ data: {} });"
+  },
+  {
+    "rule": "absent-code/slashes-in-string-not-a-comment",
+    "assertion": "absent-code:secret",
+    "file": "chunk.ts",
+    "good": "const u = 'http://ok'; // secret only in a real comment",
+    "bad": "const u = 'a//secret';"
+  },
+  {
+    "rule": "absent-code/regex-literal-not-eaten",
+    "assertion": "absent-code:flagx",
+    "file": "chunk.ts",
+    "good": "const re = /a/; // flagx note in comment",
+    "bad": "const re = /flagx\\/\\//;"
+  },
+  {
+    "rule": "absent-code/block-comment-marker-in-template",
+    "assertion": "absent-code:tok",
+    "file": "chunk.ts",
+    "good": "const s = 1; /* tok */",
+    "bad": "const s = `a /* tok */ b`;"
+  }
+]

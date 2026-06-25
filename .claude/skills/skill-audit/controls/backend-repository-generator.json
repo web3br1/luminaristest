@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "REPO-002",
+    "corrected": "regression-1: `[^}]*` não cruzava `{ id }` aninhado → trocado por `[\\s\\S]*`",
+    "assertion": "regex:update\\(\\{[\\s\\S]*deletedAt:\\s*new Date\\(\\)",
+    "good": "async delete(id: string) {\n  return prisma.invoice.update({ where: { id }, data: { deletedAt: new Date() } });\n}",
+    "bad": "async delete(id: string) {\n  return prisma.invoice.delete({ where: { id } });\n}"
+  },
+  {
+    "rule": "REPO-001",
+    "corrected": "deletedAt removido do edge-1 (password); REPO-001 segue gated por happy-1 — este controle prova que o gate de happy-1 ainda discrimina",
+    "assertion": "regex:deletedAt:\\s*null",
+    "good": "return prisma.invoice.findFirst({ where: { id, deletedAt: null }, select });",
+    "bad": "return prisma.invoice.findFirst({ where: { id }, select });"
+  }
+]

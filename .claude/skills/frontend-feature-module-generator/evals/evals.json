@@ -1,0 +1,85 @@
+{
+  "skill": "frontend-feature-module-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Preciso de um novo módulo de categoria no dashboard chamado 'appointments' (categoria planning): uma View principal, um hook de dados e o registro do dynamic import em pages/dashboard/index.tsx. Crie o scaffold do módulo em features/dashboard/category-views/appointments/.",
+      "assertions": [
+        "activation: a skill frontend-feature-module-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie a página Next.js do recurso 'appointments' no Pages Router com auth guard (withAuth), getServerSideProps com serverSideTranslations e i18n. É uma rota standalone em pages/appointments/index.tsx.",
+      "assertions": [
+        "non-activation: frontend-feature-module-generator NAO deve ativar (pedido e de pagina/rota com auth guard + getServerSideProps + i18n — trabalho do frontend-page-generator)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "FEMOD-001",
+        "FEMOD-002",
+        "FEMOD-003",
+        "FEMOD-004",
+        "FEMOD-005"
+      ],
+      "prompt": "Gere o scaffold multi-arquivo do modulo de feature 'appointments' (categoria planning) em features/dashboard/category-views/appointments/. Produza: (1) o barrel index.ts re-exportando a View; (2) AppointmentsView.tsx — named export, consome o estado via o hook use AppointmentsData (./hooks/useAppointmentsData), renderiza data/isLoading/error, SEM tocar dados diretamente; (3) hooks/useAppointmentsData.ts — retorna { data, isLoading, error, refetch } e e a unica camada que importa o service de dados (lib/services/appointments.service). Use named exports. i18n via t(). Saida: o conteudo completo dos tres arquivos, cada um precedido por um marcador // <path>.",
+      "target_files": [
+        "my-app/features/dashboard/category-views/appointments/index.ts",
+        "my-app/features/dashboard/category-views/appointments/AppointmentsView.tsx",
+        "my-app/features/dashboard/category-views/appointments/hooks/useAppointmentsData.ts"
+      ],
+      "assertions": [
+        "@index.ts::regex:export ",
+        "@index.ts::contains:AppointmentsView",
+        "@AppointmentsView.tsx::ast-import:useAppointmentsData@./hooks/useAppointmentsData",
+        "@AppointmentsView.tsx::regex:export (function|const) AppointmentsView",
+        "@AppointmentsView.tsx::absent:apiClient",
+        "@AppointmentsView.tsx::absent:lib/services",
+        "@AppointmentsView.tsx::contains:t(",
+        "@useAppointmentsData.ts::ast-import:appointmentsService@lib/services/appointments.service",
+        "@useAppointmentsData.ts::regex:refetch"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "FEMOD-004"
+      ],
+      "prompt": "O modulo 'appointments' e schema-driven (DynamicTable preset). Gere apenas o hook hooks/useAppointmentsData.ts: o acesso a dados deve viver no hook e ir pelo DynamicTableService (lib/services/dynamicTable.service), retornando { data, isLoading, error, refetch }. Saida: o conteudo completo do arquivo, precedido por // <path>.",
+      "target_files": [
+        "my-app/features/dashboard/category-views/appointments/hooks/useAppointmentsData.ts"
+      ],
+      "assertions": [
+        "@useAppointmentsData.ts::ast-import:DynamicTableService@lib/services/dynamicTable.service",
+        "@useAppointmentsData.ts::regex:refetch",
+        "@useAppointmentsData.ts::absent:apiClient"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "FEMOD-003"
+      ],
+      "regression_of": "o CRM virou um modulo 'ilha' com a View acessando dados diretamente (RecordTable + fetch/apiClient na propria tela) em vez de consumir o estado por um hook de dados — quebrando a fronteira UI vs data-access",
+      "prompt": "Na AppointmentsView, NAO acesse dados diretamente: nada de apiClient/fetch/lib/services na View. O estado deve vir do hook useAppointmentsData (./hooks/useAppointmentsData) e a View so renderiza. Gere o conteudo completo de AppointmentsView.tsx, precedido por // <path>.",
+      "target_files": [
+        "my-app/features/dashboard/category-views/appointments/AppointmentsView.tsx"
+      ],
+      "assertions": [
+        "@AppointmentsView.tsx::ast-import:useAppointmentsData@./hooks/useAppointmentsData",
+        "@AppointmentsView.tsx::absent:apiClient",
+        "@AppointmentsView.tsx::absent:lib/services",
+        "@AppointmentsView.tsx::regex:export (function|const) AppointmentsView"
+      ]
+    }
+  ]
+}

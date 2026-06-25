@@ -1,0 +1,10 @@
+[
+  {
+    "rule": "FECOMP-005",
+    "corrected": "happy-1: FECOMP-005 era props isOpen/onClose/onConfirm na INTERFACE do card; mas o card controla um <Modal> canônico por estado interno (modais-proper vão p/ frontend-modal). Reescopado p/ uso do Modal.",
+    "assertion": "ast-jsx:Modal",
+    "file": "chunk.tsx",
+    "good": "export const Card = () => <div><Modal isOpen={o} onClose={c}>x</Modal></div>;",
+    "bad": "export const Card = () => <div>x</div>;"
+  }
+]

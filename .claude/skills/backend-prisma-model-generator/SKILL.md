@@ -1,8 +1,17 @@
 ---
 name: backend-prisma-model-generator
-description: Adiciona novo modelo Prisma ao schema.prisma e executa migration — operação destrutiva que exige confirmação manual
+description: Adiciona um novo modelo ao server/prisma/schema.prisma seguindo as convenções do Luminaris (id cuid, createdAt/updatedAt, soft-delete deletedAt, relação User com onDelete Cascade, @@index, @@map snake_case) e executa `prisma migrate dev`. Use ao criar uma nova entidade de banco, adicionar campo/enum que exige migration, ou modelar um recurso multi-tenant com soft-delete. ATENÇÃO: roda migration que altera o banco real — operação destrutiva, confirme antes. Domínio/arquivos: server/prisma/schema.prisma + server/prisma/migrations/.
 argument-hint: "[NomeDoModelo]"
 allowed-tools: Read, Grep, Glob, Write, Edit, Bash
+disable-model-invocation: true
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com Prisma CLI + SQLite). EFEITO DESTRUTIVO — executa `prisma migrate dev` (altera o banco real) e `prisma generate`. Requer confirmação manual antes de migrar; não invocável automaticamente pelo modelo (SG-013).
+metadata:
+  governance-skill-id: "SKL-BACKEND-PRISMA"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Backend Prisma Model Generator
@@ -21,14 +30,12 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 
 Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatamente isto na camada Prisma Model). Gere já em conformidade.
 
-- [ ] **`id String @id @default(cuid())`** — nunca `Int @id @default(autoincrement())`.
-- [ ] **`updatedAt DateTime @updatedAt`** + `createdAt DateTime @default(now())`.
-- [ ] **`deletedAt DateTime?`** presente (soft-delete universal — toda camada acima depende dele).
-- [ ] **`userId String`** + relação `user User @relation(fields: [userId], references: [id], onDelete: Cascade)` se for recurso multi-tenant.
-- [ ] **`@@index([userId])`** quando o modelo pertence a um usuário.
-- [ ] **`@@index([deletedAt])`** (soft-delete é filtrado em todo find — sem índice, full-scan).
-- [ ] **`onDelete: Cascade`** nas relações onde faz sentido (notadamente a relação com `User`).
-- [ ] **`@@map("table_name")`** em snake_case (plural).
+- [ ] **[PRISMA-001]** **`id String @id @default(cuid())`** — nunca `Int @id @default(autoincrement())`.
+- [ ] **[PRISMA-002]** **`createdAt DateTime @default(now())`** + **`updatedAt DateTime @updatedAt`** (o atributo `@updatedAt` é o que faz o Prisma atualizar o timestamp).
+- [ ] **[PRISMA-003]** **`deletedAt DateTime?`** presente (soft-delete universal — toda camada acima depende dele).
+- [ ] **[PRISMA-004]** **`userId String`** + relação `user User @relation(fields: [userId], references: [id], onDelete: Cascade)` se for recurso multi-tenant (a relação com `User` SEMPRE usa `onDelete: Cascade`).
+- [ ] **[PRISMA-005]** **`@@index([userId])`** quando o modelo pertence a um usuário **e** **`@@index([deletedAt])`** (soft-delete é filtrado em todo find — sem índice, full-scan).
+- [ ] **[PRISMA-006]** **`@@map("table_name")`** em snake_case **plural**.
 - [ ] Relação inversa adicionada no modelo `User` quando aplicável.
 
 ## When to use

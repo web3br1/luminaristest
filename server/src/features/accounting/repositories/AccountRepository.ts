@@ -1,10 +1,12 @@
 import prisma from '../../../lib/prisma';
 import type { Account, Prisma } from 'generated/prisma';
+import type { AccountingScope } from '../scope/AccountingScope';
+import { accountingScopeWhere } from '../scope/AccountingScope';
 import type { CreateAccountInput, IAccountRepository } from './IAccountRepository';
 
 /**
  * Prisma-backed repository for the chart of accounts (`accounts`). Only place with
- * prisma.account.* access. Two-level tenancy: every query filters userId + unitId.
+ * prisma.account.* access. Tenancy is two-level via AccountingScope (ownerUserId + unitId).
  * Soft-delete universal — reads filter deletedAt: null, delete is an update of deletedAt.
  */
 export class AccountRepository implements IAccountRepository {
@@ -13,27 +15,26 @@ export class AccountRepository implements IAccountRepository {
   }
 
   public async findByCode(
-    userId: string,
-    unitId: string,
+    scope: AccountingScope,
     code: string,
     tx?: Prisma.TransactionClient,
   ): Promise<Account | null> {
     return (tx ?? prisma).account.findFirst({
-      where: { userId, unitId, code, deletedAt: null },
+      where: { ...accountingScopeWhere(scope), code, deletedAt: null },
     });
   }
 
   public async restoreByCode(
-    userId: string,
-    unitId: string,
+    scope: AccountingScope,
     code: string,
     tx?: Prisma.TransactionClient,
   ): Promise<Account | null> {
     const client = tx ?? prisma;
+    const where = accountingScopeWhere(scope);
     // Find the soft-deleted row holding this code (the @@unique is on raw columns, so a
     // soft-deleted row still owns the code and blocks re-create with P2002).
     const deleted = await client.account.findFirst({
-      where: { userId, unitId, code, deletedAt: { not: null } },
+      where: { ...where, code, deletedAt: { not: null } },
     });
     if (!deleted) return null;
     return client.account.update({
@@ -46,14 +47,15 @@ export class AccountRepository implements IAccountRepository {
     return prisma.account.findFirst({ where: { id, userId, deletedAt: null } });
   }
 
-  public async findManyByUnit(userId: string, unitId: string): Promise<Account[]> {
+  public async findManyByUnit(scope: AccountingScope): Promise<Account[]> {
     return prisma.account.findMany({
-      where: { userId, unitId, deletedAt: null },
+      where: { ...accountingScopeWhere(scope), deletedAt: null },
       orderBy: { code: 'asc' },
     });
   }
 
-  public async softDelete(userId: string, unitId: string, id: string): Promise<Account> {
+  public async softDelete(scope: AccountingScope, id: string): Promise<Account> {
+    const { userId, unitId } = accountingScopeWhere(scope);
     return prisma.account.update({
       where: { id, userId, unitId },
       data: { deletedAt: new Date() },

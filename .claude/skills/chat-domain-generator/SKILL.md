@@ -3,6 +3,13 @@ name: chat-domain-generator
 description: Adiciona intenções, ferramentas (tool calls) ou modos ao agente AI Luminaris — cobre os dois modos de chat (RAG e AGENT ERP) e o fluxo de proposta/confirmação de ações
 argument-hint: "[nova-tool-name] [acao: criar-tool|personalizar-prompt|sincronizar-kg|novo-modo]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+metadata:
+  governance-skill-id: "SKL-CHAT-DOMAIN"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Chat Domain Generator
@@ -17,14 +24,16 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 
 ## Checklist obrigatório — Chat Domain / Agente
 
-- [ ] **Toda ação de ESCRITA em `handleToolCall()` retorna `{ status: 'PROPOSED', proposalId }`** — cria um `ActionProposal` com `status: 'PENDING'` e **nunca escreve direto no banco**. A escrita real só acontece em `executeProposal()` após confirmação do usuário no frontend. Escrita direta bypassa o modal de confirmação — FAIL.
-- [ ] **Ações de LEITURA retornam o resultado direto** (`{ status: 'OK', result }`) — listagem/busca/consulta nunca viram `ACTION_PROPOSAL`.
-- [ ] **Toda tool tem entry em `getTools()`** (nome snake_case) **e** case em `handleToolCall()` — sem a declaração o OpenAI não chama; sem o handler dá erro.
-- [ ] **Resolver tabelas por `internalName`** (preset key) escopado ao `userId` — nunca por índice `[0]` nem por id presumido; a ordem da API varia.
-- [ ] **Isolamento de tenant no RAG é barreira de segurança** — `vectorRepository.search()` com `userId` + `docIds` do dono, ownership check antes do Qdrant; nunca cross-tenant.
-- [ ] **Não confundir os modos:** RAG só quando `documentIds.length > 0`; AGENT é o default sem documentos. Não misturar a lógica.
-- [ ] **Loop de tool calls limitado a 5 iterações** — não aumentar; se 5 não basta, a tool está mal modelada.
-- [ ] **Nova dep de service injetada via factory** no `LuminarisAgentService` (construtor) — nunca `new Service()` dentro do agente.
+- [ ] **[CHAT-001] Toda ação de ESCRITA em `handleToolCall()` retorna `{ status: 'PROPOSED', proposalId }`** — cria um `ActionProposal` com `status: 'PENDING'` e **nunca escreve direto no banco**. A escrita real só acontece em `executeProposal()` após confirmação do usuário no frontend. Escrita direta bypassa o modal de confirmação — FAIL.
+- [ ] **[CHAT-002] Ações de LEITURA retornam o resultado direto** (`{ status: 'OK', result }`) — listagem/busca/consulta nunca viram `ACTION_PROPOSAL`.
+- [ ] **[CHAT-003] Toda tool tem entry em `getTools()`** (nome snake_case) **e** case em `handleToolCall()` — sem a declaração o OpenAI não chama; sem o handler dá erro.
+- [ ] **[CHAT-004] Resolver tabelas por `internalName`** (preset key) escopado ao `userId` — nunca por índice `[0]` nem por id presumido; a ordem da API varia.
+- [ ] **[CHAT-005] Isolamento de tenant no RAG é barreira de segurança** — `vectorRepository.search()` com `userId` + `docIds` do dono, ownership check antes do Qdrant; nunca cross-tenant.
+- [ ] **[CHAT-006] Não confundir os modos:** RAG só quando `documentIds.length > 0`; AGENT é o default sem documentos. Não misturar a lógica.
+- [ ] **[CHAT-007] Loop de tool calls limitado a 5 iterações** — não aumentar; se 5 não basta, a tool está mal modelada.
+- [ ] **[CHAT-008] Nova dep de service injetada via factory** no `LuminarisAgentService` (construtor) — nunca `new Service()` dentro do agente.
+- [ ] **[CHAT-009] Ação que toca módulo Prisma first-class (contábil/folha/fiscal) chama o serviço próprio do módulo — não vira escrita direta misturando os dois mundos.** O agente opera sobre DynamicTable via `ActionProposal`; uma ação com invariante passa pela API do módulo (que aplica policy/invariante), nunca por `prisma.*` ou `PostingService` cravado no handler. Ver §2.1.
+- [ ] **[CHAT-010] DOMAIN-BOUNDARY:** o domínio de chat (modelo `ActionProposal`, regras de proposta/confirmação, serviços `LuminarisAgentService`/`ChatService`/`KnowledgeGraphService`) é **camada de servidor pura** — zero React/JSX/hooks (apresentação é do frontend) e zero `Request`/`Response`/`res.json`/roteamento Express dentro do serviço (transporte é do controller/route). O agente não estiliza UI nem fala HTTP; só decide e propõe. Pedido puramente visual (estilizar a bolha do chat, componente React) **não** é esta skill.
 
 ## When to use
 
@@ -261,6 +270,7 @@ cd server && npx jest features/chat --passWithNoTests
 - **Não retornar `ACTION_PROPOSAL` para ações de leitura** — apenas CREATE/UPDATE passam pelo modal. Queries de listagem/busca retornam `TEXT` direto.
 - **Não resolver tabela por índice `[0]` nem id presumido** — resolva por `internalName` (preset key) escopado ao `userId`; a ordem da API varia e quebra silenciosamente.
 - **Não injetar service com `new` dentro do agente** — toda dep entra pelo construtor do `LuminarisAgentService` via factory.
+- **Não injetar serviço Prisma first-class para escrever invariante direto no `handleToolCall`** — ação de módulo contábil/folha/fiscal vai pela API própria do módulo (que garante o invariante), pelo mesmo fluxo proposta→confirmação. Misturar os dois mundos no agente é o anti-padrão §2.1.
 
 ## Output format
 

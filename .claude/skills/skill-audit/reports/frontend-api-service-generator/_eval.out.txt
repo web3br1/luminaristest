@@ -1,0 +1,39 @@
+===happy-1===
+// my-app/lib/services/appointment.service.ts
+import { apiClient } from '../api/api-client';
+
+export type Appointment = { id: string; title: string; description: string | null; startsAt: string; endsAt: string; status: string; createdAt: string; updatedAt: string; };
+export type CreateAppointmentDto = { title: string; description?: string | null; startsAt: string; endsAt: string; status?: string; };
+export type UpdateAppointmentDto = Partial<CreateAppointmentDto>;
+export type Pagination = { page: number; limit: number; totalCount: number; totalPages: number; };
+
+export class AppointmentService {
+  static async getAll(params?: { page?: number; limit?: number }): Promise<{ success: boolean; data: Appointment[]; pagination?: Pagination }> {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    const qs = query.toString();
+    return apiClient.get(`/api/appointments${qs ? `?${qs}` : ''}`);
+  }
+  static async getById(id: string): Promise<{ success: boolean; data: Appointment }> { return apiClient.get(`/api/appointments/${id}`); }
+  static async create(data: CreateAppointmentDto): Promise<{ success: boolean; data: Appointment }> { return apiClient.post('/api/appointments', data); }
+  static async update(id: string, data: UpdateAppointmentDto): Promise<{ success: boolean; data: Appointment }> { return apiClient.put(`/api/appointments/${id}`, data); }
+  static async delete(id: string): Promise<{ success: boolean }> { return apiClient.delete(`/api/appointments/${id}`); }
+}
+
+===edge-1===
+// my-app/lib/services/appointment.service.ts
+import { apiClient } from '../api/api-client';
+
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+export type AppointmentMetadata = Record<string, JsonValue>;
+export type Appointment = { id: string; title: string; status: string; metadata: AppointmentMetadata; createdAt: string; updatedAt: string; };
+
+===regression-1===
+// my-app/lib/services/appointment.service.ts
+import { apiClient } from '../api/api-client';
+
+export type Appointment = { id: string; title: string; description: string | null; startsAt: string; endsAt: string; status: string; createdAt: string; updatedAt: string; };
+export type CreateAppointmentDto = { title: string; description?: string | null; startsAt: string; endsAt: string; status?: string; };
+export type UpdateAppointmentDto = Partial<CreateAppointmentDto>;
+export type Pagination = { page: number; limit: number; totalCount: number; totalPages: number; };

@@ -1,0 +1,9 @@
+[
+  {
+    "rule": "CRUD-004",
+    "corrected": "regression-1: `absent:DynamicTableService/RuleContext/RulePlugin` invertia o gate — a resposta correta PRECISA nomeá-los para proibi-los. Trocado por: a resposta deve dizer que NUNCA se injeta no motor.",
+    "assertion": "regex:(nunca|NUNCA|Nunca|never|Never)[\\s\\S]{0,80}(DynamicTableService|RuleContext|RulePlugin)",
+    "good": "Use prisma first-class. A integração com PostingService vive no controller; NUNCA dentro de DynamicTableService, RuleContext ou RulePlugin.",
+    "bad": "Modele como dynamic-table e injete o PostingService via RuleContext dentro do RulePlugin do motor."
+  }
+]

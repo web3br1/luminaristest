@@ -1,4 +1,3 @@
-import type { UserContext } from '../../../types/UserContext';
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
 import logger from '../../../lib/logger';
 import { Prisma } from 'generated/prisma';
@@ -13,23 +12,22 @@ import type {
 } from '../repositories/IJournalEntryRepository';
 import type { IPostingRepository } from '../repositories/IPostingRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
+import type { AccountingScope } from '../scope/AccountingScope';
+import { accountingScopeWhere } from '../scope/AccountingScope';
 
 /**
  * PostingService — double-entry posting engine, FIRST-CLASS PRISMA (no DynamicTable).
  *
- * Repositories talk directly to the shared prisma client; this service composes the
- * atomic writes via prisma.$transaction. Tenancy is two-level (Contract §2): every
- * read/write filters userId (auth boundary) AND unitId (request sub-partition).
+ * All public methods receive an AccountingScope (resolved by the controller from the
+ * authenticated user + unitId). Services use scope.ownerUserId for data tenancy and
+ * scope.actorUserId for authorship (createdById, postedById on JournalEntry).
  *
  * Contract §2.1 invariants honored here:
  * - money is INTEGER CENTS; the balance check is EXACT integer equality (no epsilon);
  * - posted/reversed entries are immutable — corrections via a reversing entry (estorno);
- * - idempotency is now closed by REAL DB constraints (@@unique([userId,unitId,code]) on
+ * - idempotency is closed by REAL DB constraints (@@unique([userId,unitId,code]) on
  *   accounts and @@unique([userId,unitId,sourceType,sourceId]) on journal entries) —
- *   P2002 unique violations are caught and resolved by re-fetch. NB: the accounts @@unique
- *   is on raw columns (does not exclude soft-deleted rows), so a P2002 on a code held only
- *   by a soft-deleted account is resolved by RESTORING that row, not swallowed (see
- *   ensureChartOfAccounts) — that is the one place P2002 is not unconditionally benign.
+ *   P2002 unique violations are caught and resolved by re-fetch.
  */
 export class PostingService {
   constructor(
@@ -40,22 +38,21 @@ export class PostingService {
   ) {}
 
   /**
-   * Idempotently ensure the canonical chart of accounts exists for (userId, unitId).
-   * Definitions live in CANONICAL_ACCOUNTS (the fixture); this only creates the missing
-   * ones. Backed by @@unique([userId,unitId,code]) — a concurrent create that loses the
+   * Idempotently ensure the canonical chart of accounts exists for the scope.
+   * Definitions live in CANONICAL_ACCOUNTS; only creates the missing ones.
+   * Backed by @@unique([userId,unitId,code]) — a concurrent create that loses the
    * race throws P2002.
    *
    * P2002 is NOT unconditionally benign: the @@unique is on the RAW columns and does not
    * exclude soft-deleted rows, while findByCode filters deletedAt:null. So if a canonical
    * account exists ONLY as a soft-deleted row, findByCode returns null → create trips P2002
-   * → and swallowing it would leave the leaf permanently missing (every postEntry to that
-   * code then failing in resolveLeafAccount). We therefore try to RESTORE the soft-deleted
-   * row on P2002; only when nothing soft-deleted is found (an ACTIVE row already holds the
-   * code — a genuine concurrent-create race) is the collision truly benign.
+   * → and swallowing it would leave the leaf permanently missing. We therefore try to
+   * RESTORE the soft-deleted row on P2002.
    */
-  private async ensureChartOfAccounts(userId: string, unitId: string): Promise<void> {
+  private async ensureChartOfAccounts(scope: AccountingScope): Promise<void> {
+    const { userId, unitId } = accountingScopeWhere(scope);
     for (const account of CANONICAL_ACCOUNTS) {
-      const existing = await this.accountRepo.findByCode(userId, unitId, account.code);
+      const existing = await this.accountRepo.findByCode(scope, account.code);
       if (existing) continue;
       try {
         await this.accountRepo.create({
@@ -68,9 +65,7 @@ export class PostingService {
         });
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          // The code is taken on the raw columns. If it is taken by a SOFT-DELETED row,
-          // revive it — otherwise the canonical leaf stays invisible to findByCode forever.
-          const restored = await this.accountRepo.restoreByCode(userId, unitId, account.code);
+          const restored = await this.accountRepo.restoreByCode(scope, account.code);
           if (restored) {
             logger.info('Canonical account restored from soft-deleted row', {
               userId,
@@ -79,8 +74,6 @@ export class PostingService {
             });
             continue;
           }
-          // Nothing soft-deleted to revive → an active row already holds the code (a benign
-          // concurrent-create race lost). The row exists and is live; continue.
           continue;
         }
         throw error;
@@ -89,12 +82,8 @@ export class PostingService {
   }
 
   /** Resolve a leaf account by code, asserting it exists and accepts ledger lines. */
-  private async resolveLeafAccount(
-    userId: string,
-    unitId: string,
-    code: string,
-  ): Promise<Account> {
-    const account = await this.accountRepo.findByCode(userId, unitId, code);
+  private async resolveLeafAccount(scope: AccountingScope, code: string): Promise<Account> {
+    const account = await this.accountRepo.findByCode(scope, code);
     if (!account) {
       throw new ValidationError(`Conta '${code}' não existe no plano de contas.`);
     }
@@ -111,14 +100,13 @@ export class PostingService {
    * status `Posted` plus its `postings` legs, atomically. Σdebit must EXACTLY equal
    * Σcredit (integer cents) and be > 0. When `sourceId` is given, posting is idempotent.
    */
-  async postEntry(user: UserContext, input: PostEntryInput): Promise<JournalEntryWithPostings> {
-    if (!this.policy.canPost(user)) {
+  async postEntry(scope: AccountingScope, input: PostEntryInput): Promise<JournalEntryWithPostings> {
+    if (!this.policy.canPost(scope)) {
       throw new ForbiddenError('Você não tem permissão para postar lançamentos.');
     }
-    const { userId } = user;
-    const { unitId } = input;
+    const { userId, unitId } = accountingScopeWhere(scope);
 
-    await this.ensureChartOfAccounts(userId, unitId);
+    await this.ensureChartOfAccounts(scope);
 
     // BALANCE INVARIANT — integer cents, EXACT equality (no float/epsilon, Contract §2.1).
     const sumDebit = input.lines.reduce((acc, line) => acc + line.debitCents, 0);
@@ -131,12 +119,7 @@ export class PostingService {
 
     // IDEMPOTENCY (read side) — if an entry already exists for this source, return it.
     if (input.sourceId) {
-      const existing = await this.journalEntryRepo.findBySource(
-        userId,
-        unitId,
-        sourceType,
-        input.sourceId,
-      );
+      const existing = await this.journalEntryRepo.findBySource(scope, sourceType, input.sourceId);
       if (existing) {
         logger.info('Posting skipped — idempotent hit', {
           sourceType,
@@ -150,7 +133,7 @@ export class PostingService {
     // Resolve every line's account (leaf-only) BEFORE opening the transaction.
     const resolvedLines: Array<{ accountId: string; debitCents: number; creditCents: number }> = [];
     for (const line of input.lines) {
-      const account = await this.resolveLeafAccount(userId, unitId, line.accountCode);
+      const account = await this.resolveLeafAccount(scope, line.accountCode);
       resolvedLines.push({
         accountId: account.id,
         debitCents: line.debitCents,
@@ -170,6 +153,8 @@ export class PostingService {
             status: 'Posted',
             sourceType,
             sourceId: input.sourceId ?? null,
+            createdById: scope.actorUserId,
+            postedById: scope.actorUserId,
           },
           tx,
         );
@@ -188,7 +173,7 @@ export class PostingService {
           );
         }
 
-        const postings = await this.postingRepo.findByEntryId(userId, unitId, created.id, tx);
+        const postings = await this.postingRepo.findByEntryId(scope, created.id, tx);
         return { ...created, postings };
       });
 
@@ -200,19 +185,14 @@ export class PostingService {
       return entry;
     } catch (error) {
       // ponytail: authoritative race-close — @@unique([userId,unitId,sourceType,sourceId])
-      // is a REAL DB constraint now (not the TOCTOU the DynamicTable version had). A
-      // concurrent poster that wins the race trips P2002; we re-fetch and return its entry.
+      // is a REAL DB constraint. A concurrent poster that wins the race trips P2002;
+      // re-fetch and return its entry.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002' &&
         input.sourceId
       ) {
-        const existing = await this.journalEntryRepo.findBySource(
-          userId,
-          unitId,
-          sourceType,
-          input.sourceId,
-        );
+        const existing = await this.journalEntryRepo.findBySource(scope, sourceType, input.sourceId);
         if (existing) {
           logger.info('Posting race closed by unique constraint — returning existing', {
             sourceType,
@@ -228,31 +208,26 @@ export class PostingService {
 
   /**
    * Reverse a posted entry (estorno): create a mirror entry with debit/credit SWAPPED,
-   * move the original to `Reversed`, and link them. Reads are tenant+unit scoped, so a
-   * foreign id is simply NotFound (no cross-tenant read). Only `Posted` entries reverse.
+   * move the original to `Reversed`, and link them. Only `Posted` entries reverse.
    */
   async reverseEntry(
-    user: UserContext,
+    scope: AccountingScope,
     input: ReverseEntryInput,
   ): Promise<{ reversal: JournalEntryWithPostings; original: JournalEntryWithPostings }> {
-    if (!this.policy.canPost(user)) {
+    if (!this.policy.canPost(scope)) {
       throw new ForbiddenError('Você não tem permissão para estornar lançamentos.');
     }
-    const { userId } = user;
-    const { unitId } = input;
+    const { userId, unitId } = accountingScopeWhere(scope);
 
-    const original = await this.journalEntryRepo.findById(userId, unitId, input.lancamentoId);
+    const original = await this.journalEntryRepo.findById(scope, input.lancamentoId);
     if (!original) {
       throw new NotFoundError(`Lançamento '${input.lancamentoId}' não foi encontrado.`);
     }
-    if (original.status !== 'Posted') {
-      throw new ValidationError('Apenas lançamentos postados podem ser estornados.');
-    }
 
-    // IDEMPOTENCY / no double-reversal — the original may already carry its reversal link,
-    // or a reversal entry (sourceType='reversal', sourceId=original.id) may already exist.
+    // IDEMPOTENCY — must come BEFORE the status gate: a reversed entry has status 'Reversed',
+    // so checking status first would throw instead of returning the prior reversal.
     if (original.reversedById) {
-      const existing = await this.journalEntryRepo.findById(userId, unitId, original.reversedById);
+      const existing = await this.journalEntryRepo.findById(scope, original.reversedById);
       if (existing) {
         logger.info('Reversal skipped — original already reversed', {
           originalId: original.id,
@@ -261,12 +236,7 @@ export class PostingService {
         return { reversal: existing, original };
       }
     }
-    const priorReversal = await this.journalEntryRepo.findBySource(
-      userId,
-      unitId,
-      'reversal',
-      original.id,
-    );
+    const priorReversal = await this.journalEntryRepo.findBySource(scope, 'reversal', original.id);
     if (priorReversal) {
       logger.info('Reversal skipped — idempotent hit', {
         originalId: original.id,
@@ -275,8 +245,11 @@ export class PostingService {
       return { reversal: priorReversal, original };
     }
 
-    // Re-assert the original is balanced before mirroring — the swap is balanced BY
-    // CONSTRUCTION only if `postings` is the COMPLETE leg set. Integer cents, EXACT equality.
+    if (original.status !== 'Posted') {
+      throw new ValidationError('Apenas lançamentos postados podem ser estornados.');
+    }
+
+    // Re-assert the original is balanced before mirroring.
     const origDebit = original.postings.reduce((acc, p) => acc + p.debitCents, 0);
     const origCredit = original.postings.reduce((acc, p) => acc + p.creditCents, 0);
     if (origDebit !== origCredit || origDebit <= 0) {
@@ -298,6 +271,8 @@ export class PostingService {
             status: 'Posted',
             sourceType: 'reversal',
             sourceId: original.id,
+            createdById: scope.actorUserId,
+            postedById: scope.actorUserId,
           },
           tx,
         );
@@ -317,22 +292,20 @@ export class PostingService {
           );
         }
 
-        await this.journalEntryRepo.setStatus(userId, unitId, original.id, 'Reversed', tx);
-        await this.journalEntryRepo.setReversedBy(userId, unitId, original.id, reversal.id, tx);
+        await this.journalEntryRepo.setStatus(scope, original.id, 'Reversed', tx);
+        await this.journalEntryRepo.setReversedBy(scope, original.id, reversal.id, tx);
 
-        const reversalPostings = await this.postingRepo.findByEntryId(userId, unitId, reversal.id, tx);
+        const reversalPostings = await this.postingRepo.findByEntryId(scope, reversal.id, tx);
         return { ...reversal, postings: reversalPostings };
       });
     } catch (error) {
       // ponytail: authoritative race-close — @@unique([userId,unitId,sourceType,sourceId]) blocks
-      // a second reversal (sourceType='reversal', sourceId=original.id) at the DB. A concurrent
-      // reverser that loses the race trips P2002; re-fetch and return the winning reversal instead
-      // of leaking a 500 (mirrors postEntry's benign-resolve).
+      // a second reversal. A concurrent reverser that loses the race trips P2002; re-fetch.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const existing = await this.journalEntryRepo.findBySource(userId, unitId, 'reversal', original.id);
+        const existing = await this.journalEntryRepo.findBySource(scope, 'reversal', original.id);
         if (existing) {
           const racedOriginal =
-            (await this.journalEntryRepo.findById(userId, unitId, original.id)) ?? original;
+            (await this.journalEntryRepo.findById(scope, original.id)) ?? original;
           logger.info('Reversal race closed by unique constraint — returning existing', {
             originalId: original.id,
             reversalId: existing.id,
@@ -346,54 +319,65 @@ export class PostingService {
     logger.info('Journal entry reversed', { originalId: original.id, reversalId: result.id });
 
     const refreshedOriginal =
-      (await this.journalEntryRepo.findById(userId, unitId, original.id)) ?? original;
+      (await this.journalEntryRepo.findById(scope, original.id)) ?? original;
     return { reversal: result, original: refreshedOriginal };
   }
 
   /**
-   * List all active accounts for a (userId, unitId). Idempotently seeds the canonical
-   * chart of accounts first so the caller always gets a non-empty list on first access.
+   * Find a single journal entry by its business source (sourceType + sourceId).
+   * Used by integration hooks (e.g. accountingSync) that need the entry id to reverse.
    */
-  async listAccounts(user: UserContext, unitId: string): Promise<Account[]> {
-    if (!this.policy.canRead(user)) {
-      throw new ForbiddenError('Você não tem permissão para listar contas.');
-    }
-    await this.ensureChartOfAccounts(user.userId, unitId);
-    return this.accountRepo.findManyByUnit(user.userId, unitId);
+  async findEntryBySource(
+    scope: AccountingScope,
+    sourceType: string,
+    sourceId: string,
+  ): Promise<JournalEntryWithPostings | null> {
+    if (!this.policy.canRead(scope)) return null;
+    return this.journalEntryRepo.findBySource(scope, sourceType, sourceId);
   }
 
   /**
-   * List journal entries for a (userId, unitId), paginated, with postings including
+   * List all active accounts for the scope. Idempotently seeds the canonical
+   * chart of accounts first so the caller always gets a non-empty list on first access.
+   */
+  async listAccounts(scope: AccountingScope): Promise<Account[]> {
+    if (!this.policy.canRead(scope)) {
+      throw new ForbiddenError('Você não tem permissão para listar contas.');
+    }
+    await this.ensureChartOfAccounts(scope);
+    return this.accountRepo.findManyByUnit(scope);
+  }
+
+  /**
+   * List journal entries for the scope, paginated, with postings including
    * account code and name. Ordered by date descending.
    */
   async listEntries(
-    user: UserContext,
-    params: { unitId: string; page?: number; limit?: number },
+    scope: AccountingScope,
+    params: { page?: number; limit?: number },
   ): Promise<{ entries: JournalEntryWithFullPostings[]; total: number }> {
-    if (!this.policy.canRead(user)) {
+    if (!this.policy.canRead(scope)) {
       throw new ForbiddenError('Você não tem permissão para listar lançamentos.');
     }
     const page = params.page ?? 1;
     const limit = params.limit ?? 50;
     const skip = (page - 1) * limit;
-    return this.journalEntryRepo.findManyByUnit(user.userId, params.unitId, skip, limit);
+    return this.journalEntryRepo.findManyByUnit(scope, skip, limit);
   }
 
   /**
    * Create a user-defined account in the chart of accounts (non-canonical).
-   * Canonical/seeded accounts are marked via the PostingService's own seeding path;
-   * user-created accounts get isDefault=false (there is no such column — the fixture
-   * is what defines canonical accounts, not a DB flag). We block duplicate codes
-   * by letting the @@unique constraint speak; P2002 → ValidationError.
+   * Duplicate codes are blocked by the @@unique constraint; P2002 → ValidationError.
    */
-  async createAccount(user: UserContext, dto: CreateAccountInput): Promise<Account> {
-    if (!this.policy.canManage(user)) {
+  async createAccount(scope: AccountingScope, dto: CreateAccountInput): Promise<Account> {
+    if (!this.policy.canManage(scope)) {
       throw new ForbiddenError('Você não tem permissão para criar contas.');
     }
+    const { userId, unitId } = accountingScopeWhere(scope);
     try {
       return await this.accountRepo.create({
-        userId: user.userId,
-        unitId: dto.unitId,
+        userId,
+        unitId,
         code: dto.code,
         name: dto.name,
         nature: dto.nature,
@@ -412,16 +396,15 @@ export class PostingService {
   /**
    * Soft-delete a user-defined account. Guards:
    * 1. Account must exist and belong to this user+unit.
-   * 2. Account must not be a canonical/seeded account (code present in CANONICAL_ACCOUNTS).
+   * 2. Account must not be a canonical/seeded account.
    * 3. Account must have no postings.
    */
-  async deleteAccount(user: UserContext, accountId: string): Promise<void> {
-    if (!this.policy.canManage(user)) {
+  async deleteAccount(scope: AccountingScope, accountId: string): Promise<void> {
+    if (!this.policy.canManage(scope)) {
       throw new ForbiddenError('Você não tem permissão para excluir contas.');
     }
-    const { userId } = user;
 
-    const account = await this.accountRepo.findById(userId, accountId);
+    const account = await this.accountRepo.findById(scope.ownerUserId, accountId);
     if (!account) {
       throw new NotFoundError(`Conta '${accountId}' não encontrada.`);
     }
@@ -437,7 +420,9 @@ export class PostingService {
     }
 
     // Guard: cannot delete an account that has postings.
-    const postings = await this.postingRepo.findByAccount(userId, account.unitId, accountId);
+    // Build a minimal scope for the account's actual unitId (it was fetched by userId only).
+    const accountScope: AccountingScope = { ...scope, unitId: account.unitId };
+    const postings = await this.postingRepo.findByAccount(accountScope, accountId);
     if (postings.length > 0) {
       throw new AppError(
         'Conta possui lançamentos e não pode ser excluída.',
@@ -446,7 +431,7 @@ export class PostingService {
       );
     }
 
-    await this.accountRepo.softDelete(userId, account.unitId, accountId);
-    logger.info('Account soft-deleted', { accountId, userId });
+    await this.accountRepo.softDelete(accountScope, accountId);
+    logger.info('Account soft-deleted', { accountId, userId: scope.ownerUserId });
   }
 }

@@ -1,0 +1,58 @@
+{
+  "skill": "backend-dto-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Crie um DTO para o recurso Invoice com campos number, amount, dueDate, status.",
+      "assertions": ["activation: a skill backend-dto-generator deve ser a escolhida"]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie um componente React de modal para confirmar exclusão de um registro.",
+      "assertions": ["non-activation: backend-dto-generator NÃO deve ativar (pedido é de frontend/modal)"]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": ["DTO-001", "DTO-002", "DTO-003", "DTO-004", "DTO-005"],
+      "prompt": "Gere o DTO e o model para o recurso Invoice. Campos: number (string), amount (number > 0), dueDate (date), status (enum: draft, sent, paid). Saída: o conteúdo completo dos dois arquivos InvoiceDto.ts e Invoice.model.ts.",
+      "target_files": [
+        "server/src/features/invoices/dtos/InvoiceDto.ts",
+        "server/src/features/invoices/models/Invoice.model.ts"
+      ],
+      "assertions": [
+        "contains:@openapi",
+        "regex:UpdateInvoiceSchema\\s*=\\s*CreateInvoiceSchema\\.partial\\(\\)",
+        "absent:z.any(",
+        "regex:export function isInvoiceDto",
+        "regex:export interface IInvoice",
+        "regex:deletedAt\\??:\\s*Date"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": ["DTO-006"],
+      "prompt": "No DTO de Invoice, dueDate chega como string ISO no payload HTTP. Gere o schema do campo de data correto para essa fronteira.",
+      "assertions": [
+        "regex:dueDate[^\\n]*z\\.(coerce\\.date|string\\(\\)\\.datetime)",
+        "absent:z.date()"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": ["DTO-001"],
+      "regression_of": "UserDto.ts redefine UpdateUserSchema campo-a-campo em vez de Create.partial()",
+      "prompt": "Gere apenas o Update schema do recurso Invoice a partir do Create schema, sem redefinir o objeto.",
+      "assertions": [
+        "regex:CreateInvoiceSchema\\.partial\\(\\)",
+        "absent:UpdateInvoiceSchema = z.object"
+      ]
+    }
+  ]
+}

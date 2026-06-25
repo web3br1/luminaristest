@@ -1,0 +1,77 @@
+{
+  "skill": "backend-repository-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Gere a camada de acesso a dados (Repository) para o recurso Invoice, com soft-delete e paginação.",
+      "assertions": [
+        "activation: a skill backend-repository-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie um componente React de modal para confirmar exclusão de um registro.",
+      "assertions": [
+        "non-activation: backend-repository-generator NÃO deve ativar (pedido é de frontend/modal)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "REPO-001",
+        "REPO-002",
+        "REPO-003",
+        "REPO-004",
+        "REPO-007"
+      ],
+      "prompt": "Gere a interface IInvoiceRepository e a classe InvoiceRepository para o modelo Invoice (campos: number, amount, dueDate, status; com deletedAt para soft-delete). Métodos: create, findById, findAll (paginado), update, delete. Saída: o conteúdo completo dos dois arquivos.",
+      "target_files": [
+        "server/src/features/invoices/repositories/IInvoiceRepository.ts",
+        "server/src/features/invoices/repositories/InvoiceRepository.ts"
+      ],
+      "assertions": [
+        "regex:export interface IInvoiceRepository",
+        "regex:class InvoiceRepository implements IInvoiceRepository",
+        "regex:from ['\"]generated/prisma['\"]",
+        "regex:deletedAt:\\s*null",
+        "regex:deletedAt:\\s*new Date\\(\\)",
+        "regex:prisma\\.\\$transaction\\(\\[",
+        "absent:prisma.invoice.delete(",
+        "absent:@prisma/client"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "REPO-005",
+        "REPO-006"
+      ],
+      "prompt": "Gere o método findAll do UserRepository. O model User expõe password — a query pública não pode retorná-lo, e o repository não deve conter regra de negócio (sem policy/validação/cálculo).",
+      "assertions": [
+        "contains:select:",
+        "absent:password: true",
+        "absent:canCreate",
+        "absent:throw new ForbiddenError"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "REPO-002"
+      ],
+      "regression_of": "UserRepository usa prisma.user.delete() (hard-delete) porque o model User não tem deletedAt; um model com deletedAt jamais deve usar hard-delete",
+      "prompt": "Gere o método delete do InvoiceRepository. O model Invoice tem deletedAt — implemente o soft-delete correto.",
+      "assertions": [
+        "regex:update\\(\\{[\\s\\S]*deletedAt:\\s*new Date\\(\\)",
+        "absent:prisma.invoice.delete("
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "rule": "SDATA-002",
+    "corrected": "happy-1: `absent:undefined` tropeçava no guard `cell === undefined` que CONVERTE célula vazia para null. Trocado por `absent:return undefined` (nunca devolve undefined).",
+    "assertion": "absent:return undefined",
+    "file": "chunk.ts",
+    "good": "function get(c: unknown) { if (c === null || c === undefined) return null; return String(c); }",
+    "bad": "function get(c: unknown) { if (c === null) return undefined; return String(c); }"
+  },
+  {
+    "rule": "SDATA-002b",
+    "corrected": "happy-1: regex usava (...) como grupo de captura, não casava o tipo TS com parênteses literais `(string|number|null)[][]`. Parênteses literais opcionais.",
+    "assertion": "regex:\\(?string\\s*\\|\\s*number\\s*\\|\\s*null\\)?\\[\\]\\[\\]",
+    "file": "chunk.ts",
+    "good": "const data: (string | number | null)[][] = sheets.map((r) => r);",
+    "bad": "const data: string = rows.join();"
+  }
+]

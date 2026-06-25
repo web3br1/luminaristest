@@ -1,0 +1,113 @@
+===happy-1===
+## PLANO DE EXECUÇÃO — Módulo de Folha de Pagamento (Payroll)
+
+**Tarefa:** "criar um módulo de Folha de Pagamento (payroll) do zero"
+
+#### STEP 0 — Gate §2.1 (onde o módulo vive?) — executado ANTES de qualquer roteamento
+
+| Pergunta | Resposta | Decisão |
+|---|---|---|
+| O usuário cria/configura o esquema em runtime? | NÃO — folha de pagamento tem estrutura fixa de negócio (proventos, descontos, base de cálculo, líquido), não definida pelo usuário em runtime | — |
+| Tem invariante financeiro/legal/regulatório que o banco deve garantir? | SIM — folha é cálculo financeiro com obrigação legal/trabalhista; o líquido = proventos − descontos é invariante que o banco deve garantir, com unicidade (um demonstrativo por funcionário/competência) e atomicidade | **Prisma first-class** |
+| A integridade depende de `@@unique`/FK/tipos reais? | SIM — `@@unique(funcionário, competência)`, FK para funcionário, valores em centavos (inteiro) | **Prisma first-class** |
+
+**Veredito do STEP 0: Prisma first-class.** "Folha/RH" é categoria explicitamente listada no §2.1 como invariante legal/regulatório → roteia para `fullstack-feature-generator` (Model + Service + Repo + Policy próprios), NUNCA `dynamic-table-preset-generator`. Em dúvida o default já seria Prisma; aqui não há dúvida. Regra fixa: a futura integração folha→lançamento contábil (PostingService) NÃO entra neste plano como edição de `DynamicTableService`/plugin — sobe a um passo de controller/serviço de integração e fica fora deste escopo de criação do módulo.
+
+**Risco:** High (fullstack-feature-generator + novo model Prisma com invariante financeiro)
+**Branch recomendada:** `feature/payroll`
+
+### Escopo da tarefa
+
+Criar o módulo Payroll do zero como vertical-slice Prisma first-class, espelhando o exemplar `server/src/features/users/` e o módulo de referência `accounting` (Prisma first-class com tenancy + `@@unique` fechando TOCTOU). Backend completo (Prisma model → DTO → Repository → Policy → Service → Controller → Route + factory + registro de rota em 3 toques) com cobertura de testes do Service. Frontend NÃO está no escopo desta criação inicial salvo confirmação do usuário (ver Riscos).
+
+### Passos
+
+| # | Skill | Argumentos | Arquivos esperados | Motivo |
+|---|---|---|---|---|
+| 0 | (evidência) codebase-memory | `search_graph` Payroll/Payslip + `semantic_query`/`SIMILAR_TO` contra módulo `accounting` | — (nenhum arquivo) | Localizar canônico real e confirmar que não existe ilha pré-existente; usar `accounting` como referência de padrão Prisma first-class antes de gerar |
+| 1 | fullstack-feature-generator | `payroll --com-prisma` (model PascalCase a confirmar: `Payslip`/`PayrollEntry`) | ~14 arquivos do vertical-slice: `prisma/schema` (model + `@@unique`), `server/src/features/payroll/dto/`, `repositories/`, `policies/`, `services/PayrollService.ts`, `controllers/payrollController.ts`, `routes/payroll.ts`, factory + registro de rota | Feature completa do zero com invariante financeiro = Prisma first-class |
+| 2 | backend-test-suite-generator | `service Payroll` (modo a confirmar na Phase 3) | `server/src/features/payroll/services/__tests__/PayrollService.test.ts` | Cobertura do Service (cálculo líquido = proventos − descontos, idempotência por competência) |
+
+### Ordem obrigatória (dependências)
+
+- Passo 0 (evidência cbm) antes do Passo 1 — confirma reuso/ausência de ilha e fixa `accounting` como padrão de referência.
+- Passo 1 deve completar antes do Passo 2 — o teste consome os tipos/contrato gerados pelo Service.
+- Valores monetários DEVEM ser inteiros em centavos (não JSON float); `@@unique(funcionário, competência)` é obrigatório para fechar o TOCTOU (herança do contrato, mas crítico aqui).
+
+### Checks de validação ao final
+
+- [ ] `cd server && npx tsc --noEmit`
+- [ ] `cd my-app && npx tsc --noEmit` (se o frontend entrar no escopo)
+- [ ] `cd server && npx jest payroll` (Service test verde)
+- [ ] Prisma migration aplicada; `@@unique` presente no schema
+- [ ] Rota registrada nos 3 toques; injeção via Factory; DTO Zod presente; Policy não inlined
+- [ ] Money em centavos (inteiro), zero `any` evitável, soft-delete onde aplicável
+
+### Riscos identificados
+
+- HIGH — `fullstack-feature-generator` + novo model Prisma com invariante financeiro/legal: usar em branch separada (`feature/payroll`) e confirmar com o usuário antes de iniciar.
+- Risco de fronteira §2.1: a integração folha→contabilidade deve ficar FORA deste plano (controller/serviço de integração, não plugin DynamicTable). Sinalizado para não contaminar o motor.
+- Escopo frontend/nome PascalCase/modo de teste podem exigir esclarecimento (Phase 3) caso o usuário não confirme — recomendo confirmar antes de executar dado o risco HIGH.
+
+PLANO PRONTO. Entregar ao agente implementador.
+Ação: o `luminaris-implementer` lê `.claude/skills/luminaris-implementer/SKILL.md` e executa o plano acima. Revisão final pelo `luminaris-reviewer`. Como o risco é HIGH, confirmar com o usuário antes de iniciar. (Orquestrador não implementa nem revisa.)
+
+===edge-1===
+AÇÃO (Phase 3) — Tarefa AMBÍGUA: não planejar ainda; perguntar antes.
+
+A tarefa "crie um módulo de Pagamentos" não passa de forma limpa pelo STEP 0 (gate §2.1) e o nome PascalCase está indefinido. Antes de produzir qualquer plano, preciso que você responda:
+
+1. **Fronteira §2.1 (decide a tecnologia — Prisma first-class vs DynamicTable):** esse dado precisa de garantia do banco (saldo/valor exato em centavos, unicidade de pagamento, atomicidade — invariante financeiro), ou o usuário vai configurar/definir os campos do "Pagamento" em runtime como um formulário/tabela adaptável?
+   - Invariante financeiro/legal (valor exato, conciliação, idempotência) → **Prisma first-class** (Model + Service + Repo + Policy) via `fullstack-feature-generator`.
+   - Usuário define o schema em runtime → **DynamicTable** via `dynamic-table-preset-generator`.
+   - Em dúvida, o default do contrato é **Prisma first-class**.
+
+2. **Nome em PascalCase:** como o recurso deve se chamar nos arquivos? (ex.: `Payment`, `Payable`, `PaymentOrder`) — necessário para os nomes de arquivo/model.
+
+3. **Escopo:** é só backend ou também frontend (tela/listagem)? — determina fullstack vs `--sem-frontend`.
+
+4. **(Se Prisma) Prisma:** precisa de novo model no banco ou reaproveita uma tabela existente? — determina `--com-prisma`.
+
+Observação de fronteira: se "Pagamentos" tiver que se integrar a outro módulo (ex.: contabilidade/lançamento), essa integração NÃO entra como edição do `DynamicTableService`/plugin — sobe a um passo de controller/serviço de integração (§2.1). Assim que você responder o item 1 (e o 2), produzo o PLANO DE EXECUÇÃO. (Orquestrador apenas roteia — não implementa nem aprova.)
+
+===regression-1===
+## PLANO DE EXECUÇÃO — Testes para InvoiceService
+
+**Tarefa:** "adicionar testes ao InvoiceService"
+**Classificação:** sinal "testes"/"spec" → `backend-test-suite-generator`. Não cria módulo novo → STEP 0 (§2.1) não se aplica (nenhuma entidade nova; usa o `InvoiceService` existente).
+**Risco:** Low (apenas geração de teste sobre código já existente; sem novo model Prisma, sem fullstack)
+**Branch recomendada:** não obrigatória (risco Low); opcional `chore/invoice-service-tests`
+
+### Escopo da tarefa
+
+Gerar a suíte de testes do `InvoiceService` já existente, cobrindo regras de negócio/invariantes do service. Sem novos arquivos de domínio, sem alteração de schema.
+
+### Passos
+
+| # | Skill | Argumentos | Arquivos esperados | Motivo |
+|---|---|---|---|---|
+| 1 | backend-test-suite-generator | `service Invoice` | `server/src/features/invoices/services/__tests__/InvoiceService.test.ts` (path exato confirmado pelo implementador contra a localização real do `InvoiceService`) | Cobertura do Service existente |
+
+### Quem executa cada estágio (delegação — o orquestrador NÃO executa nem revisa)
+
+- **Planejamento/roteamento:** este agente (`luminaris-orchestrator`) — só produz este plano; não implementa, não aprova.
+- **Implementação (executa o Passo 1, cria o arquivo de teste):** `luminaris-implementer` — lê `.claude/skills/luminaris-implementer/SKILL.md` e a skill `backend-test-suite-generator`, e gera a suíte.
+- **Revisão (valida o artefato gerado):** `luminaris-reviewer` — confere padrões de camada, anti-patterns, qualidade e interligação do teste com o `InvoiceService`. [ORCH-003] O orquestrador NUNCA atribui implementação ou revisão a si mesmo.
+
+### Ordem obrigatória (dependências)
+
+- Passo 1 (implementer) deve completar antes da revisão (reviewer).
+- O implementer deve primeiro localizar o `InvoiceService` real (path/feature) antes de fixar o caminho do `__tests__/` — o path acima é o esperado, sujeito à localização efetiva.
+
+### Checks de validação ao final
+
+- [ ] `cd server && npx tsc --noEmit`
+- [ ] `cd server && npx jest InvoiceService` (suíte verde)
+- [ ] Teste cobre invariantes/branches do service, não só caminho feliz
+
+### Riscos identificados
+
+- Low. Nenhum model Prisma novo, nenhum fullstack. Sem necessidade obrigatória de branch separada.
+
+PLANO PRONTO. Entregar ao implementador.
+Ação: `luminaris-implementer` executa o Passo 1; em seguida `luminaris-reviewer` revisa. Risco Low → não requer confirmação prévia do usuário. (Orquestrador apenas planeja/roteia — implementação ao implementer, revisão ao reviewer.)

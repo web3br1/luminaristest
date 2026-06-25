@@ -1,0 +1,86 @@
+===happy-1===
+// server/src/lib/vector/extractors/CsvStructuredExtractor.ts
+import * as ExcelJS from 'exceljs';
+import { SheetStructured } from './ExcelStructuredExtractor';
+
+function getCellValue(cell: unknown): string | number | null {
+  if (cell === null || cell === undefined) return null; // célula vazia => null, nunca undefined
+  if (typeof cell === 'number') return cell;
+  if (cell instanceof Date) return cell.toISOString();
+  return String(cell);
+}
+
+export async function extractStructuredDataFromCsv(fileBuffer: Buffer): Promise<{ sheets: SheetStructured[] }> {
+  const workbook = new ExcelJS.Workbook();
+  const { Readable } = await import('stream');
+  const worksheet = await workbook.csv.read(Readable.from(fileBuffer));
+  const rows = worksheet.getSheetValues() as unknown[][];
+  if (!rows || rows.length < 2) return { sheets: [] };
+  const headers = (rows[1] || []).slice(1).map((c, i) => ({ key: String(getCellValue(c) ?? `col_${i}`), title: String(getCellValue(c) ?? ''), type: 'TEXT' }));
+  const data: (string | number | null)[][] = rows.slice(2).map((row) => {
+    if (!row) return headers.map(() => null);
+    const full = row.slice(1).map(getCellValue);
+    while (full.length < headers.length) full.push(null);
+    return full.slice(0, headers.length);
+  });
+  return { sheets: [{ name: worksheet.name || 'Sheet1', headers, data }] };
+}
+
+// server/src/features/documents/services/DocumentProcessingPipeline.ts
+import { StructuredDataService } from '../../structuredData/services/StructuredDataService';
+import { DocumentPurpose } from '../models/Document.model';
+
+if (document.documentPurpose === DocumentPurpose.DATA_ANALYSIS) {
+  if (isExcel) {
+    const structuredData = await extractStructuredDataFromExcel(fileBuffer);
+    await this.structuredDataService.createFromStructured(user, document.id, structuredData);
+  }
+}
+
+===edge-1===
+// server/src/features/structuredData/models/StructuredData.model.ts
+export type HeaderType = 'TEXT' | 'NUMBER' | 'CURRENCY' | 'PERCENTAGE' | 'DATE' | 'BOOLEAN';
+
+// server/src/lib/vector/extractors/ExcelStructuredExtractor.ts
+function inferColumnType(values: (string | number | boolean | null)[]): HeaderType {
+  const nonNull = values.filter((v) => v !== null && v !== '');
+  if (nonNull.length === 0) return 'TEXT';
+  const isBool = (v: string | number | boolean) => typeof v === 'boolean' || ['TRUE', 'FALSE'].includes(String(v).trim().toUpperCase());
+  if (nonNull.every(isBool)) return 'BOOLEAN';
+  if (nonNull.every((v) => typeof v === 'number')) return 'NUMBER';
+  return 'TEXT';
+}
+
+// server/src/features/structuredData/dtos/StructuredDataDto.ts
+export const headerSchema = z.object({
+  name: z.string().trim().min(1),
+  type: z.enum(['TEXT', 'NUMBER', 'CURRENCY', 'PERCENTAGE', 'DATE', 'BOOLEAN']),
+});
+
+// server/src/features/structuredData/services/StructuredDataService.ts
+public async getByDocumentId(user: IUser, documentId: string): Promise<StructuredDataResponse> {
+  const sd = await this.repository.findByDocumentId(documentId);
+  let normalizedData = sd.data; let sheets;
+  if (Array.isArray(sd.data) && sd.data.length > 0) {
+    const first = sd.data[0];
+    if (typeof first === 'object' && first !== null && 'name' in first && 'data' in first) {
+      sheets = sd.data; normalizedData = (sd.data as any)[0].data; // multi-sheet
+    }
+  }
+  return { ...sd, data: normalizedData, ...(sheets && { sheets }) };
+}
+
+===regression-1===
+// server/src/features/structuredData/services/StructuredDataService.ts
+// persiste a tabela editável sem Qdrant, sem prisma direto na coluna data, sem React/JSX
+public async update(user: IUser, documentId: string, data: UpdateStructuredDataInput) {
+  const existing = await this.getByDocumentId(user, documentId);
+  return this.repository.update(existing.id, data); // valida schema; nunca mutação direta da coluna JSON
+}
+
+// server/src/features/documents/services/DocumentProcessingPipeline.ts
+import { DocumentPurpose } from '../models/Document.model';
+if (document.documentPurpose === DocumentPurpose.DATA_ANALYSIS && isExcel) {
+  const structuredData = await extractStructuredDataFromExcel(fileBuffer);
+  await this.structuredDataService.createFromStructured(user, document.id, structuredData);
+}

@@ -1,0 +1,80 @@
+{
+  "skill": "backend-service-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Crie a camada de negócio (Service) do recurso Invoice, injetando o repository e a policy, e registre no factory.",
+      "assertions": [
+        "activation: a skill backend-service-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie um componente React de modal para confirmar exclusão de um registro.",
+      "assertions": [
+        "non-activation: backend-service-generator NÃO deve ativar (pedido é de frontend/modal)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "SVC-001",
+        "SVC-002",
+        "SVC-004",
+        "SVC-005",
+        "SVC-006",
+        "SVC-007"
+      ],
+      "prompt": "Gere o InvoiceService com create/getById/getAll/update/delete e registre no factory. Cada método verifica policy antes de tocar o repository, usa erros tipados e recebe actor: IUser | null. Saída: o conteúdo completo de InvoiceService.ts e o trecho editado de lib/factory.ts.",
+      "target_files": [
+        "server/src/features/invoices/services/InvoiceService.ts",
+        "server/src/lib/factory.ts"
+      ],
+      "assertions": [
+        "regex:constructor\\([^)]*invoiceRepository:\\s*IInvoiceRepository[^)]*invoicePolicy:\\s*IInvoicePolicy",
+        "regex:this\\.invoicePolicy\\.can\\w+\\(",
+        "contains:ForbiddenError",
+        "contains:NotFoundError",
+        "regex:actor:\\s*IUser\\s*\\|\\s*null",
+        "regex:from ['\"]\\.\\./\\.\\./users/models/User\\.model['\"]",
+        "regex:get(?:Invoice)?Service\\b",
+        "absent:prisma.",
+        "@InvoiceService.ts::absent:new InvoiceRepository("
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "SVC-002",
+        "SVC-003"
+      ],
+      "prompt": "No InvoiceService.getInvoiceById, o registro pertence a outro usuário (cross-tenant). Gere o tratamento correto para essa fronteira.",
+      "assertions": [
+        "contains:NotFoundError",
+        "absent:ForbiddenError()"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "SVC-004",
+        "SVC-005"
+      ],
+      "regression_of": "Service instanciando dependências internamente (new Repository/new Policy) e/ou acessando prisma direto, quebrando DI e a fronteira de camada",
+      "prompt": "Gere o construtor e o método create do InvoiceService sem instanciar dependências dentro da classe e sem acessar prisma diretamente.",
+      "assertions": [
+        "regex:constructor\\([^)]*private\\s+invoiceRepository",
+        "absent:new InvoiceRepository(",
+        "absent:new InvoicePolicy(",
+        "absent:prisma."
+      ]
+    }
+  ]
+}

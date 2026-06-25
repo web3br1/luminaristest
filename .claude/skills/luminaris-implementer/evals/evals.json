@@ -1,0 +1,67 @@
+{
+  "skill": "luminaris-implementer",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "O plano do orquestrador está pronto. Execute cada passo: leia a skill correspondente e os arquivos de referência, crie/edite os arquivos e rode os checks.",
+      "assertions": [
+        "activation: a skill luminaris-implementer deve ser a escolhida (executar o plano = criar/editar arquivos + verificar é o papel dela)"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Recebi uma tarefa em linguagem natural. Analise, decida quais skills usar e em que ordem, e monte o plano de execução.",
+      "assertions": [
+        "non-activation: luminaris-implementer NÃO deve ativar — analisar/rotear/planejar é papel do luminaris-orchestrator; o implementador executa um plano já pronto."
+      ]
+    },
+    {
+      "id": "trigger-neg-2",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Os arquivos já foram criados. Valide cada um contra os padrões de camada e produza o veredicto APROVADO/REPROVADO com arquivo:linha.",
+      "assertions": [
+        "non-activation: luminaris-implementer NÃO deve ativar — verificar/aprovar é papel do luminaris-reviewer; o implementador não se auto-revisa."
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": ["IMPL-001", "IMPL-002", "IMPL-004", "IMPL-005"],
+      "prompt": "Você acabou de implementar o passo 'criar InvoiceService' do plano. Produza o relatório de IMPLEMENTAÇÃO CONCLUÍDA: liste os arquivos criados/editados, mostre os checks que você EXECUTOU (comando + exit code/resultado real de tsc e jest), liste pendências/riscos, e faça o handoff ao revisor. Você não se auto-aprova.",
+      "assertions": [
+        "regex:Arquivos (criados|editados)",
+        "regex:Checks executados",
+        "regex:(npx tsc|jest)",
+        "regex:(PASS|FAIL|exit)",
+        "regex:(revisor|luminaris-reviewer)"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": ["IMPL-003", "IMPL-005", "IMPL-006"],
+      "prompt": "Durante a execução, o `cd server && npx tsc --noEmit` FALHOU após o passo 2. O plano NÃO pediu para alterar governança nem status de aprovação. Descreva exatamente a sua próxima ação como implementador (e o que você NÃO faz).",
+      "assertions": [
+        "regex:(corrig|conserto)",
+        "regex:(n[ãa]o avan|NÃO avan)",
+        "regex:(governan|aprova)"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": ["IMPL-002"],
+      "regression_of": "Implementador afirmando 'tudo PASS' sem ter executado os checks — relatório sem o comando rodado e sem o exit code real (PASS na confiança).",
+      "prompt": "Reporte o resultado dos checks após implementar o InvoiceService. Para CADA check, mostre o comando executado (`npx tsc --noEmit`, `npx jest ...`) e o exit code/resultado real. Não afirme PASS sem a evidência da execução.",
+      "assertions": [
+        "regex:(npx tsc|jest)",
+        "regex:(PASS|FAIL|exit\\s*\\d|→)"
+      ]
+    }
+  ]
+}

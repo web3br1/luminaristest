@@ -1,0 +1,62 @@
+{
+  "skill": "backend-policy-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Crie a Policy de autorização para o recurso Invoice: quem pode criar, ver, editar, excluir e listar todos, baseado em role e ownership.",
+      "assertions": ["activation: a skill backend-policy-generator deve ser a escolhida"]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie o schema Zod de validação de entrada (DTO) para o recurso Invoice.",
+      "assertions": ["non-activation: backend-policy-generator NÃO deve ativar (pedido é de DTO/validação, não autorização)"]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": ["POL-001", "POL-002", "POL-003", "POL-004", "POL-005", "POL-008"],
+      "prompt": "Gere a interface IInvoicePolicy e a classe InvoicePolicy para o recurso Invoice. ADMIN pode tudo; o dono (actor.id === ownerId) pode ver/editar/excluir o próprio Invoice; só ADMIN pode listar todos. Saída: o conteúdo completo dos dois arquivos IInvoicePolicy.ts e InvoicePolicy.ts.",
+      "target_files": [
+        "server/src/features/invoices/policies/IInvoicePolicy.ts",
+        "server/src/features/invoices/policies/InvoicePolicy.ts"
+      ],
+      "assertions": [
+        "regex:export interface IInvoicePolicy",
+        "regex:class InvoicePolicy\\s+implements\\s+IInvoicePolicy",
+        "regex:canCreate[\\s\\S]*canView[\\s\\S]*canUpdate[\\s\\S]*canDelete[\\s\\S]*canListAll",
+        "regex:canListAll[\\s\\S]*Role\\.ADMIN",
+        "regex:actor\\??\\.id\\s*===\\s*\\w*[Oo]wner\\w*\\s*\\|\\|\\s*actor\\??\\.role\\s*===\\s*Role\\.ADMIN",
+        "regex::\\s*boolean",
+        "contains:User.model",
+        "absent:@prisma/client"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": ["POL-001", "POL-007"],
+      "prompt": "No InvoicePolicy, trate o actor não autenticado: o parâmetro actor pode ser null. Gere canView para esse caso, sem lançar exceção.",
+      "assertions": [
+        "regex:actor:\\s*IUser\\s*\\|\\s*null",
+        "absent:throw"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": ["POL-006"],
+      "regression_of": "policy que consulta o banco para resolver ownership em vez de inspecionar apenas o actor já carregado",
+      "prompt": "Gere canUpdate do InvoicePolicy. A decisão deve usar SOMENTE campos do actor já carregado e o ownerId passado como argumento — não consulte o banco nem chame repository/prisma dentro da policy.",
+      "assertions": [
+        "regex:canUpdate\\([^)]*ownerId",
+        "absent:prisma",
+        "absent:repository",
+        "absent:await"
+      ]
+    }
+  ]
+}

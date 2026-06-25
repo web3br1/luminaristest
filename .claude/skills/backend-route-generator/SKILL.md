@@ -1,8 +1,16 @@
 ---
 name: backend-route-generator
-description: Gera arquivo de rota Express + registro em index.ts + bloco OpenAPI para um novo recurso backend
+description: Gera arquivo de rota Express (express.Router com handlers nomeados do controller) + o registro 3-toques (routes/index.ts, middleware/auth.ts protectedApiPaths, docs.paths.ts bloco @openapi) para um novo recurso backend. Use ao expor um novo endpoint REST, ao adicionar sub-rotas a um recurso existente, ou ao sincronizar a doc OpenAPI com uma rota nova. Termos-gatilho: rota, router, endpoint, REST, registrar rota, 401 com token válido, protectedApiPaths, @openapi path. Domínio/arquivos: server/src/routes/ e server/src/middleware/auth.ts.
 argument-hint: "[nome-do-recurso]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com express + tsc). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-BACKEND-ROUTE"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Backend Route Generator
@@ -21,12 +29,12 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatamente isto na camada Route). Gere já em conformidade.
 
 - [ ] **Registro = 3 toques** (não 2). Faltar qualquer um quebra a rota:
-  1. **`server/src/routes/index.ts`** — `import <resource>Router from './<resource>'` + `router.use('/<resource>', <resource>Router)`.
-  2. **`server/src/middleware/auth.ts` → array `protectedApiPaths`** — adicionar `'/api/<resource>'`. ⚠️ **DESTAQUE:** sem isso `getUserContextFromRequest` retorna `null` e a rota dá **401 com token válido** — bug silencioso que o `tsc` NÃO pega (só runtime). Pular APENAS para rota 100% pública.
-  3. **`server/src/routes/docs.paths.ts`** — bloco `@openapi paths: /<resource>:` com GET/POST/PUT/DELETE para CADA endpoint, na seção `paths:` ANTES de `* components:`. O component schema do DTO NÃO substitui o bloco de path. Valide: `grep -c "/api/<resource>" server/src/routes/docs.paths.ts` deve ser `> 0`.
-- [ ] **`export default router`**.
-- [ ] **Zero lógica no arquivo de rota** — só `router.get/post/put/delete('/path', handler)` com handlers nomeados importados do controller. Sem auth inline, sem validação, sem try/catch.
-- [ ] Controller importado por funções nomeadas existentes (verifique que o controller existe antes de importar).
+  1. **[ROUTE-001]** **`server/src/routes/index.ts`** — `import <resource>Router from './<resource>'` + `router.use('/<resource>', <resource>Router)`.
+  2. **[ROUTE-002]** **`server/src/middleware/auth.ts` → array `protectedApiPaths`** — adicionar `'/api/<resource>'`. ⚠️ **DESTAQUE:** sem isso `getUserContextFromRequest` retorna `null` e a rota dá **401 com token válido** — bug silencioso que o `tsc` NÃO pega (só runtime). Pular APENAS para rota 100% pública.
+  3. **[ROUTE-003]** **`server/src/routes/docs.paths.ts`** — bloco `@openapi paths: /<resource>:` com GET/POST/PUT/DELETE para CADA endpoint, na seção `paths:` ANTES de `* components:`. O component schema do DTO NÃO substitui o bloco de path. Valide: `grep -c "/api/<resource>" server/src/routes/docs.paths.ts` deve ser `> 0`.
+- [ ] **[ROUTE-004]** **`export default router`** — o arquivo de rota cria `const router = Router()` (de `express`) e exporta como default; `routes/index.ts` importa exatamente esse default.
+- [ ] **[ROUTE-005]** **Zero lógica no arquivo de rota** — só `router.get/post/put/delete('/path', handler)` com handlers nomeados importados do controller. Sem auth inline, sem validação, sem try/catch.
+- [ ] **[ROUTE-006]** Controller importado por funções nomeadas existentes (verifique que o controller existe antes de importar).
 
 ## When to use
 

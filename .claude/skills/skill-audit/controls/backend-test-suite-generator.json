@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "TEST-003",
+    "corrected": "happy-1: regex assumia o token inglês 'cross'; output usa describe('tenant isolation') em PT",
+    "assertion": "regex:(tenant|isolation)[\\s\\S]*?toThrow\\(\\s*NotFoundError\\s*\\)",
+    "good": "describe('tenant isolation', () => {\n  it('user B -> A', async () => { await expect(s.getById(b,'a')).rejects.toThrow(NotFoundError); });\n});",
+    "bad": "describe('tenant isolation', () => {\n  it('user B -> A', async () => { await expect(s.getById(b,'a')).rejects.toThrow(ForbiddenError); });\n});"
+  },
+  {
+    "rule": "TEST-006",
+    "corrected": "edge-2: regex exigia 'token ausente' adjacente; output diz 'o token está ausente'",
+    "assertion": "regex:(sem token|missing token|no token|token[\\s\\S]{0,20}ausente)",
+    "good": "it('rejeita quando o token está ausente', async () => {});",
+    "bad": "it('rejeita credencial invalida', async () => {});"
+  }
+]
