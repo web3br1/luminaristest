@@ -45,6 +45,8 @@ import { CrmPipelineService } from '../features/crm/services/CrmPipelineService'
 import { CrmAnalyticsService } from '../features/crm/services/CrmAnalyticsService';
 import { PostingService } from '../features/accounting/services/PostingService';
 import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
+import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
+import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
 import { PresetSyncService } from '../features/dynamicTables/services/PresetSyncService';
 import { AttachmentService } from '../features/attachments/services/AttachmentService';
 import { SavedTableViewService } from '../features/savedViews/services/SavedTableViewService';
@@ -130,6 +132,7 @@ export class ApplicationFactory {
     crmPipeline: CrmPipelineService;
     crmAnalytics: CrmAnalyticsService;
     posting: PostingService;
+    accountingSync: AccountingSyncService;
     accountingReport: AccountingReportService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
@@ -214,6 +217,12 @@ export class ApplicationFactory {
       this.policies.accounting
     );
 
+    // AccountingSync — application-level integration adapter (NOT the DynamicTable
+    // engine). Depends on postingService (above); first non-controller consumer.
+    const accountingSyncService = new AccountingSyncService(postingService, [
+      new CrmOpportunityWonMapper(),
+    ]);
+
     const accountingReportService = new AccountingReportService(
       this.repositories.account,
       this.repositories.posting,
@@ -263,6 +272,7 @@ export class ApplicationFactory {
       crmPipeline: crmPipelineService,
       crmAnalytics: crmAnalyticsService,
       posting: postingService,
+      accountingSync: accountingSyncService,
       accountingReport: accountingReportService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
@@ -295,6 +305,7 @@ export class ApplicationFactory {
   public getCrmPipelineService = (): CrmPipelineService => this.services.crmPipeline;
   public getCrmAnalyticsService = (): CrmAnalyticsService => this.services.crmAnalytics;
   public getPostingService = (): PostingService => this.services.posting;
+  public getAccountingSyncService = (): AccountingSyncService => this.services.accountingSync;
   public getAccountingReportService = (): AccountingReportService => this.services.accountingReport;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;
