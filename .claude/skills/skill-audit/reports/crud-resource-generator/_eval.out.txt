@@ -1,0 +1,108 @@
+===happy-1===
+// server/src/features/comments/dtos/CommentDto.ts
+import { z } from 'zod'
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     Comment: { type: object }
+ */
+export const CreateCommentSchema = z.object({ body: z.string().min(1), authorId: z.string().min(1) })
+export const UpdateCommentSchema = CreateCommentSchema.partial()
+export type CreateCommentInput = z.infer<typeof CreateCommentSchema>
+export function isCreateCommentInput(value: unknown): value is CreateCommentInput { return CreateCommentSchema.safeParse(value).success }
+
+// server/src/features/comments/repositories/CommentRepository.ts
+import prisma from '../../../lib/prisma'
+export class CommentRepository {
+  async findAll(page = 1, limit = 10) {
+    const [items, total] = await prisma.$transaction([
+      prisma.comment.findMany({ where: { deletedAt: null }, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
+      prisma.comment.count({ where: { deletedAt: null } }),
+    ])
+    return { items, total }
+  }
+  async findById(id: string) { return prisma.comment.findFirst({ where: { id, deletedAt: null } }) }
+  async create(data: any) { return prisma.comment.create({ data }) }
+  async update(id: string, data: any) { return prisma.comment.update({ where: { id }, data }) }
+  async softDelete(id: string) { await prisma.comment.update({ where: { id }, data: { deletedAt: new Date() } }) }
+}
+
+// server/src/features/comments/policies/CommentPolicy.ts
+export class CommentPolicy {
+  canView(actor: any, comment: any) { return actor.role === 'ADMIN' || comment.authorId === actor.id }
+  canCreate(actor: any) { return Boolean(actor?.id) }
+  canDelete(actor: any, comment: any) { return actor.role === 'ADMIN' || comment.authorId === actor.id }
+}
+
+// server/src/features/comments/services/CommentService.ts
+import { CommentRepository } from '../repositories/CommentRepository'
+import { CommentPolicy } from '../policies/CommentPolicy'
+import { ForbiddenError, NotFoundError } from '../../../errors'
+export class CommentService {
+  constructor(private readonly repository: CommentRepository, private readonly policy: CommentPolicy) {}
+  async remove(actor: any, id: string) {
+    const comment = await this.repository.findById(id)
+    if (!comment) throw new NotFoundError('Comment not found')
+    if (!this.policy.canDelete(actor, comment)) throw new ForbiddenError()
+    await this.repository.softDelete(id)
+  }
+}
+
+// server/src/controllers/commentController.ts
+import { CreateCommentSchema } from '../features/comments/dtos/CommentDto'
+import { getUserContextFromRequest } from '../utils/userContext'
+import { getFactory } from '../factory'
+import { handleApiError } from '../utils/handleApiError'
+export async function createComment(req: any, res: any) {
+  try {
+    const parsed = CreateCommentSchema.safeParse(req.body)
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return }
+    const actor = getUserContextFromRequest(req)
+    const comment = await getFactory().getCommentService().create(actor, parsed.data)
+    res.status(201).json(comment)
+  } catch (error) { handleApiError(error, res) }
+}
+
+// server/src/routes/comments.ts
+import { Router } from 'express'
+import { createComment } from '../controllers/commentController'
+const router = Router()
+router.post('/', createComment)
+export default router
+
+// my-app/lib/services/comment.service.ts
+import { apiClient } from '../apiClient'
+export interface Comment { id: string; body: string; authorId: string }
+export const commentService = {
+  async create(input: { body: string; authorId: string }): Promise<Comment> {
+    const { data } = await apiClient.post<Comment>('/api/comments', input)
+    return data
+  },
+}
+
+===edge-1===
+// server/src/features/comments/repositories/CommentRepository.ts
+async findAll(page = 1, limit = 10) {
+  const [items, total] = await prisma.$transaction([
+    prisma.comment.findMany({ where: { deletedAt: null }, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
+    prisma.comment.count({ where: { deletedAt: null } }),
+  ])
+  return { items, total }
+}
+async softDelete(id: string) {
+  await prisma.comment.update({ where: { id }, data: { deletedAt: new Date() } })
+}
+
+// server/src/middleware/auth.ts
+const protectedApiPaths = [
+  // ...existing entries...
+  '/api/comments',
+]
+
+===regression-1===
+Tecnologia correta: prisma (first-class).
+
+Invoice.amount é dinheiro que entra no saldo do cliente e dispara lançamento contábil — invariante financeiro. Pelo §2.1 (e CRUD-005), money como data: Json em DynamicTable vira float em SQLite e o unique() de preset é scan TOCTOU, não constraint. Logo Model + Service + Repository + Policy próprios em Prisma.
+
+Onde a integração com PostingService vive: no controller / serviço de integração (nível de orquestração), NUNCA dentro de DynamicTableService, RuleContext ou RulePlugin. A fronteira dura CRUD-004/§2.1 proíbe injetar um serviço Prisma first-class no motor de plugins. O InvoiceService (ou serviço de integração dedicado) chama o PostingService na camada de serviço após persistir a invoice, com repositório transacional injetado e guardas de idempotência pré-tx.

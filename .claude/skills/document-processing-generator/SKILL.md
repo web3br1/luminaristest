@@ -1,8 +1,16 @@
 ---
 name: document-processing-generator
-description: Gera ou modifica pipeline de ingestão documental — extractor, chunking, embedding, Qdrant e status tracking
+description: Gera ou modifica o pipeline de ingestão documental RAG do Luminaris — extractor de arquivo (PDF/DOCX/TXT/MD → `{ text }`), chunking, embedding (OpenAI), upsert no Qdrant e status tracking do Document (PENDING→PROCESSING→COMPLETED/ERROR). Use quando o pedido for "suportar novo tipo de arquivo", "extractor de X", "mudar chunking/embedding", "processar documento para RAG/busca semântica", "indexar no Qdrant", ou ao depurar documento preso em PROCESSING. Camada de serviço — sem React/transporte no pipeline. Domínio/arquivos: server/src/lib/vector/extractors/<type>.ts + server/src/features/documents/services/DocumentProcessingPipeline.ts. NÃO é para XLSX/CSV → tabela editável (use structured-data-generator).
 argument-hint: "[tipo-do-extractor]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com Prisma + tsc, libs em lib/vector/ — chunking/embedding/qdrant — e DocumentProcessingPipeline). Depende de Qdrant + chave OpenAI em runtime; a geração em si não tem efeitos externos (apenas gera/edita arquivos).
+metadata:
+  governance-skill-id: "SKL-DOC-PROC"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Document Processing Generator
@@ -19,14 +27,12 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 
 ## Checklist obrigatório — Document Processing / RAG
 
-- [ ] **Extractor retorna `{ text: string }`** — assinatura `export async function extract<Type>(buffer: Buffer): Promise<{ text: string }>`; texto limpo, sem formatação especial. Erros via throw tipado.
-- [ ] **Chunking, embedding e Qdrant via as libs de `lib/vector/`** — `chunking.ts`, `embedding.ts` (OpenAI), `qdrant.ts`. Não reimplementar chunk/embed/upsert no extractor ou no service.
-- [ ] **Status flow respeitado em TODOS os branches:** `PENDING → PROCESSING` (ao iniciar) → `COMPLETED` (sucesso) | `ERROR` (qualquer exceção). Nenhum caminho deixa o documento preso em `PROCESSING`.
-- [ ] **Atualizar `Document.processingDate` e `Document.processingError`** junto com o status.
-- [ ] **Isolamento por tenant na busca RAG é barreira de segurança:** a ownership check (`userId`) acontece **antes** do Qdrant, e o `vectorRepository.search()` recebe `userId` + `docIds` do dono. Nunca buscar cross-tenant. Validar com o teste de isolamento.
-- [ ] **`DocumentPurpose` correto:** `KNOWLEDGE_BASE` (PDF/DOCX → RAG) vs `DATA_ANALYSIS` (XLSX/CSV → tabela estruturada; ver `structured-data-generator`). Usar o purpose errado pula a extração devida.
-- [ ] **Processamento sempre async** (via `DocumentService`/`setImmediate`) — nunca no controller, nunca bloqueante.
-- [ ] **Buffer não vai para o banco** — só metadados e texto extraído; o vetor vai para o Qdrant.
+- [ ] **[DOCPROC-001] Extractor retorna `{ text: string }`** — assinatura `export async function extract<Type>(buffer: Buffer): Promise<{ text: string }>`; texto limpo, sem formatação especial. Erros via throw tipado.
+- [ ] **[DOCPROC-002] Chunking, embedding e Qdrant via as libs de `lib/vector/`** — `chunking.ts`, `embedding.ts` (OpenAI), `qdrant.ts`. Não reimplementar chunk/embed/upsert no extractor ou no service.
+- [ ] **[DOCPROC-003] Status flow respeitado em TODOS os branches:** `PENDING → PROCESSING` (ao iniciar) → `COMPLETED` (sucesso) | `ERROR` (qualquer exceção). Nenhum caminho deixa o documento preso em `PROCESSING`. Atualizar `Document.processingDate` e `Document.processingError` junto com o status.
+- [ ] **[DOCPROC-004] Isolamento por tenant na busca RAG é barreira de segurança:** a ownership check (`userId`) acontece **antes** do Qdrant, e o `vectorRepository.search()` recebe `userId` + `docIds` do dono. Nunca buscar cross-tenant. Validar com o teste de isolamento.
+- [ ] **[DOCPROC-005] `DocumentPurpose` correto:** `KNOWLEDGE_BASE` (PDF/DOCX → RAG) vs `DATA_ANALYSIS` (XLSX/CSV → tabela estruturada; ver `structured-data-generator`). Usar o purpose errado pula a extração devida.
+- [ ] **[DOCPROC-006] Pipeline é camada de serviço pura — sem React/transporte:** processamento sempre async (via `DocumentService`/`setImmediate`), nunca no controller, nunca bloqueante; ZERO `import React`/JSX, ZERO Express/`res.json` no extractor, no pipeline ou no service. O buffer **não** vai para o banco — só metadados e texto extraído; o vetor vai para o Qdrant.
 
 ## When to use
 

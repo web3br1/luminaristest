@@ -1,8 +1,16 @@
 ---
 name: backend-service-generator
-description: Gera classe Service de um feature com injeção de Repository e Policy, erros tipados e registro no ApplicationFactory
+description: Gera a classe Service de um feature com injeção via construtor de Repository + Policy, policy-check antes de qualquer acesso a dados, erros tipados de lib/errors e registro no ApplicationFactory. Use ao criar a camada de negócio de um recurso novo, ao extrair lógica do controller para um service, ou ao orquestrar múltiplos repositories/DynamicTable. Domínio/arquivos: server/src/features/<resource>/services/ e server/src/lib/factory.ts.
 argument-hint: "[NomeDoRecurso]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com Prisma + tsc + lib/factory.ts e lib/errors.ts). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-BACKEND-SVC"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Backend Service Generator
@@ -19,14 +27,13 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 
 Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatamente isto na camada Service). Gere já em conformidade.
 
-- [ ] **Policy-check ANTES de qualquer acesso a dados** em toda operação: `if (!this.<resource>Policy.canXxx(actor, targetId?)) throw new ForbiddenError();` — primeira linha do método, antes de tocar o repository.
-- [ ] **Erros tipados de `lib/errors`:** `ForbiddenError` quando policy nega; `NotFoundError` quando recurso não existe (não `null` cru, não `throw new Error`).
-- [ ] **Cross-tenant = `NotFoundError`, NÃO `ForbiddenError`** — recurso de outro usuário deve parecer inexistente (anti-enumeration).
-- [ ] **DI por construtor:** `constructor(private <resource>Repository: I<Resource>Repository, private <resource>Policy: I<Resource>Policy) {}`. **Nunca** `new <Resource>Repository()`/`new <Resource>Policy()` dentro do service.
-- [ ] **ZERO `prisma.*` direto** — todo acesso a dados via `this.<resource>Repository`.
-- [ ] **ZERO Express / `res.json` / imports de HTTP** — o service é agnóstico a transporte.
-- [ ] **Actor `actor: IUser | null`** em todo método público — importe `IUser` de `../../users/models/User.model` (NÃO `@prisma/client`).
-- [ ] **Registro em `lib/factory.ts`:** repo e policy instanciados ANTES do service; getter `get<Resource>Service()` exposto.
+- [ ] **[SVC-001] Policy-check ANTES de qualquer acesso a dados** em toda operação: `if (!this.<resource>Policy.canXxx(actor, targetId?)) throw new ForbiddenError();` — primeira linha do método, antes de tocar o repository.
+- [ ] **[SVC-002] Erros tipados de `lib/errors`:** `ForbiddenError` quando policy nega; `NotFoundError` quando recurso não existe (não `null` cru, não `throw new Error`).
+- [ ] **[SVC-003] Cross-tenant = `NotFoundError`, NÃO `ForbiddenError`** — recurso de outro usuário deve parecer inexistente (anti-enumeration).
+- [ ] **[SVC-004] DI por construtor:** `constructor(private <resource>Repository: I<Resource>Repository, private <resource>Policy: I<Resource>Policy) {}`. **Nunca** `new <Resource>Repository()`/`new <Resource>Policy()` dentro do service.
+- [ ] **[SVC-005] ZERO `prisma.*` direto** — todo acesso a dados via `this.<resource>Repository`. **ZERO Express / `res.json` / imports de HTTP** — o service é agnóstico a transporte.
+- [ ] **[SVC-006] Actor `actor: IUser | null`** em todo método público — importe `IUser` de `../../users/models/User.model` (NÃO `@prisma/client`).
+- [ ] **[SVC-007] Registro em `lib/factory.ts`:** repo e policy instanciados ANTES do service; getter `get<Resource>Service()` exposto.
 - [ ] DTO guard (`is<Resource>Input`) antes de persistir quando o método recebe payload não validado.
 
 ### Variante: orquestra `DynamicTableService` (CRM/ERP schema-driven)
@@ -93,6 +100,7 @@ Variante legítima de Service que **NÃO segue o checklist CRUD padrão**. Não 
 - **Atomicidade em escritas múltiplas:** operações que fazem **mais de uma escrita** (ex.: `create` numa tabela + `update` em outra) **DEVEM ser atômicas**. Use **`dynamicTableService.runInTransaction(async (tx) => { ... })`** e passe `{ tx }` como `options` em cada `createTableData`/`updateTableData` dentro do callback — o rollback é automático se qualquer passo falhar. **Nunca** deixe escrita parcial silenciosa (estado final = "tudo" ou "nada"); não reinvente compensação app-level com try/catch/delete agora que o boundary existe.
   - **Caveat (validações não-tx):** as validações de `create`/`update` rodam contra o estado **commitado** (repo não-tx), então um write posterior **não enxerga** a linha criada por um write anterior na **mesma** tx. OK para escritas independentes ou de snapshot (o padrão do CRM); **não** componha writes cujo *validação* dependa de uma linha criada antes na mesma tx.
 - Registra no factory normalmente (mas sem repo/policy próprios).
+- **Fronteira §2.1 — esta variante orquestra DynamicTable, NÃO faz ponte com módulo Prisma first-class.** Nunca injete `PostingService`/`PayrollService`/`FiscalService` ao lado do `DynamicTableService` para "integrar os dois mundos" — é o anti-padrão do §2.1. Integração cross-módulo (venda→lançamento contábil) é responsabilidade de **controller/route handler/serviço de integração dedicado**; o módulo Prisma expõe a própria API e quem orquestra decide quando chamá-la.
 
 Referência: `server/src/features/crm/services/CrmPipelineService.ts`, `CrmAnalyticsService.ts`.
 
@@ -119,3 +127,4 @@ cd server && npx tsc --noEmit
 - Nunca importe Express nem chame `res.json()` — o service é agnóstico a HTTP; quem formata resposta é o controller
 - Cross-tenant retorna `NotFoundError`, não `ForbiddenError` — recurso de outro usuário deve parecer inexistente (evita enumeration attack)
 - Importe `IUser` de `../../users/models/User.model`, nunca de `@prisma/client` — o `UserContext` do controller é estruturalmente atribuível a `IUser`
+- **Nunca injete um serviço Prisma first-class (`PostingService`…) numa orchestration service que opera DynamicTable** — integração cross-módulo sobe a controller/serviço de integração (§2.1). Se você está acoplando dois domínios numa orchestration service, o design está errado.

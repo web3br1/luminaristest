@@ -1,0 +1,10 @@
+[
+  {
+    "rule": "DASHKPI-001",
+    "corrected": "happy-1: `previousValue[\\s\\S]*?undefined` assumia ordem (previousValue antes de undefined); o código declara o tipo `number | undefined` ANTES do `previousValue:` do return. Trocado por checagem order-agnostic do tipo opcional.",
+    "assertion": "regex:number\\s*\\|\\s*undefined",
+    "file": "chunk.ts",
+    "good": "const prev: number | undefined = n > 0 ? x / n : undefined;\n  return [{ value, previousValue: prev }];",
+    "bad": "const prev: number = n > 0 ? x / n : 0;\n  return [{ value, previousValue: prev }];"
+  }
+]

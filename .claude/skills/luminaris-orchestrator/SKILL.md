@@ -27,15 +27,27 @@ docs/claude-skills/GENERATION_CONTRACTS.md ← contratos de geração por camada
 
 Analise o argumento `$ARGUMENTS` e classifique em uma das categorias:
 
+### STEP 0 (gate §2.1) — onde o módulo vive? ANTES de qualquer roteamento
+
+Se a tarefa cria um **módulo/entidade nova**, rode o teste binário do `_ARCHITECTURE-CONTRACT.md §2.1` **antes** de olhar a tabela de sinais — ele decide a tecnologia, e a tabela de sinais já assume essa decisão tomada:
+
+| Pergunta | Sim → |
+|---|---|
+| O usuário cria/configura o esquema em runtime (CRM, formulário, fluxo adaptável)? | **DynamicTable** → `dynamic-table-preset-generator` |
+| Tem invariante financeiro/legal/regulatório que o banco deve garantir (contábil, folha, fiscal, RH)? | **Prisma first-class** → `fullstack-feature-generator` |
+| A integridade depende de `@@unique`/FK/tipos reais, ou é infra do negócio não-configurável? | **Prisma first-class** |
+
+**Em dúvida → Prisma first-class.** "ERP" sozinho NÃO decide: um módulo ERP só é DynamicTable se o **usuário** define o schema; com invariante, é Prisma. **Integração entre os dois mundos (ex.: venda→lançamento contábil) NUNCA entra no plano como edição do `DynamicTableService`/plugin — sobe a um passo de controller/serviço de integração** (§2.1 anti-padrões). Se o plano que você ia montar injeta um serviço Prisma no motor DynamicTable, o roteamento está errado — refaça.
+
 ### Sinais → Skill principal
 
 | Sinal na tarefa | Skill principal |
 |---|---|
-| "novo módulo", "feature completa", "do zero", "sistema de X" | `fullstack-feature-generator` |
+| "novo módulo", "feature completa", "do zero", "sistema de X", "módulo com invariante financeiro/legal" (contábil/folha/fiscal/RH) | `fullstack-feature-generator` |
 | "crud simples", "tabela nova sem lógica" | `crud-resource-generator` |
 | "kpi", "métrica", "indicador", "dashboard" | `dashboard-kpi-end-to-end-generator` |
 | "só o processor", "só o cálculo" | `analytics-kpi-generator` |
-| "preset", "tabela dinâmica", "módulo ERP" | `dynamic-table-preset-generator` |
+| "preset", "tabela dinâmica", "schema que o **usuário** configura em runtime" | `dynamic-table-preset-generator` (só se passou no STEP 0 como DynamicTable — "módulo ERP" com invariante vai para `fullstack-feature-generator`) |
 | "agente", "chat", "tool call", "ai consegue" | `chat-domain-generator` |
 | "teste", "testes", "cobertura", "spec" | `backend-test-suite-generator` |
 | "documento", "pdf", "upload", "rag", "chunking" | `document-processing-generator` |
@@ -80,6 +92,7 @@ Se a tarefa for ambígua em qualquer um dos seguintes pontos, **pergunte antes d
 
 - **Escopo:** "É só backend ou também frontend?" → determina `--sem-frontend` ou fullstack
 - **Prisma:** "Precisa de novo model no banco ou usa tabela existente?" → determina `--com-prisma`
+- **Fronteira §2.1 (se o STEP 0 ficou ambíguo):** "Esse dado precisa de garantia do banco (saldo exato, unicidade, atomicidade) ou o usuário configura os campos em runtime?" → decide Prisma first-class vs DynamicTable. Invariante financeiro/legal → sempre Prisma.
 - **Nome:** "Como deve se chamar o recurso em PascalCase?" → necessário para nomes de arquivo
 - **Categoria:** "Qual categoria de KPI? (revenue/sales/cost/cashflow)" → diretório do processor
 - **Modo de teste:** "Testar service, repository ou processor?" → argumento do test-suite-generator

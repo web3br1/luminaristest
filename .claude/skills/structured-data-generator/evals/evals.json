@@ -1,0 +1,84 @@
+{
+  "skill": "structured-data-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Quando o usuário sobe uma planilha XLSX eu preciso que ela vire uma tabela editável no app. Gere o extractor de XLSX e a chamada que persiste o resultado para edição posterior.",
+      "assertions": [
+        "activation: a skill structured-data-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Preciso de ingestão de um PDF para a base de conhecimento: extrair o texto, fazer chunking, gerar embeddings e indexar no Qdrant para o chat RAG.",
+      "assertions": [
+        "non-activation: structured-data-generator NÃO deve ativar — ingestão RAG (texto→chunk→embedding→Qdrant) é trabalho do document-processing-generator; structured-data é XLSX→tabela editável (DATA_ANALYSIS)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "SDATA-001",
+        "SDATA-002",
+        "SDATA-003",
+        "SDATA-004",
+        "SDATA-005"
+      ],
+      "prompt": "Gere o pipeline XLSX→tabela editável: o extractor CsvStructuredExtractor que importa via lib de planilha e devolve { sheets: SheetStructured[] } preservando o tipo de cada célula (null para célula vazia, nunca undefined), e o branch do DocumentProcessingPipeline que, sob DocumentPurpose.DATA_ANALYSIS, chama extractStructuredDataFromExcel e persiste via StructuredDataService.createFromStructured. Saída: o conteúdo completo de CsvStructuredExtractor.ts e o trecho editado de DocumentProcessingPipeline.ts.",
+      "target_files": [
+        "server/src/lib/vector/extractors/CsvStructuredExtractor.ts",
+        "server/src/features/documents/services/DocumentProcessingPipeline.ts"
+      ],
+      "assertions": [
+        "// server/src/lib/vector/extractors/CsvStructuredExtractor.ts",
+        "@CsvStructuredExtractor.ts::ast-import:ExcelJS@exceljs",
+        "@CsvStructuredExtractor.ts::regex:Promise<\\{\\s*sheets:\\s*SheetStructured\\[\\]\\s*\\}>",
+        "@CsvStructuredExtractor.ts::regex:\\(?string\\s*\\|\\s*number\\s*\\|\\s*null\\)?\\[\\]\\[\\]",
+        "@CsvStructuredExtractor.ts::absent:return undefined",
+        "// server/src/features/documents/services/DocumentProcessingPipeline.ts",
+        "@DocumentProcessingPipeline.ts::ast-import:StructuredDataService@../../structuredData/services/StructuredDataService",
+        "@DocumentProcessingPipeline.ts::contains:DATA_ANALYSIS",
+        "@DocumentProcessingPipeline.ts::contains:StructuredDataService",
+        "absent:import React"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "SDATA-002",
+        "SDATA-006",
+        "SDATA-007"
+      ],
+      "prompt": "Adicione o HeaderType BOOLEAN ao pipeline de dados estruturados, propagando nos pontos casados, e gere a leitura que normaliza single-sheet vs multi-sheet sem assumir que data é sempre (string|number|null)[][]. Saída: os trechos editados de StructuredData.model.ts, Sheet.types.ts, o inferColumnType do extractor e o z.enum do DTO.",
+      "assertions": [
+        "regex:HeaderType[\\s\\S]*BOOLEAN",
+        "regex:z\\.enum\\(\\[[\\s\\S]*BOOLEAN",
+        "regex:inferColumnType[\\s\\S]*BOOLEAN",
+        "contains:getByDocumentId",
+        "absent:undefined"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "SDATA-003",
+        "SDATA-005"
+      ],
+      "regression_of": "Extractor/serviço de dados estruturados gravando direto no Qdrant ou mutando a coluna JSON via prisma, e/ou importando React/JSX na camada de servidor — quebrando a fronteira SQL-editável e a separação servidor/apresentação",
+      "prompt": "Gere o StructuredDataService.update e o branch do extractor que persistem a tabela editável sem tocar no Qdrant, sem prisma direto na coluna data, e sem nenhum React/JSX na camada de servidor.",
+      "assertions": [
+        "contains:StructuredDataService",
+        "absent:qdrant",
+        "absent:import React",
+        "absent:prisma."
+      ]
+    }
+  ]
+}

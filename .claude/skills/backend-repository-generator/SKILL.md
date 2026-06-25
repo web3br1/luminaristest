@@ -1,8 +1,16 @@
 ---
 name: backend-repository-generator
-description: Gera classe Repository + interface IRepository com acesso Prisma para um modelo de dados
+description: Gera classe Repository + interface IRepository com acesso Prisma para um modelo de dados — finds com filtro `deletedAt: null`, soft-delete via `update`, `findAll` paginado em `$transaction`. Use ao criar a camada de acesso a dados de um novo modelo Prisma, ao adicionar query especializada a um repository existente, ou ao implementar soft-delete num recurso. Domínio/arquivos: server/src/features/<resource>/repositories/.
 argument-hint: "[NomeDoRecurso]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com Prisma + tsc, output path 'generated/prisma'). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-BACKEND-REPO"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Backend Repository Generator
@@ -19,13 +27,13 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 
 Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatamente isto na camada Repository). Gere já em conformidade.
 
-- [ ] **`where: { ..., deletedAt: null }` em TODOS os `findMany`/`findFirst`/`findUnique`-equivalentes** — sem exceção. Um find sem o filtro vaza registros soft-deletados.
-- [ ] **Soft-delete via `update`, NUNCA `.delete()`**: `delete` faz `prisma.<model>.update({ where: { id }, data: { deletedAt: new Date() } })`. Zero `prisma.<model>.delete()` no arquivo.
-- [ ] **`findAll` usa `prisma.$transaction([findMany, count])`** — uma transação, não duas queries sequenciais. Paginação: `skip = (page-1)*limit`, default `findAll(page = 1, limit = 10)`.
-- [ ] **`implements I<Resource>Repository`** — a classe implementa a interface declarada no mesmo diretório; toda assinatura pública está na interface.
-- [ ] **Zero regra de negócio** — sem policy check, sem validação de negócio, sem cálculo de domínio. Só acesso a dados.
-- [ ] **`select` explícito excluindo campos sensíveis** (password, tokens) em queries públicas.
-- [ ] **Tipos Prisma de `'generated/prisma'`** (`import { Prisma } from 'generated/prisma'`) — NUNCA `@prisma/client` (output path customizado).
+- [ ] **[REPO-001]** **`where: { ..., deletedAt: null }` em TODOS os `findMany`/`findFirst`/`findUnique`-equivalentes** — sem exceção. Um find sem o filtro vaza registros soft-deletados.
+- [ ] **[REPO-002]** **Soft-delete via `update`, NUNCA `.delete()`**: `delete` faz `prisma.<model>.update({ where: { id }, data: { deletedAt: new Date() } })`. Zero `prisma.<model>.delete()` no arquivo.
+- [ ] **[REPO-003]** **`findAll` usa `prisma.$transaction([findMany, count])`** — uma transação, não duas queries sequenciais. Paginação: `skip = (page-1)*limit`, default `findAll(page = 1, limit = 10)`.
+- [ ] **[REPO-004]** **`implements I<Resource>Repository`** — a classe implementa a interface declarada no mesmo diretório; toda assinatura pública está na interface.
+- [ ] **[REPO-005]** **Zero regra de negócio** — sem policy check, sem validação de negócio, sem cálculo de domínio. Só acesso a dados.
+- [ ] **[REPO-006]** **`select` explícito excluindo campos sensíveis** (password, tokens) em queries públicas.
+- [ ] **[REPO-007]** **Tipos Prisma de `'generated/prisma'`** (`import { Prisma } from 'generated/prisma'`) — NUNCA `@prisma/client` (output path customizado).
 - [ ] Ordenação padrão `orderBy: { createdAt: 'desc' }`.
 - [ ] Métodos obrigatórios: `create`, `findById`, `findAll`, `update`, `delete`.
 

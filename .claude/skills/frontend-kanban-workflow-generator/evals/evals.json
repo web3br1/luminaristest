@@ -1,0 +1,84 @@
+{
+  "skill": "frontend-kanban-workflow-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Hoje o pipeline do CRM é um board estático onde clicar num card troca de tela. Quero um board Kanban de verdade: arrastar o lead entre as etapas do pipeline ativo (drag-drop), com colunas filtradas pelo pipeline selecionado e o detalhe do card abrindo em modal. Crie o OrdersBoard.",
+      "assertions": [
+        "activation: a skill frontend-kanban-workflow-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie uma tela de listagem/tabela de pedidos com CRUD inline (criar/editar/excluir na linha), filtros, ordenação e paginação. Nada de arrastar — é uma grade de registros com botões de ação por linha.",
+      "assertions": [
+        "non-activation: frontend-kanban-workflow-generator NÃO deve ativar (pedido é tela de listagem/tabela com CRUD inline — trabalho do frontend-table-screen-generator)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "FEKANBAN-001",
+        "FEKANBAN-002",
+        "FEKANBAN-004",
+        "FEKANBAN-005",
+        "FEKANBAN-006"
+      ],
+      "prompt": "Gere o board Kanban OrdersBoard.tsx (stage-relation) reusando os primitivos canônicos do app: DndContext + DragOverlay (padrão InternalKanbanView), colunas via KanbanColumn filtradas pelo pipeline ativo, criar via FloatingActionButton, e clique no card abrindo o KanbanCardDetailModal (estado local, sem trocar de rota). Container full-height, design system neutral/rounded-2xl. Saída: o conteúdo completo do arquivo OrdersBoard.tsx (um único arquivo TSX).",
+      "target_files": [
+        "my-app/features/orders/OrdersBoard.tsx"
+      ],
+      "assertions": [
+        "ast-import:DndContext@@dnd-kit/core",
+        "ast-jsx:KanbanCardDetailModal",
+        "ast-jsx:FloatingActionButton",
+        "ast-noclass:zinc-",
+        "@OrdersBoard.tsx::regex:<DragOverlay[\\s>]",
+        "@OrdersBoard.tsx::contains:h-full",
+        "@OrdersBoard.tsx::contains:rounded-2xl",
+        "@OrdersBoard.tsx::absent:router.push",
+        "ast-jsx:DndContext",
+        "contains:SortableContext"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "FEKANBAN-003"
+      ],
+      "prompt": "A transição de etapa do pedido tem efeitos colaterais no backend (gera registro relacionado e loga atividade). No handleDragEnd NÃO faça um updateRecord parcial — chame o endpoint de transição atômico advanceStage do service layer, com update otimista e rollback no catch. Gere apenas o hook useOrdersBoard.ts.",
+      "target_files": [
+        "my-app/features/orders/hooks/useOrdersBoard.ts"
+      ],
+      "assertions": [
+        "@useOrdersBoard.ts::regex:const\\s+handleDragEnd\\s*=",
+        "@useOrdersBoard.ts::regex:advanceStage\\(",
+        "@useOrdersBoard.ts::regex:catch[\\s\\S]*rollback",
+        "@useOrdersBoard.ts::absent:updateRecord("
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "FEKANBAN-001"
+      ],
+      "regression_of": "pages/crm/pipeline.tsx reimplementou um board estático (flex gap-4 overflow-x-auto + cards sem drag, clique = troca de tela) ignorando o InternalKanbanView canônico que já tinha drag-drop",
+      "prompt": "Regenere o board do pipeline. Ele NÃO pode ser um board estático com flex/overflow-x-auto e cards sem drag — tem que reusar o DndContext e os primitivos canônicos do Kanban (drag-drop real). Gere o conteúdo do CrmPipelineBoard.tsx.",
+      "target_files": [
+        "my-app/features/crm/components/CrmPipelineBoard.tsx"
+      ],
+      "assertions": [
+        "@CrmPipelineBoard.tsx::ast-import:DndContext@@dnd-kit/core",
+        "@CrmPipelineBoard.tsx::ast-jsx:DndContext",
+        "@CrmPipelineBoard.tsx::regex:DndContext[\\s\\S]*onDragEnd"
+      ]
+    }
+  ]
+}

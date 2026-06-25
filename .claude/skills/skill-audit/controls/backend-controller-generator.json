@@ -1,0 +1,9 @@
+[
+  {
+    "rule": "CTL-001",
+    "corrected": "regression-1: regex passou a aceitar `if (...) { return }` com chave (antes assumia braceless)",
+    "assertion": "regex:if\\s*\\(!parse\\.success\\)\\s*\\{?\\s*return\\s+res\\.status\\(400\\)",
+    "good": "const parse = S.safeParse(req.body);\n  if (!parse.success) {\n    return res.status(400).json({});\n  }\n  const service = getFactory().getInvoiceService();",
+    "bad": "const data = req.body;\n  const service = getFactory().getInvoiceService();\n  const created = await service.create(data);"
+  }
+]

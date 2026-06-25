@@ -1,0 +1,100 @@
+{
+  "skill": "dashboard-kpi-end-to-end-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Quero ver a métrica de Ticket Médio por período no dashboard de finance — preciso do cálculo no backend E do card aparecendo no frontend, ponta a ponta.",
+      "assertions": [
+        "activation: a skill dashboard-kpi-end-to-end-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie só um widget de dashboard estático (card com um número e ícone) compatível com o grid react-grid-layout, sem KPI nem processor no backend — o dado já vem pronto do DashboardDataContext.",
+      "assertions": [
+        "non-activation: dashboard-kpi-end-to-end-generator NÃO deve ativar — pedido de uma única camada (widget de dashboard), trabalho do frontend-widget-generator (sibling)",
+        "activation: a skill esperada é frontend-widget-generator"
+      ]
+    },
+    {
+      "id": "trigger-neg-2",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Gere apenas o KPI processor + template do backend para um KPI de receita (single-pass sobre rows, ChartDataPoint[]). Não preciso de frontend nenhum, só a camada de analytics do server.",
+      "assertions": [
+        "non-activation: dashboard-kpi-end-to-end-generator NÃO deve ativar — pedido backend-only de uma camada, trabalho do analytics-kpi-generator (sibling)",
+        "activation: a skill esperada é analytics-kpi-generator"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "DASHKPI-001",
+        "DASHKPI-002",
+        "DASHKPI-003",
+        "DASHKPI-004",
+        "DASHKPI-005"
+      ],
+      "prompt": "Gere o KPI 'TicketMedio' na categoria 'revenue' ponta a ponta: (1) backend processor single-pass sobre rows retornando ChartDataPoint[]; (2) template do KPI auto-registrado e registrado no index da categoria; (3) hook frontend useTicketMedioKpi que busca via analytics.service; (4) widget TicketMedioKpiCard que consome o hook e renderiza o card canônico DashboardKpiCard. Saída: o conteúdo completo de cada arquivo da cadeia, cada um precedido de um marcador `// <path>`.",
+      "target_files": [
+        "server/src/features/analytics/kpis/revenue/TicketMedioKpiProcessor.ts",
+        "server/src/features/analytics/kpis/revenue/TicketMedioKpiTemplate.ts",
+        "my-app/features/dashboard/category-views/revenue/hooks/useTicketMedioKpi.ts",
+        "my-app/features/dashboard/category-views/revenue/components/kpi/TicketMedioKpiCard.tsx"
+      ],
+      "assertions": [
+        "@TicketMedioKpiProcessor.ts::contains:ChartDataPoint",
+        "@TicketMedioKpiProcessor.ts::regex:for\\s+await\\s*\\(\\s*const\\s+batch\\s+of\\s+stream\\s*\\)",
+        "@TicketMedioKpiProcessor.ts::contains:addMoney(",
+        "@TicketMedioKpiProcessor.ts::regex:number\\s*\\|\\s*undefined",
+        "@TicketMedioKpiTemplate.ts::contains:registerTemplate(",
+        "@TicketMedioKpiTemplate.ts::contains:processor:",
+        "@useTicketMedioKpi.ts::ast-import:analyticsService@@/lib/services/analytics.service",
+        "@useTicketMedioKpi.ts::absent:apiClient",
+        "@TicketMedioKpiCard.tsx::ast-import:useTicketMedioKpi@../hooks/useTicketMedioKpi",
+        "@TicketMedioKpiCard.tsx::ast-import:DashboardKpiCard@@/features/dashboard/category-views/finance/components/analytics/dashboard/DashboardKpiCard",
+        "@TicketMedioKpiCard.tsx::ast-jsx:DashboardKpiCard",
+        "@TicketMedioKpiCard.tsx::ast-noclass:zinc-"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "DASHKPI-001"
+      ],
+      "prompt": "No backend processor TicketMedioKpiProcessor, garanta que rows vazios produzam um valor 0 finito (nunca NaN) e que previousValue seja undefined quando não há dado anterior — em um único passe sobre os rows. Gere apenas o processor, precedido de `// <path>`.",
+      "target_files": [
+        "server/src/features/analytics/kpis/revenue/TicketMedioKpiProcessor.ts"
+      ],
+      "assertions": [
+        "@TicketMedioKpiProcessor.ts::contains:ChartDataPoint",
+        "@TicketMedioKpiProcessor.ts::regex:number\\s*\\|\\s*undefined",
+        "@TicketMedioKpiProcessor.ts::contains:Number.isFinite("
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "DASHKPI-004"
+      ],
+      "regression_of": "card/gráfico de KPI bespoke (erro CrmKpiCard/CrmBarChart) em vez de reusar o card canônico DashboardKpiCard",
+      "prompt": "Monte o widget TicketMedioKpiCard reusando o card canônico do dashboard em vez de escrever um card próprio sobre divs/Recharts cru. Gere apenas o componente do card, precedido de `// <path>`.",
+      "target_files": [
+        "my-app/features/dashboard/category-views/revenue/components/kpi/TicketMedioKpiCard.tsx"
+      ],
+      "assertions": [
+        "@TicketMedioKpiCard.tsx::ast-import:DashboardKpiCard@@/features/dashboard/category-views/finance/components/analytics/dashboard/DashboardKpiCard",
+        "@TicketMedioKpiCard.tsx::ast-jsx:DashboardKpiCard",
+        "@TicketMedioKpiCard.tsx::ast-noclass:zinc-",
+        "@TicketMedioKpiCard.tsx::absent:CrmKpiCard"
+      ]
+    }
+  ]
+}

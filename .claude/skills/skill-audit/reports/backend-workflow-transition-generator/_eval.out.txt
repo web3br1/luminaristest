@@ -1,0 +1,51 @@
+===happy-1===
+import type { UserContext } from '../../../lib/authUtils';
+import { NotFoundError } from '../../../lib/errors';
+import logger from '../../../lib/logger';
+import type { DynamicTableService } from '../../dynamicTables/services/DynamicTableService';
+import type { IDynamicTableRepository } from '../../dynamicTables/repositories/IDynamicTableRepository';
+import type { AdvanceStageInput } from '../dtos/PipelineTransition.dto';
+
+export class PipelineWorkflowService {
+  constructor(
+    private readonly dynamicTableService: DynamicTableService,
+    private readonly repository: IDynamicTableRepository,
+  ) {}
+
+  private async resolveTableId(user: UserContext, internalName: string): Promise<string> {
+    const table = await this.repository.findTableByInternalName(user.userId, internalName);
+    if (!table) {
+      throw new NotFoundError(`Pipeline table '${internalName}' is not installed for this user.`);
+    }
+    return table.id;
+  }
+
+  async advanceStage(user: UserContext, input: AdvanceStageInput) {
+    await this.resolveTableId(user, 'leads');
+    const proposalsTableId =
+      (input.stageType || '').toLowerCase() === 'proposal'
+        ? await this.resolveTableId(user, 'leadProposals')
+        : null;
+
+    const leadPatch: Record<string, unknown> = { stageId: input.stageId };
+
+    const updated = await this.dynamicTableService.runInTransaction(async (tx) => {
+      if (proposalsTableId) {
+        await this.dynamicTableService.createTableData(user, proposalsTableId, { data: { leadId: input.leadId, status: 'Sent' } }, { tx });
+      }
+      return this.dynamicTableService.updateTableData(user, input.leadId, { data: leadPatch }, { tx });
+    });
+
+    logger.info('Pipeline lead advanced stage', { leadId: input.leadId, stageId: input.stageId });
+    return updated;
+  }
+}
+
+===regression-1===
+A integração com a contabilidade NÃO vive dentro do PipelineWorkflowService.advanceStage. O runInTransaction é o motor do DynamicTable e só pode orquestrar escritas do mundo DynamicTable — injetar PostingService ali viola a fronteira dura do §2.1.
+
+Onde deve viver: a integração cross-módulo sobe para o controller / serviço de integração que coordena os dois domínios; o módulo de contabilidade (Prisma first-class) expõe a própria API (PostingService).
+
+O que NÃO posso editar:
+- NUNCA injetar PostingService dentro do construtor de PipelineWorkflowService nem chamá-lo dentro do runInTransaction do motor.
+- NUNCA editar DynamicTableService, RuleContext ou RulePlugin para integrar os dois domínios.

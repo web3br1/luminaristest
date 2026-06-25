@@ -25,6 +25,7 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 - [ ] **Não confundir os modos:** RAG só quando `documentIds.length > 0`; AGENT é o default sem documentos. Não misturar a lógica.
 - [ ] **Loop de tool calls limitado a 5 iterações** — não aumentar; se 5 não basta, a tool está mal modelada.
 - [ ] **Nova dep de service injetada via factory** no `LuminarisAgentService` (construtor) — nunca `new Service()` dentro do agente.
+- [ ] **Ação que toca módulo Prisma first-class (contábil/folha/fiscal) chama o serviço próprio do módulo — não vira escrita direta misturando os dois mundos.** O agente opera sobre DynamicTable via `ActionProposal`; uma ação com invariante passa pela API do módulo (que aplica policy/invariante), nunca por `prisma.*` ou `PostingService` cravado no handler. Ver §2.1.
 
 ## When to use
 
@@ -261,6 +262,7 @@ cd server && npx jest features/chat --passWithNoTests
 - **Não retornar `ACTION_PROPOSAL` para ações de leitura** — apenas CREATE/UPDATE passam pelo modal. Queries de listagem/busca retornam `TEXT` direto.
 - **Não resolver tabela por índice `[0]` nem id presumido** — resolva por `internalName` (preset key) escopado ao `userId`; a ordem da API varia e quebra silenciosamente.
 - **Não injetar service com `new` dentro do agente** — toda dep entra pelo construtor do `LuminarisAgentService` via factory.
+- **Não injetar serviço Prisma first-class para escrever invariante direto no `handleToolCall`** — ação de módulo contábil/folha/fiscal vai pela API própria do módulo (que garante o invariante), pelo mesmo fluxo proposta→confirmação. Misturar os dois mundos no agente é o anti-padrão §2.1.
 
 ## Output format
 

@@ -324,6 +324,19 @@ export class PostingService {
   }
 
   /**
+   * Find a single journal entry by its business source (sourceType + sourceId).
+   * Used by integration hooks (e.g. accountingSync) that need the entry id to reverse.
+   */
+  async findEntryBySource(
+    scope: AccountingScope,
+    sourceType: string,
+    sourceId: string,
+  ): Promise<JournalEntryWithPostings | null> {
+    if (!this.policy.canRead(scope)) return null;
+    return this.journalEntryRepo.findBySource(scope, sourceType, sourceId);
+  }
+
+  /**
    * List all active accounts for the scope. Idempotently seeds the canonical
    * chart of accounts first so the caller always gets a non-empty list on first access.
    */

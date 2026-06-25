@@ -1,0 +1,80 @@
+{
+  "skill": "document-processing-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Adicione suporte a um novo tipo de arquivo Markdown no pipeline de ingestão documental: um extractor que devolve o texto, e o branch no pipeline para chunking, embedding e indexação no Qdrant.",
+      "assertions": [
+        "activation: a skill document-processing-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Quero ingerir uma planilha XLSX e transformá-la numa tabela editável no frontend (extração de dados estruturados para spreadsheet, DocumentPurpose DATA_ANALYSIS).",
+      "assertions": [
+        "non-activation: document-processing-generator NÃO deve ativar — XLSX → tabela estruturada/spreadsheet é trabalho de structured-data-generator (sibling); document-processing trata ingestão PDF/texto → embedding → Qdrant"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "DOCPROC-001",
+        "DOCPROC-002",
+        "DOCPROC-003",
+        "DOCPROC-006"
+      ],
+      "prompt": "Gere o extractor de Markdown em server/src/lib/vector/extractors/markdown.ts (assinatura extractMarkdown(buffer: Buffer): Promise<{ text: string }>, throw tipado) e o trecho editado de DocumentProcessingPipeline.ts que adiciona o branch: detecta o mimeType, chama o extractor, e deixa processChunks() cuidar de chunking → embedding → upsert no Qdrant, aplicando o status flow (PROCESSING→COMPLETED|ERROR). Saída: conteúdo completo dos dois arquivos.",
+      "target_files": [
+        "server/src/lib/vector/extractors/markdown.ts",
+        "server/src/features/documents/services/DocumentProcessingPipeline.ts"
+      ],
+      "assertions": [
+        "@markdown.ts::regex:export\\s+async\\s+function\\s+extractMarkdown\\s*\\(\\s*buffer:\\s*Buffer\\s*\\)\\s*:\\s*Promise<\\{\\s*text:\\s*string\\s*\\}>",
+        "@markdown.ts::absent:import React",
+        "@markdown.ts::absent:chunkText(",
+        "@DocumentProcessingPipeline.ts::ast-import:chunkText@@/lib/vector/chunking",
+        "@DocumentProcessingPipeline.ts::ast-import:VectorRepository@../repositories/VectorRepository",
+        "@DocumentProcessingPipeline.ts::contains:Qdrant",
+        "@DocumentProcessingPipeline.ts::regex:DocumentStatus\\.(PROCESSING|COMPLETED|ERROR)",
+        "@DocumentProcessingPipeline.ts::contains:processingError"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "DOCPROC-003",
+        "DOCPROC-004"
+      ],
+      "prompt": "No pipeline, o embedding falha (Qdrant indisponível) durante o processamento de um documento, e a busca RAG precisa permanecer isolada por tenant. Gere o tratamento de erro (handleProcessingError) que move o documento para ERROR sem deixá-lo preso em PROCESSING, e o trecho de busca que faz a ownership check por userId antes do Qdrant passando docIds do dono.",
+      "assertions": [
+        "regex:DocumentStatus\\.ERROR",
+        "contains:processingError",
+        "absent:DocumentStatus.PROCESSING;",
+        "regex:vectorRepository\\.search\\([\\s\\S]*userId",
+        "regex:search\\([\\s\\S]*docIds"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "DOCPROC-002",
+        "DOCPROC-005"
+      ],
+      "regression_of": "Extractor/pipeline reimplementando chunking/embedding/upsert localmente em vez de reusar lib/vector/, e/ou roteando XLSX/CSV por KNOWLEDGE_BASE (que pula a extração estruturada de DATA_ANALYSIS)",
+      "prompt": "Gere o branch do pipeline para um arquivo de texto: deve reusar as libs de lib/vector/ (chunking/embedding) em vez de reimplementar, e rotear o DocumentPurpose corretamente — XLSX/CSV vão para DATA_ANALYSIS, não KNOWLEDGE_BASE.",
+      "assertions": [
+        "ast-import:chunkText@@/lib/vector/chunking",
+        "regex:DocumentPurpose\\.(KNOWLEDGE_BASE|DATA_ANALYSIS)",
+        "absent:function chunkText(",
+        "contains:generateEmbeddings"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "skill": "frontend-table-screen-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Preciso de uma tela de listagem dos contatos do CRM (DynamicTable crmContacts): tabela com criar/editar/excluir na linha, filtros, ordenação e paginação. Hoje não existe — quero a tela de cadastros padrão do dashboard.",
+      "assertions": [
+        "activation: a skill frontend-table-screen-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie um board kanban com colunas por etapa e drag-and-drop entre etapas para mover os leads de uma fase para outra, com modal de detalhe ao clicar no card.",
+      "assertions": [
+        "non-activation: frontend-table-screen-generator NÃO deve ativar (pedido é de board kanban com drag-and-drop entre etapas — trabalho do frontend-kanban-workflow-generator)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "FETABLE-001",
+        "FETABLE-002",
+        "FETABLE-003",
+        "FETABLE-006"
+      ],
+      "prompt": "Gere o wrapper ContactsTableScreen sobre o stack canônico GenericTabbedView (import estático de features/dashboard/category-views/shared/GenericTabbedView). Props: { internalName, titleKey, descriptionKey }. Resolva a IDynamicTable por internalName via DynamicTableService.getTables() com tables.find(...) (fallback por nome, nunca [0]) usando useMemo; trate loading, error e tabela-não-instalada; renderize <GenericTabbedView tables={[table]} title={t(titleKey)} description={t(descriptionKey)} />. Galaxy theme (neutral, rounded-2xl, dark). Saída: o conteúdo completo do arquivo ContactsTableScreen.tsx (um único arquivo TSX).",
+      "target_files": [
+        "my-app/features/crm/components/ContactsTableScreen.tsx"
+      ],
+      "assertions": [
+        "ast-import:GenericTabbedView@category-views/shared/GenericTabbedView",
+        "ast-jsx:GenericTabbedView",
+        "ast-noclass:zinc-",
+        "@ContactsTableScreen.tsx::regex:tables\\.find\\(",
+        "@ContactsTableScreen.tsx::regex:internalName\\s*===",
+        "@ContactsTableScreen.tsx::absent:tables\\[0\\]",
+        "@ContactsTableScreen.tsx::contains:useMemo",
+        "@ContactsTableScreen.tsx::contains:rounded-2xl",
+        "@ContactsTableScreen.tsx::contains:t("
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "FETABLE-002"
+      ],
+      "prompt": "A API de getTables() retorna as tabelas em ordem não-determinística e às vezes a tabela alvo nem está instalada. Gere apenas o trecho de resolução da tabela dentro do ContactsTableScreen: encontre a IDynamicTable por internalName (com fallback pelo nome humano), memoize com useMemo, e NÃO use índice [0]. Renderize uma mensagem on-brand quando a tabela não existir.",
+      "target_files": [
+        "my-app/features/crm/components/ContactsTableScreen.tsx"
+      ],
+      "assertions": [
+        "@ContactsTableScreen.tsx::regex:useMemo\\s*(<[^>]+>)?\\s*\\(\\s*\\(\\)\\s*=>",
+        "@ContactsTableScreen.tsx::regex:\\.find\\(\\s*\\(?[\\s\\S]*internalName\\s*===",
+        "@ContactsTableScreen.tsx::absent:tables\\[0\\]",
+        "@ContactsTableScreen.tsx::absent:zinc-"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "FETABLE-004",
+        "FETABLE-005"
+      ],
+      "regression_of": "as tabelas do CRM (RecordTable.tsx) eram bespoke — sem add/edit/delete na linha, sem filtros, sem paginação — e a página esquecia o namespace 'database', deixando cabeçalhos/filtros em inglês para locales não-EN",
+      "prompt": "Gere a página Next.js (Pages Router) my-app/pages/crm/contacts.tsx que renderiza o ContactsTableScreen dentro do shell do CRM, com withAuth e getServerSideProps. O CRUD inline (criar/editar/excluir soft-delete), filtros e paginação devem vir do GenericTabbedView — não recodifique uma <table>. A página DEVE carregar o namespace 'database' (além de 'common' e 'crm') no serverSideTranslations, senão cabeçalhos e filtros caem em inglês.",
+      "target_files": [
+        "my-app/pages/crm/contacts.tsx"
+      ],
+      "assertions": [
+        "@contacts.tsx::ast-jsx:ContactsTableScreen",
+        "@contacts.tsx::regex:serverSideTranslations\\([\\s\\S]*['\"]database['\"]",
+        "@contacts.tsx::contains:withAuth",
+        "@contacts.tsx::contains:getServerSideProps",
+        "@contacts.tsx::absent:<table"
+      ]
+    }
+  ]
+}

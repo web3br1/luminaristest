@@ -1,8 +1,16 @@
 ---
 name: frontend-component-generator
-description: Gera React component funcional tipado com props interface, cobrindo Modals, Form fields e Cards seguindo o Galaxy theme
+description: Gera componente React funcional tipado (`export const <Name>: React.FC<<Name>Props>`) com interface de props no mesmo arquivo, em my-app/components/ ou features/, seguindo o Galaxy theme do Luminaris (tokens `neutral-*`, cards `rounded-2xl`, dark mode). Cobre cards, form fields, modals simples e componentes folha de UI. Use quando o pedido for "crie um componente/card/form field React", ao precisar de uma peça de UI reutilizável tipada — NÃO para tela de tabela (use frontend-table-screen-generator), modal canônico (frontend-modal-generator) nem board Kanban (frontend-kanban-workflow-generator). Domínio/arquivos: my-app/components/<category>/<Name>.tsx (.tsx React/Next.js Pages Router).
 argument-hint: "[NomeDoComponente] [modal|form-field|card|default]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (my-app/ com React + Next.js Pages Router + Tailwind + tsc). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-FE-COMPONENT"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Frontend Component Generator
@@ -63,13 +71,15 @@ Antes de gerar um componente, verifique se o app já tem o canônico e **reuse-o
 
 ## Generation contract
 
-1. Props interface: `interface <Name>Props { ... }` no mesmo arquivo
-2. FC: `export const <Name>: React.FC<<Name>Props> = ({ ... }) => { ... }`
-3. **Estilização: aplicar a skill `frontend-design-system`** — tokens reais: superfícies `bg-white dark:bg-neutral-900` (NÃO `zinc`), borda dark `dark:border-neutral-800`, **cards** `rounded-2xl`, labels de seção `text-[10px] uppercase tracking-widest`, `font-black` em títulos/valores. `font-semibold` e `rounded-xl` são corretos para corpo/inputs/botões. Componentes-assinatura (gauge, BANT bars, gradient header, badges) para heros/detalhe.
-4. Sempre incluir variantes dark mode: superfícies `dark:bg-neutral-900/800`, texto `dark:text-white`/`dark:text-gray-400`
-5. Modal pattern: props `isOpen: boolean`, `onClose: () => void`, `onConfirm?: () => void`
-6. Loading state: exibir `LoadingSpinner` quando `isLoading`
-7. Empty state: mensagem descritiva quando sem dados
+Cada item marcado `[FECOMP-*]` abaixo é uma REGRA DE GERAÇÃO auditável (espelha os componentes canônicos de UI do Luminaris — `GalaxyCard`, `Modal`, `feedback/*`). Gere já em conformidade.
+
+1. **[FECOMP-001]** Props interface tipada `interface <Name>Props { ... }` no mesmo arquivo — sem ela o componente não é seguro, e **zero `any`** nos tipos de props.
+2. **[FECOMP-002]** Componente funcional exportado: `export const <Name>: React.FC<<Name>Props> = ({ ... }) => { ... }` (function component, nunca class component).
+3. **[FECOMP-003]** **Galaxy theme tokens — superfícies dark com `neutral-*`, NUNCA `zinc-*`** (único sinal confiável de Tailwind genérico/off-brand): superfícies `bg-white dark:bg-neutral-900`, borda dark `dark:border-neutral-800`, **cards** `rounded-2xl`, labels de seção `text-[10px] uppercase tracking-widest`, `font-black` em títulos/valores. `font-semibold`/`rounded-xl` são corretos para corpo/inputs/botões. Aplicar a skill `frontend-design-system`.
+4. **[FECOMP-004]** Sempre incluir variantes dark mode: superfícies `dark:bg-neutral-900/800`, texto `dark:text-white`/`dark:text-gray-400`.
+5. **[FECOMP-005]** **Tipo `modal`** — props `isOpen: boolean`, `onClose: () => void`, `onConfirm?: () => void` (modal simples/folha; para modal canônico ancorado em `Modal.tsx` delegue a `frontend-modal-generator`).
+6. **[FECOMP-006]** **Tipo `form-field`/`card` com dados** — loading state via `LoadingSpinner` quando `isLoading`, e empty state com mensagem descritiva quando sem dados.
+7. **Estilização inline proibida** — sempre Tailwind classes, nunca `style={{}}`.
 
 ## Files usually created or changed
 

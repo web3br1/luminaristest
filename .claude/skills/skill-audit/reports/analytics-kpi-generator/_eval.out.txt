@@ -1,0 +1,79 @@
+===happy-1===
+// server/src/features/analytics/kpis/revenue/TicketMedioKpiProcessor.ts
+import type { AnalyticsProcessor, ChartDataPoint } from '../../core'
+import { DataSanitizer } from '../../utils/DataSanitizer'
+import { addMoney } from '../../utils/CurrencyUtils'
+import { getPeriodBoundaries, isDateWithinWindow } from '../../utils/DateUtils'
+
+export const ticketMedioKpiProcessor: AnalyticsProcessor = async (context): Promise<ChartDataPoint[]> => {
+  const { rows, params, table } = context
+  const stream = typeof context.streamRows === 'function' ? context.streamRows() : (async function* () { yield rows })()
+  let currentTotal = 0; let currentCount = 0; let previousCount = 0; let previousTotal = 0
+  for await (const batch of stream) {
+    for (const row of batch) {
+      const data = (row.data ?? row) as Record<string, unknown>
+      const amount = DataSanitizer.extractCurrency(data['totalAmount'])
+      if (!Number.isFinite(amount) || amount <= 0) continue
+      currentTotal = addMoney(currentTotal, amount); currentCount++
+    }
+  }
+  const value = currentCount > 0 ? currentTotal / currentCount : 0
+  const previousValue: number | undefined = previousCount > 0 ? previousTotal / previousCount : undefined
+  return [{ name: 'Ticket Médio', value, previousValue, recordIds: [], tableSource: (table as any).presetKey }]
+}
+
+// server/src/features/analytics/kpis/revenue/TicketMedioKpiTemplate.ts
+import type { AnalyticsTemplate } from '../../core/models'
+import { registerTemplate } from '../../core'
+export const ticketMedioKpiTemplate: AnalyticsTemplate = { key: 'revenue.ticketMedio', name: 'Ticket Médio', processor: 'revenue.ticketMedio', requiredFields: [], optionalFields: [] }
+registerTemplate(ticketMedioKpiTemplate)
+
+// server/src/features/analytics/kpis/revenue/index.ts
+import { registerProcessor } from '../../core'
+import { ticketMedioKpiProcessor } from './TicketMedioKpiProcessor'
+import './TicketMedioKpiTemplate'
+registerProcessor('revenue.ticketMedio', ticketMedioKpiProcessor)
+
+===edge-1===
+// server/src/features/analytics/kpis/revenue/TicketMedioKpiProcessor.ts
+import type { AnalyticsProcessor, ChartDataPoint } from '../../core'
+import { addMoney } from '../../utils/CurrencyUtils'
+
+export const ticketMedioKpiProcessor: AnalyticsProcessor = async (context): Promise<ChartDataPoint[]> => {
+  const { rows } = context
+  const stream = typeof context.streamRows === 'function' ? context.streamRows() : (async function* () { yield rows })()
+  let currentTotal = 0; let currentCount = 0; let previousCount = 0
+  for await (const batch of stream) {
+    for (const row of batch) {
+      const amount = Number((row.data as any)?.totalAmount)
+      if (!Number.isFinite(amount) || amount <= 0) continue
+      currentTotal = addMoney(currentTotal, amount); currentCount++
+    }
+  }
+  // rows vazios → 0 finito (nunca NaN); previousValue undefined quando não há período anterior
+  const value = currentCount > 0 ? currentTotal / currentCount : 0
+  const previousValue: number | undefined = previousCount > 0 ? currentTotal / previousCount : undefined
+  return [{ name: 'Ticket Médio', value, previousValue, recordIds: [] }]
+}
+
+===regression-1===
+// server/src/features/analytics/kpis/revenue/TicketMedioKpiProcessor.ts
+import type { AnalyticsProcessor, ChartDataPoint } from '../../core'
+import { addMoney } from '../../utils/CurrencyUtils'
+
+export const ticketMedioKpiProcessor: AnalyticsProcessor = async (context): Promise<ChartDataPoint[]> => {
+  // pure function of context — no prisma, no Express, only rows
+  const { rows } = context
+  const stream = typeof context.streamRows === 'function' ? context.streamRows() : (async function* () { yield rows })()
+  let salesTotal = 0; let salesCount = 0
+  for await (const batch of stream) {
+    for (const row of batch) {
+      const amount = Number((row.data as any)?.totalAmount)
+      if (!Number.isFinite(amount) || amount <= 0) continue
+      salesTotal = addMoney(salesTotal, amount); salesCount++
+    }
+  }
+  const value = salesCount > 0 ? salesTotal / salesCount : 0
+  const previousValue: number | undefined = undefined
+  return [{ name: 'Ticket Médio', value, previousValue, recordIds: [] }]
+}

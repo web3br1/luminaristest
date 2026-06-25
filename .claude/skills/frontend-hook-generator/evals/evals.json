@@ -1,0 +1,98 @@
+{
+  "skill": "frontend-hook-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Crie um hook React useAppointments que busca a lista de agendamentos do backend com estado de loading e erro.",
+      "assertions": [
+        "activation: a skill frontend-hook-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie o DTO Zod do recurso Appointment no backend com schemas Create/Update.",
+      "assertions": [
+        "non-activation: frontend-hook-generator NÃO deve ativar (pedido é de DTO/backend)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "FEHOOK-001",
+        "FEHOOK-002",
+        "FEHOOK-003",
+        "FEHOOK-005",
+        "FEHOOK-007"
+      ],
+      "prompt": "Gere um fetch hook useAppointments em my-app/features/appointments/hooks/useAppointments.ts. Ele deve buscar agendamentos via DynamicTableService (service layer em lib/services/dynamic-table.service), expor data/isLoading/error e um refetch, com useEffect e cleanup. Tipe respostas com interfaces locais (sem any). Saída: o conteúdo completo do arquivo.",
+      "target_files": [
+        "my-app/features/appointments/hooks/useAppointments.ts"
+      ],
+      "assertions": [
+        "regex:export\\s+(function|const)\\s+useAppointments",
+        "ast-import:DynamicTableService@dynamic-table.service",
+        "absent:from 'apiClient'",
+        "regex:const\\s*\\[\\s*isLoading\\s*,",
+        "regex:const\\s*\\[\\s*error\\s*,",
+        "regex:const\\s*\\[\\s*data\\s*,",
+        "contains:useEffect",
+        "regex:return\\s*\\(\\s*\\)\\s*=>\\s*\\{[\\s\\S]*cancelled\\s*=\\s*true",
+        "absent:any[]",
+        "regex:catch\\s*\\(\\s*e\\s*\\)"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "FEHOOK-004"
+      ],
+      "prompt": "O hook useLeadsKpis alimenta KPIs a partir de uma DynamicTable que pode ter mais de 50 registros. Gere a leitura correta dos dados para não truncar a contagem no page-size default.",
+      "target_files": [
+        "my-app/features/crm/hooks/useLeadsKpis.ts"
+      ],
+      "assertions": [
+        "regex:fetchAllRows|totalPages",
+        "absent:limit=50"
+      ]
+    },
+    {
+      "id": "state-1",
+      "type": "edge",
+      "rules": [
+        "FEHOOK-006"
+      ],
+      "prompt": "No hook useLeadsKpis, calcule os KPIs derivados (totalLeads, winRate via filter/reduce sobre a lista de leads) sem recalcular a cada render e sem embutir regra de negócio de domínio. Gere o trecho de derivação.",
+      "target_files": [
+        "my-app/features/crm/hooks/useLeadsKpis.ts"
+      ],
+      "assertions": [
+        "regex:useMemo\\s*(<[^>]+>)?\\s*\\(",
+        "regex:useMemo\\s*(<[^>]+>)?\\s*\\([\\s\\S]*\\.(filter|reduce|find|sort)\\("
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "FEHOOK-001",
+        "FEHOOK-002"
+      ],
+      "regression_of": "category-views/leads/hooks/useLeadsView.ts é o hook monolítico legacy; hooks novos devem ter prefixo use e ir pelo service layer, nunca apiClient direto",
+      "prompt": "Gere um hook focado useAppointmentsView que carrega a tabela de agendamentos pelo service layer. NÃO chame apiClient diretamente e mantenha o prefixo use.",
+      "target_files": [
+        "my-app/features/appointments/hooks/useAppointmentsView.ts"
+      ],
+      "assertions": [
+        "regex:export\\s+(function|const)\\s+useAppointmentsView",
+        "ast-import:DynamicTableService@dynamic-table.service",
+        "absent:apiClient."
+      ]
+    }
+  ]
+}

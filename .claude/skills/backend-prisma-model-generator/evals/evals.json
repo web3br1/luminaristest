@@ -1,0 +1,62 @@
+{
+  "skill": "backend-prisma-model-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Preciso de uma nova tabela no banco para o recurso Appointment, com os campos title, startsAt e status. Adicione o modelo ao schema e rode a migration.",
+      "assertions": ["activation: a skill backend-prisma-model-generator deve ser a escolhida"]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Gere o DTO Zod (Create/Update/Response) para o recurso Appointment com type guards.",
+      "assertions": ["non-activation: backend-prisma-model-generator NÃO deve ativar (pedido é de DTO Zod, camada DTO — não toca schema.prisma nem migration)"]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": ["PRISMA-001", "PRISMA-002", "PRISMA-003", "PRISMA-004", "PRISMA-005", "PRISMA-006"],
+      "prompt": "Gere APENAS o bloco do modelo Prisma para o recurso Appointment, recurso multi-tenant com soft-delete (pertence a um User). Campos de domínio: title (String), startsAt (DateTime). Saída: o bloco `model Appointment { ... }` pronto para colar em schema.prisma. NÃO rode migration.",
+      "target_files": [
+        "server/prisma/schema.prisma"
+      ],
+      "assertions": [
+        "regex:id\\s+String\\s+@id\\s+@default\\(cuid\\(\\)\\)",
+        "absent:@default(autoincrement())",
+        "regex:createdAt\\s+DateTime\\s+@default\\(now\\(\\)\\)",
+        "regex:updatedAt\\s+DateTime\\s+@updatedAt",
+        "regex:deletedAt\\s+DateTime\\?",
+        "regex:userId\\s+String",
+        "regex:user\\s+User\\s+@relation\\(fields:\\s*\\[userId\\],\\s*references:\\s*\\[id\\],\\s*onDelete:\\s*Cascade\\)",
+        "regex:@@index\\(\\[userId\\]\\)",
+        "regex:@@index\\(\\[deletedAt\\]\\)",
+        "regex:@@map\\(\"appointments\"\\)"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": ["PRISMA-004"],
+      "prompt": "Gere o bloco do modelo Prisma para o recurso SystemSetting — uma tabela GLOBAL de configuração que NÃO pertence a nenhum usuário (não é multi-tenant). Campos: key (String, único), value (String). Mantenha id cuid, timestamps, soft-delete e @@map. NÃO rode migration.",
+      "assertions": [
+        "regex:id\\s+String\\s+@id\\s+@default\\(cuid\\(\\)\\)",
+        "regex:@@map\\(\"system_settings\"\\)",
+        "absent:onDelete: Cascade"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": ["PRISMA-002"],
+      "regression_of": "modelo gerado com campo updatedAt mas SEM o atributo @updatedAt — o Prisma não atualiza o timestamp em update",
+      "prompt": "Gere o bloco de timestamps (createdAt e updatedAt) do modelo Appointment. O campo updatedAt DEVE carregar o atributo que faz o Prisma atualizá-lo automaticamente em cada update.",
+      "assertions": [
+        "regex:updatedAt\\s+DateTime\\s+@updatedAt",
+        "regex:createdAt\\s+DateTime\\s+@default\\(now\\(\\)\\)"
+      ]
+    }
+  ]
+}

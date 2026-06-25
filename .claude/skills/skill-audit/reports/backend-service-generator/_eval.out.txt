@@ -1,0 +1,97 @@
+===HAPPY===
+// server/src/features/invoices/services/InvoiceService.ts
+import type { IInvoiceRepository } from '../repositories/IInvoiceRepository';
+import type { IInvoicePolicy } from '../policies/IInvoicePolicy';
+import { CreateInvoiceDto, UpdateInvoiceDto, isCreateInvoiceDto, isUpdateInvoiceDto } from '../dtos/InvoiceDto';
+import type { IUser } from '../../users/models/User.model';
+import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../../../lib/errors';
+
+export class InvoiceService {
+  constructor(
+    private invoiceRepository: IInvoiceRepository,
+    private invoicePolicy: IInvoicePolicy
+  ) {}
+
+  public async createInvoice(data: CreateInvoiceDto, actor: IUser | null): Promise<unknown> {
+    if (!this.invoicePolicy.canCreate(actor)) {
+      throw new ForbiddenError('You are not authorized to create invoices');
+    }
+    if (!isCreateInvoiceDto(data)) {
+      throw new ValidationError('Invalid invoice creation data');
+    }
+    return this.invoiceRepository.createInvoice(data);
+  }
+
+  public async getInvoiceById(id: string, actor: IUser | null): Promise<unknown> {
+    if (!this.invoicePolicy.canView(actor, id)) {
+      throw new ForbiddenError('You are not authorized to view this invoice');
+    }
+    const invoice = await this.invoiceRepository.getInvoiceById(id);
+    if (!invoice) { throw new NotFoundError('Invoice not found'); }
+    if (!actor || invoice.ownerUserId !== actor.id) { throw new NotFoundError('Invoice not found'); }
+    return invoice;
+  }
+
+  public async getAllInvoices(actor: IUser | null, page?: number, limit?: number): Promise<unknown> {
+    if (!this.invoicePolicy.canListAll(actor)) {
+      throw new ForbiddenError('You are not authorized to list invoices');
+    }
+    return this.invoiceRepository.getAllInvoices(actor!.id, page, limit);
+  }
+
+  public async updateInvoice(id: string, data: UpdateInvoiceDto, actor: IUser | null): Promise<unknown> {
+    if (!actor) { throw new UnauthorizedError('Authentication required to update invoice'); }
+    if (!this.invoicePolicy.canUpdate(actor, id)) {
+      throw new ForbiddenError('You are not authorized to update this invoice');
+    }
+    if (!isUpdateInvoiceDto(data)) { throw new ValidationError('Invalid invoice update data'); }
+    const existing = await this.invoiceRepository.getInvoiceById(id);
+    if (!existing) { throw new NotFoundError('Invoice not found'); }
+    if (existing.ownerUserId !== actor.id) { throw new NotFoundError('Invoice not found'); }
+    return this.invoiceRepository.updateInvoice(id, data);
+  }
+
+  public async deleteInvoice(id: string, actor: IUser | null): Promise<void> {
+    if (!actor) { throw new UnauthorizedError('Authentication required to delete invoice'); }
+    if (!this.invoicePolicy.canDelete(actor, id)) {
+      throw new ForbiddenError('You are not authorized to delete this invoice');
+    }
+    const existing = await this.invoiceRepository.getInvoiceById(id);
+    if (!existing) { throw new NotFoundError('Invoice not found'); }
+    if (existing.ownerUserId !== actor.id) { throw new NotFoundError('Invoice not found'); }
+    await this.invoiceRepository.deleteInvoice(id);
+  }
+}
+
+// server/src/lib/factory.ts
+// trecho editado (registro)
+// invoice: new InvoiceRepository(),
+// invoice: new InvoicePolicy(),
+// invoice: new InvoiceService(this.repositories.invoice, this.policies.invoice),
+public getInvoiceService = (): InvoiceService => this.services.invoice;
+===EDGE===
+public async getInvoiceById(id: string, actor: IUser | null): Promise<unknown> {
+  if (!this.invoicePolicy.canView(actor, id)) {
+    throw new ForbiddenError('You are not authorized to view this invoice');
+  }
+  const invoice = await this.invoiceRepository.getInvoiceById(id);
+  if (!invoice) { throw new NotFoundError('Invoice not found'); }
+  // cross-tenant: tratar como inexistente (anti-enumeration), nunca ForbiddenError aqui
+  if (!actor || invoice.ownerUserId !== actor.id) { throw new NotFoundError('Invoice not found'); }
+  return invoice;
+}
+===REGRESSION===
+export class InvoiceService {
+  constructor(
+    private invoiceRepository: IInvoiceRepository,
+    private invoicePolicy: IInvoicePolicy
+  ) {}
+
+  public async createInvoice(data: CreateInvoiceDto, actor: IUser | null): Promise<unknown> {
+    if (!this.invoicePolicy.canCreate(actor)) {
+      throw new ForbiddenError('You are not authorized to create invoices');
+    }
+    if (!isCreateInvoiceDto(data)) { throw new ValidationError('Invalid invoice creation data'); }
+    return this.invoiceRepository.createInvoice(data);
+  }
+}

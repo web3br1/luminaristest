@@ -7,6 +7,25 @@ As regras pesadas vivem nos docs abaixo — este arquivo é só a orientação s
 - **Critério reuse-vs-bespoke:** `.claude/skills/_REUSE-CRITERION.md`
 - **Scaffolding (nomes/paths por camada):** `docs/claude-skills/GENERATION_CONTRACTS.md`
 
+## STOP — reflexo obrigatório ANTES de qualquer planejamento ou código
+
+**Onde este novo módulo/feature vive?** Esta pergunta tem resposta binária e deve ser feita antes de qualquer linha:
+
+| O dado/módulo é… | Tecnologia |
+|---|---|
+| Tabela que o usuário cria/configura em runtime (CRM, formulários, fluxos customizados) | **DynamicTable** (preset + plugin) |
+| Entidade com invariante financeiro, legal ou regulatório (contabilidade, folha, fiscal, RH) | **Prisma first-class** (Model + Service + Repo + Policy próprios) |
+
+**Se você está prestes a:**
+- Injetar qualquer serviço Prisma (`PostingService`, `PayrollService`…) em `DynamicTableService`, `RuleContext` ou `RulePlugin` → **PARE. Design errado.**
+- Modificar `DynamicTableService.ts` para integrar dois módulos → **PARE. Design errado.**
+- Modelar uma entidade contábil/legal como linha de DynamicTable → **PARE. Design errado.**
+- Fazer integração cross-módulo dentro do motor de plugins → **PARE. Isso sobe ao nível de controller/route/serviço de integração.**
+
+Regra completa + anti-padrões proibidos em `.claude/skills/_ARCHITECTURE-CONTRACT.md §2.1`.
+
+---
+
 ## Antes de escrever código — reflexo obrigatório
 
 **1. Pergunte ao codebase-memory se o canônico já existe.** Isto é o degrau "reuse antes de recriar"
@@ -18,6 +37,18 @@ As regras pesadas vivem nos docs abaixo — este arquivo é só a orientação s
 | Existe um quase-clone (ilha) que eu deveria reusar? | `semantic_query` + edges `SIMILAR_TO` / `SEMANTICALLY_RELATED` |
 | O outro lado está vivo ou é legacy? (Etapa 2) | `trace_path` (in-degree) + `change_count` / `last_modified` |
 | Qual o blast radius do meu diff antes de fechar? | `detect_changes` |
+
+> **[CBM-001] Papel do cbm — localizador estrutural, NÃO fonte de verdade.** O grafo reduz o espaço de busca
+> (símbolos, dependências, call paths, blast radius, arquitetura); a evidência final é **sempre código/teste/git**.
+> Regra dura: **nenhuma conclusão comportamental se sustenta só no grafo** — todo resultado do cbm que vira
+> afirmação sobre o que o código *faz* tem de ser confirmado lendo o arquivo (e o teste, quando aplicável).
+> Use **cbm-primeiro para localizar** ("quem chama X?", "onde isto é implementado?", "o que quebra se eu mudar Y?",
+> "qual a arquitetura deste domínio?"); use **`Read`/`Grep`/teste direto para confirmar** (condição exata,
+> string/config, o que um teste afirma, contexto integral do arquivo, geração dinâmica/reflexão). Isto **refina**
+> o hook de SessionStart ("cbm FIRST for ANY exploration"): cbm-first vale para *localização estrutural*, não para
+> busca exaustiva de call sites nem leitura de contexto integral — aí a leitura nativa ganha (evidência própria:
+> `cbm-indegree-underreports-frontend`, composição JSX não é aresta `CALLS`). `manage_adr`/`delete_project` ficam
+> fora do uso do agente; ADR/incidente são editados direto no vault de governança.
 
 **2. Reuse o canônico** listado no §0 (GenericTable, Modal, StandardPagination, AnalyticsDashboard,
 CrmPipelineService…). Bespoke só com divergência de **shape ou posse** sancionada pelo critério de reuso,

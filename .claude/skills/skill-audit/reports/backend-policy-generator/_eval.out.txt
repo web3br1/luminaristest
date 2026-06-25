@@ -1,0 +1,47 @@
+===HAPPY===
+// server/src/features/invoices/policies/IInvoicePolicy.ts
+import type { IUser } from '../../users/models/User.model';
+
+export interface IInvoicePolicy {
+  canCreate(actor: IUser | null): boolean;
+  canView(actor: IUser | null, ownerId: string): boolean;
+  canUpdate(actor: IUser | null, ownerId: string): boolean;
+  canDelete(actor: IUser | null, ownerId: string): boolean;
+  canListAll(actor: IUser | null): boolean;
+}
+
+// server/src/features/invoices/policies/InvoicePolicy.ts
+import type { IUser } from '../../users/models/User.model';
+import { Role } from '../../users/models/User.model';
+import { IInvoicePolicy } from './IInvoicePolicy';
+
+export class InvoicePolicy implements IInvoicePolicy {
+  canCreate(actor: IUser | null): boolean {
+    return !!actor;
+  }
+  canView(actor: IUser | null, ownerId: string): boolean {
+    if (!actor) return false;
+    return actor.id === ownerId || actor.role === Role.ADMIN;
+  }
+  canUpdate(actor: IUser | null, ownerId: string): boolean {
+    if (!actor) return false;
+    return actor.id === ownerId || actor.role === Role.ADMIN;
+  }
+  canDelete(actor: IUser | null, ownerId: string): boolean {
+    if (!actor) return false;
+    return actor.id === ownerId || actor.role === Role.ADMIN;
+  }
+  canListAll(actor: IUser | null): boolean {
+    return !!actor && actor.role === Role.ADMIN;
+  }
+}
+===EDGE===
+canView(actor: IUser | null, ownerId: string): boolean {
+  if (!actor) return false; // unauthenticated -> denied, no exception
+  return actor.id === ownerId || actor.role === Role.ADMIN;
+}
+===REGRESSION===
+canUpdate(actor: IUser | null, ownerId: string): boolean {
+  if (!actor) return false;
+  return actor.id === ownerId || actor.role === Role.ADMIN;
+}

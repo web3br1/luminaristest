@@ -1,0 +1,126 @@
+===happy-1===
+// my-app/features/appointments/hooks/useAppointments.ts
+import { useCallback, useEffect, useState } from 'react';
+import { DynamicTableService } from '../../../lib/services/dynamic-table.service';
+
+export interface AppointmentRecord { id: string; data: Record<string, unknown>; createdAt?: string; updatedAt?: string; }
+interface DynTable { id: string; internalName?: string; schema?: unknown; }
+interface UseAppointmentsResult { data: AppointmentRecord[]; isLoading: boolean; error: string | null; refetch: () => Promise<void>; }
+
+function resolveTable(tables: DynTable[], internalName: string): DynTable | null {
+  return tables.find((t) => t?.internalName === internalName) ?? null;
+}
+
+export function useAppointments(): UseAppointmentsResult {
+  const [data, setData] = useState<AppointmentRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (signal: { cancelled: boolean }) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const tablesRes = await DynamicTableService.getTables();
+      const tables: DynTable[] = (tablesRes?.data ?? []) as DynTable[];
+      const table = resolveTable(tables, 'appointments');
+      if (!table?.id) { if (!signal.cancelled) setData([]); return; }
+      const res = await DynamicTableService.getTableData(table.id);
+      const rows: AppointmentRecord[] = Array.isArray(res?.data) ? (res.data as AppointmentRecord[]) : [];
+      if (!signal.cancelled) setData(rows);
+    } catch (e) {
+      if (!signal.cancelled) setError(e instanceof Error ? e.message : 'Falha ao carregar agendamentos');
+    } finally {
+      if (!signal.cancelled) setIsLoading(false);
+    }
+  }, []);
+
+  const refetch = useCallback(async () => { await load({ cancelled: false }); }, [load]);
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    void load(signal);
+    return () => { signal.cancelled = true; };
+  }, [load]);
+
+  return { data, isLoading, error, refetch };
+}
+
+===edge-1===
+// my-app/features/leads/hooks/useLeadsKpis.ts
+import { useCallback, useEffect, useState } from 'react';
+import { DynamicTableService } from '../../../lib/services/dynamic-table.service';
+import { fetchAllRows, type DynamicRow } from '../../crm/lib/crmFetch';
+
+export interface LeadRecord { id: string; data: Record<string, unknown>; }
+interface DynTable { id: string; internalName?: string; }
+function resolveTable(tables: DynTable[], internalName: string): DynTable | null { return tables.find((t) => t?.internalName === internalName) ?? null; }
+
+export function useLeadsKpis() {
+  const [data, setData] = useState<LeadRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async (signal: { cancelled: boolean }) => {
+    setIsLoading(true); setError(null);
+    try {
+      const tablesRes = await DynamicTableService.getTables();
+      const tables: DynTable[] = (tablesRes?.data ?? []) as DynTable[];
+      const leadsTable = resolveTable(tables, 'leads');
+      if (!leadsTable?.id) { if (!signal.cancelled) setData([]); return; }
+      const rows: DynamicRow[] = await fetchAllRows(leadsTable.id);
+      if (!signal.cancelled) setData(rows as LeadRecord[]);
+    } catch (e) { if (!signal.cancelled) setError(e instanceof Error ? e.message : 'Falha'); }
+    finally { if (!signal.cancelled) setIsLoading(false); }
+  }, []);
+  useEffect(() => { const signal = { cancelled: false }; void load(signal); return () => { signal.cancelled = true; }; }, [load]);
+  return { data, isLoading, error };
+}
+
+===state-1===
+// my-app/features/leads/hooks/useLeadsKpis.ts
+import { useMemo } from 'react';
+
+export interface LeadRecord { id: string; data: Record<string, unknown>; }
+export interface LeadsKpis { totalLeads: number; winRate: number; }
+
+function useDerivedLeadsKpis(data: LeadRecord[]): LeadsKpis {
+  return useMemo<LeadsKpis>(() => {
+    const totalLeads = data.length;
+    const won = data.filter((lead) => String(lead.data?.status ?? '') === 'Won').length;
+    const closed = data.reduce((acc, lead) => {
+      const status = String(lead.data?.status ?? '');
+      return status === 'Won' || status === 'Lost' || status === 'Disqualified' ? acc + 1 : acc;
+    }, 0);
+    const winRate = closed > 0 ? Math.round((won / closed) * 100) : 0;
+    return { totalLeads, winRate };
+  }, [data]);
+}
+
+===regression-1===
+// my-app/features/appointments/hooks/useAppointmentsView.ts
+import { useCallback, useEffect, useState } from 'react';
+import { DynamicTableService } from '../../../lib/services/dynamic-table.service';
+import { fetchAllRows, type DynamicRow } from '../../crm/lib/crmFetch';
+
+export interface AppointmentRecord { id: string; data: Record<string, unknown>; }
+interface DynTable { id: string; internalName?: string; }
+function resolveTable(tables: DynTable[], internalName: string): DynTable | null { return tables.find((t) => t?.internalName === internalName) ?? null; }
+
+export function useAppointmentsView() {
+  const [data, setData] = useState<AppointmentRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async (signal: { cancelled: boolean }) => {
+    setIsLoading(true); setError(null);
+    try {
+      const tablesRes = await DynamicTableService.getTables();
+      const tables: DynTable[] = (tablesRes?.data ?? []) as DynTable[];
+      const table = resolveTable(tables, 'appointments');
+      if (!table?.id) { if (!signal.cancelled) setData([]); return; }
+      const rows: DynamicRow[] = await fetchAllRows(table.id);
+      if (!signal.cancelled) setData(rows as AppointmentRecord[]);
+    } catch (e) { if (!signal.cancelled) setError(e instanceof Error ? e.message : 'Falha'); }
+    finally { if (!signal.cancelled) setIsLoading(false); }
+  }, []);
+  useEffect(() => { const signal = { cancelled: false }; void load(signal); return () => { signal.cancelled = true; }; }, [load]);
+  return { data, isLoading, error };
+}

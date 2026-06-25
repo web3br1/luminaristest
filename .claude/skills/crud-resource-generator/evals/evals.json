@@ -1,0 +1,89 @@
+{
+  "skill": "crud-resource-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Crie um CRUD completo para o recurso Comment (listar paginado, criar, editar, excluir) sem regra de negócio especial.",
+      "assertions": [
+        "activation: a skill crud-resource-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Implemente o lançamento de partidas dobradas no razão contábil garantindo que débitos e créditos batam por transação.",
+      "assertions": [
+        "non-activation: crud-resource-generator NÃO deve ativar (módulo com invariante contábil/regulatório = Prisma first-class via accounting, não um CRUD genérico)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "CRUD-001",
+        "CRUD-002",
+        "CRUD-003"
+      ],
+      "prompt": "Gere o CRUD completo do recurso Comment como Prisma first-class: campos body (string), authorId (string). Saída: o conteúdo de TODOS os arquivos do slice (DTO, Repository, Policy, Service, Controller, Route) e o frontend service, cada um precedido de um marcador de caminho na forma // <path>.",
+      "target_files": [
+        "server/src/features/comments/dtos/CommentDto.ts",
+        "server/src/features/comments/repositories/CommentRepository.ts",
+        "server/src/features/comments/policies/CommentPolicy.ts",
+        "server/src/features/comments/services/CommentService.ts",
+        "server/src/controllers/commentController.ts",
+        "server/src/routes/comments.ts",
+        "my-app/lib/services/comment.service.ts"
+      ],
+      "assertions": [
+        "contains:// server/src/features/comments/dtos/CommentDto.ts",
+        "contains:// server/src/features/comments/repositories/CommentRepository.ts",
+        "contains:// server/src/features/comments/policies/CommentPolicy.ts",
+        "contains:// server/src/features/comments/services/CommentService.ts",
+        "contains:// server/src/controllers/commentController.ts",
+        "contains:// server/src/routes/comments.ts",
+        "contains:// my-app/lib/services/comment.service.ts",
+        "@CommentRepository.ts::regex:findMany\\([\\s\\S]*deletedAt:\\s*null",
+        "@CommentRepository.ts::regex:update\\(\\s*\\{?\\s*[\\s\\S]*deletedAt:\\s*new Date\\(\\)",
+        "@CommentRepository.ts::absent:prisma.comment.delete(",
+        "@CommentService.ts::contains:CommentPolicy",
+        "@comment.service.ts::contains:apiClient",
+        "@comment.service.ts::absent:GenericTable"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "CRUD-001",
+        "CRUD-006"
+      ],
+      "prompt": "Para o recurso Comment, gere apenas (a) o método de exclusão e o findAll do CommentRepository e (b) o registro da rota. Saída: o trecho do repository sob // server/src/features/comments/repositories/CommentRepository.ts e o registro em middleware/auth.ts sob // server/src/middleware/auth.ts.",
+      "assertions": [
+        "contains:// server/src/middleware/auth.ts",
+        "@auth.ts::contains:'/api/comments'",
+        "@CommentRepository.ts::regex:deletedAt:\\s*new Date\\(\\)",
+        "@CommentRepository.ts::regex:where:\\s*\\{?\\s*[\\s\\S]*deletedAt:\\s*null",
+        "@CommentRepository.ts::absent:.delete("
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "CRUD-004",
+        "CRUD-005"
+      ],
+      "regression_of": "_ARCHITECTURE-CONTRACT.md §2.1 — módulo com invariante (ex.: saldo/dinheiro) roteado por DynamicTable e/ou serviço Prisma injetado no motor de plugins",
+      "prompt": "Preciso de um CRUD para Invoice com campo amount (dinheiro) que entra no saldo do cliente, e que ao salvar dispare o PostingService de contabilidade. Diga a tecnologia correta (prisma ou dynamic-table) e onde a integração com PostingService deve viver.",
+      "assertions": [
+        "contains:prisma",
+        "absent:dynamic-table",
+        "regex:(controller|route|servi[cç]o de integra[cç][aã]o)",
+        "regex:(nunca|NUNCA|Nunca|never|Never)[\\s\\S]{0,80}(DynamicTableService|RuleContext|RulePlugin)"
+      ]
+    }
+  ]
+}

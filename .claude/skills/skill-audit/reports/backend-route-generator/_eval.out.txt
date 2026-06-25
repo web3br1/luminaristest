@@ -1,0 +1,65 @@
+===happy-1===
+// server/src/routes/invoices.ts
+import { Router } from 'express';
+import { listInvoices, getInvoiceById, createInvoice, updateInvoice, deleteInvoice } from '../controllers/InvoiceController';
+
+const router = Router();
+router.get('/', listInvoices);
+router.get('/:id', getInvoiceById);
+router.post('/', createInvoice);
+router.put('/:id', updateInvoice);
+router.delete('/:id', deleteInvoice);
+
+export default router;
+
+// server/src/routes/index.ts
+import invoicesRouter from './invoices';
+router.use('/invoices', invoicesRouter);
+
+// server/src/middleware/auth.ts
+const protectedApiPaths = [
+  '/api/invoices',
+];
+
+// server/src/routes/docs.paths.ts
+/**
+ * @openapi
+ * paths:
+ *   /api/invoices:
+ *     get:
+ *       tags: [Invoices]
+ *       summary: List invoices
+ *     post:
+ *       tags: [Invoices]
+ *       summary: Create invoice
+ *   /api/invoices/{id}:
+ *     get:
+ *       summary: Get invoice by id
+ *     put:
+ *       summary: Update invoice
+ *     delete:
+ *       summary: Delete invoice
+ * components:
+ */
+
+===edge-1===
+// server/src/routes/docs.paths.ts
+/**
+ * @openapi
+ * paths:
+ *   /api/invoices:
+ *     get:
+ *       tags: [Invoices]
+ *       summary: List invoices
+ *     post:
+ *       tags: [Invoices]
+ *       summary: Create invoice
+ * components:
+ */
+
+===regression-1===
+// server/src/middleware/auth.ts
+const protectedApiPaths = [
+  // ...existing entries...
+  '/api/invoices',
+];

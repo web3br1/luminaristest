@@ -1,0 +1,10 @@
+[
+  {
+    "rule": "DOCPROC-002",
+    "corrected": "regression-1: `absent:new OpenAI(` tropeçava no comentário 'não new OpenAI()'. Trocado por `contains:generateEmbeddings` (reusa o service injetado em vez de instanciar OpenAI/chunking).",
+    "assertion": "contains:generateEmbeddings",
+    "file": "chunk.ts",
+    "good": "const vectors = await deps.processingService.generateEmbeddings(chunks);",
+    "bad": "const client = new OpenAI(); const vectors = await client.embeddings.create({ input: chunks });"
+  }
+]

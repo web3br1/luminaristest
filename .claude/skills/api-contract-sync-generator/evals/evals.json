@@ -1,0 +1,81 @@
+{
+  "skill": "api-contract-sync-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "O DTO de Invoice ganhou um campo novo no backend e o frontend service em my-app/lib/services/invoice.service.ts não reflete isso. Sincronize o contrato.",
+      "assertions": [
+        "activation: a skill api-contract-sync-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Adicione uma nova migration Prisma criando a tabela Invoice com os campos number e amount.",
+      "assertions": [
+        "non-activation: api-contract-sync-generator NÃO deve ativar (pedido é de schema/migration Prisma, não de alinhamento de contrato frontend↔backend)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "SYNC-001",
+        "SYNC-003",
+        "SYNC-004",
+        "SYNC-005",
+        "SYNC-006"
+      ],
+      "prompt": "Para o recurso Invoice, emita o par de contrato alinhado: o lado backend (rota Express POST /invoices em server/src/routes/invoice.ts + DTO Zod em server/src/features/invoices/dtos/InvoiceDto.ts com CreateInvoiceSchema/UpdateInvoiceSchema dos campos number:string, amount:number, dueDate:string, status enum) E o frontend service correspondente em my-app/lib/services/invoice.service.ts (apiClient, tipos LOCAIS de my-app/types/Invoice, zero any, método createInvoice no mesmo path/verbo). Separe cada arquivo com um marcador de comentário `// <caminho>` na primeira linha do bloco do arquivo.",
+      "target_files": [
+        "server/src/routes/invoice.ts",
+        "server/src/features/invoices/dtos/InvoiceDto.ts",
+        "my-app/lib/services/invoice.service.ts"
+      ],
+      "assertions": [
+        "contains:// server/src/routes/invoice.ts",
+        "contains:// server/src/features/invoices/dtos/InvoiceDto.ts",
+        "contains:// my-app/lib/services/invoice.service.ts",
+        "@InvoiceDto.ts::regex:CreateInvoiceSchema\\s*=\\s*z\\.object\\(",
+        "@InvoiceDto.ts::regex:UpdateInvoiceSchema\\s*=\\s*CreateInvoiceSchema\\.partial\\(\\)",
+        "@routes/invoice.ts::regex:router\\.post\\(",
+        "@invoice.service.ts::contains:apiClient",
+        "@invoice.service.ts::regex:apiClient\\.post\\b[\\s\\S]*?['\"]/invoices['\"]",
+        "@invoice.service.ts::regex:import[\\s\\S]*?from\\s+['\"][^'\"]*types/Invoice['\"]",
+        "@invoice.service.ts::absent: any",
+        "@invoice.service.ts::absent:from '../../../server",
+        "@invoice.service.ts::regex:\\{\\s*success[\\s\\S]*?data"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "SYNC-002"
+      ],
+      "prompt": "O frontend service de Invoice estava enviando um campo internalNote que NÃO existe no CreateInvoiceSchema do DTO backend (apenas number, amount, dueDate, status existem). Corrija o payload do método createInvoice para não enviar campos fora do DTO.",
+      "assertions": [
+        "absent:internalNote",
+        "regex:(number|amount|dueDate|status)"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "SYNC-001",
+        "SYNC-005"
+      ],
+      "regression_of": "frontend do CRM (crm.service.ts) é anti-exemplo — divergia do DTO e/ou acoplava tipos; o par users é o modelo correto (espelhar 1:1, tipos locais)",
+      "prompt": "Gere apenas a interface de payload de update do frontend service de Invoice espelhando UpdateInvoiceSchema (Create.partial()). Use tipo LOCAL de my-app/types/Invoice — não importe nada de server/ e não use any.",
+      "assertions": [
+        "regex:(export type|export interface)[\\s\\S]*?Invoice",
+        "absent:from '../../../server",
+        "absent: any"
+      ]
+    }
+  ]
+}

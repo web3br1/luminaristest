@@ -1,0 +1,18 @@
+[
+  {
+    "rule": "FEPAGE-001",
+    "corrected": "happy/regression: `ast-import:AppointmentsView` falhava — a página compõe a View via dynamic(()=>import()), que não é ImportDeclaration estática. Trocado por regex de dynamic-import compose.",
+    "assertion": "regex:dynamic\\([\\s\\S]*import\\([\\s\\S]*AppointmentsView",
+    "file": "chunk.tsx",
+    "good": "const AppointmentsView = dynamic(() => import('../../features/x/AppointmentsView'), { ssr: false });",
+    "bad": "import { AppointmentsView } from '../../features/x/AppointmentsView';"
+  },
+  {
+    "rule": "FEPAGE-002",
+    "corrected": "edge-1: `absent:[id]` tropeçava no comentário 'NÃO uma rota [id].tsx'. Trocado por `absent:router.query` (acesso real a param de detalhe).",
+    "assertion": "absent:router.query",
+    "file": "chunk.tsx",
+    "good": "// detalhe é modal, não rota [id]\n  const V = dynamic(() => import('./LeadsView'));",
+    "bad": "const id = router.query.id; const lead = useLead(id);"
+  }
+]

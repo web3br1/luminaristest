@@ -1,0 +1,48 @@
+{
+  "skill": "fixture",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [
+        "VMS-001"
+      ],
+      "prompt": "pedido que ativa",
+      "assertions": [
+        "ativa"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "pedido que NÃO ativa",
+      "assertions": [
+        "nao ativa"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "VMS-001"
+      ],
+      "prompt": "caminho feliz",
+      "expected_output": "ok",
+      "assertions": [
+        "gerou ok"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "VMS-001"
+      ],
+      "prompt": "borda",
+      "assertions": [
+        "trata borda"
+      ]
+    }
+  ]
+}

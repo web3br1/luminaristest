@@ -1,0 +1,26 @@
+[
+  {
+    "rule": "FEKANBAN-001",
+    "corrected": "happy-1: assumia <KanbanColumn>; o padrão canônico (CrmPipelineBoard) monta colunas locais com useDroppable+SortableContext sob DndContext. Trocado pelo primitivo dnd-kit real.",
+    "assertion": "ast-jsx:DndContext",
+    "file": "chunk.tsx",
+    "good": "export const B = () => <DndContext onDragEnd={h}><SortableContext items={ids}>{cards}</SortableContext></DndContext>;",
+    "bad": "export const B = () => <div className=\"flex gap-4 overflow-x-auto\">{cards}</div>;"
+  },
+  {
+    "rule": "FEKANBAN-003",
+    "corrected": "edge-1: `absent:updateRecord` tropeçava no comentário 'NÃO updateRecord parcial'. Trocado por `absent:updateRecord(` (a CHAMADA, não a palavra).",
+    "assertion": "absent:updateRecord(",
+    "file": "chunk.ts",
+    "good": "// transição atômica, NÃO updateRecord parcial\n  await OrdersService.advanceStage(x);",
+    "bad": "await DynamicTableService.updateRecord(id, { stageId });"
+  },
+  {
+    "rule": "FEKANBAN-001r",
+    "corrected": "regression-1: `absent:overflow-x-auto` falhava — o board canônico USA overflow-x-auto (scroll de colunas) E tem drag real. Anti-padrão é board estático SEM DndContext.",
+    "assertion": "regex:DndContext[\\s\\S]*onDragEnd",
+    "file": "chunk.tsx",
+    "good": "<div className=\"flex overflow-x-auto\"><DndContext onDragEnd={h}>{cols}</DndContext></div>",
+    "bad": "<div className=\"flex overflow-x-auto\">{cols.map((c) => <div>{c}</div>)}</div>"
+  }
+]

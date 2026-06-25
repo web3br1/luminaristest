@@ -73,14 +73,57 @@ Route → Controller → Service → Repository → Prisma
 - [ ] **Money:** acumular com `addMoney()` (nunca `+=` — float drift); excluir negativos e status configurados; `previousValue = count>0 ? total/count : undefined` (**undefined quando sem dados, nunca 0**). Single-pass: iterar `rows` uma vez só.
 - [ ] **Escritas via agente de chat** retornam `{ status: 'PROPOSED', proposalId }` — nunca escrevem direto no banco.
 
-### 2.1 Limites da plataforma DynamicTable (caminho de dinheiro / unicidade / hierarquia)
+### 2.1 DynamicTable vs Módulos ERP first-class Prisma — fronteira inviolável
+
+> **Esta seção é gate obrigatório antes de qualquer decisão de onde um novo módulo ou integração vai viver.**
+
+#### O que é DynamicTable
+
+DynamicTable é um **motor de tabelas definidas pelo usuário em tempo de execução.** O operador do negócio cria uma tabela, define campos, e usa. O dado mora em `DynamicTableData.data: Json`. Presets (Vendas, Agendamentos, Produtos…) são tabelas DynamicTable pré-configuradas — o motor por baixo é o mesmo. Plugins (`SalesPlugin`, `AppointmentsPlugin`…) adicionam lógica de domínio *sobre* esses dados dinâmicos.
+
+**DynamicTable serve para:** CRM, formulários configuráveis pelo usuário, fluxos que o operador adapta sem código.
+
+#### O que é um módulo ERP first-class Prisma
+
+Um módulo first-class Prisma tem **tabelas definidas pelo desenvolvedor com invariantes que o banco deve garantir.** O usuário não configura o esquema — ele opera dentro do módulo. Contabilidade (`Account`, `JournalEntry`, `Posting`) é o módulo canônico: `Σdébito = Σcrédito` exige inteiros reais, `@@unique` real e atomicidade de transação real — impossível em `data: Json`.
+
+**Módulos first-class servem para:** Contabilidade, Folha de Pagamento, Fiscal/NF-e, RH, qualquer domínio com invariantes financeiros/legais/regulatórios.
+
+#### Teste de decisão (obrigatório antes de modelar qualquer novo módulo)
+
+| Pergunta | Sim → |
+|---|---|
+| O usuário cria ou configura o esquema em runtime? | DynamicTable |
+| Tem invariante financeiro/legal que o banco deve garantir? | Prisma first-class |
+| A integridade depende de `@@unique`, FK ou tipos reais? | Prisma first-class |
+| É dado de infraestrutura do negócio (não configurável pelo usuário)? | Prisma first-class |
+
+Em caso de dúvida: **Prisma first-class.** DynamicTable é exceção justificada, não default.
+
+#### ANTI-PADRÕES PROIBIDOS — gate reprovado se qualquer um aparecer
+
+> Cada regra tem **ID estável** (`AC-2.1-Bn`), referenciado pelos `governance.md` das skills e verificado pelo `skill-audit governance-check`. Não renumere IDs existentes — são chave de enforcement.
+
+- [ ] **[AC-2.1-B1] NUNCA injete um serviço Prisma first-class (`PostingService`, `PayrollService`, etc.) dentro de `DynamicTableService`, `RuleContext` ou qualquer `RulePlugin`.** Integração entre os dois mundos não acontece dentro do motor DynamicTable.
+- [ ] **[AC-2.1-B2] NUNCA modele uma entidade financeira, legal ou regulatória como linha de DynamicTable.** `JournalEntry`, `Posting`, `PayrollEntry`, `FiscalDocument` são Prisma first-class — ponto final.
+- [ ] **[AC-2.1-B3] NUNCA use preset DynamicTable como camada de persistência de módulo ERP.** O preset é UI/entrada; o dado autoritativo fica nas tabelas Prisma do módulo.
+- [ ] **[AC-2.1-B4] NUNCA modifique `DynamicTableService.ts` para acomodar integração cross-módulo.** Se você está editando `DynamicTableService` para conectar dois domínios, o design está errado — pare e redesenhe.
+- [ ] **[AC-2.1-B5] NUNCA confie em `unique`/`compositeUnique` de preset para idempotência financeira.** É scan em JS dentro do tx (TOCTOU). Idempotência real = `@@unique` no model Prisma do módulo.
+
+#### Onde a integração entre DynamicTable e módulos Prisma deve acontecer
+
+A integração (ex.: "venda finalizada → lançamento contábil") sobe ao **nível de aplicação** — controller, route handler, ou serviço de integração dedicado — nunca dentro do motor DynamicTable. O módulo Prisma first-class expõe sua própria API/rota; quem orquestra decide quando chamá-la.
+
+---
+
+### 2.2 Limites da plataforma DynamicTable (caminho de dinheiro / unicidade / hierarquia)
 
 Toda linha de DynamicTable mora em `DynamicTableData.data Json` sobre **SQLite**. Isso impõe quatro limites que **nenhuma skill remove** — assumir o contrário foi o que furou o primeiro plano do módulo de Contabilidade. Respeite-os ou o gate reprova:
 
-- [ ] **Dinheiro = inteiro em centavos** (`numberFormat:'integer'`), nunca decimal/float. Não existe tipo Decimal; `number` é IEEE-754 e `0.1+0.2` deriva. Invariantes monetários (ex.: `Σdébito=Σcrédito` de um razão) são **igualdade inteira exata, sem epsilon**. (A linha "Money/`addMoney()`" da §2 continua valendo para somatórios de **exibição**; centavos é para **armazenamento** e para qualquer **invariante de fechamento**.)
-- [ ] **`unique`/`compositeUnique` de preset NÃO é constraint de banco.** É um scan `json_extract` em app-layer dentro do tx (TOCTOU) — pega re-post já commitado, **não** pega dois writes concorrentes da mesma chave. Para idempotência (ex.: `unique(sourceType,sourceId)`), use `compositeUnique` + check no service e **nomeie o teto** com um comentário `ponytail:`. Upgrade = promover a model Prisma com `@@unique` real — que **porém** perde o path de lentes schema-driven (`@@PRESET_TABLE_KEY::`), então é trade-off, não upgrade grátis. Não trate como garantia de corrida.
-- [ ] **Sem self-relation provada.** Nenhum preset aponta uma `relation` para a **própria** tabela; a resolução self-`@@PRESET_TABLE_KEY` é não-testada e não há componente de árvore no frontend (`GenericTable` é plano). Modele hierarquia por **chave codificada** (`1.1.2` → pai = prefixo do code), não por `parentId` auto-relacional; renderize com `GenericTabbedView` plano indentado pela profundidade do code. Relations **cross-table** (por id) continuam normais/provadas.
-- [ ] **Soft-delete ignora `immutableAfter`/`lifecycle`.** Esses guards declarativos só rodam em `updateTableData`, **não** em `deleteTableData`. Tornar um registro postado/terminal de fato imutável exige guarda de status na **camada de serviço** (ou `deleteConstraints` RESTRICT no pai) — o edit-block sozinho não cobre o delete.
+- [ ] **[AC-2.2-1] Dinheiro = inteiro em centavos** (`numberFormat:'integer'`), nunca decimal/float. Não existe tipo Decimal; `number` é IEEE-754 e `0.1+0.2` deriva. Invariantes monetários (ex.: `Σdébito=Σcrédito` de um razão) são **igualdade inteira exata, sem epsilon**. (A linha "Money/`addMoney()`" da §2 continua valendo para somatórios de **exibição**; centavos é para **armazenamento** e para qualquer **invariante de fechamento**.)
+- [ ] **[AC-2.2-2] `unique`/`compositeUnique` de preset NÃO é constraint de banco.** É um scan `json_extract` em app-layer dentro do tx (TOCTOU) — pega re-post já commitado, **não** pega dois writes concorrentes da mesma chave. Para idempotência (ex.: `unique(sourceType,sourceId)`), use `compositeUnique` + check no service e **nomeie o teto** com um comentário `ponytail:`. Upgrade = promover a model Prisma com `@@unique` real — que **porém** perde o path de lentes schema-driven (`@@PRESET_TABLE_KEY::`), então é trade-off, não upgrade grátis. Não trate como garantia de corrida.
+- [ ] **[AC-2.2-3] Sem self-relation provada.** Nenhum preset aponta uma `relation` para a **própria** tabela; a resolução self-`@@PRESET_TABLE_KEY` é não-testada e não há componente de árvore no frontend (`GenericTable` é plano). Modele hierarquia por **chave codificada** (`1.1.2` → pai = prefixo do code), não por `parentId` auto-relacional; renderize com `GenericTabbedView` plano indentado pela profundidade do code. Relations **cross-table** (por id) continuam normais/provadas.
+- [ ] **[AC-2.2-4] Soft-delete ignora `immutableAfter`/`lifecycle`.** Esses guards declarativos só rodam em `updateTableData`, **não** em `deleteTableData`. Tornar um registro postado/terminal de fato imutável exige guarda de status na **camada de serviço** (ou `deleteConstraints` RESTRICT no pai) — o edit-block sozinho não cobre o delete.
 
 > Evidência de grafo (2026-06-22): money em `data Json`/SQLite sem Decimal; `unique` enforced via `countByFieldValue`/`findAllDataByTableId` em JS dentro do tx; zero preset com self-relation; `deleteTableData` não consulta `immutableAfter`. Detalhe na memória `dynamictable-money-and-uniqueness-limits`.
 

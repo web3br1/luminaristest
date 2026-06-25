@@ -1,8 +1,16 @@
 ---
 name: frontend-table-screen-generator
-description: Gera tela de listagem/tabela de registros reusando o stack canônico GenericTabbedView (CRUD inline, filtros, paginação, soft-delete) — em vez de uma tabela bespoke sem botões/widgets
+description: Gera uma tela de listagem/tabela de registros de uma DynamicTable reusando o stack canônico `GenericTabbedView` (→ `GenericTable`/`GenericRow`/`RowActionsCell` + `GenericFilterBar` + `StandardPagination`) — CRUD inline (criar/editar/excluir), filtros, ordenação, paginação e soft-delete já de fábrica, em vez de uma `<table>` bespoke sem botões/widgets. Use quando o pedido for "tabela de X", "listagem de Y", "grid de registros", "tela de cadastros", ou ao substituir uma tabela estática/read-only por uma tela canônica. Domínio/arquivos: `my-app/features/<module>/components/<Name>TableScreen.tsx` + `my-app/pages/<module>/<name>.tsx` + locales. NÃO é para board por etapa (use `frontend-kanban-workflow-generator`) nem para detalhe/edição em modal (use `frontend-modal-generator`).
 argument-hint: "[nome-do-modulo] [internalName-da-tabela]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (my-app/ com React + Next.js Pages Router + tsc). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-FE-TABLE"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Frontend Table Screen Generator
@@ -56,15 +64,14 @@ my-app/features/crm/components/RecordTable.tsx (DELETADO)                       
 
 ## Generation contract
 
-1. **Wrapper component** `my-app/features/<module>/components/<Name>TableScreen.tsx` — `export function <Name>TableScreen({ internalName, titleKey, descriptionKey })`:
-   - Resolve a `IDynamicTable` (com schema) por `internalName` via `DynamicTableService.getTables()` → `tables.find(x => x.internalName === internalName || x.name === '<Human Name>')` (mantém `internalName` como chave primária; **nunca** `[0]`). `useMemo` na resolução.
-   - Estados: loading, error, e **não-instalada** (tabela ausente → mensagem on-brand, não crash).
-   - Renderiza `<GenericTabbedView tables={[table]} title={t(titleKey)} description={t(descriptionKey)} />`. NÃO escreva `<table>` próprio — todo o CRUD/filtros/paginação/relation-lookups vêm do `GenericTabbedView`.
-2. **Página** `my-app/pages/<module>/<name>.tsx` — `<CrmLayout/Shell><…TableScreen/></Shell>` (ou o shell do módulo). `withAuth` + `getServerSideProps`.
-3. **i18n (lição crítica):** o `GenericTabbedView` usa o namespace **`database`** (cabeçalhos de coluna, filtros, sort, nome da aba = `t('database:fields.*')`, `t('database:tables.*')`). A página DEVE carregar `serverSideTranslations(locale, ['common', '<namespace>', 'database'])` — **sem `database`, usuários não-EN veem cabeçalhos/filtros em inglês** (bug silencioso que o `tsc` não pega).
-4. **CRUD vem de graça** do stack — não recodifique: criar = `FloatingActionButton` (modal `DynamicForm` → `createRecord`); editar = `EditRecordButton` via `RowActionsCell` (→ `updateRecord`); excluir = `ConfirmDeleteModal` (soft-delete → `deleteRecord`).
-5. **Leitura paginada (fetch-all):** o `useTableData` canônico já busca todas as páginas (limit=200 até `totalPages`). Validar com **>50 registros** (sem isso a lista truncava em 50).
-6. Design system: `neutral`, cards `rounded-2xl`, dark mode; container full-height herdado do shell (sem `max-w-*`).
+Cada item marcado `[FETABLE-*]` abaixo é uma REGRA DE GERAÇÃO auditável (ancora no wrapper canônico `GenericTabbedView` e na golden ref verificada `CrmTableScreen.tsx`). Gere já em conformidade.
+
+1. **[FETABLE-001]** **Reusa o stack canônico `GenericTabbedView` — nunca uma `<table>` bespoke.** O **wrapper component** `my-app/features/<module>/components/<Name>TableScreen.tsx` — `export function <Name>TableScreen({ internalName, titleKey, descriptionKey })` — importa `GenericTabbedView` de `features/dashboard/category-views/shared/GenericTabbedView` e renderiza `<GenericTabbedView tables={[table]} title={t(titleKey)} description={t(descriptionKey)} />`. **NUNCA** escreva uma `<table>`/grid próprio — todo o CRUD/filtros/sort/paginação/relation-lookups vêm do `GenericTabbedView`.
+2. **[FETABLE-002]** **Resolve a `IDynamicTable` por `internalName` (com fallback de nome), nunca `[0]`.** Via `DynamicTableService.getTables()` → `tables.find(x => x.internalName === internalName || x.name === '<Human Name>')` (mantém `internalName` como chave primária; a ordem da API varia, então **nunca** `[0]`). `useMemo` na resolução.
+3. **[FETABLE-003]** **Estados loading / error / tabela-não-instalada tratados.** Tabela ausente → mensagem on-brand (não crash); loading e error com UI própria antes de montar o `GenericTabbedView`.
+4. **[FETABLE-004]** **CRUD inline + filtros + paginação vêm de graça do stack — não recodifique.** Criar = `FloatingActionButton` (modal `DynamicForm` → `createRecord`); editar = `EditRecordButton` via `RowActionsCell` (→ `updateRecord`); excluir = `ConfirmDeleteModal` (**soft-delete** → `deleteRecord`); filtros = `GenericFilterBar`; paginação = `StandardPagination` (25/pg).
+5. **[FETABLE-005]** **Página carrega o namespace `database` em `serverSideTranslations`.** A **página** `my-app/pages/<module>/<name>.tsx` (`<Shell><…TableScreen/></Shell>` + `withAuth` + `getServerSideProps`) DEVE carregar `serverSideTranslations(locale, ['common', '<namespace>', 'database'])`. O `GenericTabbedView` usa o namespace **`database`** (cabeçalhos de coluna/filtros/sort/aba); **sem `database`, usuários não-EN veem tudo em inglês** — bug silencioso que o `tsc` não pega.
+6. **[FETABLE-006]** **Leitura paginada (fetch-all) + Galaxy theme.** O `useTableData` canônico já busca todas as páginas (limit=200 até `totalPages`); validar com **>50 registros** (sem isso a lista truncava em 50). Design system: `neutral` (**nunca** `zinc-*`), cards `rounded-2xl`, dark mode; container full-height herdado do shell (sem `max-w-*`).
 
 ## Checklist obrigatório — Table Screen
 

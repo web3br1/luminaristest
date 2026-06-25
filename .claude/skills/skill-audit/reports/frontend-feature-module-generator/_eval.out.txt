@@ -1,0 +1,90 @@
+===happy-1===
+// features/dashboard/category-views/appointments/index.ts
+export { AppointmentsView } from './AppointmentsView'
+
+// features/dashboard/category-views/appointments/AppointmentsView.tsx
+import { useMemo } from 'react'
+import { useTranslation } from 'next-i18next'
+import { useAppointmentsData } from './hooks/useAppointmentsData'
+
+export function AppointmentsView() {
+  const { t } = useTranslation('common')
+  const { data, isLoading, error, refetch } = useAppointmentsData()
+  const rows = useMemo(() => data ?? [], [data])
+  if (isLoading) return <div className="flex h-full w-full items-center justify-center text-neutral-400">{t('appointments.loading', 'Carregando...')}</div>
+  if (error) return <div className="flex h-full w-full flex-col items-center justify-center gap-4 text-neutral-300"><p className="text-sm text-red-400">{t('appointments.error', 'Falha.')}</p><button type="button" onClick={() => refetch()} className="rounded-2xl border border-neutral-700 px-4 py-2 text-sm text-neutral-200">{t('common.retry', 'Tentar novamente')}</button></div>
+  return (
+    <div className="flex h-full w-full flex-col">
+      <header className="flex items-center justify-between px-6 py-4"><h1 className="text-xl font-medium text-neutral-100">{t('appointments.title', 'Agendamentos')}</h1></header>
+      <div className="flex-1 overflow-auto px-6 pb-6">
+        {rows.length === 0 ? <p className="text-sm text-neutral-400">{t('appointments.empty', 'Nenhum.')}</p> : <ul className="flex flex-col gap-2">{rows.map((row) => <li key={row.id} className="rounded-2xl border border-neutral-800 bg-neutral-900/40 px-4 py-3 text-sm text-neutral-200">{row.title}</li>)}</ul>}
+      </div>
+    </div>
+  )
+}
+
+// features/dashboard/category-views/appointments/hooks/useAppointmentsData.ts
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'next-i18next'
+import { appointmentsService } from '../../../../../lib/services/appointments.service'
+
+export interface AppointmentRow { id: string; title: string }
+export interface UseAppointmentsDataResult { data: AppointmentRow[] | null; isLoading: boolean; error: string | null; refetch: () => Promise<void> }
+
+export function useAppointmentsData(): UseAppointmentsDataResult {
+  const { t } = useTranslation('common')
+  const [data, setData] = useState<AppointmentRow[] | null>(null)
+  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const fetchData = useCallback(async () => {
+    setIsLoading(true); setError(null)
+    try { const rows = await appointmentsService.list(); setData(rows) }
+    catch { setError(t('appointments.error', 'Falha.')) }
+    finally { setIsLoading(false) }
+  }, [t])
+  useEffect(() => { void fetchData() }, [fetchData])
+  return { data, isLoading, error, refetch: fetchData }
+}
+
+===edge-1===
+// features/dashboard/category-views/appointments/hooks/useAppointmentsData.ts
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'next-i18next'
+import { DynamicTableService } from '../../../../../lib/services/dynamicTable.service'
+
+export interface AppointmentRow { id: string; [key: string]: unknown }
+export interface UseAppointmentsDataResult { data: AppointmentRow[] | null; isLoading: boolean; error: string | null; refetch: () => Promise<void> }
+
+export function useAppointmentsData(): UseAppointmentsDataResult {
+  const { t } = useTranslation('common')
+  const [data, setData] = useState<AppointmentRow[] | null>(null)
+  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const fetchData = useCallback(async () => {
+    setIsLoading(true); setError(null)
+    try { const rows = await DynamicTableService.getRows('appointments'); setData(rows as AppointmentRow[]) }
+    catch { setError(t('appointments.error', 'Falha.')) }
+    finally { setIsLoading(false) }
+  }, [t])
+  useEffect(() => { void fetchData() }, [fetchData])
+  return { data, isLoading, error, refetch: fetchData }
+}
+
+===regression-1===
+// features/dashboard/category-views/appointments/AppointmentsView.tsx
+import { useMemo } from 'react'
+import { useTranslation } from 'next-i18next'
+import { useAppointmentsData } from './hooks/useAppointmentsData'
+
+export function AppointmentsView() {
+  const { t } = useTranslation('common')
+  const { data, isLoading, error, refetch } = useAppointmentsData()
+  const rows = useMemo(() => data ?? [], [data])
+  if (isLoading) return <div className="flex h-full w-full items-center justify-center text-neutral-400">{t('appointments.loading', 'Carregando...')}</div>
+  if (error) return <div className="flex h-full w-full flex-col items-center justify-center gap-4"><button type="button" onClick={() => refetch()} className="rounded-2xl border border-neutral-700 px-4 py-2">{t('common.retry', 'Tentar novamente')}</button></div>
+  return (
+    <div className="flex h-full w-full flex-col">
+      <ul className="flex flex-col gap-2">{rows.map((row) => <li key={row.id} className="rounded-2xl border border-neutral-800 px-4 py-3 text-neutral-200">{row.title}</li>)}</ul>
+    </div>
+  )
+}

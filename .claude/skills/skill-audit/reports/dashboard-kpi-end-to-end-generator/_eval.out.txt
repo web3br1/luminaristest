@@ -1,0 +1,133 @@
+===happy-1===
+// server/src/features/analytics/kpis/revenue/TicketMedioKpiProcessor.ts
+import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
+import { DataSanitizer } from '../../utils/DataSanitizer';
+import { addMoney } from '../../utils/CurrencyUtils';
+
+export const ticketMedioKpiProcessor: AnalyticsProcessor = async (context): Promise<ChartDataPoint[]> => {
+  const { rows, params, table } = context;
+  const amountField = (params.amountField as string | undefined) ?? 'totalAmount';
+  let grossRevenueCents = 0;
+  let salesCount = 0;
+  let prevGrossRevenueCents = 0;
+  let prevSalesCount = 0;
+  const ticketIds: string[] = [];
+  const stream = typeof context.streamRows === 'function' ? context.streamRows() : (async function* () { yield rows; })();
+  for await (const batch of stream) {
+    for (const row of batch) {
+      const data = row.data || {};
+      const rawAmount = DataSanitizer.extractCurrency(data[amountField]);
+      if (!Number.isFinite(rawAmount) || rawAmount <= 0) continue;
+      const cents = Math.round(rawAmount * 100);
+      grossRevenueCents = addMoney(grossRevenueCents, cents);
+      salesCount += 1;
+      ticketIds.push(row.id);
+    }
+  }
+  const ticketMedio = salesCount > 0 ? (grossRevenueCents / salesCount) / 100 : 0;
+  const prevTicketMedio: number | undefined = prevSalesCount > 0 ? (prevGrossRevenueCents / prevSalesCount) / 100 : undefined;
+  return [{ name: 'Ticket Médio', value: ticketMedio, previousValue: prevTicketMedio, recordIds: ticketIds, tableSource: table.presetKey }];
+};
+
+// server/src/features/analytics/kpis/revenue/TicketMedioKpiTemplate.ts
+import type { AnalyticsTemplate } from '../../core/models';
+import { registerTemplate } from '../../core';
+
+export const ticketMedioKpiTemplate: AnalyticsTemplate = {
+  key: 'ticketMedioKpi',
+  name: 'Ticket Médio',
+  processor: 'ticketMedioKpi',
+  requiredFields: [],
+  optionalFields: [],
+  defaultOptions: {},
+  defaultParams: {},
+};
+registerTemplate(ticketMedioKpiTemplate);
+
+// server/src/features/analytics/kpis/revenue/index.ts
+import { registerProcessor } from '../../core';
+import { ticketMedioKpiProcessor } from './TicketMedioKpiProcessor';
+registerProcessor('ticketMedioKpi', ticketMedioKpiProcessor);
+import './TicketMedioKpiTemplate';
+
+// my-app/features/analytics/hooks/useTicketMedioKpi.ts
+import { useCallback, useEffect, useState } from 'react';
+import { analyticsService } from '@/lib/services/analytics.service';
+
+export interface TicketMedioKpi { value: number; previousValue?: number; trend: 'up' | 'down' | 'flat'; sparkline: number[]; }
+
+export function useTicketMedioKpi(tableId: string) {
+  const [data, setData] = useState<TicketMedioKpi | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    if (!tableId) return;
+    setIsLoading(true); setError(null);
+    try {
+      const res = await analyticsService.getDiscoverData(tableId, 'template=ticketMedioKpi');
+      const points = (res?.rows ?? []) as Array<{ name: string; value: number; previousValue?: number }>;
+      const point = points[0];
+      if (point) setData({ value: point.value, previousValue: point.previousValue, trend: 'flat', sparkline: [] });
+    } catch (e) { setError(e instanceof Error ? e.message : 'Erro'); }
+    finally { setIsLoading(false); }
+  }, [tableId]);
+  useEffect(() => { void load(); }, [load]);
+  return { data, isLoading, error, refetch: load };
+}
+
+// my-app/features/analytics/components/TicketMedioKpiCard.tsx
+import DashboardKpiCard from '@/features/dashboard/category-views/finance/components/analytics/dashboard/DashboardKpiCard';
+import { useTicketMedioKpi } from '../hooks/useTicketMedioKpi';
+
+interface TicketMedioKpiCardProps { tableId: string; }
+
+export default function TicketMedioKpiCard({ tableId }: TicketMedioKpiCardProps) {
+  const { data, isLoading, error } = useTicketMedioKpi(tableId);
+  if (isLoading) return <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-100 dark:border-neutral-800 p-5 shadow-sm animate-pulse h-full" />;
+  if (error || !data) return <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-100 dark:border-neutral-800 p-5"><span className="text-neutral-400">{error ?? 'Sem dados'}</span></div>;
+  return <DashboardKpiCard title="Ticket Médio" value={String(data.value)} trend={data.trend} isCurrency sparklineData={data.sparkline} />;
+}
+
+===edge-1===
+// server/src/features/analytics/kpis/revenue/TicketMedioKpiProcessor.ts
+import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
+import { DataSanitizer } from '../../utils/DataSanitizer';
+import { addMoney } from '../../utils/CurrencyUtils';
+
+export const ticketMedioKpiProcessor: AnalyticsProcessor = async (context): Promise<ChartDataPoint[]> => {
+  const { rows, params } = context;
+  const amountField = (params.amountField as string | undefined) ?? 'totalAmount';
+  let grossRevenueCents = 0;
+  let salesCount = 0;
+  let prevGrossRevenueCents = 0;
+  let prevSalesCount = 0;
+  const stream = typeof context.streamRows === 'function' ? context.streamRows() : (async function* () { yield rows; })();
+  for await (const batch of stream) {
+    for (const row of batch) {
+      const data = row.data || {};
+      const rawAmount = DataSanitizer.extractCurrency(data[amountField]);
+      if (!Number.isFinite(rawAmount) || rawAmount <= 0) continue;
+      const cents = Math.round(rawAmount * 100);
+      grossRevenueCents = addMoney(grossRevenueCents, cents);
+      salesCount += 1;
+    }
+  }
+  // rows vazios → salesCount 0 → divisão guardada → 0 finito (nunca NaN)
+  const ticketMedio = salesCount > 0 ? (grossRevenueCents / salesCount) / 100 : 0;
+  const prevTicketMedio: number | undefined = prevSalesCount > 0 ? (prevGrossRevenueCents / prevSalesCount) / 100 : undefined;
+  return [{ name: 'Ticket Médio', value: ticketMedio, previousValue: prevTicketMedio }];
+};
+
+===regression-1===
+// my-app/features/analytics/components/TicketMedioKpiCard.tsx
+import DashboardKpiCard from '@/features/dashboard/category-views/finance/components/analytics/dashboard/DashboardKpiCard';
+import { useTicketMedioKpi } from '../hooks/useTicketMedioKpi';
+
+interface TicketMedioKpiCardProps { tableId: string; }
+
+export default function TicketMedioKpiCard({ tableId }: TicketMedioKpiCardProps) {
+  const { data, isLoading, error } = useTicketMedioKpi(tableId);
+  if (isLoading) return <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-100 dark:border-neutral-800 p-5 animate-pulse h-full" />;
+  if (error || !data) return <div className="bg-white dark:bg-neutral-900 rounded-2xl p-5"><span className="text-neutral-400">{error ?? 'Sem dados'}</span></div>;
+  return <DashboardKpiCard title="Ticket Médio" value={String(data.value)} trend={data.trend} isCurrency sparklineData={data.sparkline} />;
+}

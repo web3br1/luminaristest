@@ -1,0 +1,75 @@
+===happy-1===
+// my-app/features/crm/components/ContactsTableScreen.tsx
+import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'next-i18next';
+import GenericTabbedView from '@/features/dashboard/category-views/shared/GenericTabbedView';
+import { DynamicTableService } from '@/lib/services/dynamic-table.service';
+import type { IDynamicTable } from '@/features/dashboard/components/shared/dynamic-tables.client';
+
+interface ContactsTableScreenProps { internalName: string; titleKey: string; descriptionKey: string; }
+const HUMAN_NAME_FALLBACK = 'Contacts';
+
+export function ContactsTableScreen({ internalName, titleKey, descriptionKey }: ContactsTableScreenProps) {
+  const { t } = useTranslation(['crm', 'common', 'database']);
+  const [tables, setTables] = useState<IDynamicTable[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true; setLoading(true); setError(null);
+    DynamicTableService.getTables().then((r) => { if (active) setTables(r); }).catch((e) => { if (active) setError(String(e)); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+  const table = useMemo<IDynamicTable | undefined>(() => {
+    if (!tables) return undefined;
+    return tables.find((x) => x.internalName === internalName || x.name === HUMAN_NAME_FALLBACK);
+  }, [tables, internalName]);
+  if (loading) return <div className="flex h-full w-full items-center justify-center p-8 text-neutral-500 dark:text-neutral-400">{t('common:loading', 'Loading…')}</div>;
+  if (error) return <div className="flex h-full w-full items-center justify-center p-8"><div className="rounded-2xl border border-red-200 bg-red-50/60 p-6 text-red-700 dark:bg-red-950/30">{error}</div></div>;
+  if (!table) return <div className="flex h-full w-full items-center justify-center p-8"><div className="rounded-2xl border border-neutral-200 bg-neutral-50/60 p-8 text-center dark:border-neutral-800 dark:bg-neutral-900/40"><p className="text-lg font-semibold text-neutral-700 dark:text-neutral-200">{t('crm:contacts.notInstalledTitle', 'Contacts table not installed')}</p></div></div>;
+  return <GenericTabbedView tables={[table]} title={t(titleKey)} description={t(descriptionKey)} />;
+}
+
+export default ContactsTableScreen;
+
+===edge-1===
+// my-app/features/crm/components/ContactsTableScreen.tsx
+import { useMemo } from 'react';
+import type { IDynamicTable } from '@/features/dashboard/components/shared/dynamic-tables.client';
+const HUMAN_NAME_FALLBACK = 'Contacts';
+
+const table = useMemo<IDynamicTable | undefined>(() => {
+  if (!tables) return undefined;
+  return tables.find((x) => x.internalName === internalName || x.name === HUMAN_NAME_FALLBACK);
+}, [tables, internalName]);
+
+if (!loading && !error && !table) {
+  return (
+    <div className="flex h-full w-full items-center justify-center p-8">
+      <div className="rounded-2xl border border-neutral-200 bg-neutral-50/60 p-8 text-center dark:border-neutral-800 dark:bg-neutral-900/40">
+        <p className="text-lg font-semibold text-neutral-700 dark:text-neutral-200">{t('crm:contacts.notInstalledTitle', 'Contacts table not installed')}</p>
+      </div>
+    </div>
+  );
+}
+
+===regression-1===
+// my-app/pages/crm/contacts.tsx
+import type { GetServerSideProps, NextPage } from 'next';
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import { withAuth } from '@/lib/auth/withAuth';
+import { CrmShell } from '@/features/crm/components/CrmShell';
+import { ContactsTableScreen } from '@/features/crm/components/ContactsTableScreen';
+
+const CrmContactsPage: NextPage = () => {
+  return (
+    <CrmShell>
+      <ContactsTableScreen internalName="crmContacts" titleKey="crm:contacts.title" descriptionKey="crm:contacts.subtitle" />
+    </CrmShell>
+  );
+};
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
+  return { props: { ...(await serverSideTranslations(locale ?? 'en', ['common', 'crm', 'database'])) } };
+};
+
+export default withAuth(CrmContactsPage);

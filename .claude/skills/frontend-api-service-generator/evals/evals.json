@@ -1,0 +1,85 @@
+{
+  "skill": "frontend-api-service-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Crie um frontend service em lib/services/ que envolva o apiClient com métodos tipados para o recurso appointments, espelhando os endpoints do backend.",
+      "assertions": [
+        "activation: a skill frontend-api-service-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie o DTO Zod (Create/Update/Response) com type guards para o recurso Appointment no backend.",
+      "assertions": [
+        "non-activation: frontend-api-service-generator NÃO deve ativar (pedido é de DTO backend, não service frontend)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "FEAPI-001",
+        "FEAPI-002",
+        "FEAPI-003",
+        "FEAPI-004",
+        "FEAPI-006"
+      ],
+      "prompt": "Gere o frontend service do recurso appointments. O backend registra a rota em /api/appointments com CRUD paginado e responde com o envelope { success, data, pagination }. Saída: o conteúdo completo do arquivo my-app/lib/services/appointment.service.ts.",
+      "target_files": [
+        "my-app/lib/services/appointment.service.ts"
+      ],
+      "assertions": [
+        "ast-import:apiClient@../api/api-client",
+        "regex:export\\s+class\\s+AppointmentService",
+        "regex:static\\s+async\\s+getAll\\s*\\(",
+        "regex:Promise<\\{\\s*success:\\s*boolean;[\\s\\S]*data:",
+        "contains:pagination",
+        "contains:/api/appointments",
+        "absent:server/"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "FEAPI-004",
+        "FEAPI-005"
+      ],
+      "prompt": "No service de appointments, o backend retorna um payload de metadados dinâmico (chaves arbitrárias). Tipe esse campo sem usar any e sem importar nada de server/.",
+      "target_files": [
+        "my-app/lib/services/appointment.service.ts"
+      ],
+      "assertions": [
+        "absent:: any",
+        "absent:<any>",
+        "absent:as any",
+        "regex:Record<string,\\s*(unknown|JsonValue)>"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "FEAPI-001",
+        "FEAPI-004"
+      ],
+      "regression_of": "service que importa tipos de server/ e/ou usa fetch direto em vez de apiClient causa drift e quebra a base de URL",
+      "prompt": "Gere apenas o cabeçalho de imports e a definição de tipos locais do service de appointments. Não importe tipos do backend e não use fetch direto.",
+      "target_files": [
+        "my-app/lib/services/appointment.service.ts"
+      ],
+      "assertions": [
+        "ast-import:apiClient@../api/api-client",
+        "absent:from 'server/",
+        "absent:from \"@server",
+        "absent:fetch(",
+        "regex:type\\s+Appointment\\b"
+      ]
+    }
+  ]
+}

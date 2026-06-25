@@ -3,6 +3,14 @@ name: backend-workflow-transition-generator
 description: Gera serviço de transição de etapa/estado com efeitos colaterais (máquina de estados) que orquestra DynamicTable atomicamente — padrão CrmPipelineService.advanceStage + controller + rota + factory + teste
 argument-hint: "[NomeDoDominio] (ex: Pipeline, Order, Ticket)"
 allowed-tools: Read, Grep, Glob, Write, Edit
+metadata:
+  governance-skill-id: SKL-WORKFLOW-TRANS
+  governance-version: "1.0.0"
+  governance-status: validated
+  governance-owner: engineering
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
+  governance-doc: ./governance.md
 ---
 
 # Backend Workflow Transition Generator
@@ -99,3 +107,4 @@ cd server && npx jest features/<domain> --passWithNoTests
 - **Não coloque HTTP/Express no service** — controller formata a resposta.
 - **Não esqueça o `protectedApiPaths`** — sem isso a rota dá 401 com token válido (tsc não pega).
 - **Não duplique o engine** — leituras/escritas vão por `DynamicTableService`, não `prisma.*` direto.
+- **Não injete serviço Prisma first-class na transição** (`PostingService`, `PayrollService`…) — uma transição que precisa "também lançar na contabilidade" NÃO resolve isso dentro do `runInTransaction` do motor DynamicTable. A integração cross-módulo sobe a controller/serviço de integração; o módulo Prisma expõe a própria API. Ver `_ARCHITECTURE-CONTRACT.md §2.1`.

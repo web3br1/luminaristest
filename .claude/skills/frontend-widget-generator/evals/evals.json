@@ -1,0 +1,82 @@
+{
+  "skill": "frontend-widget-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Preciso de um novo tile para o dashboard grid que mostre o total de leads ativos, compatível com o react-grid-layout e lendo o dado já carregado pelo dashboard. Crie o widget RevenueSummaryWidget.",
+      "assertions": [
+        "activation: a skill frontend-widget-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie um modal de detalhe do lead ancorado no primitivo canônico Modal.tsx, seguindo o padrão modal-não-rota. Estado: aberto/fechado e o lead selecionado.",
+      "assertions": [
+        "non-activation: frontend-widget-generator NÃO deve ativar (pedido é de modal ancorado no Modal canônico — trabalho do frontend-modal-generator)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "FEWIDGET-001",
+        "FEWIDGET-002",
+        "FEWIDGET-003",
+        "FEWIDGET-004",
+        "FEWIDGET-005",
+        "FEWIDGET-006",
+        "FEWIDGET-007"
+      ],
+      "prompt": "Gere o widget completo RevenueSummary para o dashboard grid, espelhando AnalyticsWidget.tsx. Deve consumir os dados via DashboardDataContext (useDashboardData), tratar loading/error/empty explicitamente, ser compatível com react-grid-layout e usar o Galaxy theme (neutral/lumi-*). Saída: o conteúdo completo do arquivo RevenueSummaryWidget.tsx (um único arquivo TSX).",
+      "target_files": [
+        "my-app/components/widgets/revenue-summary/RevenueSummaryWidget.tsx"
+      ],
+      "assertions": [
+        "// my-app/components/widgets/revenue-summary/RevenueSummaryWidget.tsx",
+        "@RevenueSummaryWidget.tsx:: ast-import:useDashboardData@@/lib/context/DashboardDataContext",
+        "@RevenueSummaryWidget.tsx:: ast-jsx:div",
+        "@RevenueSummaryWidget.tsx:: ast-noclass:zinc-",
+        "@RevenueSummaryWidget.tsx:: regex:interface RevenueSummaryWidgetProps\\s*\\{",
+        "@RevenueSummaryWidget.tsx:: regex:export const RevenueSummaryWidget",
+        "@RevenueSummaryWidget.tsx:: absent:: any",
+        "@RevenueSummaryWidget.tsx:: regex:h-full[\\s\\S]*w-full",
+        "@RevenueSummaryWidget.tsx:: regex:(isLoading|loading)[\\s\\S]*?(Skeleton|skeleton|Spinner|spinner|animate-pulse|Carregando|Loading)",
+        "@RevenueSummaryWidget.tsx:: regex:(error|erro)[\\s\\S]*?(retry|Retry|Tentar novamente|Tentar de novo|onRetry)",
+        "@RevenueSummaryWidget.tsx:: regex:(length === 0|\\.length\\)|isEmpty)[\\s\\S]*?(Nenhum|vazio|sem dados|No data|empty)",
+        "@RevenueSummaryWidget.tsx:: regex:neutral-"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "FEWIDGET-001"
+      ],
+      "prompt": "No RevenueSummaryWidget, garanta que a superfície raiz preencha a célula do react-grid-layout em vez de fixar dimensões em px. Gere apenas o JSX da superfície raiz do widget.",
+      "assertions": [
+        "regex:className=\"[^\"]*h-full[^\"]*w-full",
+        "absent:w-[",
+        "absent:h-[",
+        "absent:width:"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "FEWIDGET-007"
+      ],
+      "regression_of": "widget estilizado com zinc-*/Tailwind genérico em vez dos tokens do Galaxy theme (neutral/lumi-*)",
+      "prompt": "No RevenueSummaryWidget, estilize o card e os textos usando exclusivamente o Galaxy theme do Luminaris (tokens neutral/lumi-*, card rounded-2xl), sem zinc. Gere apenas o JSX do card.",
+      "assertions": [
+        "ast-noclass:zinc-",
+        "regex:neutral-",
+        "absent:bg-zinc"
+      ]
+    }
+  ]
+}

@@ -1,8 +1,16 @@
 ---
 name: dashboard-kpi-end-to-end-generator
-description: Gera KPI completo ponta a ponta — backend processor + template + frontend KPI card widget + hook de dados analíticos
+description: Gera um KPI completo ponta a ponta — a CADEIA backend analytics processor (single-pass sobre rows → ChartDataPoint[]) + template registrado + hook de dados analíticos no frontend + KPI card widget que consome o hook e reusa o card canônico. Use quando o pedido envolve TODAS as camadas ("quero ver a métrica X no dashboard", "adicione um KPI de receita do backend ao frontend", "métrica nova ponta a ponta"). NÃO use para uma única camada: só processor backend → analytics-kpi-generator; só widget estático sem KPI → frontend-widget-generator. Domínio/arquivos: server/src/features/analytics/kpis/<category>/* + my-app/features/dashboard/category-views/<cat>/{hooks,components}/*.
 argument-hint: "[NomeDoKpi] [categoria]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com Express + Prisma + analytics engine e Jest; my-app/ com React + Next.js Pages Router + tsc). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-FE-DASHKPI"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Dashboard KPI End-to-End Generator
@@ -43,25 +51,25 @@ Por que é o slice perfeito: `RevenueKpiProcessor` é o processor de referência
 - `$ARGUMENTS[0]`: nome do KPI em PascalCase (ex: `TicketMedioPorPeriodo`)
 - `$ARGUMENTS[1]`: categoria (ex: `revenue`, `sales`, `cost`)
 
-## Execution order
+## Generation contract
+
+Cada item marcado `[DASHKPI-*]` abaixo é uma REGRA DE GERAÇÃO auditável. Esta skill gera uma **cadeia multi-arquivo** — o gate só fecha quando TODOS os elos existem e estão ligados (processor → template registrado → hook → widget que consome o hook). Gere já em conformidade.
 
 ### Backend (aplicar contrato de `analytics-kpi-generator`)
 
-1. Criar `server/src/features/analytics/kpis/<category>/<Name>KpiProcessor.ts`
-2. Criar `server/src/features/analytics/kpis/<category>/<Name>KpiTemplate.ts`
-3. Criar `__tests__/<Name>KpiProcessor.test.ts`
-4. Registrar em `server/src/features/analytics/kpis/index.ts`
+1. **[DASHKPI-001]** Criar `server/src/features/analytics/kpis/<category>/<Name>KpiProcessor.ts` que **itera `rows` em single-pass** (um único loop, acumulando todas as métricas) e **retorna `ChartDataPoint[]`** (`import type { AnalyticsProcessor, ChartDataPoint } from '../../core'`; money via `addMoney()`, `previousValue` `undefined` sem dados). Múltiplos passes = FAIL.
+2. **[DASHKPI-002]** Criar `server/src/features/analytics/kpis/<category>/<Name>KpiTemplate.ts` e **registrar o KPI**: `registerProcessor('<key>', <name>KpiProcessor)` + `import './<Name>KpiTemplate'` no `kpis/<category>/index.ts` (e `import './<category>'` no `kpis/index.ts` se a categoria for nova). Sem registro o KPI é órfão.
+3. Criar `__tests__/<Name>KpiProcessor.test.ts` (inclui Empty Safety — rows vazios → `0` finito, nunca `NaN`).
 
 ### Frontend hook
 
-5. Criar `my-app/features/dashboard/category-views/<cat>/hooks/use<Name>Kpi.ts`
-6. Hook chama `analytics.service.ts` com o KPI id correto
+4. **[DASHKPI-003]** Criar `my-app/features/dashboard/category-views/<cat>/hooks/use<Name>Kpi.ts` que busca o dado **via service layer** — importa `analytics.service.ts` (ou consome `DashboardDataContext`) com o KPI id correto, expõe `data`/`isLoading`/`error`. NUNCA `apiClient`/`fetch` direto no hook nem valor hardcoded.
 
 ### Frontend widget — REUSE os componentes canônicos (não recrie gráficos próprios)
 
-7. **Card de KPI** → reuse `DashboardKpiCard.tsx` (`features/dashboard/category-views/finance/components/analytics/dashboard/`) ou `widgets/analytics/GoldKpiWidgetView.tsx` para widgets do grid. Só crie um `<Name>KpiCard.tsx` próprio se o card canônico genuinamente não atender — e mesmo assim espelhe o layout dele.
-8. **Gráficos** → reuse o orquestrador `charts/ChartRenderer.tsx` (delega a `PieDonutChart`/`BarLineAreaChart`, trata empty state via `NoDataCard`, aplica filtro temporal). NÃO escreva `CrmBarChart`/`CrmPieChart` próprios sobre Recharts cru — foi o erro do CRM.
-9. **Board de analytics completo** (KPIs + charts + explicação + lista) → reuse o padrão de `analytics/dashboard/AnalyticsDashboard.tsx`: grid de cards por grupo de preset, linha de charts por tipo de KPI, e as explicações via `KpiInfoFooter`/`KpiTooltip`. Exibir no card: valor atual, valor anterior, trend (up/down/neutral), label e unidade.
+5. **[DASHKPI-004]** **Card de KPI** → criar `<Name>KpiCard.tsx` que **consome o hook `use<Name>Kpi`** (import) e **renderiza o card canônico `DashboardKpiCard`** (`features/dashboard/category-views/finance/components/analytics/dashboard/`) — ou `widgets/analytics/GoldKpiWidgetView.tsx` para widgets do grid. Só crie card próprio se o canônico genuinamente não atender; mesmo assim espelhe o layout e respeite o design system (`neutral-*`, **nunca** `zinc-*`). Exibir: valor atual, valor anterior, trend (up/down/neutral), label e unidade.
+6. **Gráficos** → reuse o orquestrador `charts/ChartRenderer.tsx` (delega a `PieDonutChart`/`BarLineAreaChart`, trata empty state via `NoDataCard`, aplica filtro temporal). NÃO escreva `CrmBarChart`/`CrmPieChart` próprios sobre Recharts cru — foi o erro do CRM.
+7. **[DASHKPI-005]** **Cadeia completa ligada** — o slice só está pronto quando o widget consome o hook, o hook bate na service que serve o KPI id do template, e o template referencia o processor registrado. Board de analytics completo (KPIs + charts + explicação) → reuse o padrão de `analytics/dashboard/AnalyticsDashboard.tsx` (grid de cards por grupo, charts por tipo, explicações via `KpiInfoFooter`/`KpiTooltip`). Um elo faltando (widget sem hook, hook sem processor, processor sem registro) = cadeia quebrada = FAIL.
 
 ## Sub-skills invocadas
 

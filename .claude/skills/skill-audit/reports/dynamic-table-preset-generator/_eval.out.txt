@@ -1,0 +1,27 @@
+===happy-1===
+import type { ITableSchema } from '../../../models/DynamicTable.model';
+import { notes } from '../../fields/text/TextPresets';
+import { unitId } from '../../fields/relation/RelationPresets';
+
+export const agendamentosModule = {
+  name: 'Agendamentos',
+  description: 'Agendamentos de clientes com data/hora e status.',
+  category: 'operations',
+  schema: {
+    defaultDisplayField: 'titulo',
+    fields: [
+      { ...unitId, label: 'Unit' },
+      { name: 'titulo', label: 'Título', type: 'string', required: true },
+      { name: 'clienteId', label: 'Cliente', type: 'relation', required: true, relation: { targetTable: '@@PRESET_TABLE_KEY::clientes' } },
+      { name: 'data', label: 'Data', type: 'datetime', required: true },
+      { name: 'status', label: 'Status', type: 'select', options: ['Agendado', 'Confirmado', 'Concluído', 'Cancelado'], required: true, defaultValue: 'Agendado' },
+      notes,
+    ],
+  } as ITableSchema,
+};
+
+===edge-1===
+Não, o unique()/compositeUnique do preset NÃO garante isso. No DynamicTable ele é apenas uma checagem app-level: o serviço faz um scan dos registros antes de inserir e rejeita se achar duplicata. Isso é um TOCTOU clássico — duas requisições concorrentes podem passar pela checagem ao mesmo tempo e ambas inserem. Não há constraint no banco impedindo. Para garantia real de unicidade sob concorrência você precisa de uma constraint de banco: Prisma first-class com @@unique([codigo, ...escopo]), aí o engine rejeita o segundo insert atomicamente.
+
+===regression-1===
+Re-roteando: contabilidade NÃO deve ser modelada como preset DynamicTable. Pelo STOP §2.1, lançamentos têm invariante financeiro (saldo que fecha exato, débito=crédito, atomicidade) — integridade que o banco deve garantir, então é Prisma first-class via fullstack-feature-generator (Model + Service + Repository + Policy). O accounting já existe como tabelas Prisma reais (Account/JournalEntry/Posting); o preset foi deletado de propósito. money/saldo não cabe em preset: numberFormat:'currency' é JSON float no SQLite (não fecha balanço), e o fechamento exige @@unique + transação — o preset só tem validação app-level.

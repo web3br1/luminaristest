@@ -1,0 +1,26 @@
+[
+  {
+    "rule": "FECTX-005",
+    "corrected": "happy-1: `const value = useMemo(` não aceitava `useMemo<T>(`. Permite genérico.",
+    "assertion": "regex:const value = useMemo\\s*(<[^>]+>)?\\s*\\(",
+    "file": "chunk.tsx",
+    "good": "const value = useMemo<Ctx>(() => ({ a }), [a]);",
+    "bad": "const value = { a };"
+  },
+  {
+    "rule": "FECTX-004",
+    "corrected": "edge-1: regex fixava a mensagem exata e assumia sem chave; agora só exige o guard que faz throw (com/sem chave).",
+    "assertion": "regex:if\\s*\\(\\s*!ctx\\s*\\)\\s*\\{?\\s*throw new Error\\(",
+    "file": "chunk.tsx",
+    "good": "const ctx = useContext(C); if (!ctx) { throw new Error('use within Provider'); } return ctx;",
+    "bad": "const ctx = useContext(C); return ctx;"
+  },
+  {
+    "rule": "FECTX-005r",
+    "corrected": "regression-1: value memoizado com genérico permitido.",
+    "assertion": "regex:const value = useMemo\\s*(<[^>]+>)?\\s*\\(\\s*\\(\\)\\s*=>\\s*\\(\\{[\\s\\S]*\\}\\)\\s*,\\s*\\[",
+    "file": "chunk.tsx",
+    "good": "const value = useMemo<Ctx>(() => ({ a, b }), [a, b]);",
+    "bad": "const value = { a, b };"
+  }
+]

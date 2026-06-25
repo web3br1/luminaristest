@@ -1,8 +1,16 @@
 ---
 name: backend-controller-generator
-description: Gera funções de controller async com validação Zod inline, getFactory, getUserContextFromRequest e handleApiError
+description: Gera funções de controller HTTP async para um recurso backend — validação Zod inline com safeParse, getFactory para obter o service, getUserContextFromRequest para o actor, resposta { success, data } e handleApiError no catch. Use ao criar controllers de um novo CRUD, ao adicionar actions não-CRUD (approve/publish), ou ao corrigir a estrutura de um controller existente. Domínio/arquivos: server/src/controllers/<resource>Controller.ts.
 argument-hint: "[NomeDoRecurso]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com zod + tsc). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-BACKEND-CTRL"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Backend Controller Generator
@@ -19,14 +27,14 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 
 Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatamente isto na camada Controller). Gere já em conformidade.
 
-- [ ] **`Schema.safeParse(req.body)` ANTES de qualquer lógica:** `const parse = Schema.safeParse(req.body); if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });`
-- [ ] **`getUserContextFromRequest(req)`** para extrair o actor antes de chamar o service (`UserContext | null`; faça guard `if (!actor) throw new UnauthorizedError()` se o service exige actor não-nulo).
-- [ ] **`getFactory().get<Resource>Service()`** — nunca instancia o service direto.
-- [ ] **Resposta de sucesso `{ success: true, data }`** (`res.json` em 200, `res.status(201).json(...)` em criação).
-- [ ] **`handleApiError(error, res)`** no `catch` (ordem: `error` primeiro), importado de `../lib/apiUtils` — nunca `res.status(500).json()` manual.
+- [ ] **[CTL-001] `Schema.safeParse(req.body)` ANTES de qualquer lógica:** `const parse = Schema.safeParse(req.body); if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });`
+- [ ] **[CTL-002] `getUserContextFromRequest(req)`** para extrair o actor antes de chamar o service (`UserContext | null`; faça guard `if (!actor) throw new UnauthorizedError()` se o service exige actor não-nulo).
+- [ ] **[CTL-003] `getFactory().get<Resource>Service()`** — nunca instancia o service direto.
+- [ ] **[CTL-004] Resposta de sucesso `{ success: true, data }`** (`res.json` em 200, `res.status(201).json(...)` em criação).
+- [ ] **[CTL-005] `handleApiError(error, res)`** no `catch` (ordem: `error` primeiro), importado de `../lib/apiUtils` — nunca `res.status(500).json()` manual.
 - [ ] **ZERO `prisma.*`** no controller.
 - [ ] **ZERO regra de negócio** — sem hashing, sem checagem de permissão, sem cálculo de domínio; delega ao service imediatamente.
-- [ ] `return` antes de cada `res.json` (evita "headers already sent").
+- [ ] **[CTL-006]** `return` antes de cada `res.json` (evita "headers already sent").
 
 ## When to use
 

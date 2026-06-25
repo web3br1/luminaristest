@@ -1,8 +1,16 @@
 ---
 name: frontend-modal-generator
-description: Gera modais (detalhe/edição/confirmação/captura) ancorados no primitivo canônico Modal.tsx, garantindo o padrão modal-não-rota e o reuso dos modais existentes
+description: Gera modais (detalhe/edição/confirmação/captura) sempre ancorados no primitivo canônico `my-app/components/ui/Modal.tsx` — nunca um dialog bespoke. Garante o padrão modal-não-rota (ver/editar um registro abre modal com estado local na view-pai, sem `router.push` de detalhe), reusa os modais existentes (`ConfirmDeleteModal`/`ConfirmModal`/`Lead360Modal`/`ProposalCaptureModal`), props tipadas sem `any` e o Galaxy theme. Use ao criar `<Name>Modal.tsx` em `my-app/features/<module>/components/`, ao trocar uma rota de detalhe por modal, ou ao adicionar confirmação/captura de input. Domínio/arquivos: `my-app/features/<module>/components/<Name>Modal.tsx` + view-pai + locales.
 argument-hint: "[NomeDoModal] [detail|edit|confirm|capture]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (my-app/ com React + Next.js Pages Router + tsc). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-FE-MODAL"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Frontend Modal Generator
@@ -50,15 +58,18 @@ my-app/pages/crm/leads/[id].tsx                                                 
 
 ## Generation contract
 
-1. **Sobre `Modal.tsx`** — `export function <Name>({ isOpen, onClose, ... }: <Name>Props)` que renderiza `<Modal isOpen onClose title maxWidth themeColor>…children…</Modal>`. **NUNCA** reimplemente portal/overlay/esc/focus-trap — o primitivo já faz.
-2. **Estado na view-pai:** o pai controla `const [selected, setSelected] = useState<T | null>(null)` e passa `isOpen={!!selected}` + `onClose={() => setSelected(null)}`. O clique que abre o modal **substitui** qualquer `router.push` de detalhe.
-3. **Por tipo:**
+Cada item marcado `[FEMODAL-*]` abaixo é uma REGRA DE GERAÇÃO auditável (ancora no primitivo canônico `components/ui/Modal.tsx` e nos golden refs verificados — `Lead360Modal`/`ProposalCaptureModal`/`ConfirmDeleteModal`). Gere já em conformidade.
+
+1. **[FEMODAL-001]** **Sobre o primitivo canônico `Modal.tsx` — nunca um dialog bespoke** — `export function <Name>({ isOpen, onClose, ... }: <Name>Props)` que importa `Modal` de `components/ui/Modal` e renderiza `<Modal isOpen onClose title maxWidth themeColor>…children…</Modal>`. **NUNCA** reimplemente portal/overlay/esc/focus-trap/click-outside — o primitivo já faz; um `<div>` overlay próprio é proibido.
+2. **[FEMODAL-002]** **Modal-não-rota:** o pai controla `const [selected, setSelected] = useState<T | null>(null)` e passa `isOpen={!!selected}` + `onClose={() => setSelected(null)}`. O clique que abre o detalhe/edição **substitui** qualquer `router.push` de página de detalhe — ver/editar é modal, jamais navegação.
+3. **[FEMODAL-003]** **Reuse os modais existentes — não recrie:** por tipo —
    - `detail`: renderiza o conteúdo do registro (reuse componentes-assinatura: `GradientHeader`/`ScoreGauge`/`StatusBadge`/badges). Ações (ex.: avançar etapa) chamam o **service layer** e disparam `onChanged?()` para o pai refazer fetch.
    - `edit`: formulário (reuse `DynamicForm` quando for DynamicTable) → `updateRecord`; `isDirty` no `Modal` para confirmar descarte.
-   - `confirm`: reuse `ConfirmDeleteModal`/`ConfirmModal` (não recrie) — `onConfirm` + estado `isDeleting`/`error`.
+   - `confirm`: **reuse `ConfirmDeleteModal`/`ConfirmModal` (não recrie)** — `onConfirm` + estado `isDeleting`/`error`; destrutivo = variant danger.
    - `capture`: campos controlados mínimos → `onConfirm(payload)`; `onCancel`/`onClose` = nenhuma ação (rollback no pai se já houve update otimista).
-4. **Service layer:** ações de escrita vão por `lib/services/*.service.ts` — nunca `fetch`/`apiClient` direto no modal.
-5. Props tipadas (sem `any`); loading/error tratados; i18n (`t()` no namespace do módulo, nada hardcoded). Design system: `neutral`, `rounded-2xl`, dark, `font-black` em títulos/valores.
+4. **[FEMODAL-004]** **Service layer:** ações de escrita vão por `lib/services/*.service.ts` — nunca `fetch`/`apiClient` direto no modal.
+5. **[FEMODAL-005]** **Props tipadas sem `any`** — `interface <Name>Props { isOpen: boolean; onClose: () => void; ... }`; loading/error tratados; i18n (`t()` no namespace do módulo, nada hardcoded).
+6. **[FEMODAL-006]** **Galaxy theme:** `neutral-*` (**nunca** `zinc-*`), cards `rounded-2xl`/`3xl`, dark, `font-black` em títulos/valores.
 
 ## Checklist obrigatório — Modal
 

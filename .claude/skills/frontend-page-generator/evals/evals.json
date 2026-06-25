@@ -1,0 +1,85 @@
+{
+  "skill": "frontend-page-generator",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "O módulo de feature de Appointments já existe (AppointmentsView + useAppointmentsData). Crie a ROTA Next.js que expõe esse módulo: pages/appointments/index.tsx com auth guard withAuth, getServerSideProps com serverSideTranslations e dynamic import da View.",
+      "assertions": [
+        "activation: a skill frontend-page-generator deve ser a escolhida"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie o scaffold do módulo de feature de Appointments no dashboard: a View principal AppointmentsView, os hooks de dados (useAppointmentsData que faz o fetch) e o registro do dynamic import em pages/dashboard/index.tsx.",
+      "assertions": [
+        "non-activation: frontend-page-generator NÃO deve ativar (criar a View/hooks/fetch do módulo e registrar no dashboard é trabalho do frontend-feature-module-generator)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "FEPAGE-001",
+        "FEPAGE-003",
+        "FEPAGE-004",
+        "FEPAGE-005",
+        "FEPAGE-006"
+      ],
+      "prompt": "Gere a página de rota pages/appointments/index.tsx que COMPÕE o módulo de feature já existente: importe a AppointmentsView de features/dashboard/category-views/appointments/AppointmentsView via dynamic({ ssr: false }) e renderize-a no shell full-height. A página NÃO deve fazer fetch, NÃO deve importar apiClient nem lib/services, NÃO deve definir hook de dados. Inclua auth guard withAuth, getServerSideProps com serverSideTranslations e Head. Saída: o conteúdo completo do arquivo index.tsx (um único arquivo TSX).",
+      "target_files": [
+        "my-app/pages/appointments/index.tsx"
+      ],
+      "assertions": [
+        "@index.tsx::regex:dynamic\\([\\s\\S]*import\\([\\s\\S]*AppointmentsView",
+        "@index.tsx::contains:getServerSideProps",
+        "@index.tsx::contains:serverSideTranslations",
+        "@index.tsx::contains:withAuth",
+        "@index.tsx::contains:dynamic(",
+        "@index.tsx::contains:ssr: false",
+        "@index.tsx::ast-noclass:zinc-",
+        "@index.tsx::absent:apiClient",
+        "@index.tsx::absent:lib/services",
+        "@index.tsx::absent:export function use"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "FEPAGE-002"
+      ],
+      "prompt": "Para o módulo de leads, NÃO crie uma rota de detalhe pages/leads/[id].tsx para ver um registro da lista — o detalhe é um modal. Gere a página de listagem pages/leads/index.tsx que compõe a LeadsView do módulo (o detalhe abre via modal dentro da View, não por navegação de rota).",
+      "target_files": [
+        "my-app/pages/leads/index.tsx"
+      ],
+      "assertions": [
+        "@index.tsx::contains:dynamic(",
+        "@index.tsx::absent:router.push('/leads/",
+        "@index.tsx::absent:router.query"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "FEPAGE-001"
+      ],
+      "regression_of": "páginas que duplicavam o módulo — faziam fetch/importavam apiClient/lib/services e definiam o próprio hook de dados em vez de compor a View do módulo de feature",
+      "prompt": "Gere pages/appointments/index.tsx. A página deve APENAS compor a AppointmentsView do módulo (features/dashboard/category-views/appointments/AppointmentsView) via dynamic import — sem buscar dados na página, sem importar apiClient ou lib/services, sem declarar um hook useAppointmentsData na própria página (esse hook já vive no módulo).",
+      "target_files": [
+        "my-app/pages/appointments/index.tsx"
+      ],
+      "assertions": [
+        "@index.tsx::regex:dynamic\\([\\s\\S]*import\\([\\s\\S]*AppointmentsView",
+        "@index.tsx::absent:apiClient",
+        "@index.tsx::absent:lib/services",
+        "@index.tsx::absent:export function use",
+        "@index.tsx::absent:useAppointmentsData"
+      ]
+    }
+  ]
+}

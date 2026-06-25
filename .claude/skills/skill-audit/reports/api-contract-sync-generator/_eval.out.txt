@@ -1,0 +1,61 @@
+===happy-1===
+// server/src/features/invoices/dtos/InvoiceDto.ts
+import { z } from 'zod';
+export const CreateInvoiceSchema = z.object({
+  number: z.string().min(1),
+  amount: z.number().nonnegative(),
+  dueDate: z.string().min(1),
+  status: z.enum(['DRAFT', 'SENT', 'PAID', 'OVERDUE', 'CANCELLED']),
+});
+export const UpdateInvoiceSchema = CreateInvoiceSchema.partial();
+export type CreateInvoiceDto = z.infer<typeof CreateInvoiceSchema>;
+export type UpdateInvoiceDto = z.infer<typeof UpdateInvoiceSchema>;
+
+// server/src/routes/invoice.ts
+import { Router } from 'express';
+import { createInvoice } from '../controllers/invoiceController';
+const router = Router();
+router.post('/', createInvoice);
+export default router;
+
+// my-app/types/Invoice.ts
+export type InvoiceStatus = 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+export interface IInvoice { id: string; number: string; amount: number; dueDate: string; status: InvoiceStatus; }
+export type CreateInvoiceDto = { number: string; amount: number; dueDate: string; status: InvoiceStatus; };
+
+// my-app/lib/services/invoice.service.ts
+import { apiClient } from '../api/api-client';
+import { IInvoice, CreateInvoiceDto } from '../../types/Invoice';
+export const InvoiceService = {
+  async createInvoice(payload: CreateInvoiceDto): Promise<IInvoice> {
+    const response = await apiClient.post<{ success: boolean; data: IInvoice } | IInvoice>('/invoices', payload);
+    return (response as { data?: IInvoice }).data || (response as IInvoice);
+  },
+};
+
+===edge-1===
+// my-app/lib/services/invoice.service.ts
+import { apiClient } from '../api/api-client';
+import { IInvoice, CreateInvoiceDto } from '../../types/Invoice';
+export const InvoiceService = {
+  async createInvoice(payload: CreateInvoiceDto): Promise<IInvoice> {
+    const body: CreateInvoiceDto = {
+      number: payload.number,
+      amount: payload.amount,
+      dueDate: payload.dueDate,
+      status: payload.status,
+    };
+    const response = await apiClient.post<{ success: boolean; data: IInvoice } | IInvoice>('/invoices', body);
+    return (response as { data?: IInvoice }).data || (response as IInvoice);
+  },
+};
+
+===regression-1===
+// my-app/types/Invoice.ts
+export type InvoiceStatus = 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+export type UpdateInvoiceDto = Partial<{
+  number: string;
+  amount: number;
+  dueDate: string;
+  status: InvoiceStatus;
+}>;

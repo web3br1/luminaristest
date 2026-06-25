@@ -1,0 +1,83 @@
+===HAPPY===
+import { Request, Response } from 'express';
+import { handleApiError } from '../lib/apiUtils';
+import { getFactory } from '@/lib/factory';
+import { getUserContextFromRequest } from '@/lib/authUtils';
+import { UnauthorizedError } from '../lib/errors';
+import { z } from 'zod';
+
+const CreateInvoiceSchema = z.object({ number: z.string(), amount: z.number(), status: z.string() });
+const UpdateInvoiceSchema = z.object({ number: z.string().optional(), amount: z.number().optional(), status: z.string().optional() });
+
+export const listInvoices = async (req: Request, res: Response) => {
+  try {
+    const actor = getUserContextFromRequest(req);
+    if (!actor) throw new UnauthorizedError();
+    const service = getFactory().getInvoiceService();
+    const invoices = await service.list(actor);
+    return res.json({ success: true, data: invoices });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+export const createInvoice = async (req: Request, res: Response) => {
+  try {
+    const parse = CreateInvoiceSchema.safeParse(req.body);
+    if (!parse.success) {
+      return res.status(400).json({ success: false, error: parse.error.flatten() });
+    }
+    const actor = getUserContextFromRequest(req);
+    if (!actor) throw new UnauthorizedError();
+    const service = getFactory().getInvoiceService();
+    const created = await service.create(parse.data, actor);
+    return res.status(201).json({ success: true, data: created });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+export const updateInvoice = async (req: Request, res: Response) => {
+  try {
+    const parse = UpdateInvoiceSchema.safeParse(req.body);
+    if (!parse.success) { return res.status(400).json({ success: false, error: parse.error.flatten() }); }
+    const actor = getUserContextFromRequest(req);
+    if (!actor) throw new UnauthorizedError();
+    const service = getFactory().getInvoiceService();
+    const updated = await service.update(req.params.id, parse.data, actor);
+    return res.json({ success: true, data: updated });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+===EDGE===
+export const getInvoiceById = async (req: Request, res: Response) => {
+  try {
+    const actor = getUserContextFromRequest(req);
+    if (!actor) throw new UnauthorizedError();
+    const service = getFactory().getInvoiceService();
+    const invoice = await service.getById(req.params.id, actor);
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+    return res.json({ success: true, data: invoice });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+===REGRESSION===
+export const createInvoice = async (req: Request, res: Response) => {
+  try {
+    const parse = CreateInvoiceSchema.safeParse(req.body);
+    if (!parse.success) {
+      return res.status(400).json({ success: false, error: parse.error.flatten() });
+    }
+    const actor = getUserContextFromRequest(req);
+    if (!actor) throw new UnauthorizedError();
+    const service = getFactory().getInvoiceService();
+    const created = await service.create(parse.data, actor);
+    return res.status(201).json({ success: true, data: created });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};

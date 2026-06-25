@@ -1,0 +1,10 @@
+[
+  {
+    "rule": "FEAPI-005",
+    "corrected": "edge-1: exigia Record<string, unknown>; geração usou Record<string, JsonValue> (também sem any). Aceita ambos.",
+    "assertion": "regex:Record<string,\\s*(unknown|JsonValue)>",
+    "file": "chunk.ts",
+    "good": "export type Meta = Record<string, JsonValue>;",
+    "bad": "export type Meta = Record<string, any>;"
+  }
+]

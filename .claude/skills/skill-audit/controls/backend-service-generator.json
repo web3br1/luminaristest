@@ -1,0 +1,9 @@
+[
+  {
+    "rule": "SVC-004",
+    "corrected": "happy-1: assertion `absent:new InvoiceRepository(` reescopada para o arquivo do service (@InvoiceService.ts::) — antes pegava o `new` legítimo do factory",
+    "assertion": "absent:new InvoiceRepository(",
+    "good": "export class InvoiceService {\n  constructor(private repo: IInvoiceRepository, private policy: IInvoicePolicy) {}\n}",
+    "bad": "export class InvoiceService {\n  private repo = new InvoiceRepository();\n}"
+  }
+]

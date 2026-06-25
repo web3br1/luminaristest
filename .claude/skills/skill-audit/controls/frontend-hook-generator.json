@@ -1,0 +1,18 @@
+[
+  {
+    "rule": "FEHOOK-005",
+    "corrected": "happy-1: regex exigia 'cancelled = true' adjacente; geração usa 'signal.cancelled = true' (prefixo). Permite o prefixo.",
+    "assertion": "regex:return\\s*\\(\\s*\\)\\s*=>\\s*\\{[\\s\\S]*cancelled\\s*=\\s*true",
+    "file": "chunk.ts",
+    "good": "useEffect(() => { const s = { cancelled: false }; load(s); return () => { s.cancelled = true; }; }, [load]);",
+    "bad": "useEffect(() => { load(); }, [load]);"
+  },
+  {
+    "rule": "FEHOOK-006",
+    "corrected": "state-1: regex `useMemo\\(` não aceitava o genérico `useMemo<T>(`. Permite `<...>`.",
+    "assertion": "regex:useMemo\\s*(<[^>]+>)?\\s*\\([\\s\\S]*\\.(filter|reduce|find|sort)\\(",
+    "file": "chunk.ts",
+    "good": "const k = useMemo<Kpis>(() => data.filter((x) => x.ok).length, [data]);",
+    "bad": "const k = data.filter((x) => x.ok).length;"
+  }
+]

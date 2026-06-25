@@ -1,8 +1,16 @@
 ---
 name: analytics-kpi-generator
-description: Gera KPI processor + template para o engine analítico do Luminaris, seguindo o padrão single-pass sobre rows com ChartDataPoint[]
+description: Gera a camada BACKEND de um KPI do engine analítico — um `<Name>KpiProcessor.ts` (função pura single-pass sobre `rows`, devolvendo `ChartDataPoint[]`) + o `<Name>KpiTemplate.ts` com os params configuráveis, registrados via `registerProcessor` + `registerTemplate`. Use quando o pedido for "novo KPI", "processor de KPI", "métrica de receita/custo/vendas no backend", "calcular indicador sobre as rows", ou só a camada de analytics do server — SEM frontend. Termos-gatilho: KPI, processor, template, ChartDataPoint, single-pass, AnalyticsProcessor, addMoney, previousValue. Para a cadeia ponta-a-ponta (processor + hook + card no frontend) use `dashboard-kpi-end-to-end-generator`. Domínio/arquivos: `server/src/features/analytics/kpis/<category>/`.
 argument-hint: "[NomeDoKpi] [categoria]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+compatibility: Claude Code; requer o monorepo Luminaris (server/ com Prisma + tsc + o engine de analytics em server/src/features/analytics/core e os helpers em analytics/utils). Sem efeitos externos — apenas gera/edita arquivos no repositório.
+metadata:
+  governance-skill-id: "SKL-ANALYTICS-KPI"
+  governance-version: "1.0.0"
+  governance-status: "validated"
+  governance-owner: "engineering"
+  governance-last-evaluated: "2026-06-25"
+  governance-eval-score: "1.00"
 ---
 
 # Analytics KPI Generator
@@ -17,25 +25,32 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 
 ## Checklist obrigatório — Analytics KPI
 
-- [ ] **Single-pass:** iterar `rows` (ou o stream de batches) **uma única vez**, acumulando todas as métricas no mesmo loop. Múltiplos passes = FAIL.
+Cada item com ID `[AKPI-NNN]` é uma REGRA DE GERAÇÃO auditável (mapeada a um eval gate em `governance.md`). Gere já em conformidade. Os itens sem ID são house-style recomendado (sem gate dedicado).
+
+- [ ] **[AKPI-001] Single-pass → `ChartDataPoint[]`:** iterar `rows` (ou o stream de batches) **uma única vez**, acumulando todas as métricas no mesmo loop, e retornar `ChartDataPoint[]`. Assinatura: `export const <name>KpiProcessor: AnalyticsProcessor = async (context): Promise<ChartDataPoint[]> => { ... }`. Múltiplos passes = FAIL.
+- [ ] **[AKPI-002] Processor é função pura do `context`:** lê **só** o que vem em `context` (`rows`/`streamRows`, `params`, `table`) e devolve `ChartDataPoint[]`. **ZERO acesso a I/O direto** — nada de `import React`, nada de Express (`res.json`/`res.status`/`req`), nada de `prisma.*` direto (o engine entrega as `rows`; cross-fetch só via os helpers `context.fetchByPresetTableKey`). É backend-only, mas **não é a camada HTTP**.
+- [ ] **[AKPI-003] Money como inteiro/centavos via `addMoney()` — nunca `+=`** (drift de ponto flutuante: `0.1 × 1000 ≠ 100`). Todo acumulador monetário só cresce por `addMoney`.
+- [ ] **[AKPI-004] `previousValue` é `undefined` quando não há período anterior — NUNCA `0`.** Padrão: `previousValue: count > 0 ? total / count : undefined`. Tipe como `number | undefined`. Zero é um valor legítimo e mente sobre o delta.
+- [ ] **[AKPI-005] Registrar em `kpis/<category>/index.ts`** com `registerProcessor('<key>', <name>KpiProcessor)` **e** `import './<Name>KpiTemplate'` (o template se auto-registra via `registerTemplate(<name>KpiTemplate)` no fim do próprio arquivo). Garantir `import './<category>'` em `kpis/index.ts` se a categoria for nova. Sem registro, o KPI é órfão (tsc verde, engine não o encontra).
 - [ ] **Desestruturar `const { rows, params, table } = context`** — não acessar `context.x` esparso.
-- [ ] **Money via `addMoney()` — nunca `+=`** (drift de ponto flutuante). Acumuladores monetários só crescem por `addMoney`.
 - [ ] **Excluir negativos e status configurados** dentro do loop: `if (amount <= 0) continue;` e `if (excludeStatuses.includes(status)) continue;`.
-- [ ] **`previousValue = count > 0 ? total/count : undefined`** — **`undefined` quando não há dados, NUNCA `0`**. Zero é um valor legítimo e mente sobre o delta.
 - [ ] **Usar os helpers do feature** — `DataSanitizer.extractCurrency()` para parsear valores, `DateUtils`/`getPeriodBoundaries()`/`isDateWithinWindow()` para janelas. Não reimplementar parsing/datas.
 - [ ] **`referenceDate` com fallback:** `params.referenceDate ? new Date(params.referenceDate) : new Date()` — nunca `new Date()` cru.
 - [ ] **Params lidos com `?? default` + cast explícito** (`const amountField = (params.amountField ?? 'totalAmount') as string`). **NÃO** usar `params || {}` nem destructure com default `= {}` — o TS infere `{}` e perde os tipos dos campos.
 - [ ] **Validar finitude antes de acumular:** `Number.isFinite(amount)` — nunca somar `NaN`/`Infinity`.
 - [ ] **Clampar inputs de domínio conhecido** antes da aritmética (ex.: percentuais `Math.min(100, Math.max(0, v))`) — dados legados passam pelo processor.
 - [ ] **Cross-fetch (`fetchByPresetTableKey`) não engole erro** — `logger.warn('...', { presetTableKey, error })` antes de degradar para vazio; nunca `.catch(() => null)` silencioso.
-- [ ] **Registrar em `kpis/<category>/index.ts`** (`registerProcessor` + `import './<Name>KpiTemplate'`) e garantir `import './<category>'` em `kpis/index.ts` se a categoria for nova. Sem registro, o KPI é órfão.
 - [ ] **Gerar o teste de regressão** (via `backend-test-suite-generator`) **com suíte Empty Safety** (rows vazios → `0` finito, nunca `NaN`) + Math + Float Safety.
 
 ## When to use
 
-- Novo KPI de negócio precisa ser calculado
+- Novo KPI de negócio precisa ser calculado (apenas backend: processor + template)
 - Adicionando variante de KPI existente (por categoria, por período)
 - Criando processor dinâmico para `analytics/dynamic/`
+
+## When NOT to use
+
+- **Pedido ponta-a-ponta** (processor backend **+** hook **+** card no frontend, "quero o KPI aparecendo no dashboard") → use `dashboard-kpi-end-to-end-generator` (sibling). Esta skill é **backend-only** — para aqui no template registrado, não gera React.
 
 ## Inputs
 

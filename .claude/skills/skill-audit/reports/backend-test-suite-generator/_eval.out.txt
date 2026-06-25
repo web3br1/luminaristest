@@ -1,0 +1,144 @@
+===happy-1===
+// server/src/features/invoices/services/__tests__/InvoiceService.test.ts
+import { InvoiceService } from '../InvoiceService';
+import { NotFoundError, ForbiddenError } from '@/lib/errors';
+
+const mockRepo = { findById: jest.fn(), findAll: jest.fn(), create: jest.fn(), update: jest.fn(), softDelete: jest.fn() };
+const mockPolicy = { canView: jest.fn().mockReturnValue(true), canCreate: jest.fn().mockReturnValue(true), canUpdate: jest.fn().mockReturnValue(true), canDelete: jest.fn().mockReturnValue(true), canListAll: jest.fn().mockReturnValue(false) };
+const mockUser = { id: 'user-1', role: 'USER' as const };
+
+function buildService(overrides: Partial<typeof mockRepo> = {}) {
+  return new InvoiceService({ ...mockRepo, ...overrides }, mockPolicy);
+}
+
+describe('InvoiceService', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  describe('getById', () => {
+    it('retorna o recurso quando o usuário tem acesso', async () => {
+      mockRepo.findById.mockResolvedValue({ id: 'inv-1', userId: 'user-1' });
+      const svc = buildService();
+      const result = await svc.getById(mockUser, 'inv-1');
+      expect(result.id).toBe('inv-1');
+      expect(mockRepo.findById).toHaveBeenCalledWith('inv-1');
+    });
+    it('lança NotFoundError quando o repositório retorna null', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+      await expect(buildService().getById(mockUser, 'missing')).rejects.toThrow(NotFoundError);
+    });
+    it('lança ForbiddenError quando a policy nega o acesso', async () => {
+      mockRepo.findById.mockResolvedValue({ id: 'inv-1', userId: 'other' });
+      mockPolicy.canView.mockReturnValueOnce(false);
+      await expect(buildService().getById(mockUser, 'inv-1')).rejects.toThrow(ForbiddenError);
+    });
+  });
+
+  describe('delete (soft-delete)', () => {
+    it('marca deletedAt via softDelete sem remover o registro', async () => {
+      mockRepo.findById.mockResolvedValue({ id: 'inv-1', userId: 'user-1' });
+      await buildService().delete(mockUser, 'inv-1');
+      expect(mockRepo.softDelete).toHaveBeenCalledWith('inv-1');
+    });
+  });
+
+  describe('tenant isolation', () => {
+    it('usuário B acessando recurso do usuário A recebe NotFoundError', async () => {
+      const userB = { id: 'user-b', role: 'USER' as const };
+      const repo = { findById: jest.fn().mockResolvedValue({ id: 'inv-a', userId: 'user-a' }) };
+      mockPolicy.canView.mockReturnValueOnce(false);
+      await expect(buildService(repo).getById(userB, 'inv-a')).rejects.toThrow(NotFoundError);
+    });
+  });
+});
+
+===edge-1===
+// server/src/features/analytics/kpis/revenue/__tests__/RevenueKpiProcessor.test.ts
+import { revenueKpiProcessor } from '../RevenueKpiProcessor';
+
+describe('RevenueKpiProcessor', () => {
+  const referenceDate = new Date('2026-02-01T12:00:00Z');
+  const baseContext: any = { rows: [], params: { referenceDate } };
+
+  describe('Math Suite', () => {
+    it('acumula valores corretamente', async () => {
+      const results = await revenueKpiProcessor(baseContext);
+      const kpi = results.find((p: any) => typeof p.value === 'number');
+      expect(kpi?.value).toBeCloseTo(0, 2);
+    });
+  });
+  describe('Float Safety Suite', () => {
+    it('1000 × R$0,10 = R$100,00 exatos', async () => {
+      const rows = Array.from({ length: 1000 }, (_, i) => ({ id: String(i), data: { amount: 'R$ 0,10', status: 'paid' } }));
+      const results = await revenueKpiProcessor({ ...baseContext, rows });
+      const kpi = results.find((p: any) => typeof p.value === 'number');
+      expect(kpi?.value).toBeCloseTo(100, 2);
+    });
+  });
+  describe('Empty Safety Suite', () => {
+    it('retorna valores finitos com rows vazios', async () => {
+      const results = await revenueKpiProcessor({ ...baseContext, rows: [] });
+      results.forEach((p: any) => { expect(Number.isFinite(p.value ?? 0)).toBe(true); });
+    });
+  });
+});
+
+===edge-2===
+// server/src/middleware/__tests__/auth.test.ts
+import jwt from 'jsonwebtoken';
+import { authMiddleware } from '../auth';
+
+jest.mock('jsonwebtoken');
+const mockedJwt = jwt as jest.Mocked<typeof jwt>;
+
+function buildReqRes(headers: Record<string, string> = {}) {
+  const req: any = { headers, user: undefined };
+  const res: any = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() };
+  const next = jest.fn();
+  return { req, res, next };
+}
+
+describe('authMiddleware', () => {
+  beforeEach(() => jest.clearAllMocks());
+  it('rejeita quando o token está ausente', async () => {
+    const { req, res, next } = buildReqRes({});
+    await authMiddleware(req, res, next);
+    expect(req.user).toBeUndefined();
+  });
+  it('rejeita quando o token é inválido/expirado', async () => {
+    mockedJwt.verify.mockImplementation(() => { throw new jwt.TokenExpiredError('jwt expired', new Date()); });
+    const { req, res, next } = buildReqRes({ authorization: 'Bearer invalid.token' });
+    await authMiddleware(req, res, next);
+    expect(req.user).toBeUndefined();
+  });
+  it('popula o user context em req quando o token é válido', async () => {
+    mockedJwt.verify.mockReturnValue({ id: 'user-1', role: 'USER' } as any);
+    const { req, res, next } = buildReqRes({ authorization: 'Bearer valid.token' });
+    await authMiddleware(req, res, next);
+    expect(req.user).toEqual(expect.objectContaining({ id: 'user-1' }));
+  });
+});
+
+===regression-1===
+// server/src/features/invoices/services/__tests__/InvoiceService.tenant-isolation.test.ts
+import { InvoiceService } from '../InvoiceService';
+import { NotFoundError } from '@/lib/errors';
+
+jest.mock('@/lib/prisma');
+const mockPolicy = { canView: jest.fn().mockReturnValue(true), canListAll: jest.fn().mockReturnValue(false) };
+const userA = { id: 'user-a', role: 'USER' as const };
+const userB = { id: 'user-b', role: 'USER' as const };
+function buildService(repo: any) { return new InvoiceService(repo, mockPolicy); }
+
+describe('InvoiceService tenant isolation', () => {
+  beforeEach(() => jest.clearAllMocks());
+  it('usuário B acessando recurso do usuário A recebe NotFoundError', async () => {
+    const repo = { findById: jest.fn().mockResolvedValue({ id: 'inv-a', userId: 'user-a' }) };
+    mockPolicy.canView.mockReturnValueOnce(false);
+    await expect(buildService(repo).getById(userB, 'inv-a')).rejects.toThrow(NotFoundError);
+  });
+  it('repositório é chamado com o userId do actor', async () => {
+    const repo = { findAll: jest.fn().mockResolvedValue({ items: [], total: 0 }) };
+    await buildService(repo).getAll(userA, { page: 1, limit: 10 });
+    expect(repo.findAll).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-a' }));
+  });
+});

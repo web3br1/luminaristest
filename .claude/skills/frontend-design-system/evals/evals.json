@@ -1,0 +1,79 @@
+{
+  "skill": "frontend-design-system",
+  "evals": [
+    {
+      "id": "trigger-pos-1",
+      "type": "trigger-positive",
+      "rules": [],
+      "prompt": "Estilize este card de lead para ficar on-brand com o Galaxy theme do Luminaris — está usando zinc e rounded-xl genéricos.",
+      "assertions": [
+        "activation: a skill frontend-design-system deve ser aplicada (pedido de estilização on-brand / Galaxy theme)"
+      ]
+    },
+    {
+      "id": "trigger-neg-1",
+      "type": "trigger-negative",
+      "rules": [],
+      "prompt": "Crie o DTO Zod e o repository do recurso Invoice no backend.",
+      "assertions": [
+        "non-activation: frontend-design-system NÃO deve ativar (pedido é de backend, sem UI/estilização)"
+      ]
+    },
+    {
+      "id": "happy-1",
+      "type": "happy",
+      "rules": [
+        "FEDS-001",
+        "FEDS-002",
+        "FEDS-003",
+        "FEDS-005"
+      ],
+      "prompt": "Gere um componente React pequeno LeadScoreCard.tsx aplicando o Galaxy theme do Luminaris: um card de superfície contendo o título do lead e um ScoreGauge (gauge SVG circular). Saída: o conteúdo completo do arquivo .tsx, com superfícies dark on-brand e cantos de card corretos.",
+      "target_files": [
+        "my-app/features/crm/components/ui/LeadScoreCard.tsx"
+      ],
+      "assertions": [
+        "ast-noclass:zinc-",
+        "contains:neutral-",
+        "contains:rounded-2xl",
+        "regex:ScoreGauge",
+        "regex:bg-white\\s+dark:bg-neutral-900"
+      ]
+    },
+    {
+      "id": "edge-1",
+      "type": "edge",
+      "rules": [
+        "FEDS-004",
+        "FEDS-006"
+      ],
+      "prompt": "Gere um componente StatusPill.tsx que renderiza um badge de status 'Won' on-brand do Luminaris. Aplique o padrão de badge e a tipografia de label corretos.",
+      "target_files": [
+        "my-app/features/crm/components/ui/StatusPill.tsx"
+      ],
+      "assertions": [
+        "contains:rounded-full",
+        "regex:bg-emerald-500/10[\\s\\S]*border-emerald-500/20",
+        "contains:text-emerald-600",
+        "regex:text-\\[10px\\][\\s\\S]*font-black[\\s\\S]*uppercase[\\s\\S]*tracking-widest",
+        "absent:bg-emerald-600"
+      ]
+    },
+    {
+      "id": "regression-1",
+      "type": "regression",
+      "rules": [
+        "FEDS-001",
+        "FEDS-003"
+      ],
+      "regression_of": "reincidência de zinc-* em superfície dark (deve usar neutral-*)",
+      "prompt": "Reestilize para o Galaxy theme este card off-brand que usava bg-zinc-800/zinc-700. Saída: o componente corrigido sob // my-app/components/cards/FixedCard.tsx",
+      "fixture": "// my-app/features/crm/components/ui/OffBrandCard.tsx\nexport function OffBrandCard() {\n  return (\n    <div className=\"rounded-xl bg-white dark:bg-zinc-800 border border-zinc-700 p-5\">\n      conteudo\n    </div>\n  );\n}",
+      "assertions": [
+        "ast-noclass:zinc-",
+        "contains:neutral-",
+        "contains:rounded-2xl"
+      ]
+    }
+  ]
+}
