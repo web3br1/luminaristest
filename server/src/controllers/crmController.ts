@@ -2,7 +2,10 @@ import { Request, Response } from 'express';
 import { getUserContextFromRequest } from '../lib/authUtils';
 import { handleApiError } from '../lib/apiUtils';
 import { UnauthorizedError } from '../lib/errors';
+import logger from '../lib/logger';
 import { getFactory } from '../lib/factory';
+import { resolveAccountingScope } from '../features/accounting/scope/AccountingScope';
+import { buildOpportunityWonEvent } from '../features/accounting/sync/AccountingSyncPort';
 import {
   AdvanceStageSchema,
   ConvertLeadSchema,
@@ -84,11 +87,57 @@ export const advanceOpportunity = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: parsed.error.flatten() });
     }
     const data = await getFactory().getCrmPipelineService().advanceOpportunity(user, parsed.data);
+
+    // Post-commit accounting integration (§2.1: at the controller/integration layer,
+    // NEVER inside the CRM transaction). Best-effort: a sync failure must NOT undo the
+    // Won transition — the reconciliation job re-drives it idempotently.
+    await maybeSyncOpportunityWon(user, data);
+
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
   }
 };
+
+/**
+ * If the advanced opportunity is now `Won`, book the revenue entry via AccountingSync.
+ * Runs AFTER the CRM transition commits and swallows its own errors (non-fatal) — the
+ * source fact stands regardless, and unbooked Won deals are caught by reconciliation.
+ */
+async function maybeSyncOpportunityWon(
+  user: { userId: string },
+  result: { id: string; data?: unknown },
+): Promise<void> {
+  const oppData = (result.data ?? {}) as Record<string, unknown>;
+  if (oppData.status !== 'Won') return;
+
+  // Never default/infer the unit — only post within the opportunity's own unit (§2 tenancy).
+  const unitId = typeof oppData.unitId === 'string' ? oppData.unitId : '';
+  if (!unitId) {
+    logger.warn('Opportunity Won without unitId — accounting sync skipped', {
+      opportunityId: result.id,
+    });
+    return;
+  }
+
+  try {
+    const event = buildOpportunityWonEvent({
+      opportunityId: result.id,
+      unitId,
+      amount: typeof oppData.amount === 'number' ? oppData.amount : NaN,
+      currency: typeof oppData.currency === 'string' ? oppData.currency : 'BRL',
+      occurredAt: typeof oppData.closedAt === 'string' ? oppData.closedAt : new Date().toISOString(),
+      label: typeof oppData.name === 'string' ? oppData.name : 'Oportunidade',
+    });
+    const scope = resolveAccountingScope(user, unitId);
+    await getFactory().getAccountingSyncService().sync(scope, event);
+  } catch (syncError) {
+    logger.error('AccountingSync (opportunity won) failed — left for reconciliation', {
+      opportunityId: result.id,
+      error: syncError instanceof Error ? syncError.message : String(syncError),
+    });
+  }
+}
 
 export const convertLeadToOpportunity = async (req: Request, res: Response) => {
   try {
