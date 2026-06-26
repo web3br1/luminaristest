@@ -53,6 +53,7 @@ import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/Crm
 import { SalonSaleFinalizedMapper } from '../features/accounting/sync/mappers/SalonSaleFinalizedMapper';
 import { SalonSaleReturnedMapper } from '../features/accounting/sync/mappers/SalonSaleReturnedMapper';
 import { SalonSaleSettledMapper } from '../features/accounting/sync/mappers/SalonSaleSettledMapper';
+import { SalonPackageSoldMapper } from '../features/accounting/sync/mappers/SalonPackageSoldMapper';
 import { SalesCancellationService } from '../features/sales/services/SalesCancellationService';
 import { RegisterPaymentService } from '../features/sales/services/RegisterPaymentService';
 import { PresetSyncService } from '../features/dynamicTables/services/PresetSyncService';
@@ -256,6 +257,7 @@ export class ApplicationFactory {
       new SalonSaleFinalizedMapper(),
       new SalonSaleReturnedMapper(),
       new SalonSaleSettledMapper(),
+      new SalonPackageSoldMapper(),
     ]);
 
     const accountingReportService = new AccountingReportService(
