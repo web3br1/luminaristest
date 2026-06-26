@@ -84,6 +84,73 @@ export const salesModule = {
           'Automatically flagged when the customer is in a loyalty lifecycle stage (used for recurring-revenue KPIs).',
       },
       { ...campaignId, description: 'Marketing campaign linked to the sale (used for incremental revenue analysis).' },
+      // --- Cancellation / return audit (Incremento D / D2-Q10) — JSON columns, no migration.
+      // readOnly: only the SalesCancellationService (isSystem) writes these on transition.
+      {
+        name: 'cancelledAt',
+        label: 'Cancelled At',
+        type: 'datetime',
+        required: false,
+        readOnly: true,
+        searchable: false,
+        description: 'Timestamp when the sale was cancelled (set by the cancellation transition).',
+      },
+      {
+        name: 'returnedAt',
+        label: 'Returned At',
+        type: 'datetime',
+        required: false,
+        readOnly: true,
+        searchable: false,
+        description: 'Timestamp when the sale was returned (set by the return transition).',
+      },
+      {
+        name: 'reason',
+        label: 'Cancellation/Return Reason',
+        type: 'string',
+        required: false,
+        readOnly: true,
+        searchable: false,
+        description: 'Reason recorded when the sale was cancelled or returned.',
+      },
+      {
+        name: 'actor',
+        label: 'Status Changed By',
+        type: 'string',
+        required: false,
+        readOnly: true,
+        searchable: false,
+        description: 'User id that performed the cancellation/return transition.',
+      },
+      // --- Payment / settlement audit (Incremento D / D1, D1-Q2) — JSON columns, no migration.
+      // readOnly: only RegisterPaymentService (isSystem) writes these when paymentStatus → Paid.
+      {
+        name: 'paidAt',
+        label: 'Paid At',
+        type: 'datetime',
+        required: false,
+        readOnly: true,
+        searchable: false,
+        description: 'Timestamp when the sale was paid (settlement date — set by the pay transition).',
+      },
+      {
+        name: 'paidByUserId',
+        label: 'Paid By',
+        type: 'string',
+        required: false,
+        readOnly: true,
+        searchable: false,
+        description: 'User id that registered the payment.',
+      },
+      {
+        name: 'paymentReference',
+        label: 'Payment Reference',
+        type: 'string',
+        required: false,
+        readOnly: true,
+        searchable: false,
+        description: 'External payment reference (NSU, transaction id…) recorded at payment time.',
+      },
     ],
     immutableAfter: [
       {

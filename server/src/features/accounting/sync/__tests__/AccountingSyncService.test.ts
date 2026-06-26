@@ -1,6 +1,7 @@
 import { Prisma } from 'generated/prisma';
 import { AccountingSyncService } from '../AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../mappers/CrmOpportunityWonMapper';
+import { SalonSaleSettledMapper } from '../mappers/SalonSaleSettledMapper';
 import { ValidationError } from '../../../../lib/errors';
 import type { AccountingScope } from '../../scope/AccountingScope';
 import type { AccountingEvent } from '../AccountingSyncPort';
@@ -131,6 +132,36 @@ describe('AccountingSyncService', () => {
 
     await expect(svc.sync(scope, unknownEvent)).rejects.toBeInstanceOf(ValidationError);
     expect(postEntry).not.toHaveBeenCalled();
+  });
+
+  it('settlement with a missing prepaid account (2.1.1) surfaces a ValidationError and books NOTHING', async () => {
+    // PostingService.resolveLeafAccount throws ValidationError for an absent/synthetic leaf — it is
+    // the chart authority (§2.1), not the mapper. Here postEntry simulates 2.1.1 being absent: the
+    // Package Balance settlement must surface ValidationError, not retry, and never post a partial.
+    const postEntry = jest.fn((_s: AccountingScope, _i: PostEntryInput) => {
+      throw new ValidationError("Conta '2.1.1' não existe no plano de contas.");
+    });
+    const postingService = { postEntry } as unknown as ConstructorParameters<typeof AccountingSyncService>[0];
+    const svc = new AccountingSyncService(postingService, [new SalonSaleSettledMapper()], {
+      maxAttempts: 3,
+      retryDelayMs: 0,
+    });
+    const settledEvent: AccountingEvent = {
+      sourceType: 'salon.sale.settled',
+      sourceId: 'sale-pkg',
+      unitId: 'unit-1',
+      amount: 200,
+      currency: 'BRL',
+      occurredAt: '2026-06-25T00:00:00.000Z',
+      paymentMethod: 'Package Balance',
+      label: 'Liquidação sale-pkg',
+    };
+
+    await expect(svc.sync(scope, settledEvent)).rejects.toBeInstanceOf(ValidationError);
+    expect(postEntry).toHaveBeenCalledTimes(1); // deterministic fault — no retry, no partial write
+    // The mapper still chose the prepaid liability (never cash) before the chart rejected it.
+    expect(postEntry.mock.calls[0]![1].lines.some((l) => l.accountCode === '2.1.1')).toBe(true);
+    expect(postEntry.mock.calls[0]![1].lines.some((l) => l.accountCode === '1.1.3')).toBe(false);
   });
 
   it('unitId is never substituted or crossed — the posting input carries the event unit', async () => {

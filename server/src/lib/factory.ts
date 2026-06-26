@@ -48,6 +48,10 @@ import { AccountingReportService } from '../features/accounting/services/Account
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
 import { SalonSaleFinalizedMapper } from '../features/accounting/sync/mappers/SalonSaleFinalizedMapper';
+import { SalonSaleReturnedMapper } from '../features/accounting/sync/mappers/SalonSaleReturnedMapper';
+import { SalonSaleSettledMapper } from '../features/accounting/sync/mappers/SalonSaleSettledMapper';
+import { SalesCancellationService } from '../features/sales/services/SalesCancellationService';
+import { RegisterPaymentService } from '../features/sales/services/RegisterPaymentService';
 import { PresetSyncService } from '../features/dynamicTables/services/PresetSyncService';
 import { AttachmentService } from '../features/attachments/services/AttachmentService';
 import { SavedTableViewService } from '../features/savedViews/services/SavedTableViewService';
@@ -132,6 +136,8 @@ export class ApplicationFactory {
     knowledgeGraph: KnowledgeGraphService;
     crmPipeline: CrmPipelineService;
     crmAnalytics: CrmAnalyticsService;
+    salesCancellation: SalesCancellationService;
+    registerPayment: RegisterPaymentService;
     posting: PostingService;
     accountingSync: AccountingSyncService;
     accountingReport: AccountingReportService;
@@ -211,6 +217,21 @@ export class ApplicationFactory {
       this.repositories.dynamicTable
     );
 
+    // Salon-sale cancellation/return transitions (Incremento D) — orchestration over
+    // DynamicTableService (no own Repository/Policy); the post-commit accounting effect is
+    // applied inside the service via SalonSaleReversalBridge.
+    const salesCancellationService = new SalesCancellationService(
+      dynamicTableService,
+      this.repositories.dynamicTable
+    );
+
+    // Salon-sale payment transition (Incremento D / D1) — same orchestration shape as
+    // salesCancellationService; the post-commit settlement is applied via SalonSaleSettlementBridge.
+    const registerPaymentService = new RegisterPaymentService(
+      dynamicTableService,
+      this.repositories.dynamicTable
+    );
+
     const postingService = new PostingService(
       this.repositories.account,
       this.repositories.journalEntry,
@@ -223,6 +244,8 @@ export class ApplicationFactory {
     const accountingSyncService = new AccountingSyncService(postingService, [
       new CrmOpportunityWonMapper(),
       new SalonSaleFinalizedMapper(),
+      new SalonSaleReturnedMapper(),
+      new SalonSaleSettledMapper(),
     ]);
 
     const accountingReportService = new AccountingReportService(
@@ -273,6 +296,8 @@ export class ApplicationFactory {
       knowledgeGraph: knowledgeGraphService,
       crmPipeline: crmPipelineService,
       crmAnalytics: crmAnalyticsService,
+      salesCancellation: salesCancellationService,
+      registerPayment: registerPaymentService,
       posting: postingService,
       accountingSync: accountingSyncService,
       accountingReport: accountingReportService,
@@ -306,6 +331,8 @@ export class ApplicationFactory {
   public getKnowledgeGraphService = (): KnowledgeGraphService => this.services.knowledgeGraph;
   public getCrmPipelineService = (): CrmPipelineService => this.services.crmPipeline;
   public getCrmAnalyticsService = (): CrmAnalyticsService => this.services.crmAnalytics;
+  public getSalesCancellationService = (): SalesCancellationService => this.services.salesCancellation;
+  public getRegisterPaymentService = (): RegisterPaymentService => this.services.registerPayment;
   public getPostingService = (): PostingService => this.services.posting;
   public getAccountingSyncService = (): AccountingSyncService => this.services.accountingSync;
   public getAccountingReportService = (): AccountingReportService => this.services.accountingReport;
