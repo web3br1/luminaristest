@@ -15,6 +15,7 @@ import { SavedTableViewRepository } from '../features/savedViews/repositories/Sa
 import { AccountRepository } from '../features/accounting/repositories/AccountRepository';
 import { JournalEntryRepository } from '../features/accounting/repositories/JournalEntryRepository';
 import { PostingRepository } from '../features/accounting/repositories/PostingRepository';
+import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
 import { ChatInstancePolicy } from '../features/chatInstances/policies/ChatInstancePolicy';
@@ -27,6 +28,7 @@ import { DynamicTablePolicy } from '../features/dynamicTables/policies/DynamicTa
 import { AttachmentPolicy } from '../features/attachments/policies/AttachmentPolicy';
 import { SavedTableViewPolicy } from '../features/savedViews/policies/SavedTableViewPolicy';
 import { AccountingPolicy } from '../features/accounting/policies/AccountingPolicy';
+import { PackageBalancePolicy } from '../features/packages/policies/PackageBalancePolicy';
 
 // Features - Services
 import { ChatInstanceService } from '../features/chatInstances/services/ChatInstanceService';
@@ -45,6 +47,7 @@ import { CrmPipelineService } from '../features/crm/services/CrmPipelineService'
 import { CrmAnalyticsService } from '../features/crm/services/CrmAnalyticsService';
 import { PostingService } from '../features/accounting/services/PostingService';
 import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
+import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
 import { SalonSaleFinalizedMapper } from '../features/accounting/sync/mappers/SalonSaleFinalizedMapper';
@@ -86,6 +89,8 @@ import type { IAccountRepository } from '../features/accounting/repositories/IAc
 import type { IJournalEntryRepository } from '../features/accounting/repositories/IJournalEntryRepository';
 import type { IPostingRepository } from '../features/accounting/repositories/IPostingRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
+import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
+import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
 
 export class ApplicationFactory {
   private static instance: ApplicationFactory;
@@ -107,6 +112,7 @@ export class ApplicationFactory {
     account: IAccountRepository;
     journalEntry: IJournalEntryRepository;
     posting: IPostingRepository;
+    packageBalance: IPackageBalanceRepository;
   };
 
   private readonly policies: {
@@ -120,6 +126,7 @@ export class ApplicationFactory {
     attachment: IAttachmentPolicy;
     savedTableView: ISavedTableViewPolicy;
     accounting: IAccountingPolicy;
+    packageBalance: IPackageBalancePolicy;
   };
 
   public readonly services: {
@@ -141,6 +148,7 @@ export class ApplicationFactory {
     posting: PostingService;
     accountingSync: AccountingSyncService;
     accountingReport: AccountingReportService;
+    packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
     savedTableView: SavedTableViewService;
@@ -169,6 +177,7 @@ export class ApplicationFactory {
       account: new AccountRepository(),
       journalEntry: new JournalEntryRepository(),
       posting: new PostingRepository(),
+      packageBalance: new PackageBalanceRepository(),
     };
 
     // Policies
@@ -183,6 +192,7 @@ export class ApplicationFactory {
       attachment: new AttachmentPolicy(),
       savedTableView: new SavedTableViewPolicy(),
       accounting: new AccountingPolicy(),
+      packageBalance: new PackageBalancePolicy(),
     };
 
     // Services (handling inter-dependencies)
@@ -301,6 +311,10 @@ export class ApplicationFactory {
       posting: postingService,
       accountingSync: accountingSyncService,
       accountingReport: accountingReportService,
+      packageBalance: new PackageBalanceService(
+        this.repositories.packageBalance,
+        this.policies.packageBalance
+      ),
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
       savedTableView: new SavedTableViewService(
@@ -336,6 +350,7 @@ export class ApplicationFactory {
   public getPostingService = (): PostingService => this.services.posting;
   public getAccountingSyncService = (): AccountingSyncService => this.services.accountingSync;
   public getAccountingReportService = (): AccountingReportService => this.services.accountingReport;
+  public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;
   public getSavedTableViewService = (): SavedTableViewService => this.services.savedTableView;
