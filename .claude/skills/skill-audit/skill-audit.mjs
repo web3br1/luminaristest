@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // skill-audit — auditor de skills contra governance/SKILLS_STANDARD.md
 // Comandos: inventory | validate | governance-check | sync-metadata | coverage |
-//           eval | self-check | run
+//           eval | self-check | wiring | run
 // ponytail: mini-parser de YAML (sem dependência) — frontmatter/governance são subset controlado.
 
 import fs from 'node:fs';
@@ -822,6 +822,22 @@ function cmdInventory() {
 function exit(findings) {
   process.exit(findings && findings.length ? 1 : 0);
 }
+
+// wiring — bugs de "membership em registro central" no APP gerado que o tsc não vê
+// (rota não montada, categoria KPI/preset órfã, divergência i18n en↔pt).
+// Roda os checks co-localizados; cada exit≠0 vira 1 finding com a saída.
+function cmdWiring() {
+  const findings = [];
+  for (const script of ['check-registries.mjs', 'check-i18n-keys.mjs']) {
+    try {
+      execSync(`node "${path.join(AUDIT_DIR, script)}"`, { stdio: 'pipe' });
+    } catch (e) {
+      const out = `${e.stdout?.toString() || ''}${e.stderr?.toString() || ''}`.trim();
+      findings.push({ code: 'WIRING_REGISTRY_MISSING', skill: script, detail: out.split('\n').filter(Boolean).join(' | ') });
+    }
+  }
+  return findings;
+}
 const cmd = process.argv[2] || 'run';
 switch (cmd) {
   case 'inventory': cmdInventory(); break;
@@ -834,6 +850,7 @@ switch (cmd) {
   case 'batch-eval': process.exit(cmdBatchEval(process.argv[3], process.argv[4])); break;
   case 'controls': exit(cmdControls()); break;
   case 'self-check': exit(cmdSelfCheck()); break;
+  case 'wiring': exit(cmdWiring()); break;
   case 'run': {
     const skills = allSkills();
     const all = [
@@ -844,6 +861,7 @@ switch (cmd) {
       ...cmdEval(false),
       ...cmdControls(),
       ...cmdSelfCheck(),
+      ...cmdWiring(),
     ];
     console.log(`\n== run --all: ${all.length} finding(s) ==`);
     exit(all);
