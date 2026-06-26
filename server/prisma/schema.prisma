@@ -36,6 +36,8 @@ model User {
   accounts       Account[]        // Relation to Account (accounting)
   journalEntries JournalEntry[]   // Relation to JournalEntry (accounting)
   postings       Posting[]        // Relation to Posting (accounting)
+  customerPackageBalances CustomerPackageBalance[] // Relation to CustomerPackageBalance (prepaid packages)
+  packageBalanceMovements PackageBalanceMovement[] // Relation to PackageBalanceMovement (prepaid packages)
 }
 
 // Per-user saved table views (query/filters/sort) for the canonical table stack.
@@ -361,4 +363,59 @@ model Posting {
   @@index([entryId])
   @@index([accountId])
   @@map("postings")
+}
+
+// ── Prepaid packages (Incremento G — Prepaid Package Origin) ───────────────────
+// First-class Prisma (NOT DynamicTable): the prepaid balance carries a hard
+// financial invariant (balanceCents >= 0) that mirrors the liability account
+// 2.1.1 "Pacotes Pré-pagos", so it is modeled with real columns, integer-cent
+// money and DB-level unique constraints — same rationale as the accounting tower.
+// The package CATALOG and the package SALE stay in DynamicTable (operational
+// origin); only the balance lives here. Tenancy is two-level: userId (FK) AND
+// unitId (DynamicTable row id; scoped string, not a FK). `customerId`/`packageId`
+// are DynamicTable row ids (scoped strings, not FKs — same convention as unitId).
+
+// Current prepaid balance per customer × package (the invariant holder). The
+// `balanceCents` column is maintained (not recomputed) for O(1) sufficiency
+// checks; the append-only PackageBalanceMovement log is the source of truth for
+// idempotency and audit. The >= 0 guard is enforced inside the service tx
+// (SQLite has no CHECK constraint — same convention as the cents guards in DTOs).
+model CustomerPackageBalance {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId       String    // business unit (DynamicTable row id; scoped string, not a FK)
+  customerId   String    // customer (DynamicTable row id; scoped string, not a FK)
+  packageId    String    // package from the catalog (DynamicTable row id; scoped string, not a FK)
+  balanceCents Int       @default(0)
+  expiresAt    DateTime? // reserved for future expiry; NOT enforced in the G MVP
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@unique([userId, unitId, customerId, packageId]) // one live balance per customer × package
+  @@index([userId, unitId])
+  @@index([deletedAt])
+  @@map("customer_package_balances")
+}
+
+// Append-only movement log (one credit at package-sale origin, one debit per
+// consumption). This is the idempotency trap: the unique (userId, unitId, saleId,
+// kind) closes the double-credit / double-debit window that reconcile re-drives
+// would otherwise open. `deltaCents` is always > 0; the sign comes from `kind`.
+model PackageBalanceMovement {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId     String
+  customerId String
+  packageId  String
+  saleId     String   // the sale (DynamicTable row id) that originated this movement
+  kind       String   // 'credit' (package-sale origin) | 'debit' (Package Balance consumption)
+  deltaCents Int      // always > 0; direction is given by `kind`
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, unitId, saleId, kind]) // closes double-apply on reconcile re-drive
+  @@index([userId, unitId, customerId, packageId])
+  @@map("package_balance_movements")
 }
