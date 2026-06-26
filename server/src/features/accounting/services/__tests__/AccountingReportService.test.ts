@@ -200,6 +200,43 @@ describe('AccountingReportService.trialBalance', () => {
     await expect(svc.trialBalance(scope)).rejects.toBeInstanceOf(ForbiddenError);
     expect(postingRepo.groupByAccount).not.toHaveBeenCalled();
   });
+
+  // Incremento D / D2-Q5a: account 3.2 (Devoluções de Vendas) is Revenue-nature but carries a
+  // DEBIT balance from returns, so net revenue (Σ crédito − débito over Revenue accounts) is
+  // REDUCED by it. If 3.2 ever raised net revenue, the contra-revenue treatment would be a bug.
+  it('a 3.2 (Devoluções) debit balance REDUCES net revenue (crédito − débito over Revenue accounts)', async () => {
+    const { svc } = buildService({
+      postingRepo: {
+        groupByAccount: jest.fn(async () => [
+          // Sale revenue recognized: 3.1 credit 10000.
+          { accountId: 'acc-3.1', debitCents: 0, creditCents: 10000 },
+          // A return: 3.2 debit 3000 (contra-revenue).
+          { accountId: 'acc-3.2', debitCents: 3000, creditCents: 0 },
+        ]),
+      },
+      accountRepo: {
+        findManyByUnit: jest.fn(async () => [
+          { id: 'acc-3.1', code: '3.1', name: 'Receita de Vendas', nature: 'Revenue' },
+          { id: 'acc-3.2', code: '3.2', name: 'Devoluções de Vendas', nature: 'Revenue' },
+        ]),
+      },
+    });
+    const report = await svc.trialBalance(scope);
+
+    const netRevenueCents = report.rows
+      .filter((r) => r.nature === 'Revenue')
+      .reduce((acc, r) => acc + (r.creditCents - r.debitCents), 0);
+
+    // Gross 10000 minus the 3000 return = 7000 net — strictly less than the gross.
+    expect(netRevenueCents).toBe(7000);
+    const grossRevenueCents = report.rows
+      .filter((r) => r.code === '3.1')
+      .reduce((acc, r) => acc + (r.creditCents - r.debitCents), 0);
+    expect(netRevenueCents).toBeLessThan(grossRevenueCents);
+
+    const devolucoes = report.rows.find((r) => r.code === '3.2')!;
+    expect(devolucoes.balanceCents).toBe(3000); // debit − credit > 0 (debit balance)
+  });
 });
 
 describe('AccountingReportService.accountLedger', () => {

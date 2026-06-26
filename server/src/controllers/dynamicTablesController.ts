@@ -10,6 +10,7 @@ import {
   UpdateDynamicTableDataDto,
 } from '@/features/dynamicTables/dtos/DynamicTable.dto';
 import { maybeSyncSalonSaleFinalized } from '@/features/accounting/sync/bridges/SalonSalesAccountingBridge';
+import { maybeSyncSalonSaleSettled } from '@/features/accounting/sync/bridges/SalonSaleSettlementBridge';
 
 const cuidSchema = z.string().cuid();
 
@@ -91,8 +92,11 @@ export async function createTableData(req: Request, res: Response) {
     const created = await service.createTableData(ctx, req.params.tableId, body.data);
 
     // Post-commit accounting integration (§2.1: controller/integration layer, NEVER inside
-    // the DynamicTable engine). A sale may be born Finalized — non-fatal, idempotent.
+    // the DynamicTable engine). A sale may be born Finalized — non-fatal, idempotent. Revenue
+    // first, then settlement (a sale born Finalized+Paid): the settlement bridge's ordering gate
+    // requires the revenue entry, which the awaited finalize call books just above.
     await maybeSyncSalonSaleFinalized(ctx, req.params.tableId, created);
+    await maybeSyncSalonSaleSettled(ctx, req.params.tableId, created);
 
     return res.status(201).json({ success: true, data: created });
   } catch (error) {
