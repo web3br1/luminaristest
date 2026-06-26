@@ -4,6 +4,7 @@ import type { AccountingEvent } from '../../AccountingSyncPort';
 // --- Mock the bridge's collaborators (factory + logger). resolveAccountingScope and
 // buildSalonSaleSettledEvent are pure and left real. ---
 const findTableByInternalName = jest.fn();
+const findRowsByFieldValue = jest.fn();
 const sync = jest.fn();
 const findEntryBySource = jest.fn();
 const loggerWarn = jest.fn();
@@ -12,7 +13,7 @@ const loggerError = jest.fn();
 jest.mock('../../../../../lib/factory', () => ({
   __esModule: true,
   getFactory: () => ({
-    getDynamicTableRepository: () => ({ findTableByInternalName }),
+    getDynamicTableRepository: () => ({ findTableByInternalName, findRowsByFieldValue }),
     getAccountingSyncService: () => ({ sync }),
     getPostingService: () => ({ findEntryBySource }),
   }),
@@ -52,7 +53,8 @@ describe('SalonSaleSettlementBridge.maybeSyncSalonSaleSettled', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     findTableByInternalName.mockResolvedValue(salesTable());
-    findEntryBySource.mockResolvedValue({ id: 'rev-1' }); // revenue exists by default
+    findRowsByFieldValue.mockResolvedValue([]); // not all-Package by default → opening = revenue
+    findEntryBySource.mockResolvedValue({ id: 'rev-1' }); // opening exists by default
     sync.mockResolvedValue({ entryId: 'settle-1' });
   });
 
@@ -92,14 +94,25 @@ describe('SalonSaleSettlementBridge.maybeSyncSalonSaleSettled', () => {
     expect(findTableByInternalName).not.toHaveBeenCalled();
   });
 
-  it('ORDERING GATE: does NOT settle when the revenue entry is missing (blocked_missing_revenue_entry)', async () => {
+  it('ORDERING GATE: does NOT settle when the opening entry is missing (blocked_missing_opening_entry)', async () => {
     findEntryBySource.mockResolvedValueOnce(null);
     await maybeSyncSalonSaleSettled(actor, SALES_TABLE_ID, settledRow());
     expect(sync).not.toHaveBeenCalled();
     expect(loggerWarn).toHaveBeenCalledWith(
-      expect.stringContaining('blocked_missing_revenue_entry'),
+      expect.stringContaining('blocked_missing_opening_entry'),
       expect.objectContaining({ saleId: 'sale-1' }),
     );
+  });
+
+  it('ORDERING GATE (all-Package): checks salon.package.sold as the opening, not revenue', async () => {
+    findRowsByFieldValue.mockResolvedValue([{ data: { type: 'Package', packageId: 'pkg-1', saleId: 'sale-1' } }]);
+    await maybeSyncSalonSaleSettled(actor, SALES_TABLE_ID, settledRow());
+    expect(findEntryBySource).toHaveBeenCalledWith(
+      expect.objectContaining({ unitId: 'unit-1' }),
+      'salon.package.sold',
+      'sale-1',
+    );
+    expect(sync).toHaveBeenCalledTimes(1); // opening (origin) exists → settles
   });
 
   it('ignores a table that is not the tenant sales table (id mismatch)', async () => {

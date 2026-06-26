@@ -23,6 +23,7 @@ import { getFactory } from '../../../../lib/factory';
 import logger from '../../../../lib/logger';
 import { resolveAccountingScope } from '../../scope/AccountingScope';
 import { buildSalonSaleSettledEvent } from '../AccountingSyncPort';
+import { isAllPackageSale } from './salonSaleItems';
 
 /** The minimal shape this bridge reads from a DynamicTable data row (create/update result). */
 interface SaleRow {
@@ -84,14 +85,20 @@ export async function maybeSyncSalonSaleSettled(
 
     const scope = resolveAccountingScope(actor, unitId);
 
-    // ORDERING GATE: the revenue entry must exist before we clear A Receber. If it doesn't, do NOT
-    // settle now — reconcile will re-drive once revenue is booked (blocked_missing_revenue_entry).
-    const revenue = await getFactory()
+    // ORDERING GATE: the A Receber opening entry must exist before we clear it. For a normal sale
+    // that is the revenue entry ('salon.sale.finalized'); for an all-Package sale it is the prepaid
+    // origin ('salon.package.sold' — Incremento G P6), since an all-Package sale recognizes no
+    // revenue. If the opening is missing, do NOT settle now — reconcile re-drives once it is booked.
+    const openingSourceType = (await isAllPackageSale(actor.userId, row.id))
+      ? 'salon.package.sold'
+      : 'salon.sale.finalized';
+    const opening = await getFactory()
       .getPostingService()
-      .findEntryBySource(scope, 'salon.sale.finalized', row.id);
-    if (!revenue) {
-      logger.warn('Settlement blocked — revenue entry missing (blocked_missing_revenue_entry)', {
+      .findEntryBySource(scope, openingSourceType, row.id);
+    if (!opening) {
+      logger.warn('Settlement blocked — A Receber opening entry missing (blocked_missing_opening_entry)', {
         saleId: row.id,
+        openingSourceType,
       });
       return;
     }

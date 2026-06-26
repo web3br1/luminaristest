@@ -112,6 +112,9 @@ export class RegisterPaymentService {
       paidByUserId: user.userId,
     };
     if (input.paymentReference !== undefined) patch.paymentReference = input.paymentReference;
+    // Persist the consumed package (P6): the reconcile needs it to re-drive a missing balance
+    // debit — it must NEVER be inferred. Written only for Package Balance; absent otherwise.
+    if (isPackageBalance && input.packageId) patch.paidWithPackageId = input.packageId;
 
     // isSystem: the row is Finalized (immutableAfter scope:'all') and paidAt/paidByUserId/
     // paymentReference are readOnly — this is a server-orchestrated transition, not a user edit (G2).

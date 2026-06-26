@@ -217,6 +217,22 @@ describe('RegisterPaymentService.registerPayment', () => {
       expect(packageBalanceService.debitForConsumption).toHaveBeenCalledTimes(1);
     });
 
+    it('persists paidWithPackageId (P6) so reconcile can re-drive the debit', async () => {
+      const { svc, dynamicTableService } = buildService({
+        repo: { findDataById: jest.fn(async () => saleWithCustomer()) },
+      });
+      await svc.registerPayment(user, pbInput);
+      const [, , dto] = dynamicTableService.updateTableData.mock.calls[0];
+      expect(dto.data.paidWithPackageId).toBe('pkg-1');
+    });
+
+    it('does NOT persist paidWithPackageId for Cash/Pix/Card', async () => {
+      const { svc, dynamicTableService } = buildService();
+      await svc.registerPayment(user, baseInput); // Pix
+      const [, , dto] = dynamicTableService.updateTableData.mock.calls[0];
+      expect(dto.data).not.toHaveProperty('paidWithPackageId');
+    });
+
     it('NON-FATAL debit: a post-commit debit failure does not throw (payment already committed)', async () => {
       const { svc } = buildService({
         repo: { findDataById: jest.fn(async () => saleWithCustomer()) },
