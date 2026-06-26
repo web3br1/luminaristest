@@ -47,6 +47,7 @@ import { PostingService } from '../features/accounting/services/PostingService';
 import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
+import { SalonSaleFinalizedMapper } from '../features/accounting/sync/mappers/SalonSaleFinalizedMapper';
 import { PresetSyncService } from '../features/dynamicTables/services/PresetSyncService';
 import { AttachmentService } from '../features/attachments/services/AttachmentService';
 import { SavedTableViewService } from '../features/savedViews/services/SavedTableViewService';
@@ -221,6 +222,7 @@ export class ApplicationFactory {
     // engine). Depends on postingService (above); first non-controller consumer.
     const accountingSyncService = new AccountingSyncService(postingService, [
       new CrmOpportunityWonMapper(),
+      new SalonSaleFinalizedMapper(),
     ]);
 
     const accountingReportService = new AccountingReportService(
