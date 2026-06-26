@@ -68,7 +68,7 @@ export const itemType: ISchemaField = {
   name: 'type',
   label: 'Item Type',
   type: 'select',
-  options: ['Service', 'Product'],
+  options: ['Service', 'Product', 'Package'],
   required: true,
   searchable: false,
 };

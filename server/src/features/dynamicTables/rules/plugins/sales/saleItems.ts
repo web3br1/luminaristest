@@ -101,14 +101,29 @@ export async function loadSaleItems(ctx: RuleContext): Promise<{ items: Array<{ 
 }
 
 /**
- * Enforce that a sale item references exactly one of productId or serviceId, and product qty > 0.
+ * Enforce that a sale item references exactly one of productId / serviceId / packageId,
+ * that it matches itemType when given, and that product qty > 0. `packageId` points to a
+ * prepaid package (Incremento G, monetary) — same XOR shape as product/service, no stock.
  */
 export async function validateSaleItemXor(_ctx: RuleContext, after: Record<string, unknown>) {
-  // Applies to mixed variant: exactly one of productId or serviceId must be provided
+  // Mixed variant: exactly one of productId / serviceId / packageId must be provided.
   const hasProduct = !!after?.productId;
   const hasService = !!after?.serviceId;
-  if ((hasProduct && hasService) || (!hasProduct && !hasService)) {
-    throw new ValidationError('Item de venda inválido: informe exatamente um entre productId ou serviceId.');
+  const hasPackage = !!after?.packageId;
+  const count = (hasProduct ? 1 : 0) + (hasService ? 1 : 0) + (hasPackage ? 1 : 0);
+  if (count !== 1) {
+    throw new ValidationError('Item de venda inválido: informe exatamente um entre productId, serviceId ou packageId.');
+  }
+  // Type ↔ id consistency when itemType is provided.
+  const type = String(after?.type || '');
+  if (type === 'Product' && !hasProduct) {
+    throw new ValidationError('Item do tipo Produto exige productId.');
+  }
+  if (type === 'Service' && !hasService) {
+    throw new ValidationError('Item do tipo Serviço exige serviceId.');
+  }
+  if (type === 'Package' && !hasPackage) {
+    throw new ValidationError('Item do tipo Pacote exige packageId.');
   }
   // Quantity validation for products
   if (hasProduct) {
@@ -120,8 +135,8 @@ export async function validateSaleItemXor(_ctx: RuleContext, after: Record<strin
 }
 
 /**
- * Prevent mixing product and service items within the same sale.
- * Called on insert of a new sale item.
+ * Prevent mixing product, service and package items within the same sale.
+ * Called on insert of a new sale item. A sale is all-Product, all-Service, or all-Package.
  */
 export async function validateNoMixedItemTypesOnInsert(ctx: RuleContext, after: Record<string, unknown>) {
   const saleId = String(after?.saleId || '');
@@ -130,15 +145,15 @@ export async function validateNoMixedItemTypesOnInsert(ctx: RuleContext, after: 
   const allItems = await ctx.repository.findRowsByFieldValue(ctx.table.id, 'saleId', saleId);
   const existing = allItems.map((r: IDynamicTableData) => (r.data as Record<string, unknown>) || {});
   const types = new Set<string>();
-  for (const it of existing) {
+  const collect = (it: Record<string, unknown>) => {
     if (it?.productId || String(it?.type || '') === 'Product') types.add('Product');
     if (it?.serviceId || String(it?.type || '') === 'Service') types.add('Service');
-  }
-  // Include the new one
-  if (after?.productId || String(after?.type || '') === 'Product') types.add('Product');
-  if (after?.serviceId || String(after?.type || '') === 'Service') types.add('Service');
-  if (types.has('Product') && types.has('Service') && !ctx.isSystem) {
-    throw new ValidationError('Venda não pode mesclar produtos e serviços; crie vendas separadas.');
+    if (it?.packageId || String(it?.type || '') === 'Package') types.add('Package');
+  };
+  for (const it of existing) collect(it);
+  collect(after); // include the new one
+  if (types.size > 1 && !ctx.isSystem) {
+    throw new ValidationError('Venda não pode mesclar produtos, serviços e pacotes; crie vendas separadas.');
   }
 }
 
