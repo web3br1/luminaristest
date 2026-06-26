@@ -17,6 +17,7 @@ import { getFactory } from '../../../../lib/factory';
 import logger from '../../../../lib/logger';
 import { resolveAccountingScope } from '../../scope/AccountingScope';
 import { buildSalonSaleFinalizedEvent } from '../AccountingSyncPort';
+import { isAllPackageSale } from './salonSaleItems';
 
 /** The minimal shape this bridge reads from a DynamicTable data row (create/update result). */
 interface SaleRow {
@@ -50,6 +51,12 @@ export async function maybeSyncSalonSaleFinalized(
     const repo = getFactory().getDynamicTableRepository();
     const salesTable = await repo.findTableByInternalName(actor.userId, 'sales');
     if (!salesTable || salesTable.id !== tableId || salesTable.category !== 'finance') return;
+
+    // Anti-revenue gate (Incremento G P4): an all-Package sale is PREPAID — selling it does
+    // NOT recognize revenue (3.1). It books the obligation (C 2.1.1) via the package-sold
+    // bridge instead. Proven from saleItems, never inferred from the header. Product/Service
+    // and mixed sales fall through and book revenue normally.
+    if (await isAllPackageSale(actor.userId, row.id)) return;
 
     // Never default/infer the unit — only post within the sale's own unit (§2 tenancy).
     const unitId = typeof data.unitId === 'string' ? data.unitId : '';

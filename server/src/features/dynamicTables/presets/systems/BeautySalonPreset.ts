@@ -5,6 +5,7 @@ import { serviceModule } from '../modules/service/ServiceModule';
 import { productModule, productUnitModule } from '../modules/product/ProductModule';
 import { salesModule } from '../modules/finance/SalesModule';
 import { saleItemsMixedModule } from '../modules/finance/SalesItemsMixed';
+import { packageCatalogModule } from '../modules/finance/PackageCatalogModule';
 import { stockMovementsModule } from '../modules/inventory/StockMovementsModule';
 import { appointmentsModule } from '../modules/planning/AppointmentsModule';
 import { goalsModule } from '../modules/business/GoalsModule';
@@ -34,6 +35,7 @@ const BeautySalonPreset = {
     customers: createTableFromModule(customerModule),
     suppliers: createTableFromModule(suppliersModule),
     services: createTableFromModule(serviceModule),
+    packages: createTableFromModule(packageCatalogModule),
     products: createTableFromModule(productModule),
     productUnits: createTableFromModule(productUnitModule),
     appointments: createTableFromModule(appointmentsModule),

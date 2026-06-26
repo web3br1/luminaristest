@@ -4,6 +4,7 @@ import type { AccountingEvent } from '../../AccountingSyncPort';
 // --- Mock the bridge's collaborators (factory + logger). resolveAccountingScope and
 // buildSalonSaleFinalizedEvent are pure and left real. ---
 const findTableByInternalName = jest.fn();
+const findRowsByFieldValue = jest.fn();
 const sync = jest.fn();
 const loggerWarn = jest.fn();
 const loggerError = jest.fn();
@@ -11,7 +12,7 @@ const loggerError = jest.fn();
 jest.mock('../../../../../lib/factory', () => ({
   __esModule: true,
   getFactory: () => ({
-    getDynamicTableRepository: () => ({ findTableByInternalName }),
+    getDynamicTableRepository: () => ({ findTableByInternalName, findRowsByFieldValue }),
     getAccountingSyncService: () => ({ sync }),
   }),
 }));
@@ -42,6 +43,8 @@ describe('SalonSalesAccountingBridge.maybeSyncSalonSaleFinalized', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     findTableByInternalName.mockResolvedValue(salesTable());
+    // Default: no items → not all-Package → anti-revenue gate passes (revenue books as before).
+    findRowsByFieldValue.mockResolvedValue([]);
     sync.mockResolvedValue({ entryId: 'entry-1' });
   });
 
@@ -110,5 +113,33 @@ describe('SalonSalesAccountingBridge.maybeSyncSalonSaleFinalized', () => {
       maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow()),
     ).resolves.toBeUndefined();
     expect(loggerError).toHaveBeenCalled();
+  });
+
+  // --- Anti-revenue gate (Incremento G P4) ---
+  describe('anti-revenue gate for all-Package sales', () => {
+    it('does NOT recognize revenue for an all-Package Finalized sale (no salon.sale.finalized)', async () => {
+      findRowsByFieldValue.mockResolvedValue([
+        { data: { type: 'Package', packageId: 'pkg-1', saleId: 'sale-1' } },
+      ]);
+      await maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow());
+      expect(sync).not.toHaveBeenCalled();
+    });
+
+    it('STILL recognizes revenue for a Product sale (salon.sale.finalized books normally)', async () => {
+      findRowsByFieldValue.mockResolvedValue([
+        { data: { type: 'Product', productId: 'p-1', saleId: 'sale-1' } },
+      ]);
+      await maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow());
+      expect(sync).toHaveBeenCalledTimes(1);
+      expect((sync.mock.calls[0][1] as AccountingEvent).sourceType).toBe('salon.sale.finalized');
+    });
+
+    it('STILL recognizes revenue for a Service sale', async () => {
+      findRowsByFieldValue.mockResolvedValue([
+        { data: { type: 'Service', serviceId: 's-1', saleId: 'sale-1' } },
+      ]);
+      await maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow());
+      expect(sync).toHaveBeenCalledTimes(1);
+    });
   });
 });
