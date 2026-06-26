@@ -20,7 +20,7 @@
  */
 export type AccountingEvent = {
   /** Stable event-kind key. Also the JournalEntry.sourceType (idempotency axis 1). */
-  sourceType: 'crm.opportunity.won';
+  sourceType: 'crm.opportunity.won' | 'salon.sale.finalized';
   /** The source record id. JournalEntry.sourceId (idempotency axis 2). */
   sourceId: string;
   /** Tenancy unit of the SOURCE record — never defaulted or inferred elsewhere. */
@@ -65,6 +65,32 @@ export function buildOpportunityWonEvent(fields: {
   return {
     sourceType: 'crm.opportunity.won',
     sourceId: fields.opportunityId,
+    unitId: fields.unitId,
+    amount: fields.amount,
+    currency: fields.currency,
+    occurredAt: fields.occurredAt,
+    label: fields.label,
+  };
+}
+
+/**
+ * Pure builder for the salon "sale finalized" event (Incremento C) — shared by the
+ * bridge (live trigger, post-commit) and the reconciliation job (re-drive) so both
+ * emit identical events. Carries the raw float `totalAmount`; the mapper converts to
+ * cents. The accounting fact is recognized on sale.status === 'Finalized' regardless
+ * of paymentStatus (revenue → A Receber); settlement is a separate Incremento D.
+ */
+export function buildSalonSaleFinalizedEvent(fields: {
+  saleId: string;
+  unitId: string;
+  amount: number;
+  currency: string;
+  occurredAt: string;
+  label: string;
+}): AccountingEvent {
+  return {
+    sourceType: 'salon.sale.finalized',
+    sourceId: fields.saleId,
     unitId: fields.unitId,
     amount: fields.amount,
     currency: fields.currency,

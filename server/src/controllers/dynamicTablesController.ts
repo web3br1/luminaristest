@@ -9,6 +9,7 @@ import {
   CreateDynamicTableDataDto,
   UpdateDynamicTableDataDto,
 } from '@/features/dynamicTables/dtos/DynamicTable.dto';
+import { maybeSyncSalonSaleFinalized } from '@/features/accounting/sync/bridges/SalonSalesAccountingBridge';
 
 const cuidSchema = z.string().cuid();
 
@@ -88,6 +89,11 @@ export async function createTableData(req: Request, res: Response) {
 
     const service = getFactory().getDynamicTableService();
     const created = await service.createTableData(ctx, req.params.tableId, body.data);
+
+    // Post-commit accounting integration (§2.1: controller/integration layer, NEVER inside
+    // the DynamicTable engine). A sale may be born Finalized — non-fatal, idempotent.
+    await maybeSyncSalonSaleFinalized(ctx, req.params.tableId, created);
+
     return res.status(201).json({ success: true, data: created });
   } catch (error) {
     return handleApiError(error, res);
@@ -107,6 +113,12 @@ export async function updateTableData(req: Request, res: Response) {
 
     const service = getFactory().getDynamicTableService();
     const updated = await service.updateTableData(ctx, req.params.dataId, body.data);
+
+    // Post-commit accounting integration (§2.1: controller/integration layer, NEVER inside
+    // the DynamicTable engine). Fires on the Draft→Finalized transition — non-fatal,
+    // idempotent. tableId comes from the route param of PUT /:tableId/data/:dataId.
+    await maybeSyncSalonSaleFinalized(ctx, req.params.tableId, updated);
+
     return res.json({ success: true, data: updated });
   } catch (error) {
     return handleApiError(error, res);
