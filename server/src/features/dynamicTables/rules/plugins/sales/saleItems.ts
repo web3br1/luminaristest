@@ -145,15 +145,27 @@ export async function validateNoMixedItemTypesOnInsert(ctx: RuleContext, after: 
   const allItems = await ctx.repository.findRowsByFieldValue(ctx.table.id, 'saleId', saleId);
   const existing = allItems.map((r: IDynamicTableData) => (r.data as Record<string, unknown>) || {});
   const types = new Set<string>();
+  const packageIds = new Set<string>();
   const collect = (it: Record<string, unknown>) => {
     if (it?.productId || String(it?.type || '') === 'Product') types.add('Product');
     if (it?.serviceId || String(it?.type || '') === 'Service') types.add('Service');
-    if (it?.packageId || String(it?.type || '') === 'Package') types.add('Package');
+    if (it?.packageId || String(it?.type || '') === 'Package') {
+      types.add('Package');
+      if (it?.packageId) packageIds.add(String(it.packageId));
+    }
   };
   for (const it of existing) collect(it);
   collect(after); // include the new one
   if (types.size > 1 && !ctx.isSystem) {
     throw new ValidationError('Venda não pode mesclar produtos, serviços e pacotes; crie vendas separadas.');
+  }
+  // G1/P5-D1: an all-Package sale must reference exactly ONE distinct package. The balance
+  // movement is keyed by (saleId,'credit') — one credit per sale — so several distinct
+  // packages in one sale would not map cleanly. Same packageId across lines is allowed.
+  if (packageIds.size > 1 && !ctx.isSystem) {
+    throw new ValidationError(
+      'Venda de pacote deve conter um único pacote (packageId); crie vendas separadas para pacotes diferentes.',
+    );
   }
 }
 

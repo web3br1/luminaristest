@@ -238,9 +238,15 @@ export class ApplicationFactory {
 
     // Salon-sale payment transition (Incremento D / D1) — same orchestration shape as
     // salesCancellationService; the post-commit settlement is applied via SalonSaleSettlementBridge.
+    const packageBalanceService = new PackageBalanceService(
+      this.repositories.packageBalance,
+      this.policies.packageBalance
+    );
+
     const registerPaymentService = new RegisterPaymentService(
       dynamicTableService,
-      this.repositories.dynamicTable
+      this.repositories.dynamicTable,
+      packageBalanceService
     );
 
     const postingService = new PostingService(
@@ -313,10 +319,7 @@ export class ApplicationFactory {
       posting: postingService,
       accountingSync: accountingSyncService,
       accountingReport: accountingReportService,
-      packageBalance: new PackageBalanceService(
-        this.repositories.packageBalance,
-        this.policies.packageBalance
-      ),
+      packageBalance: packageBalanceService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
       savedTableView: new SavedTableViewService(

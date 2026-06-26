@@ -9,16 +9,18 @@
  * and non-fatal (reconcile re-drives), and delegates idempotency entirely to PostingService
  * (@@unique[userId,unitId,sourceType,sourceId]) — no pre-check here.
  *
- * Balance credit (PackageBalanceService.creditFromSale) is intentionally NOT done here yet —
- * it is wired in P5 alongside consumption (the per-item movement key needs care for
- * multi-package sales). P4 books only the accounting origin.
+ * It also CREDITS the customer's prepaid balance (PackageBalanceService.creditFromSale,
+ * Incremento G P5) — this is origin, not consumption (the debit stays in RegisterPayment).
+ * The credit is idempotent per (saleId,'credit'); MVP requires exactly ONE distinct
+ * packageId per package sale (enforced at saleItems validation), so the whole totalAmount
+ * credits that single balance.
  */
 
 import { getFactory } from '../../../../lib/factory';
 import logger from '../../../../lib/logger';
 import { resolveAccountingScope } from '../../scope/AccountingScope';
 import { buildSalonPackageSoldEvent } from '../AccountingSyncPort';
-import { isAllPackageSale } from './salonSaleItems';
+import { loadSalePackageInfo } from './salonSaleItems';
 
 /** The minimal shape this bridge reads from a DynamicTable data row (create/update result). */
 interface SaleRow {
@@ -49,7 +51,8 @@ export async function maybeSyncSalonPackageSold(
 
     // Routing gate (proven from saleItems, not the header): origin applies ONLY to an
     // all-Package sale. Product/Service sales are handled by the revenue bridge.
-    if (!(await isAllPackageSale(actor.userId, row.id))) return;
+    const itemsInfo = await loadSalePackageInfo(actor.userId, row.id);
+    if (itemsInfo.kind !== 'Package') return;
 
     // Never default/infer the unit — only post within the sale's own unit (§2 tenancy).
     const unitId = typeof data.unitId === 'string' ? data.unitId : '';
@@ -79,6 +82,27 @@ export async function maybeSyncSalonPackageSold(
     });
     const scope = resolveAccountingScope(actor, unitId);
     await getFactory().getAccountingSyncService().sync(scope, event);
+
+    // Balance origin (P5): credit the customer's prepaid balance for the single package.
+    // MVP requires exactly one distinct packageId (enforced at saleItems validation); guard
+    // defensively here too. creditFromSale is idempotent per (saleId,'credit').
+    const customerId = typeof data.customerId === 'string' ? data.customerId : '';
+    if (itemsInfo.packageIds.length === 1 && customerId) {
+      await getFactory()
+        .getPackageBalanceService()
+        .creditFromSale(scope, {
+          customerId,
+          packageId: itemsInfo.packageIds[0],
+          saleId: row.id,
+          amountCents: Math.round(totalAmount * 100),
+        });
+    } else {
+      logger.warn('Package sale balance credit skipped — need exactly one packageId and a customerId', {
+        saleId: row.id,
+        distinctPackageIds: itemsInfo.packageIds.length,
+        hasCustomer: !!customerId,
+      });
+    }
   } catch (syncError) {
     logger.error('AccountingSync (salon package sold) failed — left for reconciliation', {
       saleId: row.id,

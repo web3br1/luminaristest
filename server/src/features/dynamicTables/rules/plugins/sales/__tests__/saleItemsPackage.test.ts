@@ -84,11 +84,18 @@ describe('P3 — Package sale item validation', () => {
       ).rejects.toBeInstanceOf(ValidationError);
     });
 
-    it('allows an all-Package sale (two package items)', async () => {
+    it('allows two package lines with the SAME packageId', async () => {
+      const ctx = ctxWith({ rows: [{ data: { type: 'Package', packageId: 'pkg-1', saleId: 'sale-1' } }] });
+      await expect(
+        validateNoMixedItemTypesOnInsert(ctx, { type: 'Package', packageId: 'pkg-1', saleId: 'sale-1' }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('blocks two DISTINCT packageIds in the same sale (MVP: one package per sale)', async () => {
       const ctx = ctxWith({ rows: [{ data: { type: 'Package', packageId: 'pkg-1', saleId: 'sale-1' } }] });
       await expect(
         validateNoMixedItemTypesOnInsert(ctx, { type: 'Package', packageId: 'pkg-2', saleId: 'sale-1' }),
-      ).resolves.toBeUndefined();
+      ).rejects.toBeInstanceOf(ValidationError);
     });
   });
 

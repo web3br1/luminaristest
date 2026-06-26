@@ -7,6 +7,7 @@ import type { AccountingEvent } from '../../AccountingSyncPort';
 const findTableByInternalName = jest.fn();
 const findRowsByFieldValue = jest.fn();
 const sync = jest.fn();
+const creditFromSale = jest.fn();
 const loggerWarn = jest.fn();
 const loggerError = jest.fn();
 
@@ -15,6 +16,7 @@ jest.mock('../../../../../lib/factory', () => ({
   getFactory: () => ({
     getDynamicTableRepository: () => ({ findTableByInternalName, findRowsByFieldValue }),
     getAccountingSyncService: () => ({ sync }),
+    getPackageBalanceService: () => ({ creditFromSale }),
   }),
 }));
 jest.mock('../../../../../lib/logger', () => ({
@@ -33,7 +35,7 @@ function salesTable(over: Record<string, unknown> = {}) {
 function finalizedRow(over: Record<string, unknown> = {}) {
   return {
     id: 'sale-1',
-    data: { status: 'Finalized', unitId: 'unit-1', totalAmount: 500, date: '2026-06-26T00:00:00.000Z', ...over },
+    data: { status: 'Finalized', unitId: 'unit-1', customerId: 'cust-1', totalAmount: 500, date: '2026-06-26T00:00:00.000Z', ...over },
   };
 }
 const packageItems = [{ data: { type: 'Package', packageId: 'pkg-1', saleId: 'sale-1' } }];
@@ -45,6 +47,7 @@ describe('SalonPackageSoldBridge.maybeSyncSalonPackageSold', () => {
     findTableByInternalName.mockResolvedValue(salesTable());
     findRowsByFieldValue.mockResolvedValue(packageItems); // all-Package by default
     sync.mockResolvedValue({ entryId: 'entry-pkg-1' });
+    creditFromSale.mockResolvedValue(undefined);
   });
 
   it('syncs an all-Package Finalized sale with salon.package.sold (origin), correct scope/event', async () => {
@@ -58,6 +61,29 @@ describe('SalonPackageSoldBridge.maybeSyncSalonPackageSold', () => {
       unitId: 'unit-1',
       amount: 500,
     });
+  });
+
+  it('credits the customer balance for the single package (origin), cents-converted', async () => {
+    await maybeSyncSalonPackageSold(actor, SALES_TABLE_ID, finalizedRow());
+    expect(creditFromSale).toHaveBeenCalledTimes(1);
+    const [, cmd] = creditFromSale.mock.calls[0];
+    expect(cmd).toEqual({ customerId: 'cust-1', packageId: 'pkg-1', saleId: 'sale-1', amountCents: 50000 });
+  });
+
+  it('skips the balance credit (but still posts) when there are multiple distinct packageIds', async () => {
+    findRowsByFieldValue.mockResolvedValue([
+      { data: { type: 'Package', packageId: 'pkg-1', saleId: 'sale-1' } },
+      { data: { type: 'Package', packageId: 'pkg-2', saleId: 'sale-1' } },
+    ]);
+    await maybeSyncSalonPackageSold(actor, SALES_TABLE_ID, finalizedRow());
+    expect(sync).toHaveBeenCalledTimes(1); // accounting origin still books
+    expect(creditFromSale).not.toHaveBeenCalled(); // but balance credit is skipped + warned
+    expect(loggerWarn).toHaveBeenCalled();
+  });
+
+  it('skips the balance credit when the sale has no customerId', async () => {
+    await maybeSyncSalonPackageSold(actor, SALES_TABLE_ID, finalizedRow({ customerId: undefined }));
+    expect(creditFromSale).not.toHaveBeenCalled();
   });
 
   it.each(['Draft', 'Cancelled', 'Returned'])('does NOT sync a sale in status %s', async (status) => {
