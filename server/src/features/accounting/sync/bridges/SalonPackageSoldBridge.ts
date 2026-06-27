@@ -104,6 +104,14 @@ export async function maybeSyncSalonPackageSold(
       });
     }
   } catch (syncError) {
+    const code = (syncError as { code?: string }).code;
+    if (code === 'ACCOUNTING_PERIOD_NOT_OPEN') {
+      logger.warn('AccountingSync skipped — período não está aberto', {
+        saleId: row.id,
+        error: syncError instanceof Error ? syncError.message : String(syncError),
+      });
+      return;
+    }
     logger.error('AccountingSync (salon package sold) failed — left for reconciliation', {
       saleId: row.id,
       error: syncError instanceof Error ? syncError.message : String(syncError),

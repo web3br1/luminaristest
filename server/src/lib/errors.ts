@@ -76,4 +76,19 @@ export class ServiceError extends AppError {
     super(message, 500, errorCode);
     Object.setPrototypeOf(this, ServiceError.prototype);
   }
+}
+
+/**
+ * Raised when a posting is attempted against a period that is not OPEN.
+ * Bridge/reconcile jobs must catch this specific code to skip+log (not fatal).
+ */
+export class AccountingPeriodNotOpenError extends AppError {
+  constructor(year: number, month: number) {
+    super(
+      `Período contábil ${year}/${String(month).padStart(2, '0')} não está aberto para lançamentos.`,
+      422,
+      'ACCOUNTING_PERIOD_NOT_OPEN',
+    );
+    Object.setPrototypeOf(this, AccountingPeriodNotOpenError.prototype);
+  }
 } 

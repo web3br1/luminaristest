@@ -78,7 +78,12 @@ export async function maybeReverseSalonSale(
       // pre-check — reverseEntry itself owns idempotency.
       const revenue = await posting.findEntryBySource(scope, 'salon.sale.finalized', row.id);
       if (revenue) {
-        await posting.reverseEntry(scope, { unitId, lancamentoId: revenue.id, reason });
+        await posting.reverseEntry(scope, {
+          unitId,
+          lancamentoId: revenue.id,
+          reversalPostingDate: new Date().toISOString(),
+          reason,
+        });
       }
 
       // Adaptive (D2-Q4): if a settlement entry exists, reverse it too. This branch sleeps
@@ -86,7 +91,12 @@ export async function maybeReverseSalonSale(
       // is whole the day settlement lands.
       const settled = await posting.findEntryBySource(scope, 'salon.sale.settled', row.id);
       if (settled) {
-        await posting.reverseEntry(scope, { unitId, lancamentoId: settled.id, reason });
+        await posting.reverseEntry(scope, {
+          unitId,
+          lancamentoId: settled.id,
+          reversalPostingDate: new Date().toISOString(),
+          reason,
+        });
       }
       return;
     }
@@ -116,6 +126,14 @@ export async function maybeReverseSalonSale(
     });
     await getFactory().getAccountingSyncService().sync(scope, event);
   } catch (reversalError) {
+    const code = (reversalError as { code?: string }).code;
+    if (code === 'ACCOUNTING_PERIOD_NOT_OPEN') {
+      logger.warn('AccountingSync skipped — período não está aberto', {
+        saleId: row.id,
+        error: reversalError instanceof Error ? reversalError.message : String(reversalError),
+      });
+      return;
+    }
     logger.error('AccountingSync (salon sale reversal) failed — left for reconciliation', {
       saleId: row.id,
       status: (row.data as Record<string, unknown> | undefined)?.status,

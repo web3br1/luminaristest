@@ -726,7 +726,11 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
       .findBySource(scope, sourceType, sourceId)
       .then((entry) => (entry ? { id: entry.id, status: entry.status } : null));
   const reverse = async (scope: AccountingScope, unitId: string, entryId: string) => {
-    await posting.reverseEntry(scope, { unitId, lancamentoId: entryId });
+    await posting.reverseEntry(scope, {
+      unitId,
+      lancamentoId: entryId,
+      reversalPostingDate: new Date().toISOString(),
+    });
   };
 
   /** Normalize the salon `sales` rows of a given status across every tenant. */

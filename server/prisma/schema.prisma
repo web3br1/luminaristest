@@ -289,6 +289,53 @@ model ActionProposal {
 // `unitId` is a DynamicTable row id (units live in DynamicTable), so it is a plain
 // scoped string, NOT a Prisma FK — same convention as SavedTableView.tableId.
 
+// Accounting periods — fiscal calendar months with a state machine controlling
+// whether postings are allowed. FUTURE = not yet opened; OPEN = accepts postings;
+// SOFT_CLOSED = closed but reopenable; HARD_CLOSED = terminal, never reopens.
+// Period is derived from entry.date in scope.timeZone — no FK on JournalEntry.
+enum AccountingPeriodStatus {
+  FUTURE
+  OPEN
+  SOFT_CLOSED
+  HARD_CLOSED
+}
+
+model AccountingPeriod {
+  id          String                  @id @default(cuid())
+  userId      String
+  unitId      String
+  year        Int
+  month       Int
+  status      AccountingPeriodStatus  @default(FUTURE)
+  openedAt    DateTime?
+  openedById  String?
+  closedAt    DateTime?
+  closedById  String?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  transitions AccountingPeriodTransition[]
+  @@unique([userId, unitId, year, month])
+  @@index([userId, unitId, status])
+  @@index([userId, unitId, year])
+  @@map("accounting_periods")
+}
+
+model AccountingPeriodTransition {
+  id          String                  @id @default(cuid())
+  userId      String
+  unitId      String
+  periodId    String
+  fromStatus  AccountingPeriodStatus?
+  toStatus    AccountingPeriodStatus
+  actorUserId String
+  reason      String?
+  occurredAt  DateTime                @default(now())
+  period      AccountingPeriod        @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  @@index([userId, unitId, periodId])
+  @@index([actorUserId, occurredAt])
+  @@map("accounting_period_transitions")
+}
+
 // Chart of accounts (plano de contas). Hierarchy is modeled by the coded key
 // (`code`, e.g. "1.1.2") — the parent is the prefix; there is no self-relation.
 // Only leaf accounts (`acceptsEntries`) receive ledger lines.

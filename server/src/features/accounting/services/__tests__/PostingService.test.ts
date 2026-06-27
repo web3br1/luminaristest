@@ -21,7 +21,7 @@
  */
 import { Prisma } from 'generated/prisma';
 import { PostingService } from '../PostingService';
-import { ForbiddenError, NotFoundError, ValidationError } from '../../../../lib/errors';
+import { AccountingPeriodNotOpenError, ForbiddenError, NotFoundError, ValidationError } from '../../../../lib/errors';
 import { CANONICAL_ACCOUNTS } from '../../fixtures/ChartOfAccountsFixture';
 import type { AccountingScope } from '../../scope/AccountingScope';
 
@@ -61,6 +61,7 @@ function buildService(over: {
   journalEntryRepo?: any;
   postingRepo?: any;
   policy?: any;
+  periodRepo?: any;
 } = {}) {
   const accountRepo = {
     findByCode: jest.fn(async (_scope: AccountingScope, code: string) => ({
@@ -105,7 +106,18 @@ function buildService(over: {
     canManage: jest.fn(() => true),
     canPost: jest.fn(() => true),
     canRead: jest.fn(() => true),
+    canClosePeriod: jest.fn(() => true),
     ...over.policy,
+  };
+
+  // Default: period is OPEN so existing tests are unaffected by the period gate.
+  const periodRepo = {
+    findByYearMonth: jest.fn(async () => ({ status: 'OPEN' })),
+    findById: jest.fn(async () => null),
+    seedYear: jest.fn(async () => []),
+    setStatus: jest.fn(async () => ({})),
+    list: jest.fn(async () => []),
+    ...over.periodRepo,
   };
 
   const svc = new PostingService(
@@ -113,8 +125,9 @@ function buildService(over: {
     journalEntryRepo as any,
     postingRepo as any,
     policy as any,
+    periodRepo as any,
   );
-  return { svc, accountRepo, journalEntryRepo, postingRepo, policy };
+  return { svc, accountRepo, journalEntryRepo, postingRepo, policy, periodRepo };
 }
 
 const balancedInput = {
@@ -345,6 +358,7 @@ describe('PostingService', () => {
       const { reversal: rev, original: orig } = await svc.reverseEntry(scope, {
         unitId,
         lancamentoId: 'entry-1',
+        reversalPostingDate: '2026-06-23',
       });
 
       expect($transaction).toHaveBeenCalledTimes(1);
@@ -378,7 +392,7 @@ describe('PostingService', () => {
         journalEntryRepo: { findById: jest.fn(async () => ({ ...original, status: 'Draft' })) },
       });
       await expect(
-        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' }),
+        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1', reversalPostingDate: '2026-06-23' }),
       ).rejects.toBeInstanceOf(ValidationError);
       expect($transaction).not.toHaveBeenCalled();
       expect(journalEntryRepo.create).not.toHaveBeenCalled();
@@ -390,7 +404,7 @@ describe('PostingService', () => {
         journalEntryRepo: { findById },
       });
       await expect(
-        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' }),
+        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1', reversalPostingDate: '2026-06-23' }),
       ).rejects.toBeInstanceOf(NotFoundError);
       expect(journalEntryRepo.findById).toHaveBeenCalledWith(scope, 'entry-1');
       expect($transaction).not.toHaveBeenCalled();
@@ -408,7 +422,7 @@ describe('PostingService', () => {
       const { svc, journalEntryRepo } = buildService({
         journalEntryRepo: { findById, findBySource: jest.fn(async () => null) },
       });
-      const { reversal } = await svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' });
+      const { reversal } = await svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1', reversalPostingDate: '2026-06-23' });
       expect(reversal).toBe(prior);
       expect($transaction).not.toHaveBeenCalled();
       expect(journalEntryRepo.create).not.toHaveBeenCalled();
@@ -422,7 +436,7 @@ describe('PostingService', () => {
           findBySource: jest.fn(async () => prior),
         },
       });
-      const { reversal } = await svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' });
+      const { reversal } = await svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1', reversalPostingDate: '2026-06-23' });
       expect(reversal).toBe(prior);
       expect(journalEntryRepo.findBySource).toHaveBeenCalledWith(scope, 'reversal', 'entry-1');
       expect($transaction).not.toHaveBeenCalled();
@@ -444,7 +458,7 @@ describe('PostingService', () => {
         },
       });
       await expect(
-        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' }),
+        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1', reversalPostingDate: '2026-06-23' }),
       ).rejects.toBeInstanceOf(ValidationError);
       expect($transaction).not.toHaveBeenCalled();
     });
@@ -452,9 +466,91 @@ describe('PostingService', () => {
     it('throws ForbiddenError when policy.canPost is false', async () => {
       const { svc, journalEntryRepo } = buildService({ policy: { canPost: jest.fn(() => false) } });
       await expect(
-        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1' }),
+        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1', reversalPostingDate: '2026-06-23' }),
       ).rejects.toBeInstanceOf(ForbiddenError);
       expect(journalEntryRepo.findById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('period gate', () => {
+    it('postEntry: throws AccountingPeriodNotOpenError when period is missing (null)', async () => {
+      const { svc } = buildService({
+        periodRepo: { findByYearMonth: jest.fn(async () => null) },
+      });
+      await expect(svc.postEntry(scope, balancedInput)).rejects.toBeInstanceOf(
+        AccountingPeriodNotOpenError,
+      );
+      expect($transaction).not.toHaveBeenCalled();
+    });
+
+    it('postEntry: throws when period is FUTURE', async () => {
+      const { svc } = buildService({
+        periodRepo: { findByYearMonth: jest.fn(async () => ({ status: 'FUTURE' })) },
+      });
+      await expect(svc.postEntry(scope, balancedInput)).rejects.toBeInstanceOf(
+        AccountingPeriodNotOpenError,
+      );
+    });
+
+    it('postEntry: throws when period is SOFT_CLOSED', async () => {
+      const { svc } = buildService({
+        periodRepo: { findByYearMonth: jest.fn(async () => ({ status: 'SOFT_CLOSED' })) },
+      });
+      await expect(svc.postEntry(scope, balancedInput)).rejects.toBeInstanceOf(
+        AccountingPeriodNotOpenError,
+      );
+    });
+
+    it('postEntry: throws when period is HARD_CLOSED', async () => {
+      const { svc } = buildService({
+        periodRepo: { findByYearMonth: jest.fn(async () => ({ status: 'HARD_CLOSED' })) },
+      });
+      await expect(svc.postEntry(scope, balancedInput)).rejects.toBeInstanceOf(
+        AccountingPeriodNotOpenError,
+      );
+    });
+
+    it('postEntry TOCTOU: preflight passes (OPEN) but authoritative tx-gate fails (period closed between checks) — no write', async () => {
+      // First call (no tx arg) = OPEN; second call (with tx arg) = SOFT_CLOSED (admin closed it in between).
+      const findByYearMonth = jest
+        .fn()
+        .mockResolvedValueOnce({ status: 'OPEN' })
+        .mockResolvedValueOnce({ status: 'SOFT_CLOSED' });
+      const { svc, journalEntryRepo } = buildService({
+        periodRepo: { findByYearMonth },
+      });
+      await expect(svc.postEntry(scope, balancedInput)).rejects.toBeInstanceOf(
+        AccountingPeriodNotOpenError,
+      );
+      expect(findByYearMonth).toHaveBeenCalledTimes(2);
+      expect(journalEntryRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('reverseEntry: gates on reversalPostingDate, not the original entry date', async () => {
+      // Period for 2026-06 (reversalPostingDate) is CLOSED; original entry date doesn't matter.
+      const findByYearMonth = jest.fn(async () => ({ status: 'SOFT_CLOSED' }));
+      const original = {
+        id: 'entry-1',
+        userId: 'u1',
+        unitId,
+        status: 'Posted',
+        reversedById: null,
+        postings: [
+          { id: 'p1', accountId: 'acc-1.1.1', debitCents: 10000, creditCents: 0 },
+          { id: 'p2', accountId: 'acc-3.1', debitCents: 0, creditCents: 10000 },
+        ],
+      };
+      const { svc } = buildService({
+        periodRepo: { findByYearMonth },
+        journalEntryRepo: {
+          findById: jest.fn(async () => original),
+          findBySource: jest.fn(async () => null),
+        },
+      });
+      await expect(
+        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1', reversalPostingDate: '2026-06-23' }),
+      ).rejects.toBeInstanceOf(AccountingPeriodNotOpenError);
+      expect($transaction).not.toHaveBeenCalled();
     });
   });
 

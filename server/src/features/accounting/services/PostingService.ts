@@ -1,4 +1,4 @@
-import { AppError, ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
+import { AccountingPeriodNotOpenError, AppError, ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
 import logger from '../../../lib/logger';
 import { Prisma } from 'generated/prisma';
 import type { Account } from 'generated/prisma';
@@ -12,6 +12,7 @@ import type {
 } from '../repositories/IJournalEntryRepository';
 import type { IPostingRepository } from '../repositories/IPostingRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
+import type { IAccountingPeriodRepository } from '../repositories/IAccountingPeriodRepository';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { accountingScopeWhere } from '../scope/AccountingScope';
 
@@ -35,7 +36,44 @@ export class PostingService {
     private readonly journalEntryRepo: IJournalEntryRepository,
     private readonly postingRepo: IPostingRepository,
     private readonly policy: IAccountingPolicy,
+    private readonly periodRepo: IAccountingPeriodRepository,
   ) {}
+
+  /** Derive year+month from an ISO date string using UTC (no tz shift for date-only strings). */
+  private extractYearMonth(dateStr: string): { year: number; month: number } {
+    // Date-only strings (YYYY-MM-DD) are parsed as UTC midnight by JS — no tz conversion needed.
+    const d = new Date(dateStr);
+    return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
+  }
+
+  /**
+   * Preflight period gate (outside tx) — fast rejection before opening a transaction.
+   * The authoritative gate lives in assertPeriodOpenTx (inside the tx).
+   */
+  private async assertPeriodOpen(scope: AccountingScope, dateStr: string): Promise<void> {
+    const { year, month } = this.extractYearMonth(dateStr);
+    const period = await this.periodRepo.findByYearMonth(scope, year, month);
+    if (!period || period.status !== 'OPEN') {
+      throw new AccountingPeriodNotOpenError(year, month);
+    }
+  }
+
+  /**
+   * Authoritative period gate (inside tx) — re-checks AFTER the tx is open, immediately
+   * before the Posted write, to close the TOCTOU window where an admin could close the
+   * period between the preflight check and the commit.
+   */
+  private async assertPeriodOpenTx(
+    tx: Prisma.TransactionClient,
+    scope: AccountingScope,
+    dateStr: string,
+  ): Promise<void> {
+    const { year, month } = this.extractYearMonth(dateStr);
+    const period = await this.periodRepo.findByYearMonth(scope, year, month, tx);
+    if (!period || period.status !== 'OPEN') {
+      throw new AccountingPeriodNotOpenError(year, month);
+    }
+  }
 
   /**
    * Idempotently ensure the canonical chart of accounts exists for the scope.
@@ -106,6 +144,9 @@ export class PostingService {
     }
     const { userId, unitId } = accountingScopeWhere(scope);
 
+    // PERIOD GATE — preflight (fast rejection before tx); authoritative gate is inside the tx.
+    await this.assertPeriodOpen(scope, input.date);
+
     await this.ensureChartOfAccounts(scope);
 
     // BALANCE INVARIANT — integer cents, EXACT equality (no float/epsilon, Contract §2.1).
@@ -144,6 +185,9 @@ export class PostingService {
     try {
       // ATOMIC — entry header + all legs commit/roll back together.
       const entry = await this.postingRepo.runTransaction(async (tx) => {
+        // AUTHORITATIVE PERIOD GATE — inside the tx, before Posted. Closes the TOCTOU window.
+        await this.assertPeriodOpenTx(tx, scope, input.date);
+
         const created = await this.journalEntryRepo.create(
           {
             userId,
@@ -219,6 +263,9 @@ export class PostingService {
     }
     const { userId, unitId } = accountingScopeWhere(scope);
 
+    // PERIOD GATE — gate on the REVERSAL date (not the original entry date).
+    await this.assertPeriodOpen(scope, input.reversalPostingDate);
+
     const original = await this.journalEntryRepo.findById(scope, input.lancamentoId);
     if (!original) {
       throw new NotFoundError(`Lançamento '${input.lancamentoId}' não foi encontrado.`);
@@ -262,12 +309,15 @@ export class PostingService {
     let result: JournalEntryWithPostings;
     try {
       result = await this.postingRepo.runTransaction(async (tx) => {
+        // AUTHORITATIVE PERIOD GATE — inside the tx, on the reversal date.
+        await this.assertPeriodOpenTx(tx, scope, input.reversalPostingDate);
+
         const reversal = await this.journalEntryRepo.create(
           {
             userId,
             unitId,
-            date: new Date(),
-            description: `Estorno de ${original.id}`,
+            date: new Date(input.reversalPostingDate),
+            description: input.reason ? `Estorno de ${original.id} — ${input.reason}` : `Estorno de ${original.id}`,
             status: 'Posted',
             sourceType: 'reversal',
             sourceId: original.id,

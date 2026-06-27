@@ -15,6 +15,7 @@ import { SavedTableViewRepository } from '../features/savedViews/repositories/Sa
 import { AccountRepository } from '../features/accounting/repositories/AccountRepository';
 import { JournalEntryRepository } from '../features/accounting/repositories/JournalEntryRepository';
 import { PostingRepository } from '../features/accounting/repositories/PostingRepository';
+import { AccountingPeriodRepository } from '../features/accounting/repositories/AccountingPeriodRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
@@ -46,6 +47,7 @@ import { KnowledgeGraphService } from '../features/chat/services/KnowledgeGraphS
 import { CrmPipelineService } from '../features/crm/services/CrmPipelineService';
 import { CrmAnalyticsService } from '../features/crm/services/CrmAnalyticsService';
 import { PostingService } from '../features/accounting/services/PostingService';
+import { PeriodService } from '../features/accounting/services/PeriodService';
 import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
@@ -89,6 +91,7 @@ import type { ISavedTableViewPolicy } from '../features/savedViews/policies/ISav
 import type { IAccountRepository } from '../features/accounting/repositories/IAccountRepository';
 import type { IJournalEntryRepository } from '../features/accounting/repositories/IJournalEntryRepository';
 import type { IPostingRepository } from '../features/accounting/repositories/IPostingRepository';
+import type { IAccountingPeriodRepository } from '../features/accounting/repositories/IAccountingPeriodRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
 import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
@@ -113,6 +116,7 @@ export class ApplicationFactory {
     account: IAccountRepository;
     journalEntry: IJournalEntryRepository;
     posting: IPostingRepository;
+    accountingPeriod: IAccountingPeriodRepository;
     packageBalance: IPackageBalanceRepository;
   };
 
@@ -147,6 +151,7 @@ export class ApplicationFactory {
     salesCancellation: SalesCancellationService;
     registerPayment: RegisterPaymentService;
     posting: PostingService;
+    period: PeriodService;
     accountingSync: AccountingSyncService;
     accountingReport: AccountingReportService;
     packageBalance: PackageBalanceService;
@@ -178,6 +183,7 @@ export class ApplicationFactory {
       account: new AccountRepository(),
       journalEntry: new JournalEntryRepository(),
       posting: new PostingRepository(),
+      accountingPeriod: new AccountingPeriodRepository(),
       packageBalance: new PackageBalanceRepository(),
     };
 
@@ -253,7 +259,14 @@ export class ApplicationFactory {
       this.repositories.account,
       this.repositories.journalEntry,
       this.repositories.posting,
-      this.policies.accounting
+      this.policies.accounting,
+      this.repositories.accountingPeriod,
+    );
+
+    const periodService = new PeriodService(
+      this.repositories.accountingPeriod,
+      this.policies.accounting,
+      this.repositories.posting,
     );
 
     // AccountingSync — application-level integration adapter (NOT the DynamicTable
@@ -317,6 +330,7 @@ export class ApplicationFactory {
       salesCancellation: salesCancellationService,
       registerPayment: registerPaymentService,
       posting: postingService,
+      period: periodService,
       accountingSync: accountingSyncService,
       accountingReport: accountingReportService,
       packageBalance: packageBalanceService,
@@ -353,6 +367,7 @@ export class ApplicationFactory {
   public getSalesCancellationService = (): SalesCancellationService => this.services.salesCancellation;
   public getRegisterPaymentService = (): RegisterPaymentService => this.services.registerPayment;
   public getPostingService = (): PostingService => this.services.posting;
+  public getPeriodService = (): PeriodService => this.services.period;
   public getAccountingSyncService = (): AccountingSyncService => this.services.accountingSync;
   public getAccountingReportService = (): AccountingReportService => this.services.accountingReport;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;

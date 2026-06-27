@@ -8,6 +8,12 @@ import {
   listEntries,
   createAccount,
   deleteAccount,
+  listPeriods,
+  seedYear,
+  openPeriod,
+  softClosePeriod,
+  hardClosePeriod,
+  reopenPeriod,
 } from '../controllers/accountingController';
 
 const router = Router();
@@ -27,5 +33,14 @@ router.delete('/accounts/:id', deleteAccount);
 
 // Journal entry listing.
 router.get('/entries', listEntries);
+
+// Accounting period management (INCR-1).
+// NOTE: /:unitId/periods must come before /periods/:id routes to avoid param clash.
+router.get('/:unitId/periods', listPeriods);
+router.post('/:unitId/periods/seed-year', seedYear);
+router.post('/periods/:id/open', openPeriod);
+router.post('/periods/:id/soft-close', softClosePeriod);
+router.post('/periods/:id/hard-close', hardClosePeriod);
+router.post('/periods/:id/reopen', reopenPeriod);
 
 export default router;

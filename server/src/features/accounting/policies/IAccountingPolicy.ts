@@ -15,4 +15,7 @@ export interface IAccountingPolicy {
 
   /** Can read the ledger / trial balance. */
   canRead(scope: AccountingScope): boolean;
+
+  /** Can open, close, or reopen accounting periods. */
+  canClosePeriod(scope: AccountingScope): boolean;
 }

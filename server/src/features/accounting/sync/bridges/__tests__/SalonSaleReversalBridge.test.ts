@@ -83,7 +83,8 @@ describe('SalonSaleReversalBridge.maybeReverseSalonSale', () => {
       expect(reverseEntry).toHaveBeenCalledTimes(1);
       const [scope, input] = reverseEntry.mock.calls[0];
       expect(scope).toMatchObject({ ownerUserId: 'u1', unitId: 'unit-1' });
-      expect(input).toEqual({ unitId: 'unit-1', lancamentoId: 'entry-1', reason: 'customer gave up' });
+      expect(input).toMatchObject({ unitId: 'unit-1', lancamentoId: 'entry-1', reason: 'customer gave up' });
+      expect(typeof input.reversalPostingDate).toBe('string');
       expect(sync).not.toHaveBeenCalled(); // a cancel is a reversal, never a new entry
     });
 
