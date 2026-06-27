@@ -4,6 +4,7 @@ import type { AccountingPeriod } from 'generated/prisma';
 import type { IAccountingPeriodRepository } from '../repositories/IAccountingPeriodRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { IPostingRepository } from '../repositories/IPostingRepository';
+import type { AuditService } from './AuditService';
 import type { AccountingScope } from '../scope/AccountingScope';
 
 /**
@@ -25,6 +26,7 @@ export class PeriodService {
     private readonly periodRepo: IAccountingPeriodRepository,
     private readonly policy: IAccountingPolicy,
     private readonly postingRepo: IPostingRepository,
+    private readonly auditService: AuditService,
   ) {}
 
   /** Idempotently create 12 FUTURE periods for the given fiscal year. */
@@ -53,18 +55,18 @@ export class PeriodService {
         `Período ${period.year}/${String(period.month).padStart(2, '0')} não pode ser aberto — status atual: ${period.status}.`,
       );
     }
-    return this.postingRepo.runTransaction((tx) =>
-      this.periodRepo.setStatus(
-        scope,
-        period.year,
-        period.month,
-        'OPEN',
-        scope.actorUserId,
-        undefined,
-        tx,
-        period.status,
-      ),
-    );
+    const fromStatus = period.status;
+    return this.postingRepo.runTransaction(async (tx) => {
+      const updated = await this.periodRepo.setStatus(scope, period.year, period.month, 'OPEN', scope.actorUserId, undefined, tx, fromStatus);
+      await this.auditService.append(tx, scope, {
+        actorUserId: scope.actorUserId,
+        eventType:   'period.opened',
+        targetType:  'accounting_period',
+        targetId:    period.id,
+        payload:     { year: period.year, month: period.month, fromStatus, toStatus: 'OPEN' },
+      });
+      return updated;
+    });
   }
 
   /** Close an OPEN period softly → SOFT_CLOSED (can be reopened). */
@@ -85,18 +87,18 @@ export class PeriodService {
         `Período ${period.year}/${String(period.month).padStart(2, '0')} não pode ser fechado (soft) — status atual: ${period.status}.`,
       );
     }
-    return this.postingRepo.runTransaction((tx) =>
-      this.periodRepo.setStatus(
-        scope,
-        period.year,
-        period.month,
-        'SOFT_CLOSED',
-        scope.actorUserId,
-        reason,
-        tx,
-        period.status,
-      ),
-    );
+    const fromStatus = period.status;
+    return this.postingRepo.runTransaction(async (tx) => {
+      const updated = await this.periodRepo.setStatus(scope, period.year, period.month, 'SOFT_CLOSED', scope.actorUserId, reason, tx, fromStatus);
+      await this.auditService.append(tx, scope, {
+        actorUserId: scope.actorUserId,
+        eventType:   'period.soft_closed',
+        targetType:  'accounting_period',
+        targetId:    period.id,
+        payload:     { year: period.year, month: period.month, fromStatus, toStatus: 'SOFT_CLOSED', reason },
+      });
+      return updated;
+    });
   }
 
   /** Permanently close a period → HARD_CLOSED (terminal, never reopens). */
@@ -117,18 +119,18 @@ export class PeriodService {
         `Período ${period.year}/${String(period.month).padStart(2, '0')} não pode ser fechado definitivamente — status atual: ${period.status}.`,
       );
     }
-    return this.postingRepo.runTransaction((tx) =>
-      this.periodRepo.setStatus(
-        scope,
-        period.year,
-        period.month,
-        'HARD_CLOSED',
-        scope.actorUserId,
-        reason,
-        tx,
-        period.status,
-      ),
-    );
+    const fromStatus = period.status;
+    return this.postingRepo.runTransaction(async (tx) => {
+      const updated = await this.periodRepo.setStatus(scope, period.year, period.month, 'HARD_CLOSED', scope.actorUserId, reason, tx, fromStatus);
+      await this.auditService.append(tx, scope, {
+        actorUserId: scope.actorUserId,
+        eventType:   'period.hard_closed',
+        targetType:  'accounting_period',
+        targetId:    period.id,
+        payload:     { year: period.year, month: period.month, fromStatus, toStatus: 'HARD_CLOSED', reason },
+      });
+      return updated;
+    });
   }
 
   /** Reopen a SOFT_CLOSED period → OPEN. HARD_CLOSED is terminal — throws. */
@@ -154,18 +156,18 @@ export class PeriodService {
         `Período ${period.year}/${String(period.month).padStart(2, '0')} não pode ser reaberto — status atual: ${period.status}.`,
       );
     }
-    return this.postingRepo.runTransaction((tx) =>
-      this.periodRepo.setStatus(
-        scope,
-        period.year,
-        period.month,
-        'OPEN',
-        scope.actorUserId,
-        reason,
-        tx,
-        period.status,
-      ),
-    );
+    const fromStatus = period.status;
+    return this.postingRepo.runTransaction(async (tx) => {
+      const updated = await this.periodRepo.setStatus(scope, period.year, period.month, 'OPEN', scope.actorUserId, reason, tx, fromStatus);
+      await this.auditService.append(tx, scope, {
+        actorUserId: scope.actorUserId,
+        eventType:   'period.reopened',
+        targetType:  'accounting_period',
+        targetId:    period.id,
+        payload:     { year: period.year, month: period.month, fromStatus, toStatus: 'OPEN', reason },
+      });
+      return updated;
+    });
   }
 
   /** List all periods for a fiscal year. */

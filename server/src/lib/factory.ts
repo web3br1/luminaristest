@@ -16,6 +16,7 @@ import { AccountRepository } from '../features/accounting/repositories/AccountRe
 import { JournalEntryRepository } from '../features/accounting/repositories/JournalEntryRepository';
 import { PostingRepository } from '../features/accounting/repositories/PostingRepository';
 import { AccountingPeriodRepository } from '../features/accounting/repositories/AccountingPeriodRepository';
+import { AuditRepository } from '../features/accounting/repositories/AuditRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
@@ -48,6 +49,7 @@ import { CrmPipelineService } from '../features/crm/services/CrmPipelineService'
 import { CrmAnalyticsService } from '../features/crm/services/CrmAnalyticsService';
 import { PostingService } from '../features/accounting/services/PostingService';
 import { PeriodService } from '../features/accounting/services/PeriodService';
+import { AuditService } from '../features/accounting/services/AuditService';
 import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
@@ -92,6 +94,7 @@ import type { IAccountRepository } from '../features/accounting/repositories/IAc
 import type { IJournalEntryRepository } from '../features/accounting/repositories/IJournalEntryRepository';
 import type { IPostingRepository } from '../features/accounting/repositories/IPostingRepository';
 import type { IAccountingPeriodRepository } from '../features/accounting/repositories/IAccountingPeriodRepository';
+import type { IAuditRepository } from '../features/accounting/repositories/IAuditRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
 import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
@@ -117,6 +120,7 @@ export class ApplicationFactory {
     journalEntry: IJournalEntryRepository;
     posting: IPostingRepository;
     accountingPeriod: IAccountingPeriodRepository;
+    audit: IAuditRepository;
     packageBalance: IPackageBalanceRepository;
   };
 
@@ -184,6 +188,7 @@ export class ApplicationFactory {
       journalEntry: new JournalEntryRepository(),
       posting: new PostingRepository(),
       accountingPeriod: new AccountingPeriodRepository(),
+      audit: new AuditRepository(),
       packageBalance: new PackageBalanceRepository(),
     };
 
@@ -255,18 +260,25 @@ export class ApplicationFactory {
       packageBalanceService
     );
 
+    const auditService = new AuditService(
+      this.repositories.audit,
+      this.repositories.posting,
+    );
+
     const postingService = new PostingService(
       this.repositories.account,
       this.repositories.journalEntry,
       this.repositories.posting,
       this.policies.accounting,
       this.repositories.accountingPeriod,
+      auditService,
     );
 
     const periodService = new PeriodService(
       this.repositories.accountingPeriod,
       this.policies.accounting,
       this.repositories.posting,
+      auditService,
     );
 
     // AccountingSync — application-level integration adapter (NOT the DynamicTable

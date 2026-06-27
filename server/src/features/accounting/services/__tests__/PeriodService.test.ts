@@ -31,7 +31,7 @@ function makePeriod(status: string, year = 2026, month = 6) {
   return { id: 'p-1', userId: 'u1', unitId: 'unit-1', year, month, status };
 }
 
-function buildService(over: { periodRepo?: any; policy?: any; postingRepo?: any } = {}) {
+function buildService(over: { periodRepo?: any; policy?: any; postingRepo?: any; auditService?: any } = {}) {
   const periodRepo = {
     findById: jest.fn(async () => makePeriod('OPEN')),
     findByYearMonth: jest.fn(async () => makePeriod('OPEN')),
@@ -55,7 +55,8 @@ function buildService(over: { periodRepo?: any; policy?: any; postingRepo?: any 
     ...over.postingRepo,
   };
 
-  const svc = new PeriodService(periodRepo as any, policy as any, postingRepo as any);
+  const auditService = { append: jest.fn(async () => {}), ...over.auditService };
+  const svc = new PeriodService(periodRepo as any, policy as any, postingRepo as any, auditService as any);
   return { svc, periodRepo, policy, postingRepo };
 }
 
@@ -221,6 +222,80 @@ describe('PeriodService', () => {
     it('throws ForbiddenError when canRead is false', async () => {
       const { svc } = buildService({ policy: { canRead: jest.fn(() => false) } });
       await expect(svc.listPeriods(scope, 2026)).rejects.toBeInstanceOf(ForbiddenError);
+    });
+  });
+
+  describe('INCR-2 audit wiring', () => {
+    it('openPeriod emits period.opened with fromStatus/toStatus', async () => {
+      const auditSpy = jest.fn(async () => {});
+      const { svc } = buildService({
+        periodRepo: { findById: jest.fn(async () => makePeriod('FUTURE')) },
+        auditService: { append: auditSpy },
+      });
+      await svc.openPeriod(scope, 'p-1');
+      expect(auditSpy).toHaveBeenCalledTimes(1);
+      expect((auditSpy.mock.calls as any[])[0][2]).toMatchObject({
+        eventType: 'period.opened',
+        targetType: 'accounting_period',
+        payload:    expect.objectContaining({ fromStatus: 'FUTURE', toStatus: 'OPEN' }),
+      });
+    });
+
+    it('softClosePeriod emits period.soft_closed', async () => {
+      const auditSpy = jest.fn(async () => {});
+      const { svc } = buildService({
+        periodRepo: { findById: jest.fn(async () => makePeriod('OPEN')) },
+        auditService: { append: auditSpy },
+      });
+      await svc.softClosePeriod(scope, 'p-1', 'Fim do mês');
+      expect((auditSpy.mock.calls as any[])[0][2]).toMatchObject({
+        eventType: 'period.soft_closed',
+        payload:    expect.objectContaining({ fromStatus: 'OPEN', toStatus: 'SOFT_CLOSED' }),
+      });
+    });
+
+    it('hardClosePeriod emits period.hard_closed', async () => {
+      const auditSpy = jest.fn(async () => {});
+      const { svc } = buildService({
+        periodRepo: { findById: jest.fn(async () => makePeriod('OPEN')) },
+        auditService: { append: auditSpy },
+      });
+      await svc.hardClosePeriod(scope, 'p-1', 'Auditoria');
+      expect((auditSpy.mock.calls as any[])[0][2]).toMatchObject({
+        eventType: 'period.hard_closed',
+        payload:    expect.objectContaining({ fromStatus: 'OPEN', toStatus: 'HARD_CLOSED' }),
+      });
+    });
+
+    it('reopenPeriod emits period.reopened', async () => {
+      const auditSpy = jest.fn(async () => {});
+      const { svc } = buildService({
+        periodRepo: { findById: jest.fn(async () => makePeriod('SOFT_CLOSED')) },
+        auditService: { append: auditSpy },
+      });
+      await svc.reopenPeriod(scope, 'p-1', 'Correção');
+      expect((auditSpy.mock.calls as any[])[0][2]).toMatchObject({
+        eventType: 'period.reopened',
+        payload:    expect.objectContaining({ fromStatus: 'SOFT_CLOSED', toStatus: 'OPEN' }),
+      });
+    });
+
+    it('reopenPeriod with HARD_CLOSED throws before audit is emitted', async () => {
+      const auditSpy = jest.fn(async () => {});
+      const { svc } = buildService({
+        periodRepo: { findById: jest.fn(async () => makePeriod('HARD_CLOSED')) },
+        auditService: { append: auditSpy },
+      });
+      await expect(svc.reopenPeriod(scope, 'p-1')).rejects.toBeInstanceOf(ValidationError);
+      expect(auditSpy).not.toHaveBeenCalled();
+    });
+
+    it('audit append failure inside tx rolls back the period transition', async () => {
+      const { svc } = buildService({
+        periodRepo: { findById: jest.fn(async () => makePeriod('FUTURE')) },
+        auditService: { append: jest.fn(async () => { throw new Error('audit boom'); }) },
+      });
+      await expect(svc.openPeriod(scope, 'p-1')).rejects.toThrow('audit boom');
     });
   });
 });

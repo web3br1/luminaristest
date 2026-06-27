@@ -13,6 +13,7 @@ import type {
 import type { IPostingRepository } from '../repositories/IPostingRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { IAccountingPeriodRepository } from '../repositories/IAccountingPeriodRepository';
+import type { AuditService } from './AuditService';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { accountingScopeWhere } from '../scope/AccountingScope';
 
@@ -37,6 +38,7 @@ export class PostingService {
     private readonly postingRepo: IPostingRepository,
     private readonly policy: IAccountingPolicy,
     private readonly periodRepo: IAccountingPeriodRepository,
+    private readonly auditService: AuditService,
   ) {}
 
   /** Derive year+month from an ISO date string using UTC (no tz shift for date-only strings). */
@@ -218,6 +220,13 @@ export class PostingService {
         }
 
         const postings = await this.postingRepo.findByEntryId(scope, created.id, tx);
+        await this.auditService.append(tx, scope, {
+          actorUserId: scope.actorUserId,
+          eventType:   'entry.posted',
+          targetType:  'journal_entry',
+          targetId:    created.id,
+          payload:     { sourceType, sourceId: input.sourceId, description: input.description, sumDebitCents: String(sumDebit), lineCount: String(resolvedLines.length) },
+        });
         return { ...created, postings };
       });
 
@@ -346,6 +355,13 @@ export class PostingService {
         await this.journalEntryRepo.setReversedBy(scope, original.id, reversal.id, tx);
 
         const reversalPostings = await this.postingRepo.findByEntryId(scope, reversal.id, tx);
+        await this.auditService.append(tx, scope, {
+          actorUserId: scope.actorUserId,
+          eventType:   'entry.reversed',
+          targetType:  'journal_entry',
+          targetId:    reversal.id,
+          payload:     { originalId: original.id, reversalId: reversal.id, reason: input.reason },
+        });
         return { ...reversal, postings: reversalPostings };
       });
     } catch (error) {
@@ -425,13 +441,23 @@ export class PostingService {
     }
     const { userId, unitId } = accountingScopeWhere(scope);
     try {
-      return await this.accountRepo.create({
-        userId,
-        unitId,
-        code: dto.code,
-        name: dto.name,
-        nature: dto.nature,
-        acceptsEntries: dto.acceptsEntries ?? true,
+      return await this.postingRepo.runTransaction(async (tx) => {
+        const account = await this.accountRepo.create({
+          userId,
+          unitId,
+          code: dto.code,
+          name: dto.name,
+          nature: dto.nature,
+          acceptsEntries: dto.acceptsEntries ?? true,
+        }, tx);
+        await this.auditService.append(tx, scope, {
+          actorUserId: scope.actorUserId,
+          eventType:   'account.created',
+          targetType:  'account',
+          targetId:    account.id,
+          payload:     { code: account.code, name: account.name, nature: account.nature, acceptsEntries: String(account.acceptsEntries) },
+        });
+        return account;
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -482,7 +508,16 @@ export class PostingService {
       );
     }
 
-    await this.accountRepo.softDelete(scope, accountId);
+    await this.postingRepo.runTransaction(async (tx) => {
+      await this.accountRepo.softDelete(scope, accountId, tx);
+      await this.auditService.append(tx, scope, {
+        actorUserId: scope.actorUserId,
+        eventType:   'account.deleted',
+        targetType:  'account',
+        targetId:    accountId,
+        payload:     { code: account.code },
+      });
+    });
     logger.info('Account soft-deleted', { accountId, userId: scope.ownerUserId });
   }
 }

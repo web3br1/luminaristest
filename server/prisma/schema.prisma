@@ -336,6 +336,48 @@ model AccountingPeriodTransition {
   @@map("accounting_period_transitions")
 }
 
+// Audit trail — append-only, hash-chained per (scopeUserId, unitId).
+// tamper-evident: detects mutation by the application; does NOT protect against
+// a DB operator rewriting the entire chain. Future hardening: DailyAuditAnchor.
+// No FK cascade on scopeUserId/actorUserId: deleting a user must NOT erase the trail.
+model AuditEvent {
+  id               String   @id @default(cuid())
+  scopeUserId      String
+  unitId           String
+  seq              BigInt
+  actorUserId      String?
+  actorType        String   @default("USER")
+  eventType        String
+  targetType       String
+  targetId         String
+  payload          String
+  prevHash         String
+  hash             String
+  hashVersion      Int      @default(1)
+  canonicalVersion Int      @default(1)
+  createdAt        DateTime
+  @@unique([scopeUserId, unitId, seq])
+  @@unique([scopeUserId, unitId, hash])
+  @@index([scopeUserId, unitId, createdAt])
+  @@index([scopeUserId, unitId, targetType, targetId])
+  @@index([actorUserId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("audit_events")
+}
+
+// Head of the audit chain per (scopeUserId, unitId). Optimistic-lock via version.
+// Genesis: nextSeq=1, headHash="0".repeat(64).
+model AuditChainHead {
+  scopeUserId String
+  unitId      String
+  nextSeq     BigInt
+  headHash    String
+  version     Int      @default(0)
+  updatedAt   DateTime @updatedAt
+  @@id([scopeUserId, unitId])
+  @@map("audit_chain_heads")
+}
+
 // Chart of accounts (plano de contas). Hierarchy is modeled by the coded key
 // (`code`, e.g. "1.1.2") — the parent is the prefix; there is no self-relation.
 // Only leaf accounts (`acceptsEntries`) receive ledger lines.
