@@ -53,6 +53,21 @@ export class PostingRepository implements IPostingRepository {
     }));
   }
 
+  public async nextEntryNumber(
+    scope: AccountingScope,
+    fiscalYear: number,
+    tx: Prisma.TransactionClient,
+  ): Promise<number> {
+    const { userId, unitId } = accountingScopeWhere(scope);
+    const seq = await tx.journalEntrySequence.upsert({
+      where: { userId_unitId_fiscalYear: { userId, unitId, fiscalYear } },
+      create: { userId, unitId, fiscalYear, last: 1 },
+      update: { last: { increment: 1 } },
+      select: { last: true },
+    });
+    return seq.last;
+  }
+
   public async runTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     return prisma.$transaction(fn);
   }

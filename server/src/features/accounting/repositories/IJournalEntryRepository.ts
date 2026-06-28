@@ -12,6 +12,8 @@ export interface CreateJournalEntryInput {
   sourceId?: string | null;
   createdById?: string | null;
   postedById?: string | null;
+  fiscalYear: number;
+  entryNumber: number;
 }
 
 /** A JournalEntry with its postings eagerly loaded. */
@@ -27,6 +29,10 @@ export type JournalEntryWithFullPostings = JournalEntry & { postings: PostingWit
  * Contract for journal-entry (lançamento) data access. First-class Prisma.
  * Scoped via AccountingScope. Posted/Reversed entries are immutable except for the
  * status transition to 'Reversed' and the reversedById link (set via setStatus / setReversedBy).
+ *
+ * Hard-delete is intentionally absent (ADR-INCR3 Q10): once a JournalEntry has a
+ * fiscalYear/entryNumber assigned, deleting it would create a gap in the Livro Diário
+ * sequence. Corrections happen exclusively via reversal (estorno).
  */
 export interface IJournalEntryRepository {
   /** Persists a new entry header. */

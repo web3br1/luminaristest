@@ -43,6 +43,17 @@ export interface IPostingRepository {
   groupByAccount(scope: AccountingScope, statuses: string[]): Promise<AccountPostingTotals[]>;
 
   /**
+   * Atomically increments the JournalEntrySequence counter for (scope, fiscalYear)
+   * and returns the new last value. Must be called inside a transaction.
+   * Rollback of the outer tx also rolls back the increment — gapless transactional.
+   */
+  nextEntryNumber(
+    scope: AccountingScope,
+    fiscalYear: number,
+    tx: Prisma.TransactionClient,
+  ): Promise<number>;
+
+  /**
    * Runs `fn` inside a Prisma transaction and returns its result. Services use this
    * to compose atomic cross-repo writes without importing the prisma singleton directly
    * (layer boundary: only repositories import the singleton).

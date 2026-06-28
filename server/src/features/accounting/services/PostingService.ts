@@ -48,6 +48,16 @@ export class PostingService {
     return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
   }
 
+  /** Fiscal year from a posting date in America/Sao_Paulo (ADR-INCR3 Emenda 3). */
+  private fiscalYearFrom(dateStr: string): number {
+    return parseInt(
+      new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', year: 'numeric' }).format(
+        new Date(dateStr),
+      ),
+      10,
+    );
+  }
+
   /**
    * Preflight period gate (outside tx) — fast rejection before opening a transaction.
    * The authoritative gate lives in assertPeriodOpenTx (inside the tx).
@@ -190,6 +200,9 @@ export class PostingService {
         // AUTHORITATIVE PERIOD GATE — inside the tx, before Posted. Closes the TOCTOU window.
         await this.assertPeriodOpenTx(tx, scope, input.date);
 
+        const fiscalYear = this.fiscalYearFrom(input.date);
+        const entryNumber = await this.postingRepo.nextEntryNumber(scope, fiscalYear, tx);
+
         const created = await this.journalEntryRepo.create(
           {
             userId,
@@ -201,6 +214,8 @@ export class PostingService {
             sourceId: input.sourceId ?? null,
             createdById: scope.actorUserId,
             postedById: scope.actorUserId,
+            fiscalYear,
+            entryNumber,
           },
           tx,
         );
@@ -321,6 +336,13 @@ export class PostingService {
         // AUTHORITATIVE PERIOD GATE — inside the tx, on the reversal date.
         await this.assertPeriodOpenTx(tx, scope, input.reversalPostingDate);
 
+        const reversalFiscalYear = this.fiscalYearFrom(input.reversalPostingDate);
+        const reversalEntryNumber = await this.postingRepo.nextEntryNumber(
+          scope,
+          reversalFiscalYear,
+          tx,
+        );
+
         const reversal = await this.journalEntryRepo.create(
           {
             userId,
@@ -332,6 +354,8 @@ export class PostingService {
             sourceId: original.id,
             createdById: scope.actorUserId,
             postedById: scope.actorUserId,
+            fiscalYear: reversalFiscalYear,
+            entryNumber: reversalEntryNumber,
           },
           tx,
         );

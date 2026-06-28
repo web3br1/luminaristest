@@ -421,14 +421,32 @@ model JournalEntry {
   postings     Posting[]
   createdById  String?   // actor who created this entry (authorship trail)
   postedById   String?   // actor who posted/confirmed this entry (SoD trail)
+  fiscalYear   Int       // derived from date (postingDate) in America/Sao_Paulo; assigned at post time
+  entryNumber  Int       // sequential within (userId, unitId, fiscalYear); assigned at post time
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   // Idempotency — a real DB constraint (SQLite treats NULL sourceId as distinct, so
   // manual entries never collide). Closes the double-post window app code cannot.
   @@unique([userId, unitId, sourceType, sourceId])
+  @@unique([userId, unitId, fiscalYear, entryNumber])
   @@index([userId, unitId, status])
+  @@index([userId, unitId, fiscalYear])
   @@map("journal_entries")
+}
+
+// Sequential counter per (userId, unitId, fiscalYear). The posting transaction
+// does: upsert (last += 1) and uses the new last as entryNumber. Rollback
+// of the outer tx also rolls back the increment — gapless transacional.
+model JournalEntrySequence {
+  userId     String
+  unitId     String
+  fiscalYear Int
+  last       Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@id([userId, unitId, fiscalYear])
+  @@map("journal_entry_sequences")
 }
 
 // Ledger line (partida) — one leg of a double entry. Money is INTEGER CENTS; the

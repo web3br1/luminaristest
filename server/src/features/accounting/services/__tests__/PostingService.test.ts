@@ -97,6 +97,7 @@ function buildService(over: {
     findByEntryId: jest.fn(async () => []),
     findByAccount: jest.fn(async () => []),
     groupByAccount: jest.fn(async () => []),
+    nextEntryNumber: jest.fn(async () => 1),
     // delegates to the global $transaction so existing assertions (toHaveBeenCalledTimes,
     // mockImplementationOnce P2002 overrides) continue to work unchanged.
     runTransaction: jest.fn(async (fn: (tx: unknown) => unknown) => $transaction(fn)),
@@ -746,5 +747,75 @@ describe('PostingService', () => {
         expect(auditService.append).not.toHaveBeenCalled();
       });
     });
+
+  describe('INCR-3 entry numbering', () => {
+    it('postEntry: calls nextEntryNumber inside tx and passes fiscalYear/entryNumber to create', async () => {
+      const { svc, journalEntryRepo, postingRepo } = buildService();
+      await svc.postEntry(scope, { ...balancedInput, date: '2026-06-23' });
+
+      expect(postingRepo.nextEntryNumber).toHaveBeenCalledTimes(1);
+      expect(postingRepo.nextEntryNumber).toHaveBeenCalledWith(scope, 2026, txHandle);
+      expect(journalEntryRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ fiscalYear: 2026, entryNumber: 1 }),
+        txHandle,
+      );
+    });
+
+    it('postEntry: fiscalYear is derived from postingDate in America/Sao_Paulo', async () => {
+      const { svc, journalEntryRepo } = buildService();
+      // 2026-12-31 UTC midnight = Dec 30 in BRT (UTC-3) → still 2026
+      await svc.postEntry(scope, { ...balancedInput, date: '2026-12-31' });
+      expect(journalEntryRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ fiscalYear: 2026 }),
+        txHandle,
+      );
+    });
+
+    it('postEntry: nextEntryNumber NOT called on idempotent hit (no number consumed)', async () => {
+      const existing = { id: 'entry-existing', postings: [], fiscalYear: 2026, entryNumber: 5 };
+      const { svc, postingRepo } = buildService({
+        journalEntryRepo: { findBySource: jest.fn(async () => existing) },
+      });
+      await svc.postEntry(scope, { ...balancedInput, sourceId: 'dup-1' });
+      expect(postingRepo.nextEntryNumber).not.toHaveBeenCalled();
+    });
+
+    it('reverseEntry: calls nextEntryNumber for reversal date and passes fiscalYear/entryNumber', async () => {
+      const original = {
+        id: 'orig-1',
+        status: 'Posted',
+        reversedById: null,
+        fiscalYear: 2026,
+        entryNumber: 10,
+        postings: [
+          { accountId: 'acc-A', debitCents: 5000, creditCents: 0 },
+          { accountId: 'acc-B', debitCents: 0, creditCents: 5000 },
+        ],
+      };
+      const { svc, journalEntryRepo, postingRepo } = buildService({
+        journalEntryRepo: {
+          findById: jest.fn(async () => original),
+          findBySource: jest.fn(async () => null),
+        },
+        postingRepo: { nextEntryNumber: jest.fn(async () => 11) },
+      });
+      await svc.reverseEntry(scope, { unitId, lancamentoId: 'orig-1', reversalPostingDate: '2026-06-24' });
+
+      expect(postingRepo.nextEntryNumber).toHaveBeenCalledWith(scope, 2026, txHandle);
+      expect(journalEntryRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ fiscalYear: 2026, entryNumber: 11 }),
+        txHandle,
+      );
+    });
+
+    it('rollback: nextEntryNumber is called but create throws → tx rolls back (number not persisted)', async () => {
+      const { svc, postingRepo } = buildService({
+        journalEntryRepo: { create: jest.fn(async () => { throw new Error('DB error'); }) },
+      });
+      await expect(svc.postEntry(scope, balancedInput)).rejects.toThrow('DB error');
+      // nextEntryNumber was called inside the tx that rolled back — number is not consumed
+      expect(postingRepo.nextEntryNumber).toHaveBeenCalledTimes(1);
+    });
+  });
   });
 });
