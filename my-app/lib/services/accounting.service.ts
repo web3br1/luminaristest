@@ -30,6 +30,8 @@ export interface PostEntryPayload {
 export interface ReverseEntryPayload {
   unitId: string;
   lancamentoId: string;
+  /** ISO date for the reversal entry — gates on the period that date belongs to. */
+  reversalPostingDate: string;
   reason?: string;
 }
 
@@ -67,6 +69,10 @@ export interface JournalEntry {
   sourceType: string;
   sourceId: string | null;
   reversedById: string | null;
+  /** Fiscal year of the entry (added INCR-3). Null for pre-INCR-3 entries. */
+  fiscalYear: number | null;
+  /** Sequential entry number within the fiscal year (added INCR-3). Null for legacy. */
+  entryNumber: number | null;
   createdAt: string;
   updatedAt: string;
   postings: Posting[];
@@ -143,6 +149,75 @@ export interface ListEntriesQuery {
 export interface ListEntriesResult {
   entries: JournalEntryWithFullPostings[];
   total: number;
+}
+
+// ── Accounting periods ─────────────────────────────────────────────────────────
+
+export type PeriodStatus = 'FUTURE' | 'OPEN' | 'SOFT_CLOSED' | 'HARD_CLOSED';
+
+export interface AccountingPeriod {
+  id: string;
+  userId: string;
+  unitId: string;
+  year: number;
+  month: number;
+  status: PeriodStatus;
+  openedAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Financial statements ───────────────────────────────────────────────────────
+
+export interface StatementLine {
+  accountId: string;
+  code: string;
+  name: string;
+  /** Signed cents as string (serialised by backend). */
+  amountCents: string;
+}
+
+export interface StatementSection {
+  accounts: StatementLine[];
+  totalCents: string;
+}
+
+export interface StatementDiagnostics {
+  mappingVersion: string;
+  unmappedAccounts: Array<{ accountId: string; code: string; name: string; nature: string; balanceCents: number }>;
+  removedAccountsReferenced: Array<{ accountId: string; balanceCents: number }>;
+  hasUnclosedPriorYearResult: boolean;
+  priorYearResultCents: number;
+  warnings: string[];
+}
+
+export interface BalanceSheetReport {
+  unitId: string;
+  periodSemantics: 'as_of';
+  asOf: string;
+  mappingVersion: string;
+  assets: StatementSection;
+  liabilities: StatementSection;
+  equity: StatementSection;
+  netResultLine: { amountCents: string; isComputed: true; computation: string; fromDate: string; toDate: string };
+  balanced: boolean;
+  reportStatus: 'OK' | 'WARNING' | 'INVALID';
+  diagnostics: StatementDiagnostics;
+}
+
+export interface IncomeStatementReport {
+  unitId: string;
+  periodSemantics: 'year_to_date';
+  fromDate: string;
+  toDate: string;
+  mappingVersion: string;
+  grossRevenue: StatementSection;
+  revenueDeductions: StatementSection;
+  expenses: StatementSection;
+  netResult: { amountCents: string; isComputed: true; computation: string };
+  reportStatus: 'OK' | 'WARNING' | 'INVALID';
+  diagnostics: StatementDiagnostics;
 }
 
 /** The standard server response envelope: { success, data }. */
@@ -235,5 +310,65 @@ export const accountingService = {
     const res = await apiClient.delete<{ success: boolean }>(`/accounting/accounts/${id}${qs}`);
     notify('Conta excluída com sucesso.', 'success', 'Contabilidade');
     return res;
+  },
+
+  // ── Accounting periods ──────────────────────────────────────────────────────
+
+  /** List accounting periods for a unit and year. */
+  async listPeriods(unitId: string, year: number): Promise<AccountingPeriod[]> {
+    const qs = buildQuery({ year: String(year) });
+    const res = await apiClient.get<ApiEnvelope<AccountingPeriod[]>>(`/accounting/${encodeURIComponent(unitId)}/periods${qs}`);
+    return res.data;
+  },
+
+  /** Seed 12 FUTURE periods for the given year in a unit. */
+  async seedYear(unitId: string, year: number): Promise<AccountingPeriod[]> {
+    const res = await apiClient.post<ApiEnvelope<AccountingPeriod[]>>(`/accounting/${encodeURIComponent(unitId)}/periods/seed-year`, { unitId, year });
+    notify('Períodos do exercício criados.', 'success', 'Contabilidade');
+    return res.data;
+  },
+
+  /** Transition a period to OPEN. */
+  async openPeriod(periodId: string, unitId: string): Promise<AccountingPeriod> {
+    const res = await apiClient.post<ApiEnvelope<AccountingPeriod>>(`/accounting/periods/${periodId}/open`, { unitId });
+    notify('Período aberto.', 'success', 'Contabilidade');
+    return res.data;
+  },
+
+  /** Transition a period to SOFT_CLOSED. */
+  async softClosePeriod(periodId: string, unitId: string, reason?: string): Promise<AccountingPeriod> {
+    const res = await apiClient.post<ApiEnvelope<AccountingPeriod>>(`/accounting/periods/${periodId}/soft-close`, { unitId, reason });
+    notify('Período fechado (parcial).', 'success', 'Contabilidade');
+    return res.data;
+  },
+
+  /** Transition a period to HARD_CLOSED (terminal). */
+  async hardClosePeriod(periodId: string, unitId: string, reason?: string): Promise<AccountingPeriod> {
+    const res = await apiClient.post<ApiEnvelope<AccountingPeriod>>(`/accounting/periods/${periodId}/hard-close`, { unitId, reason });
+    notify('Período fechado definitivamente.', 'success', 'Contabilidade');
+    return res.data;
+  },
+
+  /** Transition a SOFT_CLOSED period back to OPEN. */
+  async reopenPeriod(periodId: string, unitId: string, reason?: string): Promise<AccountingPeriod> {
+    const res = await apiClient.post<ApiEnvelope<AccountingPeriod>>(`/accounting/periods/${periodId}/reopen`, { unitId, reason });
+    notify('Período reaberto.', 'success', 'Contabilidade');
+    return res.data;
+  },
+
+  // ── Financial statements (INCR-4) ───────────────────────────────────────────
+
+  /** Balance sheet (Balanço Patrimonial) as of a given date. */
+  async getBalanceSheet(unitId: string, asOf: string): Promise<BalanceSheetReport> {
+    const qs = buildQuery({ unitId, asOf });
+    const res = await apiClient.get<ApiEnvelope<BalanceSheetReport>>(`/accounting/balance-sheet${qs}`);
+    return res.data;
+  },
+
+  /** Income statement (DRE) year-to-date as of a given date. */
+  async getIncomeStatement(unitId: string, asOf: string): Promise<IncomeStatementReport> {
+    const qs = buildQuery({ unitId, asOf });
+    const res = await apiClient.get<ApiEnvelope<IncomeStatementReport>>(`/accounting/income-statement${qs}`);
+    return res.data;
   },
 };

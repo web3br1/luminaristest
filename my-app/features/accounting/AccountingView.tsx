@@ -4,15 +4,23 @@ import { useAccountingData } from './hooks/useAccountingData';
 import { TrialBalanceTable } from './components/TrialBalanceTable';
 import { JournalEntriesPanel } from './components/JournalEntriesPanel';
 import { ChartOfAccountsPanel } from './components/ChartOfAccountsPanel';
+import { PeriodsPanel } from './components/PeriodsPanel';
+import { LedgerPanel } from './components/LedgerPanel';
+import { BalanceSheetPanel } from './components/BalanceSheetPanel';
+import { IncomeStatementPanel } from './components/IncomeStatementPanel';
 import { JournalEntryModal, type AccountOption } from './components/JournalEntryModal';
 import { accountingService } from '../../lib/services/accounting.service';
 
-type Tab = 'balancete' | 'lancamentos' | 'plano-de-contas';
+type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'razao' | 'plano-de-contas' | 'bp' | 'dre';
 
 const TABS: Array<{ id: Tab; label: string }> = [
-  { id: 'balancete', label: 'Balancete' },
-  { id: 'lancamentos', label: 'Lançamentos' },
-  { id: 'plano-de-contas', label: 'Plano de Contas' },
+  { id: 'balancete',      label: 'Balancete' },
+  { id: 'periodos',       label: 'Períodos' },
+  { id: 'lancamentos',    label: 'Lançamentos' },
+  { id: 'razao',          label: 'Razão' },
+  { id: 'plano-de-contas',label: 'Plano de Contas' },
+  { id: 'bp',             label: 'BP' },
+  { id: 'dre',            label: 'DRE' },
 ];
 
 /**
@@ -144,14 +152,34 @@ export function AccountingView() {
         </>
       )}
 
+      {/* ── Períodos tab ───────────────────────────────────────────────────── */}
+      {activeTab === 'periodos' && unitId && (
+        <PeriodsPanel unitId={unitId} />
+      )}
+
       {/* ── Lançamentos tab ────────────────────────────────────────────────── */}
       {activeTab === 'lancamentos' && unitId && (
-        <JournalEntriesPanel unitId={unitId} onReversalComplete={reload} />
+        <JournalEntriesPanel unitId={unitId} onReversalComplete={reload} onNavigateToPeriods={() => setActiveTab('periodos')} />
+      )}
+
+      {/* ── Razão tab ──────────────────────────────────────────────────────── */}
+      {activeTab === 'razao' && unitId && (
+        <LedgerPanel unitId={unitId} />
       )}
 
       {/* ── Plano de Contas tab ────────────────────────────────────────────── */}
       {activeTab === 'plano-de-contas' && unitId && (
         <ChartOfAccountsPanel unitId={unitId} canManage={true} />
+      )}
+
+      {/* ── BP tab ─────────────────────────────────────────────────────────── */}
+      {activeTab === 'bp' && unitId && (
+        <BalanceSheetPanel unitId={unitId} />
+      )}
+
+      {/* ── DRE tab ────────────────────────────────────────────────────────── */}
+      {activeTab === 'dre' && unitId && (
+        <IncomeStatementPanel unitId={unitId} />
       )}
 
       {/* ── New Entry Modal ────────────────────────────────────────────────── */}
