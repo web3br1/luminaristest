@@ -75,7 +75,7 @@ describe('AccountingReportService.trialBalance', () => {
     const groupByAccount = jest.fn(async () => []);
     const { svc } = buildService({ postingRepo: { groupByAccount } });
     await svc.trialBalance(scope);
-    expect(groupByAccount).toHaveBeenCalledWith(scope, ['Posted', 'Reversed']);
+    expect(groupByAccount).toHaveBeenCalledWith(scope, ['Posted', 'Reversed'], undefined);
   });
 
   it('builds rows in INTEGER CENTS, joined to the chart, sorted by code asc', async () => {

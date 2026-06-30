@@ -39,10 +39,23 @@ export class PostingRepository implements IPostingRepository {
   public async groupByAccount(
     scope: AccountingScope,
     statuses: string[],
+    options?: { from?: Date; to?: Date },
   ): Promise<AccountPostingTotals[]> {
+    const dateFilter =
+      options?.from || options?.to
+        ? {
+            date: {
+              ...(options.from ? { gte: options.from } : {}),
+              ...(options.to ? { lte: options.to } : {}),
+            },
+          }
+        : {};
     const grouped = await prisma.posting.groupBy({
       by: ['accountId'],
-      where: { ...accountingScopeWhere(scope), entry: { status: { in: statuses } } },
+      where: {
+        ...accountingScopeWhere(scope),
+        entry: { status: { in: statuses }, ...dateFilter },
+      },
       _sum: { debitCents: true, creditCents: true },
     });
 

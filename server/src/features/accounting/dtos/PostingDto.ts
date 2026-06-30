@@ -227,3 +227,26 @@ export const ReopenPeriodSchema = z
 export type SeedYearInput = z.infer<typeof SeedYearSchema>;
 export type ClosePeriodInput = z.infer<typeof ClosePeriodSchema>;
 export type ReopenPeriodInput = z.infer<typeof ReopenPeriodSchema>;
+
+// ---------------------------------------------------------------------------
+// Financial statement DTOs (INCR-4)
+// ---------------------------------------------------------------------------
+
+/** Query DTO for GET /balance-sheet?unitId=&asOf=YYYY-MM-DD */
+export const BalanceSheetQuerySchema = z.object({
+  unitId: z.string().min(1),
+  asOf: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'asOf deve ser YYYY-MM-DD'),
+});
+
+/** Query DTO for GET /income-statement?unitId=&asOf=YYYY-MM-DD */
+export const IncomeStatementQuerySchema = z.object({
+  unitId: z.string().min(1),
+  asOf: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'asOf deve ser YYYY-MM-DD'),
+});
+
+export type BalanceSheetQueryInput = z.infer<typeof BalanceSheetQuerySchema>;
+export type IncomeStatementQueryInput = z.infer<typeof IncomeStatementQuerySchema>;

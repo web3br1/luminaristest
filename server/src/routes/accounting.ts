@@ -4,6 +4,8 @@ import {
   reverseEntry,
   getTrialBalance,
   getAccountLedger,
+  getBalanceSheet,
+  getIncomeStatement,
   listAccounts,
   listEntries,
   createAccount,
@@ -22,9 +24,11 @@ const router = Router();
 router.post('/post', postEntry);
 router.post('/reverse', reverseEntry);
 
-// Read-only ledger reporting (trial balance + per-account ledger).
+// Read-only ledger reporting (trial balance + per-account ledger + financial statements).
 router.get('/trial-balance', getTrialBalance);
 router.get('/ledger', getAccountLedger);
+router.get('/balance-sheet', getBalanceSheet);
+router.get('/income-statement', getIncomeStatement);
 
 // Chart of accounts management.
 router.get('/accounts', listAccounts);

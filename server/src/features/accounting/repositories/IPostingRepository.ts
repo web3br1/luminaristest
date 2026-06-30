@@ -39,8 +39,14 @@ export interface IPostingRepository {
   /**
    * Sums debit/credit per account across all postings whose parent entry has one of
    * the given statuses, scoped via AccountingScope. Backs the trial balance.
+   * Optional `from`/`to` filter on the entry date (inclusive bounds).
+   * Omitting both is identical to the prior behaviour (no date clause added).
    */
-  groupByAccount(scope: AccountingScope, statuses: string[]): Promise<AccountPostingTotals[]>;
+  groupByAccount(
+    scope: AccountingScope,
+    statuses: string[],
+    options?: { from?: Date; to?: Date },
+  ): Promise<AccountPostingTotals[]>;
 
   /**
    * Atomically increments the JournalEntrySequence counter for (scope, fiscalYear)
