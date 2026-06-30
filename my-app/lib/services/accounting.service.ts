@@ -351,7 +351,7 @@ export const accountingService = {
 
   /** Transition a SOFT_CLOSED period back to OPEN. */
   async reopenPeriod(periodId: string, unitId: string, reason?: string): Promise<AccountingPeriod> {
-    const res = await apiClient.post<ApiEnvelope<AccountingPeriod>>(`/accounting/periods/${periodId}/reopen`, { unitId, reason });
+    const res = await apiClient.post<ApiEnvelope<AccountingPeriod>>(`/accounting/periods/${periodId}/reopen`, { unitId, periodId, reason });
     notify('Período reaberto.', 'success', 'Contabilidade');
     return res.data;
   },

@@ -76,7 +76,7 @@ interface PostingsDrawerProps {
 function PostingsDrawer({ entry }: PostingsDrawerProps) {
   return (
     <tr>
-      <td colSpan={7} className="bg-neutral-950/60 px-6 pb-3 pt-1">
+      <td colSpan={8} className="bg-neutral-950/60 px-6 pb-3 pt-1">
         <table className="w-full text-xs">
           <thead>
             <tr className="text-left text-neutral-500">
