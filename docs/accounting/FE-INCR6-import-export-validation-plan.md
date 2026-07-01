@@ -38,3 +38,17 @@
 
 ## Reporting
 Record PASS/FAIL per case with a screenshot or the observed Balancete delta. O2 and J4 (cross-job no-double-post) are the load-bearing cases — if either doubles, stop and treat as a data-integrity regression. File any Major like FE-INCR-1's validation status doc.
+
+## Pre-deploy DB check — fold into SMOKE-MIGRATION-GATE-BE-INCR6 (last window before real data)
+"Zero today" ≠ "zero forever." The opening-balance double-post was live in `main` before #20; this check is the last window to catch a contaminated DB before real data lands. Run it against **the DB the app actually opens** — the runtime `DATABASE_URL=file:./prisma/dev.db` resolves *relative to the schema* → `server/prisma/prisma/dev.db` (the ~466 KB real DB), **not** the 0-byte `server/prisma/dev.db` decoy. (Path-safe way to hit the right one: `new PrismaClient()` with the app's `.env`, as the remediation check did.)
+
+```sql
+SELECT sourceType, COUNT(*) n, COUNT(DISTINCT sourceId) distinctSrc
+FROM journal_entries
+WHERE sourceType IN ('ACCOUNTING_OPENING_BALANCE_IMPORT', 'IMPORT_JOURNAL_ENTRIES')
+GROUP BY sourceType;
+```
+
+- **Expected before real data:** zero rows.
+- **After real imports exist:** a cross-job double-post shows up as two entries with the **same accounts/amounts/date under different `sourceId`s** (the count query is the trip-wire; confirm by content). Post-#20 this cannot recur — identical bytes → identical deterministic `sourceId` → blocked by `@@unique`.
+- **If a duplicate is ever found:** remediate by **estorno ([ACC-018]), never delete.**
