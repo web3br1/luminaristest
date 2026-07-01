@@ -3,6 +3,11 @@ name: learning-log
 description: Anota um aprendizado de trabalho extenso (multi-incremento) num ledger versionado no repo, e promove os duráveis para a auto-memória. Use quando descobrir um gotcha, uma decisão não-óbvia, uma armadilha, um padrão reusável ou uma correção de premissa durante um esforço longo — especialmente o buildout contábil (INCR-1..4). Triggers: "anota esse aprendizado", "registra o que aprendemos", "learning-log", "lição aprendida", "ponto pro ledger".
 argument-hint: "[texto do aprendizado, ou vazio para varrer a sessão e propor entradas]"
 allowed-tools: Read, Grep, Glob, Write, Edit
+metadata:
+  governance-skill-id: "SKL-LEARNLOG"
+  governance-version: "0.1.0"
+  governance-status: "draft"
+  governance-owner: "engineering"
 ---
 
 # Learning Log — capturar o que o trabalho extenso ensina
@@ -39,7 +44,7 @@ tarefa (isso é task, não aprendizado), ou observação vaga ("podia estar mais
 
 Regra de decisão: *"daqui a 3 meses, numa tarefa não relacionada, isto ainda importaria?"*
 Sim → também grava na memória (seguindo as regras de memória do projeto: um fato por arquivo,
-frontmatter, `**Why:**`/`**How to apply:**`, link `[[...]]`). Não → só o ledger.
+frontmatter, `**Why:**`/`**How to apply:**`, link wikilink pro slug). Não → só o ledger.
 
 ## Formato de uma entrada no ledger
 
@@ -52,7 +57,7 @@ provavelmente são duas entradas.
 - **Aprendizado:** <o fato, em uma ou duas frases>.
 - **Evidência:** <file:line / commit / teste que prova>.
 - **Como aplicar:** <a ação concreta da próxima vez>.
-- **Durável?** não · OU sim → [[slug-da-memória]]
+- **Durável?** não · OU sim → wikilink pro slug-da-memória
 ```
 
 Categorias: `gotcha` | `decision` | `pattern` | `pitfall` | `assumption-correction`.
@@ -72,9 +77,9 @@ Categorias: `gotcha` | `decision` | `pattern` | `pitfall` | `assumption-correcti
    entrada existente em vez de duplicar. Para durável: verificar também se já existe memória com o mesmo slug.
 5. **Anexar** a entrada (entradas mais novas no topo, logo abaixo do cabeçalho).
 6. **Promover se durável:** se a entrada passar no teste dos 3 meses, escreva também o arquivo
-   de memória + a linha no `MEMORY.md`, e aponte a entrada do ledger para ele com `[[slug]]`.
+   de memória + a linha no `MEMORY.md`, e aponte a entrada do ledger para ele com um wikilink pro slug.
    O slug do ledger **deve bater** com o `name:` do arquivo de memória — senão o link fica pendente
-   (é o que o lint pega). A memória É a camada wiki (fato-por-arquivo, frontmatter, `[[links]]`,
+   (é o que o lint pega). A memória É a camada wiki (fato-por-arquivo, frontmatter, wikilinks,
    índice `MEMORY.md`); não há camada wiki separada.
 7. **Fechar:** uma linha confirmando — `Anotado em <ledger> [+ memória <slug>]`.
 
@@ -82,9 +87,9 @@ Categorias: `gotcha` | `decision` | `pattern` | `pitfall` | `assumption-correcti
 
 Varre **ledger + memória** (não há wiki separada) e propõe correções — nunca escreve sem o OK:
 
-1. **`[[slug]]` pendente:** toda referência `[[slug]]` nos ledgers (`docs/learnings/*.md`) e nas
+1. **Wikilink pendente:** toda referência-wikilink-de-slug nos ledgers (`docs/learnings/*.md`) e nas
    memórias (`memory/*.md`) cujo slug não tem arquivo `memory/<slug>.md` correspondente. O caso
-   típico é o ledger marcar `Durável? sim → [[x]] (a escrever)` e a memória nunca ter sido criada,
+   típico é o ledger marcar `Durável? sim → (wikilink a escrever)` e a memória nunca ter sido criada,
    ou ter sido criada com `name:` diferente (mismatch). Propor: criar a memória, ou reapontar o link.
 2. **Memória órfã do índice:** arquivo `memory/*.md` sem linha em `MEMORY.md` (ou vice-versa).
 3. **Claim stale / contradição:** memória que cita `file:line`/flag que não existe mais (Grep/Read

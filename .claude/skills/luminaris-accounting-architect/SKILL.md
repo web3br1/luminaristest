@@ -39,8 +39,8 @@ Qualquer entidade contábil (`Account`, `JournalEntry`, `Posting`, período, led
 **Model + Service + Repository + Policy próprios** — **nunca** linha de DynamicTable, **nunca**
 serviço Prisma injetado no motor de plugins. Integração com o resto do ERP (venda→lançamento)
 é **ponte de controller/serviço de integração pós-commit**, fora do engine. Ver memórias
-`[[accounting-is-first-class-prisma]]`, `[[new-modules-use-prisma-not-dynamictable]]`,
-`[[dynamictable-vs-prisma-boundary]]`.
+`accounting-is-first-class-prisma`, `new-modules-use-prisma-not-dynamictable`,
+`dynamictable-vs-prisma-boundary`.
 
 ## Phase 1 — Ancorar na REALIDADE do projeto (sempre antes de opinar)
 
@@ -60,10 +60,10 @@ parecer, leia o estado real e reconcilie — **nunca** planeje em cima do doc se
 
 | O doc propõe… | Decisão REAL do projeto (não reabrir sem ADR) |
 |---|---|
-| Torre `Workspace → LegalEntity → Establishment → Ledger` ("C reduzido") | **Rejeitada.** Tenancy = **`AccountingScope`** (`ownerUserId`≠`actorUserId` + `unitId` + ledger DEFAULT implícito). SEM torre multiempresa. Ver `[[accounting-scope-foundation-no-multicompany]]`. |
-| Reforço via constraint de exclusão / recursos PostgreSQL | **Fica em SQLite** (WAL + busy_timeout). PG foi descartado, não é pré-requisito de nada. Ver `[[stay-on-sqlite-no-postgres]]`. Todo "use exclusion constraint" do doc → traduzir para **gate transacional em app** + `@@unique`. |
-| `SourceDocument` + `JournalEntrySource` como novidade | Proveniência mínima **já começou**: D1 = `externalReference`. Ver `[[accounting-increment-d1-settlement]]` / `[[accounting-incr6-data-exchange-plan]]`. Avaliar *estender*, não recriar. |
-| `Int` para centavos | **Integer cents já é a regra**; confirme `BigInt` onde o teto de 32 bits (~R$ 21,4M) aperta. Ver `[[dynamictable-money-and-uniqueness-limits]]`. |
+| Torre `Workspace → LegalEntity → Establishment → Ledger` ("C reduzido") | **Rejeitada.** Tenancy = **`AccountingScope`** (`ownerUserId`≠`actorUserId` + `unitId` + ledger DEFAULT implícito). SEM torre multiempresa. Ver memória `accounting-scope-foundation-no-multicompany`. |
+| Reforço via constraint de exclusão / recursos PostgreSQL | **Fica em SQLite** (WAL + busy_timeout). PG foi descartado, não é pré-requisito de nada. Ver memória `stay-on-sqlite-no-postgres`. Todo "use exclusion constraint" do doc → traduzir para **gate transacional em app** + `@@unique`. |
+| `SourceDocument` + `JournalEntrySource` como novidade | Proveniência mínima **já começou**: D1 = `externalReference`. Ver memórias `accounting-increment-d1-settlement` / `accounting-incr6-data-exchange-plan`. Avaliar *estender*, não recriar. |
+| `Int` para centavos | **Integer cents já é a regra**; confirme `BigInt` onde o teto de 32 bits (~R$ 21,4M) aperta. Ver memória `dynamictable-money-and-uniqueness-limits`. |
 | Muitos módulos "faltando" | Já mergeados: períodos (INCR-1), audit hash-chain (INCR-2), BP+DRE (INCR-4), anexos (INCR-5), export/import (INCR-6). Confirme o que existe **antes** de listar como novo. |
 
 > **Se a tarefa do usuário reabre uma dessas decisões** (ex.: "adiciona LegalEntity"), **não a trate como
@@ -83,11 +83,11 @@ os garante. São os pontos onde "compila" ≠ "correto":
 ### Atomicidade e corrida (TOCTOU)
 - **[ACC-011]** Gate de invariante mutável (período aberto, saldo, status) **re-checado DENTRO da
   `runTransaction`** — preflight + `@@unique` **não** fecham a corrida `post × close`.
-  Ver `[[authoritative-gate-inside-tx]]`, `[[tx-nao-propagado-ao-repo]]`.
+  Ver memórias `authoritative-gate-inside-tx`, `tx-nao-propagado-ao-repo`.
 - **[ACC-012]** Todo `tx` aberto propaga para **todo** método de repo dentro do bloco — tx aparente = atomicidade quebrada.
 - **[ACC-013]** Idempotência de evento externo liga em **`sourceSystemId + externalMessageId`**, NUNCA em
   `userId`+... — trocar o ator não pode furar a idempotência. Guarda de idempotência é **pré-tx via repo injetado**,
-  nunca `new TransactionalRepository` no service. Ver `[[orchestration-service-tx-repo-smell]]`.
+  nunca `new TransactionalRepository` no service. Ver memória `orchestration-service-tx-repo-smell`.
 
 ### Dinheiro e câmbio
 - **[ACC-014]** Centavos inteiros; `BigInt` quando o teto apertar; **nunca** `Number()` cego em `BigInt`.
@@ -97,7 +97,7 @@ os garante. São os pontos onde "compila" ≠ "correto":
 ### Ciclo de vida do lançamento
 - **[ACC-015]** `entryNumber` nasce **no `POST`** (dentro da tx, com lock de sequência), nunca no rascunho.
 - **[ACC-016]** Estado por **comandos** (`/post`, `/approve`, `/reverse`), **não** `PATCH status` genérico —
-  cada comando tem autorização, validação e auditoria próprios. Ver `[[param-aceito-e-ignorado-e-bug]]`.
+  cada comando tem autorização, validação e auditoria próprios. Ver memória `param-aceito-e-ignorado-e-bug`.
 - **[ACC-017]** Aprovação congela `contentHash` + `version` (optimistic lock): editar após aprovar invalida a
   aprovação; criador não aprova o próprio (SoD dinâmica no servidor).
 - **[ACC-018]** Estorno é **novo lançamento** em período aberto — nunca edição destrutiva do original.
@@ -105,12 +105,12 @@ os garante. São os pontos onde "compila" ≠ "correto":
 ### Auditoria e segurança
 - **[ACC-019]** Evento crítico grava na **mesma tx** da operação (rollback junto); envio externo via **outbox** transacional.
 - **[ACC-020]** Auditoria/histórico é exceção ao `onDelete: Cascade` — apagar usuário não apaga a trilha.
-  Ver `[[audit-log-no-fk-cascade]]`. Autorização **no servidor**; UI escondida ≠ autorização.
+  Ver memória `audit-log-no-fk-cascade`. Autorização **no servidor**; UI escondida ≠ autorização.
 
 ### Relatórios
 - **[ACC-021]** BP = saldo acumulado numa data; DRE = fluxo entre datas — semânticas distintas, não misturar.
   Só `POSTED` entra em relatório oficial. Regra de sinal centralizada (`debit - credit` normalizado),
-  nunca espalhada em componente React. Ver `[[accounting-incr4-bp-dre]]`.
+  nunca espalhada em componente React. Ver memória `accounting-incr4-bp-dre`.
 
 ## Phase 3 — Produzir o PARECER DE DOMÍNIO (handoff ao orquestrador)
 
