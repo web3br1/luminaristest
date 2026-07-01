@@ -55,6 +55,7 @@ import { AuditService } from '../features/accounting/services/AuditService';
 import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
 import { DocumentAttachmentService } from '../features/accounting/services/DocumentAttachmentService';
 import { DataExchangeExportService } from '../features/accounting/services/DataExchangeExportService';
+import { DataExchangeImportService } from '../features/accounting/services/DataExchangeImportService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
@@ -168,6 +169,7 @@ export class ApplicationFactory {
     accountingReport: AccountingReportService;
     documentAttachment: DocumentAttachmentService;
     dataExchangeExport: DataExchangeExportService;
+    dataExchangeImport: DataExchangeImportService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
@@ -369,6 +371,13 @@ export class ApplicationFactory {
         this.repositories.dataExchange,
         auditService,
       ),
+      dataExchangeImport: new DataExchangeImportService(
+        this.repositories.dataExchange,
+        this.policies.accounting,
+        auditService,
+        postingService,
+        postingService,
+      ),
       packageBalance: packageBalanceService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
@@ -408,6 +417,7 @@ export class ApplicationFactory {
   public getAccountingReportService = (): AccountingReportService => this.services.accountingReport;
   public getDocumentAttachmentService = (): DocumentAttachmentService => this.services.documentAttachment;
   public getDataExchangeExportService = (): DataExchangeExportService => this.services.dataExchangeExport;
+  public getDataExchangeImportService = (): DataExchangeImportService => this.services.dataExchangeImport;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;

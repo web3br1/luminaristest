@@ -43,8 +43,18 @@ export const ExportRequestSchema = z
 
 export type ExportRequestDto = z.infer<typeof ExportRequestSchema>;
 
-/** Query for job-scoped GET endpoints (job summary, artifact download). */
+/** Query for job-scoped GET endpoints (job summary, artifact download, rows). */
 export const JobScopeQuerySchema = z.object({ unitId: z.string().min(1) });
+
+/** Body fields for a multipart import upload (kind + unitId travel as form fields). */
+export const ImportUploadSchema = z.object({
+  kind: z.enum(IMPORT_KINDS),
+  unitId: z.string().min(1),
+});
+export type ImportUploadDto = z.infer<typeof ImportUploadSchema>;
+
+/** Body for committing a staged import. */
+export const CommitImportSchema = z.object({ unitId: z.string().min(1) });
 
 /** GET /templates/:kind param. */
 export const TemplateKindSchema = z.enum(IMPORT_KINDS);

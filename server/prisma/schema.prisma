@@ -491,7 +491,7 @@ model AccountingDataExchangeJob {
   unitId        String    // business unit (scoped string, not a FK)
   direction     String    // IMPORT | EXPORT
   kind          String    // IMPORT_CHART_OF_ACCOUNTS | IMPORT_OPENING_BALANCES | IMPORT_JOURNAL_ENTRIES | EXPORT_*
-  status        String    // UPLOADED | VALIDATED | COMMITTING | COMMITTED | FAILED | EXPORTED
+  status        String    // UPLOADED | VALIDATED | COMMITTING | COMMITTED | PARTIAL | FAILED | EXPORTED
   originalName  String?   // client-supplied upload name (display only)
   mimeType      String?
   sizeBytes     Int?
