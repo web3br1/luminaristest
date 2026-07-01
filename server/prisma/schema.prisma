@@ -419,6 +419,7 @@ model JournalEntry {
   reversedBy   JournalEntry?  @relation("Reversal", fields: [reversedById], references: [id])
   reverses     JournalEntry?  @relation("Reversal")
   postings     Posting[]
+  attachments  DocumentAttachment[] @relation("JournalEntryAttachments")
   createdById  String?   // actor who created this entry (authorship trail)
   postedById   String?   // actor who posted/confirmed this entry (SoD trail)
   fiscalYear   Int       // derived from date (postingDate) in America/Sao_Paulo; assigned at post time
@@ -447,6 +448,37 @@ model JournalEntrySequence {
 
   @@id([userId, unitId, fiscalYear])
   @@map("journal_entry_sequences")
+}
+
+// Documentary evidence attached to an accounting entry (BE-INCR-5). First-class
+// Prisma (NOT CrmAttachment): two-level tenancy (userId + unitId via AccountingScope),
+// a REAL FK to journal_entries, a sha256 integrity checksum, and audit-in-tx via
+// AuditService. `userId`/`unitId`/`uploadedById`/`deletedById` are plain scope/actor
+// strings (no User FK — mirrors AuditEvent/JournalEntry.createdById). The binary lives
+// on disk (lib/attachmentStorage); only the relative storageKey is stored here.
+// `targetType` is polymorphic-in-intent but the FK ties it to JournalEntry this
+// increment; broadening to other targets (INCR-6+) relaxes the FK.
+model DocumentAttachment {
+  id           String       @id @default(cuid())
+  userId       String       // scope owner (AccountingScope.ownerUserId); plain scope key
+  unitId       String       // business unit (scoped string, not a FK)
+  targetType   String       @default("JOURNAL_ENTRY")
+  targetId     String       // journal_entries.id
+  journalEntry JournalEntry @relation("JournalEntryAttachments", fields: [targetId], references: [id], onDelete: Cascade)
+  fileName     String       // sanitized display name (what is on disk), never raw client input
+  mimeType     String
+  fileSize     Int
+  sha256       String       // 64-char hex; computed server-side at upload
+  storageKey   String       // relative path within ATTACHMENTS_DIR (attachmentStorage.saveFile)
+  uploadedById String?      // actor who uploaded (AccountingScope.actorUserId); plain string
+  deletedById  String?      // actor who soft-deleted; plain string
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  @@index([userId, unitId, targetType, targetId])
+  @@index([deletedAt])
+  @@map("document_attachments")
 }
 
 // Ledger line (partida) — one leg of a double entry. Money is INTEGER CENTS; the
