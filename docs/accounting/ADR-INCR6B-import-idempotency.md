@@ -19,8 +19,8 @@ The importer turns CSV/XLSX into ledger writes exclusively through `PostingServi
 - **Primary key:** the user-supplied `externalReference` (a stable business key).
 - **BLOCKER FIX — no NULL sourceId.** When `externalReference` is blank, the entry MUST still get a **deterministic** `sourceId = "di:" + sha256(fileSha256 + "|" + entryKey)`. The previous `externalReference || undefined` produced a NULL `sourceId`, which never collides on the `@@unique` (SQLite treats NULL as distinct), so re-uploading the same file as a *new job* silently double-posted every reference-less entry. A file-content + entryKey hash makes re-import of identical bytes dedup correctly with **zero burden on the user**. Rejected alternative: making `externalReference` mandatory (worse UX; content-hash dedup is the correct reimport semantics).
 
-### D2 — Opening balances shape (RATIFIED)
-One **balanced** JournalEntry per file (all-or-nothing), `sourceType = ACCOUNTING_OPENING_BALANCE_IMPORT`, `sourceId = jobId`. Whole-file `Σdebit == Σcredit` (exact integer) enforced at validation and re-enforced by `postEntry`.
+### D2 — Opening balances shape (RATIFIED; sourceId amended 2026-07-01 — see Amendment)
+One **balanced** JournalEntry per file (all-or-nothing), `sourceType = ACCOUNTING_OPENING_BALANCE_IMPORT`, `sourceId = "di:" + sha256(fileSha256 + "|opening")`. Whole-file `Σdebit == Σcredit` (exact integer) enforced at validation and re-enforced by `postEntry`. (Originally `sourceId = jobId`, which keyed on the per-upload jobId and double-posted on cross-job re-upload — same class of bug as D1; corrected in the Amendment.)
 
 ### D3 — XLSX ingest (RATIFIED)
 First worksheet only; header row required; money in **integer cents** columns (no decimals/locale). CSV + XLSX both supported.
@@ -36,7 +36,7 @@ The importer **never auto-opens a period**. Rows whose `postingDate` falls in a 
 
 ## Consequences
 
-- Re-uploading an identical file (any kind) is idempotent end-to-end: chart = create-or-skip; opening = same `jobId` sourceId; journal = `externalReference` or the deterministic file hash.
+- Re-uploading an identical file (any kind) is idempotent end-to-end: chart = create-or-skip; opening = deterministic file-hash sourceId (amended — see Amendment); journal = `externalReference` or the deterministic file hash.
 - The FE can render row-level `errorCode`/`errorMessage` and offer a retry on `PARTIAL`/`FAILED` jobs.
 - `di:`-prefixed sourceIds appear on imported entries lacking an externalReference — a recognizable, stable provenance marker.
 - No schema/migration change (status is a string column); `DataExchangeStatus` gains `PARTIAL`.
@@ -46,3 +46,9 @@ The importer **never auto-opens a period**. Rows whose `postingDate` falls in a 
 
 ## Not in this increment
 `EXPORT_IMPORT_ERRORS` CSV (errors already served as JSON via `/jobs/{id}/rows?status=INVALID`), chart-of-accounts safe-field update (no `updateAccount` service yet), FE Import/Export tab.
+
+## Amendment — 2026-07-01: opening-balance cross-job idempotency (residual)
+
+**Found after merge** (domain re-review): D1's deterministic-sourceId fix was applied to `IMPORT_JOURNAL_ENTRIES` only. `IMPORT_OPENING_BALANCES` still keyed `sourceId = jobId`, and `jobId` is minted fresh per upload — so re-uploading the same opening-balance file as a **new job** never collided on the `@@unique` and **double-posted the opening balances** (the exact bug D1 fixed for journals). The original Consequences claim *"opening = same jobId sourceId … idempotent (any kind)"* was therefore false.
+
+**Fix (branch `fix/incr6b-opening-balance-idempotency`, off main):** opening-balance `sourceId` is now `"di:" + sha256(fileSha256 + "|opening")`, mirroring `journalSourceId`. Identical bytes → identical `sourceId` → dedup at the DB `@@unique`. `commitOpeningBalances` now takes `fileSha` (from `job.sha256 ?? job.id`) instead of `jobId`. Regression test added: `derives a stable sourceId across re-imports of the same file (cross-job idempotency)`. `tsc` clean; independent reviewer re-check of the delta pending before merge.

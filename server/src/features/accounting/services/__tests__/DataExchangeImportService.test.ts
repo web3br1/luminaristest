@@ -98,21 +98,44 @@ describe('DataExchangeImportService — chart of accounts', () => {
 });
 
 describe('DataExchangeImportService — opening balances', () => {
-  it('commits one balanced entry with sourceId=jobId', async () => {
+  const openingCsv =
+    'accountCode,postingDate,description,debitCents,creditCents\n1.1.01,2026-01-01,Banco,100000,0\n2.1.01,2026-01-01,Capital,0,100000\n';
+
+  it('commits one balanced entry with a deterministic file-based sourceId', async () => {
     const { repo } = makeRepo();
     const { poster, postEntry } = makePoster();
     const svc = new DataExchangeImportService(repo, new AccountingPolicy(), audit, accountReader, poster);
 
-    const job = await svc.uploadAndValidate(scope, 'IMPORT_OPENING_BALANCES',
-      csv('accountCode,postingDate,description,debitCents,creditCents\n1.1.01,2026-01-01,Banco,100000,0\n2.1.01,2026-01-01,Capital,0,100000\n'));
+    const job = await svc.uploadAndValidate(scope, 'IMPORT_OPENING_BALANCES', csv(openingCsv));
     expect(job.validRows).toBe(2);
 
     await svc.commit(scope, job.id);
     expect(postEntry).toHaveBeenCalledTimes(1);
     const arg = postEntry.mock.calls[0][1];
     expect(arg.sourceType).toBe('ACCOUNTING_OPENING_BALANCE_IMPORT');
-    expect(arg.sourceId).toBe(job.id);
+    // Deterministic on file content, NOT the per-upload jobId (the old cross-job double-post).
+    expect(arg.sourceId).toMatch(/^di:[a-f0-9]{40}$/);
+    expect(arg.sourceId).not.toBe(job.id);
     expect(arg.lines).toHaveLength(2);
+  });
+
+  it('derives a stable sourceId across re-imports of the same file (cross-job idempotency)', async () => {
+    // Re-uploading the same opening-balance file created a NEW job (new jobId) → the old
+    // `sourceId = jobId` never collided on the @@unique → double opening balances. A file-hash
+    // sourceId makes identical bytes dedup at the DB level, mirroring the journal-entry fix.
+    const commitAndCaptureSourceId = async () => {
+      const { repo } = makeRepo();
+      const { poster, postEntry } = makePoster();
+      const svc = new DataExchangeImportService(repo, new AccountingPolicy(), audit, accountReader, poster);
+      const job = await svc.uploadAndValidate(scope, 'IMPORT_OPENING_BALANCES', csv(openingCsv));
+      await svc.commit(scope, job.id);
+      return postEntry.mock.calls[0][1].sourceId;
+    };
+
+    const src1 = await commitAndCaptureSourceId();
+    const src2 = await commitAndCaptureSourceId(); // separate job, identical file bytes
+    expect(src1).toMatch(/^di:[a-f0-9]{40}$/);
+    expect(src2).toBe(src1);
   });
 });
 
