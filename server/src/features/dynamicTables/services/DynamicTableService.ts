@@ -323,10 +323,30 @@ export class DynamicTableService {
       }
     }
     for (const key of tableKeys) {
-      const tableDef = preset.tables[key];
+      let tableDef = preset.tables[key];
       if (!tableDef?.schema || !Array.isArray(tableDef.schema.fields)) {
         throw new ValidationError(`Tabela do preset inválida: '${key}' sem schema.fields`);
       }
+
+      // Drop OPTIONAL relation fields whose preset target table wasn't selected (e.g.
+      // leads.accountId → crmAccounts installed without the CRM module). A required
+      // relation into a missing table is still a hard preset error below.
+      const filteredFields = tableDef.schema.fields.filter(field => {
+        if (field.type === 'relation' && field.relation?.targetTable && !field.required) {
+          const target = field.relation.targetTable;
+          if (typeof target === 'string' && target.startsWith('@@PRESET_TABLE_KEY::')) {
+            const targetKey = target.replace('@@PRESET_TABLE_KEY::', '');
+            if (!preset.tables[targetKey]) return false;
+          }
+        }
+        return true;
+      });
+      if (filteredFields.length !== tableDef.schema.fields.length) {
+        // Reassign locally — never mutate the shared preset module singleton's schema.
+        tableDef = { ...tableDef, schema: { ...tableDef.schema, fields: filteredFields } };
+        preset.tables[key] = tableDef;
+      }
+
       // Validate field name uniqueness (CPU-only — no DB access)
       const fieldNames = tableDef.schema.fields.map(f => f.name.trim().toLowerCase());
       const uniqueFieldNames = new Set(fieldNames);

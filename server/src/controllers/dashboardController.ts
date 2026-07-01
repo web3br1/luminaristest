@@ -138,21 +138,35 @@ async function handleCustomCreation(
         internalName: internalName,
       };
     }
-    // Verificar dependências quebradas localmente antes de chamar o service
+    // Verificar dependências quebradas localmente antes de chamar o service.
+    // Uma relação OPCIONAL cross-módulo cujo alvo não foi selecionado (ex.: leads.accountId
+    // → crmAccounts sem o módulo CRM) é descartada do schema final em vez de bloquear a
+    // instalação — o campo é enriquecimento condicional, não uma dependência real.
     for (const key in finalPayload.tables) {
       const def = finalPayload.tables[key];
       if (!def?.schema?.fields) continue;
+      const keptFields: ISchemaField[] = [];
+      let droppedAny = false;
       for (const field of def.schema.fields as ISchemaField[]) {
         if (field.type === 'relation' && field.relation?.targetTable) {
           const target = field.relation.targetTable;
           if (target.startsWith('@@PRESET_TABLE_KEY::')) {
             const targetKey = target.replace('@@PRESET_TABLE_KEY::', '');
             if (!finalPayload.tables[targetKey]) {
-              res.status(400).json({ error: `Configuração inválida: relação '${key}.${field.name}' aponta para presetKey inexistente '${targetKey}'.` });
-              return;
+              if (field.required) {
+                res.status(400).json({ error: `Configuração inválida: relação '${key}.${field.name}' aponta para presetKey inexistente '${targetKey}'.` });
+                return;
+              }
+              droppedAny = true;
+              continue;
             }
           }
         }
+        keptFields.push(field);
+      }
+      if (droppedAny) {
+        // Reassign (never mutate) — `def.schema` may be the shared preset module singleton.
+        def.schema = { ...def.schema, fields: keptFields };
       }
     }
 
