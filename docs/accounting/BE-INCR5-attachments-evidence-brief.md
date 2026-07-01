@@ -154,7 +154,9 @@ image/jpeg
 **Rationale:**
 - Covers 95% of accounting evidence use cases.
 - Explicitly rejects `.exe`, `.sh`, `.bat`, etc.
-- Client-side sends MIME; server validates + re-checks file magic bytes (if time permits, defer to INCR-6).
+- Client-side sends MIME; server validates against the allowlist by header.
+
+> **MIME-001 — scope clarification (mandated by governance):** MIME validation in BE-INCR-5 is **header-based allowlist validation**. Magic bytes / content sniffing is **deferred to a future hardening increment**. A reviewer must NOT raise magic bytes as a blocker for this increment.
 
 ### 12. SHA256 Calculation & Persistence
 
@@ -250,6 +252,24 @@ export const validateAttachmentScope = async (req, res, next) => {
 **Rationale:**
 - Minimal, aligned with existing Accounting API patterns.
 - File upload uses `multipart/form-data` standard.
+
+### 16. Transaction Boundaries & Compensation
+
+**TX-001 — mandated by governance before implementation.**
+
+**Upload:**
+1. Validate MIME and size before file persistence.
+2. Generate storage key server-side.
+3. Write file to disk.
+4. Insert `DocumentAttachment` metadata and append `attachment.uploaded` AuditEvent in the same DB transaction.
+5. If file write fails, no DB transaction is committed.
+6. If DB insert/audit fails after file write, delete the physical file as compensation.
+
+**Delete:**
+1. Soft-delete `DocumentAttachment` and append `attachment.deleted` AuditEvent in the same DB transaction.
+2. Physical file remains on disk for audit/compliance unless a future retention policy removes it.
+
+> **Ceiling (ponytail):** write-file-then-commit deixa um arquivo órfão inofensivo se o processo cair entre o passo 3 e a compensação do passo 6. Órfãos são recuperáveis por um sweep job futuro; a ordem inversa (DB-first) deixaria metadado apontando para arquivo inexistente — pior. Ordem escolhida é deliberada.
 
 ---
 
