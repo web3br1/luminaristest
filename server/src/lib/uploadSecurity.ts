@@ -1,0 +1,99 @@
+import type { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
+
+/**
+ * Shared multipart upload security (extracted from attachmentsController so accounting
+ * and CRM reuse ONE copy of the magic-bytes guard + multer error mapping — a duplicated
+ * security guard would be a §0 "island"). Behavior is byte-for-byte what CRM shipped;
+ * only the size limit and MIME set are parameterized.
+ */
+
+/** Default document MIME allowlist (PDF, images, office, csv/plain, + browser octet-stream). */
+export const DEFAULT_ATTACHMENT_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',       // XLSX
+  'text/csv',
+  'text/plain',
+  'application/octet-stream', // some browsers send this for office/binary files
+]);
+
+/** Magic-bytes validation — secondary check after the MIME allowlist (anti-spoofing). */
+export function validateMagicBytes(buffer: Buffer, mimetype: string): boolean {
+  const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46]; // %PDF
+  const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04]; // PK (DOCX and XLSX are ZIP-based)
+
+  if (mimetype === 'application/pdf') {
+    return PDF_MAGIC.every((byte, i) => buffer[i] === byte);
+  }
+  if (mimetype.includes('officedocument') || mimetype.includes('spreadsheet')) {
+    return ZIP_MAGIC.every((byte, i) => buffer[i] === byte);
+  }
+  // application/octet-stream is a blanket fallback some browsers send for office/PDF
+  // binaries. Don't blindly trust it: require a known binary signature (ZIP/office or
+  // PDF), otherwise reject — this prevents arbitrary content riding in as octet-stream.
+  if (mimetype === 'application/octet-stream') {
+    const isZip = ZIP_MAGIC.every((byte, i) => buffer[i] === byte);
+    const isPdf = PDF_MAGIC.every((byte, i) => buffer[i] === byte);
+    return isZip || isPdf;
+  }
+  // Images and text (csv/plain) — no reliable magic-bytes signature to enforce here;
+  // the MIME allowlist + size limit guard these.
+  return true;
+}
+
+/** Wraps a multer single-field middleware and converts multer errors to HTTP responses. */
+export function makeUploadMiddleware(
+  allowedTypes: Set<string>,
+  fieldName: string,
+  maxFileSizeBytes: number,
+) {
+  const instance = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: maxFileSizeBytes,
+      files: 1,
+      fields: 10,
+    },
+    fileFilter: (_req, file, cb) => {
+      if (allowedTypes.has(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('INVALID_FILE_TYPE'));
+      }
+    },
+  });
+
+  const single = instance.single(fieldName);
+  const maxMb = Math.round(maxFileSizeBytes / (1024 * 1024));
+
+  return (req: Request, res: Response, next: NextFunction): void => {
+    single(req, res, (err: unknown) => {
+      if (!err) {
+        next();
+        return;
+      }
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          res.status(413).json({
+            success: false,
+            error: `File too large. Maximum size is ${maxMb} MB.`,
+          });
+          return;
+        }
+        res.status(400).json({ success: false, error: `Upload error: ${err.message}` });
+        return;
+      }
+      if (err instanceof Error && err.message === 'INVALID_FILE_TYPE') {
+        res.status(415).json({
+          success: false,
+          error: 'File type not supported. Allowed: PDF, PNG, JPEG, DOCX, XLSX, CSV, TXT.',
+        });
+        return;
+      }
+      next(err);
+    });
+  };
+}

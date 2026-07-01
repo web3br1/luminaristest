@@ -18,6 +18,10 @@ const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   'period.soft_closed': ['year', 'month', 'fromStatus', 'toStatus', 'reason'],
   'period.hard_closed': ['year', 'month', 'fromStatus', 'toStatus', 'reason'],
   'period.reopened':    ['year', 'month', 'fromStatus', 'toStatus', 'reason'],
+  // BE-INCR-5 — document attachments. No file path, filename, or raw content (PII-safe).
+  'attachment.uploaded':   ['journalEntryId', 'mimeType', 'sizeBytes', 'sha256'],
+  'attachment.deleted':    ['journalEntryId', 'mimeType', 'sizeBytes', 'sha256', 'deletedById'],
+  'attachment.downloaded': ['journalEntryId', 'mimeType', 'sizeBytes', 'sha256'],
 };
 
 /**

@@ -17,6 +17,13 @@ import {
   hardClosePeriod,
   reopenPeriod,
 } from '../controllers/accountingController';
+import {
+  documentAttachmentUpload,
+  createDocumentAttachment,
+  listDocumentAttachments,
+  downloadDocumentAttachment,
+  deleteDocumentAttachment,
+} from '../controllers/documentAttachmentController';
 
 const router = Router();
 
@@ -37,6 +44,12 @@ router.delete('/accounts/:id', deleteAccount);
 
 // Journal entry listing.
 router.get('/entries', listEntries);
+
+// Documentary evidence / attachments on journal entries (BE-INCR-5).
+router.post('/attachments', documentAttachmentUpload, createDocumentAttachment);
+router.get('/attachments/:id', downloadDocumentAttachment);
+router.delete('/attachments/:id', deleteDocumentAttachment);
+router.get('/journal-entries/:journalEntryId/attachments', listDocumentAttachments);
 
 // Accounting period management (INCR-1).
 // NOTE: /:unitId/periods must come before /periods/:id routes to avoid param clash.
