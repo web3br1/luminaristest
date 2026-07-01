@@ -206,7 +206,7 @@ export class DataExchangeImportService {
         }
       }
     } else if (kind === 'IMPORT_OPENING_BALANCES') {
-      const r = await this.commitOpeningBalances(scope, job.id, validRows);
+      const r = await this.commitOpeningBalances(scope, job.sha256 ?? job.id, validRows);
       committed = r.committed;
       failedCount = r.failed;
     } else if (kind === 'IMPORT_JOURNAL_ENTRIES') {
@@ -216,8 +216,8 @@ export class DataExchangeImportService {
     }
 
     // COMMITTED = everything landed; PARTIAL = some rows failed and are still VALID (a later
-    // commit() retries only those — safe because the journal sourceId is deterministic, so a
-    // retry never double-posts); FAILED = nothing landed. Only a fully COMMITTED job short-
+    // commit() retries only those — safe because the import sourceIds are deterministic (journal
+    // AND opening balances), so a retry never double-posts); FAILED = nothing landed. Only a fully COMMITTED job short-
     // circuits (see the guard above), so PARTIAL/FAILED remain retryable.
     const status = failedCount === 0 ? 'COMMITTED' : committed > 0 ? 'PARTIAL' : 'FAILED';
     // Audit label tracks the derived STATUS, not `committed > 0` — otherwise an idempotent
@@ -241,10 +241,16 @@ export class DataExchangeImportService {
     return toJobResponse(updated);
   }
 
-  /** Opening balances commit as ONE balanced entry (all-or-nothing); idempotent on jobId. */
+  /**
+   * Opening balances commit as ONE balanced entry (all-or-nothing). Idempotent on FILE CONTENT:
+   * the sourceId is derived from the file's sha256, so re-uploading the same file as a NEW job
+   * dedups on the (userId,unitId,sourceType,sourceId) @@unique instead of double-posting. The old
+   * `sourceId = jobId` keyed on the per-upload jobId, so a re-upload (new job → new jobId) never
+   * collided — mirroring the reference-less journal double-post fixed for IMPORT_JOURNAL_ENTRIES.
+   */
   private async commitOpeningBalances(
     scope: AccountingScope,
-    jobId: string,
+    fileSha: string,
     validRows: Awaited<ReturnType<IDataExchangeRepository['findRowsByJob']>>,
   ): Promise<{ committed: number; failed: number }> {
     if (validRows.length === 0) return { committed: 0, failed: 0 };
@@ -260,7 +266,9 @@ export class DataExchangeImportService {
         date: first.postingDate,
         description: 'Saldos iniciais (importação)',
         sourceType: 'ACCOUNTING_OPENING_BALANCE_IMPORT',
-        sourceId: jobId,
+        // Deterministic on file content (one opening-balance entry per file), mirroring
+        // journalSourceId — re-upload of identical bytes dedups on the @@unique.
+        sourceId: 'di:' + createHash('sha256').update(`${fileSha}|opening`).digest('hex').slice(0, 40),
         lines,
       });
       for (const row of validRows) {
