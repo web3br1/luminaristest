@@ -9,6 +9,7 @@ import type { IDataExchangeRepository } from '../repositories/IDataExchangeRepos
 import type { AuditService } from './AuditService';
 import type { ExportRequestDto } from '../dtos/DataExchangeDto';
 import type { ImportKind } from '../models/DataExchange.model';
+import { toJobResponse, type DataExchangeJobResponse } from './dataExchangeMappers';
 import type {
   TrialBalanceReport,
   AccountLedgerReport,
@@ -24,20 +25,6 @@ export interface IReportReader {
   accountLedger(scope: AccountingScope, accountCode: string): Promise<AccountLedgerReport>;
   balanceSheet(scope: AccountingScope, asOf: Date): Promise<BalanceSheetReport>;
   incomeStatement(scope: AccountingScope, asOf: Date): Promise<IncomeStatementReport>;
-}
-
-/** Client-facing job summary (omits storageKey — leaks on-disk layout). */
-export interface DataExchangeJobResponse {
-  id: string;
-  direction: string;
-  kind: string;
-  status: string;
-  fileName: string | null;
-  mimeType: string | null;
-  sizeBytes: number | null;
-  sha256: string | null;
-  totalRows: number;
-  createdAt: Date;
 }
 
 /** Metadata + resolved absolute path for streaming an export artifact. */
@@ -71,21 +58,6 @@ export class DataExchangeExportService {
     private readonly repo: IDataExchangeRepository,
     private readonly audit: AuditService,
   ) {}
-
-  private toResponse(job: AccountingDataExchangeJob): DataExchangeJobResponse {
-    return {
-      id: job.id,
-      direction: job.direction,
-      kind: job.kind,
-      status: job.status,
-      fileName: job.originalName,
-      mimeType: job.mimeType,
-      sizeBytes: job.sizeBytes,
-      sha256: job.sha256,
-      totalRows: job.totalRows,
-      createdAt: job.createdAt,
-    };
-  }
 
   /** Builds the tabular payload for a given export kind. */
   private async buildTable(scope: AccountingScope, dto: ExportRequestDto): Promise<OutTable> {
@@ -188,7 +160,7 @@ export class DataExchangeExportService {
       return j;
     });
 
-    return this.toResponse(updated);
+    return toJobResponse(updated);
   }
 
   /** Fetches a single job summary (scoped). */
@@ -198,7 +170,7 @@ export class DataExchangeExportService {
     }
     const job = await this.repo.findJobById(scope, id);
     if (!job) throw new NotFoundError('Job não encontrado.');
-    return this.toResponse(job);
+    return toJobResponse(job);
   }
 
   /**

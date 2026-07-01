@@ -1,10 +1,15 @@
 import prisma from '../../../lib/prisma';
-import type { AccountingDataExchangeJob, Prisma } from 'generated/prisma';
+import type { AccountingDataExchangeJob, AccountingDataExchangeRow, Prisma } from 'generated/prisma';
 import { NotFoundError } from '../../../lib/errors';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { accountingScopeWhere } from '../scope/AccountingScope';
 import type { IDataExchangeRepository } from './IDataExchangeRepository';
-import type { CreateJobInput, UpdateJobInput } from '../models/DataExchange.model';
+import type {
+  CreateJobInput,
+  UpdateJobInput,
+  CreateRowInput,
+  UpdateRowInput,
+} from '../models/DataExchange.model';
 
 /**
  * Prisma-backed repository for the Data Exchange staging tables. The only place touching
@@ -65,6 +70,53 @@ export class DataExchangeRepository implements IDataExchangeRepository {
     });
     if (!job) throw new NotFoundError(`Job '${id}' não encontrado após atualização.`);
     return job;
+  }
+
+  public async createRows(rows: CreateRowInput[], tx?: Prisma.TransactionClient): Promise<number> {
+    if (rows.length === 0) return 0;
+    const { count } = await (tx ?? prisma).accountingDataExchangeRow.createMany({
+      data: rows.map((r) => ({
+        userId: r.userId,
+        unitId: r.unitId,
+        jobId: r.jobId,
+        rowNumber: r.rowNumber,
+        groupKey: r.groupKey ?? null,
+        rawJson: r.rawJson,
+        normalizedJson: r.normalizedJson ?? null,
+        status: r.status,
+        errorCode: r.errorCode ?? null,
+        errorMessage: r.errorMessage ?? null,
+        field: r.field ?? null,
+      })),
+    });
+    return count;
+  }
+
+  public async findRowsByJob(
+    scope: AccountingScope,
+    jobId: string,
+    opts?: { status?: string },
+    tx?: Prisma.TransactionClient,
+  ): Promise<AccountingDataExchangeRow[]> {
+    return (tx ?? prisma).accountingDataExchangeRow.findMany({
+      where: { ...accountingScopeWhere(scope), jobId, ...(opts?.status ? { status: opts.status } : {}) },
+      orderBy: { rowNumber: 'asc' },
+    });
+  }
+
+  public async updateRow(
+    scope: AccountingScope,
+    id: string,
+    data: UpdateRowInput,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const { count } = await (tx ?? prisma).accountingDataExchangeRow.updateMany({
+      where: { id, ...accountingScopeWhere(scope) },
+      data,
+    });
+    if (count === 0) {
+      throw new NotFoundError(`Linha de importação '${id}' não encontrada.`);
+    }
   }
 
   public async runTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {

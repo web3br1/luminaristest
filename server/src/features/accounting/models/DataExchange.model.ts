@@ -78,3 +78,33 @@ export interface UpdateJobInput {
   committedById?: string | null;
   committedAt?: Date | null;
 }
+
+export type RowStatus = 'VALID' | 'INVALID' | 'COMMITTED' | 'SKIPPED';
+
+/** A validated row produced by the import validators (pure, before persistence). */
+export interface ValidatedRow {
+  rowNumber: number;
+  groupKey?: string | null;
+  rawJson: string;
+  normalizedJson?: string | null;
+  status: Extract<RowStatus, 'VALID' | 'INVALID'>;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  field?: string | null;
+}
+
+/** Row create shape for the repository (tenancy + jobId added at persist time). */
+export interface CreateRowInput extends ValidatedRow {
+  userId: string;
+  unitId: string;
+  jobId: string;
+}
+
+/** Partial mutation of a row at commit time (outcome + created target). */
+export interface UpdateRowInput {
+  status?: RowStatus;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  targetType?: string | null;
+  targetId?: string | null;
+}
