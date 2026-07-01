@@ -33,22 +33,19 @@ BE-INCR-5 introduces a first-class `DocumentAttachment` model to associate audit
 - Future accounting-specific requirements (e.g., legal hold, immutability flags, retention policies) should not couple to CRM.
 - Separate model ensures layer purity: `DocumentAttachment` belongs in `Accounting` domain, not `CRM`.
 
-### 2. File Storage Strategy (MVP)
+### 2. File Storage Strategy (MVP) — REUSE existing `lib/attachmentStorage.ts`
 
-**Decision:** Disk-based storage with `storagePath` relative to application root.
+**Decision:** **Reuse the canonical disk store** `server/src/lib/attachmentStorage.ts`. Do **NOT** build a new `FileStorageHelper`.
+
+**Rationale (reuse audit, Contract §0):**
+- `lib/attachmentStorage.ts` is a **generic** disk store (only imports `ATTACHMENTS_DIR`, no CRM coupling). It already provides `saveFile` (server-side storageKey generation + name sanitization), `resolveReadPath`, and `deleteFile` (ENOENT-idempotent — exactly the TX-001 upload-compensation primitive).
+- Its `assertInsideBase` path-traversal guard runs on **both** write and read paths. Re-implementing this security guard as a bespoke `FileStorageHelper` would be a duplicated "island" of security code — a §0 FAIL.
 
 **Details:**
-- Directory: `storage/attachments/{userId}/{unitId}/{documentAttachmentId}/`
-- Filename: original name is normalized (strip unsafe chars, max 255 bytes).
-- No external cloud storage (S3, GCS, etc.) in MVP.
-- File I/O via `fs` module with permission checks in middleware.
-- Size limit: 50 MB per file (configurable via ENV).
-
-**Rationale:**
-- MVP scope prohibits cloud storage complexity.
-- Local disk is sufficient for single-instance deployment.
-- Audit trail and checksum provide integrity.
-- Future migration to S3 can abstract via a storage layer (Strategy pattern).
+- Store the relative `storageKey` returned by `saveFile` in `DocumentAttachment.storageKey`; resolve absolute path server-side via `resolveReadPath`.
+- Path segments for accounting: `saveFile(ownerUserId, unitId, journalEntryId, originalName, buffer)` → layout `<base>/<userId>/<unitId>/<journalEntryId>/<rand8>_<name>` (tenant isolation on disk mirrors the DB scope).
+- sha256 is computed in the accounting **service** (not the storage lib — the lib stays domain-agnostic).
+- No external cloud storage (S3, GCS) in MVP; future S3 migration abstracts behind the same lib surface.
 
 ### 3. Target Entities (This Increment)
 
@@ -154,9 +151,9 @@ image/jpeg
 **Rationale:**
 - Covers 95% of accounting evidence use cases.
 - Explicitly rejects `.exe`, `.sh`, `.bat`, etc.
-- Client-side sends MIME; server validates against the allowlist by header.
+- Client-side sends MIME; server validates against the allowlist by header **and** re-checks magic bytes.
 
-> **MIME-001 — scope clarification (mandated by governance):** MIME validation in BE-INCR-5 is **header-based allowlist validation**. Magic bytes / content sniffing is **deferred to a future hardening increment**. A reviewer must NOT raise magic bytes as a blocker for this increment.
+> **MIME-001 — SUPERSEDED by reuse (see Decision #2):** the original amendment deferred magic bytes. But `attachmentsController.validateMagicBytes` already exists and works (PDF/ZIP-office signatures + octet-stream guard). Reusing the multer allowlist + `validateMagicBytes` pattern keeps BE-INCR-5 **at or above** the current bar — deferring would be a regression. Magic bytes are therefore **included** via reuse, not deferred.
 
 ### 12. SHA256 Calculation & Persistence
 
@@ -434,8 +431,8 @@ model DocumentAttachment {
 
 **Dependencies:**
 - `DocumentAttachmentRepository` (injected)
-- `AuditEventService` (injected)
-- `FileStorageHelper` (injected)
+- `AuditService` (accounting hash-chain — injected; `append(tx, scope, input)` in-tx)
+- `lib/attachmentStorage` (reused module `saveFile`/`resolveReadPath`/`deleteFile` — imported, not injected, mirroring `AttachmentService`)
 
 **No dependencies:**
 - Do NOT inject `DynamicTableService`, `JournalEntryService`, or other business logic.
@@ -480,8 +477,8 @@ model DocumentAttachment {
 
 - [ ] Create migration: add `DocumentAttachment` table.
 - [ ] Update Prisma schema with `DocumentAttachment` model and relation.
-- [ ] Create `storage/attachments/` directory (gitignore it).
-- [ ] Create `FileStorageHelper` utility (normalize name, safe path resolve, stream write).
+- [ ] ~~Create `storage/attachments/` directory~~ — already handled by `lib/attachmentStorage` (`ATTACHMENTS_DIR`, `mkdir recursive`).
+- [ ] ~~Create `FileStorageHelper`~~ — **REUSE `lib/attachmentStorage.ts`** (Decision #2).
 
 ### Phase 2: Service & Repository
 
