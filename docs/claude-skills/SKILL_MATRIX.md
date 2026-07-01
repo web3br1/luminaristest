@@ -33,3 +33,4 @@
 | luminaris-orchestrator | All skills | Analisa tarefa em linguagem natural, seleciona skills e produz plano de execução | /luminaris-orchestrator "criar módulo de agendamentos com KPIs" | Low | Auto |
 | luminaris-implementer | All skills | Executa plano do orquestrador consumindo cada skill em ordem, com checks contínuos | /luminaris-implementer [plano] | High | Confirm if plan is High risk |
 | luminaris-reviewer | All layers | Valida consistência, padrões de camada, anti-patterns e inter-conexão de todos os artefatos | /luminaris-reviewer | Low | Auto |
+| luminaris-accounting-architect | Accounting domain (ledger/ECD/ECF) | Persona de domínio: roda ao lado do orquestrador em tarefas contábeis — enriquece o plano com invariantes, reconcilia o doc aspiracional com decisões commitadas e marca os gates de domínio (não implementa/roteia/aprova) | /luminaris-accounting-architect "adicionar Livro Diário" | Low | Auto |

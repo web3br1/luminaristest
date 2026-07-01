@@ -1,0 +1,3 @@
+accountCode,postingDate,description,debitCents,creditCents
+1.1.1,2026-06-01,Saldo inicial banco,500000,0
+3.1,2026-06-01,Saldo inicial receita,0,499000

@@ -1,0 +1,3 @@
+entryKey,documentDate,postingDate,description,accountCode,debitCents,creditCents,lineDescription,externalReference
+JE-C03,2026-06-05,2026-06-05,Lançamento em conta sintética,3,10000,0,Conta 3 é raiz (Receita) — não folha,
+JE-C03,2026-06-05,2026-06-05,Lançamento em conta sintética,1.1.1,0,10000,Banco,

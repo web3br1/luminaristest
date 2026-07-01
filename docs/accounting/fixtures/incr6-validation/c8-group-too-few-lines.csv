@@ -1,0 +1,2 @@
+entryKey,documentDate,postingDate,description,accountCode,debitCents,creditCents,lineDescription,externalReference
+JE-C08,2026-06-05,2026-06-05,Grupo com uma única partida,1.1.1,10000,0,GROUP_TOO_FEW_LINES esperado,

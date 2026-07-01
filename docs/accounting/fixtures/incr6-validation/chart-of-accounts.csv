@@ -1,0 +1,3 @@
+code,name,nature,acceptsEntries,parentCode
+1.1.5,Poupança,Asset,true,1
+1.4.1,Estoque de Produtos,Asset,true,1

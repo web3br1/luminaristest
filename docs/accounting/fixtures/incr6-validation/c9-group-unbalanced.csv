@@ -1,0 +1,3 @@
+entryKey,documentDate,postingDate,description,accountCode,debitCents,creditCents,lineDescription,externalReference
+JE-C09,2026-06-05,2026-06-05,Grupo desbalanceado,1.1.1,10000,0,Débito 10000,
+JE-C09,2026-06-05,2026-06-05,Grupo desbalanceado,3.1,0,9000,Crédito 9000 — GROUP_UNBALANCED esperado,

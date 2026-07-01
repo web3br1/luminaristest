@@ -1,0 +1,3 @@
+entryKey,documentDate,postingDate,description,accountCode,debitCents,creditCents,lineDescription,externalReference
+JE-101,2026-06-10,2026-06-10,Venda de serviço,1.1.3,20000,0,Recebido em caixa,NF-00101
+JE-101,2026-06-10,2026-06-10,Venda de serviço,3.1,0,20000,Receita de vendas,NF-00101

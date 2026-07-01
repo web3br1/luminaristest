@@ -1,0 +1,3 @@
+entryKey,documentDate,postingDate,description,debitCents,creditCents,lineDescription,externalReference
+JE-C01,2026-06-05,2026-06-05,Lançamento sem coluna accountCode,10000,0,Linha 1,
+JE-C01,2026-06-05,2026-06-05,Lançamento sem coluna accountCode,0,10000,Linha 2,
