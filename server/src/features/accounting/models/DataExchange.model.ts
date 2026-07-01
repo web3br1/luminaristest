@@ -31,6 +31,7 @@ export type DataExchangeStatus =
   | 'VALIDATED'
   | 'COMMITTING'
   | 'COMMITTED'
+  | 'PARTIAL'
   | 'FAILED'
   | 'EXPORTED';
 

@@ -152,4 +152,26 @@ describe('DataExchangeImportService — journal entries', () => {
     await svc.commit(scope, job.id); // already COMMITTED
     expect(postEntry).toHaveBeenCalledTimes(1); // no re-post
   });
+
+  it('derives a deterministic file-based sourceId when externalReference is blank (ACC blocker fix)', async () => {
+    const fileCsv =
+      'entryKey,documentDate,postingDate,description,accountCode,debitCents,creditCents,lineDescription,externalReference\n' +
+      'L1,2026-07-01,2026-07-01,Aporte,1.1.01,100000,0,,\n' +
+      'L1,2026-07-01,2026-07-01,Aporte,2.1.01,0,100000,,\n';
+
+    const commitFileAndCaptureSourceId = async () => {
+      const { repo } = makeRepo();
+      const { poster, postEntry } = makePoster();
+      const svc = new DataExchangeImportService(repo, new AccountingPolicy(), audit, accountReader, poster);
+      const job = await svc.uploadAndValidate(scope, 'IMPORT_JOURNAL_ENTRIES', csv(fileCsv));
+      await svc.commit(scope, job.id);
+      return postEntry.mock.calls[0][1].sourceId;
+    };
+
+    const src1 = await commitFileAndCaptureSourceId();
+    const src2 = await commitFileAndCaptureSourceId(); // separate job, identical file bytes
+    // Never a NULL sourceId (the old `|| undefined` double-post), and stable across re-imports.
+    expect(src1).toMatch(/^di:[a-f0-9]{40}$/);
+    expect(src2).toBe(src1);
+  });
 });

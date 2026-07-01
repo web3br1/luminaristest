@@ -182,7 +182,7 @@ export class DataExchangeImportService {
     const validRows = await this.repo.findRowsByJob(scope, jobId, { status: 'VALID' });
 
     let committed = 0;
-    let failed = false;
+    let failedCount = 0;
     const kind = job.kind as ImportKind;
 
     if (kind === 'IMPORT_CHART_OF_ACCOUNTS') {
@@ -198,25 +198,28 @@ export class DataExchangeImportService {
             code: n.code, name: n.name, nature: n.nature, acceptsEntries: n.acceptsEntries, unitId: scope.unitId,
           });
           existing.add(n.code);
-          await this.repo.updateRow(scope, row.id, { status: 'COMMITTED', targetType: 'ACCOUNT', targetId: acc.id });
+          await this.repo.updateRow(scope, row.id, { status: 'COMMITTED', targetType: 'ACCOUNT', targetId: acc.id, errorCode: null, errorMessage: null });
           committed++;
         } catch (e) {
-          failed = true;
+          failedCount++;
           await this.repo.updateRow(scope, row.id, { errorCode: 'CREATE_FAILED', errorMessage: (e as Error).message });
         }
       }
     } else if (kind === 'IMPORT_OPENING_BALANCES') {
-      committed = await this.commitOpeningBalances(scope, job.id, validRows).catch(() => {
-        failed = true;
-        return 0;
-      });
+      const r = await this.commitOpeningBalances(scope, job.id, validRows);
+      committed = r.committed;
+      failedCount = r.failed;
     } else if (kind === 'IMPORT_JOURNAL_ENTRIES') {
-      const result = await this.commitJournalEntries(scope, validRows);
-      committed = result.committed;
-      failed = result.failed;
+      const r = await this.commitJournalEntries(scope, validRows, job.sha256 ?? job.id);
+      committed = r.committed;
+      failedCount = r.failed;
     }
 
-    const status = committed > 0 ? 'COMMITTED' : 'FAILED';
+    // COMMITTED = everything landed; PARTIAL = some rows failed and are still VALID (a later
+    // commit() retries only those — safe because the journal sourceId is deterministic, so a
+    // retry never double-posts); FAILED = nothing landed. Only a fully COMMITTED job short-
+    // circuits (see the guard above), so PARTIAL/FAILED remain retryable.
+    const status = failedCount === 0 ? 'COMMITTED' : committed > 0 ? 'PARTIAL' : 'FAILED';
     const updated = await this.repo.runTransaction(async (tx) => {
       const j = await this.repo.updateJob(scope, job.id, {
         status, committedRows: committed, committedById: scope.actorUserId, committedAt: new Date(),
@@ -232,7 +235,6 @@ export class DataExchangeImportService {
       });
       return j;
     });
-    void failed;
     return toJobResponse(updated);
   }
 
@@ -241,33 +243,44 @@ export class DataExchangeImportService {
     scope: AccountingScope,
     jobId: string,
     validRows: Awaited<ReturnType<IDataExchangeRepository['findRowsByJob']>>,
-  ): Promise<number> {
-    if (validRows.length === 0) return 0;
+  ): Promise<{ committed: number; failed: number }> {
+    if (validRows.length === 0) return { committed: 0, failed: 0 };
     const lines = validRows.map((row) => {
       const n = JSON.parse(row.normalizedJson as string) as NormalizedLine;
       return { accountCode: n.accountCode, debitCents: n.debitCents, creditCents: n.creditCents };
     });
     const first = JSON.parse(validRows[0].normalizedJson as string) as NormalizedLine;
 
-    const entry = await this.poster.postEntry(scope, {
-      unitId: scope.unitId,
-      date: first.postingDate,
-      description: 'Saldos iniciais (importação)',
-      sourceType: 'ACCOUNTING_OPENING_BALANCE_IMPORT',
-      sourceId: jobId,
-      lines,
-    });
-    for (const row of validRows) {
-      await this.repo.updateRow(scope, row.id, { status: 'COMMITTED', targetType: 'JOURNAL_ENTRY', targetId: entry.id });
+    try {
+      const entry = await this.poster.postEntry(scope, {
+        unitId: scope.unitId,
+        date: first.postingDate,
+        description: 'Saldos iniciais (importação)',
+        sourceType: 'ACCOUNTING_OPENING_BALANCE_IMPORT',
+        sourceId: jobId,
+        lines,
+      });
+      for (const row of validRows) {
+        await this.repo.updateRow(scope, row.id, { status: 'COMMITTED', targetType: 'JOURNAL_ENTRY', targetId: entry.id, errorCode: null, errorMessage: null });
+      }
+      return { committed: validRows.length, failed: 0 };
+    } catch (e) {
+      // Surface WHY on every row (commonly a closed period) instead of swallowing it in a
+      // bare .catch — otherwise the most-used import's failure is opaque. Rows stay VALID
+      // (only errorCode/message set), so a re-commit retries once the period is opened.
+      for (const row of validRows) {
+        await this.repo.updateRow(scope, row.id, { errorCode: 'POST_FAILED', errorMessage: (e as Error).message });
+      }
+      return { committed: 0, failed: validRows.length };
     }
-    return validRows.length;
   }
 
   /** Journal entries commit one postEntry per entryKey group; per-group atomic, partial success. */
   private async commitJournalEntries(
     scope: AccountingScope,
     validRows: Awaited<ReturnType<IDataExchangeRepository['findRowsByJob']>>,
-  ): Promise<{ committed: number; failed: boolean }> {
+    fileSha: string,
+  ): Promise<{ committed: number; failed: number }> {
     const groups = new Map<string, typeof validRows>();
     for (const row of validRows) {
       const key = row.groupKey ?? `__row_${row.rowNumber}`;
@@ -275,8 +288,8 @@ export class DataExchangeImportService {
     }
 
     let committed = 0;
-    let failed = false;
-    for (const [, group] of groups) {
+    let failed = 0;
+    for (const [key, group] of groups) {
       const parsed = group.map((r) => JSON.parse(r.normalizedJson as string) as NormalizedLine);
       const head = parsed[0];
       try {
@@ -285,20 +298,35 @@ export class DataExchangeImportService {
           date: head.postingDate,
           description: head.description ?? 'Lançamento importado',
           sourceType: 'IMPORT_JOURNAL_ENTRIES',
-          sourceId: head.externalReference || undefined,
+          sourceId: this.journalSourceId(fileSha, key, head.externalReference),
           lines: parsed.map((n) => ({ accountCode: n.accountCode, debitCents: n.debitCents, creditCents: n.creditCents })),
         });
         for (const row of group) {
-          await this.repo.updateRow(scope, row.id, { status: 'COMMITTED', targetType: 'JOURNAL_ENTRY', targetId: entry.id });
+          await this.repo.updateRow(scope, row.id, { status: 'COMMITTED', targetType: 'JOURNAL_ENTRY', targetId: entry.id, errorCode: null, errorMessage: null });
         }
         committed += group.length;
       } catch (e) {
-        failed = true;
+        failed += group.length;
         for (const row of group) {
           await this.repo.updateRow(scope, row.id, { errorCode: 'POST_FAILED', errorMessage: (e as Error).message });
         }
       }
     }
     return { committed, failed };
+  }
+
+  /**
+   * Deterministic idempotency key for an imported journal entry (ACC blocker fix). Uses the
+   * user's stable externalReference when present (D1); otherwise a content hash of the FILE
+   * (sha256) + entryKey. This closes the silent double-post: with the old `|| undefined`, a
+   * reference-less entry posted with a NULL sourceId — which never collides on the
+   * (userId,unitId,sourceType,sourceId) @@unique (NULL is distinct in SQLite) — so re-
+   * uploading the same file as a NEW job doubled every reference-less entry. A file+entryKey
+   * hash makes re-import of identical bytes dedup correctly, with no burden on the user.
+   */
+  private journalSourceId(fileSha: string, entryKey: string, externalRef?: string): string {
+    const ref = externalRef?.trim();
+    if (ref) return ref;
+    return 'di:' + createHash('sha256').update(`${fileSha}|${entryKey}`).digest('hex').slice(0, 40);
   }
 }
