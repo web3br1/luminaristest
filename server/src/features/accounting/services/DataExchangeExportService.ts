@@ -106,6 +106,8 @@ export class DataExchangeExportService {
       }
       default:
         // Exhaustiveness guard — the DTO enum should prevent reaching here.
+        // EXPORT_IMPORT_ERRORS (CSV) is a declared-but-deferred kind: the error rows are
+        // already served as JSON by GET /jobs/{id}/rows?status=INVALID.
         throw new NotFoundError(`Tipo de exportação não suportado: ${dto.kind}`);
     }
   }
