@@ -6,7 +6,7 @@ allowed-tools: Read, Grep, Glob
 metadata:
   governance-skill-id: "SKL-ACCOUNTING-ARCHITECT"
   governance-version: "1.0.0"
-  governance-status: "draft"
+  governance-status: "validated"
   governance-owner: "engineering"
 ---
 

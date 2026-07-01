@@ -6,7 +6,7 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 metadata:
   governance-skill-id: "SKL-LEARNLOG"
   governance-version: "0.1.0"
-  governance-status: "draft"
+  governance-status: "validated"
   governance-owner: "engineering"
 ---
 
