@@ -24,6 +24,11 @@ import {
   downloadDocumentAttachment,
   deleteDocumentAttachment,
 } from '../controllers/documentAttachmentController';
+import {
+  createDataExchangeExport,
+  getDataExchangeJob,
+  downloadDataExchangeArtifact,
+} from '../controllers/dataExchangeController';
 
 const router = Router();
 
@@ -50,6 +55,11 @@ router.post('/attachments', documentAttachmentUpload, createDocumentAttachment);
 router.get('/attachments/:id', downloadDocumentAttachment);
 router.delete('/attachments/:id', deleteDocumentAttachment);
 router.get('/journal-entries/:journalEntryId/attachments', listDocumentAttachments);
+
+// Data Exchange — CSV/XLSX report export (BE-INCR-6). Import endpoints join in Phase 4.
+router.post('/data-exchange/exports', createDataExchangeExport);
+router.get('/data-exchange/jobs/:jobId', getDataExchangeJob);
+router.get('/data-exchange/jobs/:jobId/download', downloadDataExchangeArtifact);
 
 // Accounting period management (INCR-1).
 // NOTE: /:unitId/periods must come before /periods/:id routes to avoid param clash.

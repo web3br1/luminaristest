@@ -22,6 +22,13 @@ const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   'attachment.uploaded':   ['journalEntryId', 'mimeType', 'sizeBytes', 'sha256'],
   'attachment.deleted':    ['journalEntryId', 'mimeType', 'sizeBytes', 'sha256', 'deletedById'],
   'attachment.downloaded': ['journalEntryId', 'mimeType', 'sizeBytes', 'sha256'],
+  // BE-INCR-6 — data exchange (CSV/XLSX import/export). Counts + hash only; never file
+  // content, filenames, or account balances (PII-safe).
+  'data_exchange.import_uploaded':     ['jobId', 'kind', 'direction', 'sha256', 'totalRows', 'validRows', 'invalidRows'],
+  'data_exchange.import_committed':    ['jobId', 'kind', 'direction', 'sha256', 'totalRows', 'validRows', 'invalidRows', 'committedRows'],
+  'data_exchange.import_failed':       ['jobId', 'kind', 'direction', 'errorCode'],
+  'data_exchange.export_generated':    ['jobId', 'kind', 'direction', 'sha256', 'totalRows', 'validRows', 'invalidRows'],
+  'data_exchange.artifact_downloaded': ['jobId', 'kind', 'direction', 'sha256'],
 };
 
 /**
