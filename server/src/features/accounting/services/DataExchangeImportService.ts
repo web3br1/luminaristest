@@ -220,16 +220,19 @@ export class DataExchangeImportService {
     // retry never double-posts); FAILED = nothing landed. Only a fully COMMITTED job short-
     // circuits (see the guard above), so PARTIAL/FAILED remain retryable.
     const status = failedCount === 0 ? 'COMMITTED' : committed > 0 ? 'PARTIAL' : 'FAILED';
+    // Audit label tracks the derived STATUS, not `committed > 0` — otherwise an idempotent
+    // all-skipped re-import (0 committed, 0 failed → COMMITTED) would falsely log import_failed.
+    const succeeded = status !== 'FAILED';
     const updated = await this.repo.runTransaction(async (tx) => {
       const j = await this.repo.updateJob(scope, job.id, {
         status, committedRows: committed, committedById: scope.actorUserId, committedAt: new Date(),
       }, tx);
       await this.audit.append(tx, scope, {
         actorUserId: scope.actorUserId,
-        eventType: committed > 0 ? 'data_exchange.import_committed' : 'data_exchange.import_failed',
+        eventType: succeeded ? 'data_exchange.import_committed' : 'data_exchange.import_failed',
         targetType: 'data_exchange_job',
         targetId: job.id,
-        payload: committed > 0
+        payload: succeeded
           ? { jobId: job.id, kind, direction: 'IMPORT', sha256: job.sha256 ?? '', totalRows: String(job.totalRows), validRows: String(job.validRows), invalidRows: String(job.invalidRows), committedRows: String(committed) }
           : { jobId: job.id, kind, direction: 'IMPORT', errorCode: 'COMMIT_FAILED' },
       });
