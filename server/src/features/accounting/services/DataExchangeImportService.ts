@@ -206,6 +206,8 @@ export class DataExchangeImportService {
         }
       }
     } else if (kind === 'IMPORT_OPENING_BALANCES') {
+      // fileSha for the deterministic sourceId: job.sha256 is always set at upload; `?? job.id`
+      // is a dead-defensive fallback for the nullable schema type (never hit on a real upload).
       const r = await this.commitOpeningBalances(scope, job.sha256 ?? job.id, validRows);
       committed = r.committed;
       failedCount = r.failed;
@@ -215,10 +217,10 @@ export class DataExchangeImportService {
       failedCount = r.failed;
     }
 
-    // COMMITTED = everything landed; PARTIAL = some rows failed and are still VALID (a later
-    // commit() retries only those — safe because the import sourceIds are deterministic (journal
-    // AND opening balances), so a retry never double-posts); FAILED = nothing landed. Only a fully COMMITTED job short-
-    // circuits (see the guard above), so PARTIAL/FAILED remain retryable.
+    // COMMITTED = everything landed; PARTIAL = some rows failed but are still VALID (a later
+    // commit() retries only those); FAILED = nothing landed. Retrying is safe because both journal
+    // and opening-balance sourceIds are deterministic — a re-commit never double-posts. Only a
+    // fully COMMITTED job short-circuits (see the guard above), so PARTIAL/FAILED stay retryable.
     const status = failedCount === 0 ? 'COMMITTED' : committed > 0 ? 'PARTIAL' : 'FAILED';
     // Audit label tracks the derived STATUS, not `committed > 0` — otherwise an idempotent
     // all-skipped re-import (0 committed, 0 failed → COMMITTED) would falsely log import_failed.
