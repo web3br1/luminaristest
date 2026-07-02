@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_CENTS } from '../models/money';
 
 /**
  * PostingDto — double-entry posting engine inputs (Phase 2).
@@ -35,11 +36,14 @@ import { z } from 'zod';
 export const PostEntryLineSchema = z
   .object({
     accountCode: z.string().min(1),
-    // Cap at MAX_SAFE_INTEGER: the balance invariant (Σdébito === Σcrédito) is summed with
-    // integer +, which silently loses precision past 2^53-1 cents (~R$90 tri) — the one place
-    // float-style imprecision could re-enter the exact-integer money path (Contract §2.1).
-    debitCents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-    creditCents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+    // Cap at MAX_CENTS (Int32 storage ceiling, shared with the import validators —
+    // ACC-HARDEN-POST-CENTS-001): Posting.debitCents/creditCents are Prisma `Int`, so a larger
+    // value would pass the DTO but fail late at the repository as an opaque write error. Guard it
+    // here so the manual /post path rejects it as a clear 400 before PostingService is called —
+    // the same protection the import preview got (ACC-INCR6-J-001). This tighter bound also stays
+    // well under 2^53-1, so the Σdébito===Σcrédito integer sum keeps exact precision (Contract §2.1).
+    debitCents: z.number().int().min(0).max(MAX_CENTS, { message: `debitCents excede o limite suportado (máx ${MAX_CENTS}).` }),
+    creditCents: z.number().int().min(0).max(MAX_CENTS, { message: `creditCents excede o limite suportado (máx ${MAX_CENTS}).` }),
   })
   .superRefine((line, ctx) => {
     // Each leg moves exactly one side: a debit OR a credit, never both, never neither.
