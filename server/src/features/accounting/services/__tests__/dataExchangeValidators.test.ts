@@ -109,3 +109,59 @@ describe('dataExchangeValidators — journal entries', () => {
     expect(r[1].errorCode).toBe('ACCOUNT_NOT_FOUND');
   });
 });
+
+// ACC-INCR6-J-001: the storage column (Posting.debitCents/creditCents) is Int32. A value the
+// column can't hold must be rejected at PREVIEW (a validation issue), not silently accepted and
+// left to fail as an opaque POST_FAILED at commit. Ceiling = MAX_CENTS = 2_147_483_647.
+describe('dataExchangeValidators — cents Int32 ceiling (ACC-INCR6-J-001)', () => {
+  const MAX = 2_147_483_647; // Int32 signed max
+  const OPEN = ['accountCode', 'postingDate', 'description', 'debitCents', 'creditCents'];
+  const JRNL = ['entryKey', 'documentDate', 'postingDate', 'description', 'accountCode', 'debitCents', 'creditCents', 'lineDescription', 'externalReference'];
+
+  it('opening balances: the Int32-max value itself is accepted (balanced file → all VALID)', () => {
+    const t = table(OPEN, [
+      ['1.1.01', '2026-01-01', 'Banco', String(MAX), '0'],
+      ['2.1.01', '2026-01-01', 'Capital', '0', String(MAX)],
+    ]);
+    expect(statuses(validateImport('IMPORT_OPENING_BALANCES', t, accounts))).toEqual(['VALID', 'VALID']);
+  });
+
+  it('opening balances: one cent over Int32 → DEBIT_TOO_LARGE at preview', () => {
+    const t = table(OPEN, [
+      ['1.1.01', '2026-01-01', 'Banco', String(MAX + 1), '0'],
+      ['2.1.01', '2026-01-01', 'Capital', '0', String(MAX + 1)],
+    ]);
+    const r = validateImport('IMPORT_OPENING_BALANCES', t, accounts);
+    expect(r[0].errorCode).toBe('DEBIT_TOO_LARGE'); // the offending row keeps its specific reason
+    expect(r[0].status).toBe('INVALID');
+  });
+
+  it('journal: the Int32-max value in a balanced group is accepted', () => {
+    const t = table(JRNL, [
+      ['L1', '', '2026-07-01', 'x', '1.1.01', String(MAX), '0', '', ''],
+      ['L1', '', '2026-07-01', 'x', '2.1.01', '0', String(MAX), '', ''],
+    ]);
+    expect(statuses(validateImport('IMPORT_JOURNAL_ENTRIES', t, accounts))).toEqual(['VALID', 'VALID']);
+  });
+
+  it('journal: the exact ACC-INCR6-J-001 value (near MAX_SAFE_INTEGER) → CREDIT_TOO_LARGE, not POST_FAILED', () => {
+    const t = table(JRNL, [
+      ['L1', '', '2026-07-01', 'x', '1.1.01', '100000', '0', '', ''],
+      ['L1', '', '2026-07-01', 'x', '2.1.01', '0', '9007199254740991', '', ''],
+    ]);
+    const r = validateImport('IMPORT_JOURNAL_ENTRIES', t, accounts);
+    const bad = r.find((x) => x.errorCode === 'CREDIT_TOO_LARGE');
+    expect(bad).toBeDefined();
+    expect(bad?.status).toBe('INVALID');
+  });
+
+  it('journal: a value beyond MAX_SAFE_INTEGER still rejected (BAD_CREDIT via parse), never VALID', () => {
+    const t = table(JRNL, [
+      ['L1', '', '2026-07-01', 'x', '1.1.01', '100000', '0', '', ''],
+      ['L1', '', '2026-07-01', 'x', '2.1.01', '0', '9007199254740992', '', ''], // MAX_SAFE + 1
+    ]);
+    const r = validateImport('IMPORT_JOURNAL_ENTRIES', t, accounts);
+    expect(r.some((x) => x.status === 'VALID')).toBe(false);
+    expect(r.find((x) => x.field === 'creditCents')?.errorCode).toBe('BAD_CREDIT');
+  });
+});
