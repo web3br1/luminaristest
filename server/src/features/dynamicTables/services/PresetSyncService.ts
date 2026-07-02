@@ -84,8 +84,12 @@ export class PresetSyncService {
    * Resolve a NEW relation field's preset marker (@@PRESET_TABLE_KEY::x) to the user's
    * REAL installed table id for `x` (mirrors installPresetAsSystem pass-2 resolution).
    * `updateTableSchemaAsSystem` rejects markers, so this must run before the merge is applied.
+   *
+   * Returns `null` when the field is an OPTIONAL relation into a module the tenant doesn't
+   * have installed (e.g. leads.accountId → crmAccounts without CRM) — callers must drop the
+   * field rather than fail the whole sync/install for a cross-module enrichment field.
    */
-  private async resolveRelationMarker(user: UserContext, field: ISchemaField): Promise<ISchemaField> {
+  private async resolveRelationMarker(user: UserContext, field: ISchemaField): Promise<ISchemaField | null> {
     if (field.type !== 'relation' || !field.relation?.targetTable) return field;
     const target = field.relation.targetTable;
     if (typeof target !== 'string' || !target.startsWith(PRESET_TABLE_KEY_PREFIX)) return field;
@@ -93,6 +97,7 @@ export class PresetSyncService {
     const targetKey = target.slice(PRESET_TABLE_KEY_PREFIX.length);
     const targetTable = await this.repository.findTableByInternalName(user.userId, targetKey);
     if (!targetTable) {
+      if (!field.required) return null;
       throw new NotFoundError(
         `Não foi possível resolver a relação do campo '${field.name}': tabela alvo '${targetKey}' não está instalada para este usuário.`,
       );
@@ -151,6 +156,7 @@ export class PresetSyncService {
       if (!existing) {
         // NEW field → resolve relation marker (if any) then append (additive).
         const resolved = await this.resolveRelationMarker(user, presetField);
+        if (!resolved) continue; // optional relation into an uninstalled module — skip
         newFields.push(resolved);
         added.push(resolved.name);
         continue;
@@ -268,7 +274,8 @@ export class PresetSyncService {
       : [];
     const resolvedFields: ISchemaField[] = [];
     for (const field of presetFields) {
-      resolvedFields.push(await this.resolveRelationMarker(user, field));
+      const resolved = await this.resolveRelationMarker(user, field);
+      if (resolved) resolvedFields.push(resolved); // optional relation into an uninstalled module — skip
     }
     const resolvedSchema: ITableSchema = {
       ...definition.schema,

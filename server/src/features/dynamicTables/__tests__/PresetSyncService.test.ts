@@ -199,7 +199,10 @@ describe('PresetSyncService.syncInstalledTableFromPreset', () => {
     expect(assignee?.relation?.targetTable).not.toContain('@@PRESET_TABLE_KEY::');
   });
 
-  test('NotFoundError when a NEW relation marker targets an uninstalled table', async () => {
+  test('drops a NEW OPTIONAL relation marker when its target module is not installed (no throw)', async () => {
+    // `assigneeId` (→ employees) is required:false. When `employees` isn't installed for
+    // this tenant, it's a cross-module enrichment field, not a hard dependency — it must be
+    // skipped rather than blocking the sync of the unrelated `source` field.
     const installedSchema = buildInstalledLeadsSchema();
     installedSchema.fields = installedSchema.fields.filter((f) => f.name !== 'assigneeId');
     const installedTable = buildInstalledTable(installedSchema);
@@ -207,11 +210,15 @@ describe('PresetSyncService.syncInstalledTableFromPreset', () => {
     repository.findTableByInternalName.mockImplementation(async (_userId, internalName) =>
       internalName === 'leads' ? installedTable : null,
     );
-    const { service } = buildService({ repository });
+    const { service, updateTableSchemaAsSystem } = buildService({ repository });
 
-    await expect(service.syncInstalledTableFromPreset(ADMIN_USER, 'leads')).rejects.toBeInstanceOf(
-      NotFoundError,
-    );
+    const result = await service.syncInstalledTableFromPreset(ADMIN_USER, 'leads');
+
+    expect(result.added).toContain('source');
+    expect(result.added).not.toContain('assigneeId');
+    const [, appliedDto] = updateTableSchemaAsSystem.mock.calls[0];
+    const appliedSchema = appliedDto.schema as ITableSchema;
+    expect(appliedSchema.fields.some((f: ISchemaField) => f.name === 'assigneeId')).toBe(false);
   });
 
   test('propagates the engine ValidationError when the merge would invalidate existing data', async () => {
@@ -301,10 +308,13 @@ describe('PresetSyncService.installTableFromPreset', () => {
     expect(leadField?.relation?.targetTable).toBe('tbl-leads-id');
   });
 
-  test('NotFoundError when a dependency table is not installed for the tenant', async () => {
+  test('NotFoundError when a REQUIRED dependency table is not installed for the tenant', async () => {
+    // `pipelineId` (→ leadPipelines) is required:true on crmOpportunities — unlike the
+    // optional `accountId`/`contactId` (→ crmAccounts/crmContacts), a missing target here
+    // must still hard-fail the install.
     const repository = buildMockRepository();
     const deps = buildInstalledDeps();
-    delete deps.crmAccounts; // a required dependency is missing
+    delete deps.leadPipelines; // a required dependency is missing
     repository.findTableByInternalName.mockImplementation(async (_userId, internalName) => {
       if (internalName === 'crmOpportunities') return null;
       return deps[internalName] ?? null;
@@ -315,6 +325,33 @@ describe('PresetSyncService.installTableFromPreset', () => {
       service.installTableFromPreset(ADMIN_USER, 'crmOpportunities'),
     ).rejects.toBeInstanceOf(NotFoundError);
     expect(repository.createTable).not.toHaveBeenCalled();
+  });
+
+  test('drops an OPTIONAL relation field when its target module is not installed (no throw)', async () => {
+    // `accountId`/`contactId` (→ crmAccounts/crmContacts) are required:false on
+    // crmOpportunities — a tenant without the full CRM module (just leads + pipeline)
+    // must still be able to install this table, minus the enrichment fields.
+    const repository = buildMockRepository();
+    const deps = buildInstalledDeps();
+    delete deps.crmAccounts;
+    delete deps.crmContacts;
+    repository.findTableByInternalName.mockImplementation(async (_userId, internalName) => {
+      if (internalName === 'crmOpportunities') return null;
+      return deps[internalName] ?? null;
+    });
+    repository.createTable.mockResolvedValue({ id: 'tbl-opps-new', userId: 'user-1' } as unknown as IDynamicTable);
+    const { service } = buildService({ repository });
+
+    const result = await service.installTableFromPreset(ADMIN_USER, 'crmOpportunities');
+
+    expect(result).toEqual({ tableId: 'tbl-opps-new', created: true });
+    const [, dto] = repository.createTable.mock.calls[0];
+    const schema = dto.schema as ITableSchema;
+    expect(schema.fields.some((f: ISchemaField) => f.name === 'accountId')).toBe(false);
+    expect(schema.fields.some((f: ISchemaField) => f.name === 'contactId')).toBe(false);
+    // Required relations still resolved normally.
+    const pipelineField = schema.fields.find((f: ISchemaField) => f.name === 'pipelineId');
+    expect(pipelineField?.relation?.targetTable).toBe('tbl-leadPipelines-id');
   });
 
   test('NotFoundError when no preset defines the requested internalName', async () => {
