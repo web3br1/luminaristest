@@ -49,6 +49,18 @@ Se a tarefa cria um **módulo/entidade nova**, rode o teste binário do `_ARCHIT
 
 **Em dúvida → Prisma first-class.** "ERP" sozinho NÃO decide: um módulo ERP só é DynamicTable se o **usuário** define o schema; com invariante, é Prisma. **Integração entre os dois mundos (ex.: venda→lançamento contábil) NUNCA entra no plano como edição do `DynamicTableService`/plugin — sobe a um passo de controller/serviço de integração** (§2.1 anti-padrões). Se o plano que você ia montar injeta um serviço Prisma no motor DynamicTable, o roteamento está errado — refaça.
 
+### Lente de domínio contábil — consultar ANTES de planejar tarefa de contabilidade
+
+Se a tarefa toca o módulo **contábil** (ledger, lançamento, conta, período, BP/DRE, conciliação,
+fechamento, ECD/ECF, ou qualquer coisa em `server/src/features/accounting/`), **primeiro rode a
+persona `luminaris-accounting-architect`** e anexe o PARECER DE DOMÍNIO ao plano. Ela dá o que a
+tabela de sinais não vê: invariantes (TOCTOU dentro da tx, idempotência por evento, entryNumber no
+POST, estorno não-destrutivo), o bloco do roadmap, o que já está mergeado pra reusar, e — crítico —
+**colisões com decisões já commitadas** (o doc de plano contábil propõe torre multiempresa/Postgres
+que o projeto **rejeitou**). Se o parecer marcar `DECISÃO ARQUITETURAL`, **não roteie skills de
+geração** contra ela sem ADR + sinal humano (Phase 3 → perguntar). Contabilidade é sempre
+**Prisma first-class** — nunca DynamicTable.
+
 ### Sinais → Skill principal
 
 | Sinal na tarefa | Skill principal |

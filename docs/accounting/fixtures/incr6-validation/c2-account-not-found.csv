@@ -1,0 +1,3 @@
+entryKey,documentDate,postingDate,description,accountCode,debitCents,creditCents,lineDescription,externalReference
+JE-C02,2026-06-05,2026-06-05,Conta inexistente,9.9.9,10000,0,Conta que não existe no plano,
+JE-C02,2026-06-05,2026-06-05,Conta inexistente,3.1,0,10000,Receita,

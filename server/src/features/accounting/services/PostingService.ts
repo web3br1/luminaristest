@@ -48,14 +48,19 @@ export class PostingService {
     return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
   }
 
-  /** Fiscal year from a posting date in America/Sao_Paulo (ADR-INCR3 Emenda 3). */
+  /**
+   * Fiscal year from a posting date (ADR-INCR3 Emenda 3: numbering must match the
+   * calendar year of the posting date, never drift to the prior/next year at the
+   * boundary). Must use the SAME UTC-only parsing as extractYearMonth — both read the
+   * same date-only `input.date` string, and the period gate (extractYearMonth) is
+   * authoritative for which year/month a posting belongs to. Converting to
+   * America/Sao_Paulo here (as a prior version did) shifts UTC midnight on Jan 1 back
+   * to Dec 31 21:00 BRT, so entries dated 2026-01-01 were numbered under fiscal year
+   * 2025 even though the period gate correctly placed them in 2026-01 — the two
+   * disagreed on the fiscal year of the exact same date.
+   */
   private fiscalYearFrom(dateStr: string): number {
-    return parseInt(
-      new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', year: 'numeric' }).format(
-        new Date(dateStr),
-      ),
-      10,
-    );
+    return new Date(dateStr).getUTCFullYear();
   }
 
   /**

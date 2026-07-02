@@ -1,0 +1,3 @@
+entryKey,documentDate,postingDate,description,accountCode,debitCents,creditCents,lineDescription,externalReference
+JE-C06,2026-06-05,05/06/2026,Data fora do formato YYYY-MM-DD,1.1.1,10000,0,BAD_DATE esperado,
+JE-C06,2026-06-05,05/06/2026,Data fora do formato YYYY-MM-DD,3.1,0,10000,Receita,

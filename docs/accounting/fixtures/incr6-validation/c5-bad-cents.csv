@@ -1,0 +1,5 @@
+entryKey,documentDate,postingDate,description,accountCode,debitCents,creditCents,lineDescription,externalReference
+JE-C05A,2026-06-05,2026-06-05,Centavos com vírgula,1.1.1,"100,00",0,BAD_DEBIT esperado,
+JE-C05A,2026-06-05,2026-06-05,Centavos com vírgula,3.1,0,10000,Receita,
+JE-C05B,2026-06-05,2026-06-05,Centavos negativos,1.1.1,10000,0,Débito ok,
+JE-C05B,2026-06-05,2026-06-05,Centavos negativos,3.1,0,-10000,BAD_CREDIT esperado,

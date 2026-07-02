@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Luminaris — Guia das Skills</title>
+<style>
+  :root{
+    --bg:#0b0f17; --bg2:#111726; --panel:#141b2c; --panel2:#1a2336;
+    --border:#243049; --border2:#2e3c5a;
+    --txt:#e6ebf5; --muted:#97a3bd; --faint:#6b7690;
+    --accent:#7aa2ff; --accent2:#a988ff; --good:#56d6a0; --warn:#ffcf6b; --bad:#ff7d8a;
+    --code:#0d1320; --radius:18px;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:radial-gradient(1200px 700px at 80% -10%,#172037 0,var(--bg) 55%);color:var(--txt);font:15px/1.65 var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code,kbd{font-family:var(--mono);font-size:.86em}
+  code{background:var(--code);border:1px solid var(--border);border-radius:7px;padding:.08em .42em;color:#cfe0ff}
+  kbd{background:#1d2740;border:1px solid var(--border2);border-bottom-width:2px;border-radius:6px;padding:.05em .45em;color:#dfe7f7}
+  .wrap{display:grid;grid-template-columns:264px 1fr;max-width:1280px;margin:0 auto;gap:36px;padding:0 28px}
+  /* sidebar */
+  aside{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:30px 6px 40px;border-right:1px solid var(--border)}
+  aside .brand{font-weight:800;letter-spacing:.5px;font-size:18px;margin:0 10px 4px}
+  aside .brand small{display:block;font-weight:600;color:var(--faint);font-size:11px;letter-spacing:.18em;text-transform:uppercase;margin-top:3px}
+  nav a{display:block;color:var(--muted);padding:6px 12px;border-radius:9px;font-size:13.5px;border-left:2px solid transparent}
+  nav a:hover{background:var(--panel);color:var(--txt);text-decoration:none}
+  nav a.sub{padding-left:26px;font-size:12.5px;color:var(--faint)}
+  nav .grp{margin:16px 10px 6px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);font-weight:700}
+  /* main */
+  main{padding:42px 0 120px;min-width:0}
+  h1{font-size:30px;font-weight:800;margin:0 0 6px;letter-spacing:-.4px}
+  h2{font-size:22px;font-weight:800;margin:46px 0 14px;padding-top:14px;letter-spacing:-.3px;border-top:1px solid var(--border)}
+  h2:first-of-type{border-top:0}
+  h3{font-size:16.5px;font-weight:700;margin:26px 0 8px;color:#dfe7fb}
+  p{margin:10px 0}
+  .lede{color:var(--muted);font-size:16px;max-width:75ch}
+  .pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;padding:3px 10px;border-radius:999px;border:1px solid var(--border2);background:var(--panel);color:var(--muted);vertical-align:middle}
+  .pill.ok{color:var(--good);border-color:#1f5a45;background:#0f261e}
+  .badge-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin:14px 0}
+  .card h3{margin-top:0}
+  .note{border-left:3px solid var(--accent);background:#101a30;border-radius:0 12px 12px 0;padding:12px 16px;margin:16px 0;color:#cdd9f1}
+  .note.warn{border-color:var(--warn);background:#241d10}
+  .note.bad{border-color:var(--bad);background:#26141a}
+  .note.good{border-color:var(--good);background:#0f231c}
+  .note b{color:#fff}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;display:block;overflow-x:auto}
+  th,td{border:1px solid var(--border);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#dfe7fb;font-weight:700;white-space:nowrap}
+  tr:nth-child(even) td{background:#0f1626}
+  pre{background:var(--code);border:1px solid var(--border);border-radius:14px;padding:15px 17px;overflow-x:auto;margin:14px 0;font-family:var(--mono);font-size:12.8px;line-height:1.6;color:#cfe0ff}
+  pre .c{color:var(--faint)}
+  pre .k{color:var(--accent2)}
+  pre .s{color:#9be7b6}
+  .flow{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0}
+  .flow .step{flex:1 1 220px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+  .flow .step h4{margin:0 0 6px;font-size:14px}
+  .flow .step .role{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+  .arrow{align-self:center;color:var(--faint);font-size:22px}
+  /* catalog */
+  .toolbar{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,var(--bg) 70%,transparent);padding:14px 0 12px;margin:6px 0}
+  #search{width:100%;background:var(--panel);border:1px solid var(--border2);border-radius:12px;color:var(--txt);font:15px var(--sans);padding:11px 14px}
+  #search:focus{outline:none;border-color:var(--accent)}
+  .count{color:var(--faint);font-size:12.5px;margin-top:8px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+  .skill{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+  .skill .name{font-family:var(--mono);font-size:13px;color:#cfe0ff;font-weight:600}
+  .skill .layer{float:right;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);border:1px solid var(--border2);border-radius:999px;padding:2px 8px}
+  .skill .desc{color:var(--muted);font-size:13px;margin:8px 0 6px}
+  .skill .when{font-size:12px;color:var(--faint)}
+  .skill .when b{color:#aeb9d3;font-weight:600}
+  .hidden{display:none!important}
+  footer{color:var(--faint);font-size:12.5px;border-top:1px solid var(--border);margin-top:60px;padding-top:18px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:6px 0 0}
+  @media(max-width:920px){.wrap{grid-template-columns:1fr}aside{display:none}main{padding-top:24px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<aside>
+  <div class="brand">Luminaris<small>Guia das Skills</small></div>
+  <nav>
+    <div class="grp">Fundamentos</div>
+    <a href="#visao">1 · Visão geral</a>
+    <a href="#stop">2 · STOP: onde o módulo vive</a>
+    <a href="#invocar">3 · Como invocar</a>
+    <a href="#agentes">4 · O loop de 3 agentes</a>
+    <div class="grp">Catálogo</div>
+    <a href="#catalogo">5 · Catálogo de skills</a>
+    <a class="sub" href="#catalogo">↳ backend</a>
+    <a class="sub" href="#catalogo">↳ frontend</a>
+    <a class="sub" href="#catalogo">↳ domínio</a>
+    <a class="sub" href="#catalogo">↳ fullstack · agentes</a>
+    <div class="grp">Qualidade</div>
+    <a href="#bar">6 · Bar de qualidade</a>
+    <a href="#governanca">7 · Governança & skill-audit</a>
+    <a href="#cheat">8 · Fluxos comuns</a>
+  </nav>
+</aside>
+
+<main>
+  <h1>Guia das Skills do Luminaris</h1>
+  <p class="lede">Como usar o sistema de geração de código do monorepo: 34 skills geradoras organizadas por camada, orquestradas por 3 agentes, governadas por um auditor que impede drift. Este guia é o ponto de entrada — os contratos detalhados vivem nos arquivos referenciados ao longo do texto.</p>
+  <div class="badge-row">
+    <span class="pill ok">34/34 skills validated</span>
+    <span class="pill">baseline <code>skills-governance-v1</code></span>
+    <span class="pill">gate de CI: <code>skill-audit run --all</code></span>
+  </div>
+
+  <!-- 1 -->
+  <h2 id="visao">1 · Visão geral &mdash; o modelo mental</h2>
+  <p>O Luminaris é um monorepo com dois lados: <code>server/</code> (Express + Prisma, <b>camadas estritas</b>) e <code>my-app/</code> (Next.js Pages Router). As <b>skills</b> são instruções reutilizáveis que geram código <i>consistente com os padrões do repo</i> — cada uma ensina o contrato de uma camada e aponta para o exemplar canônico que deve ser espelhado.</p>
+  <p>Três ideias sustentam tudo:</p>
+  <ul>
+    <li><b>Reuse antes de recriar.</b> Antes de gerar "X novo", verifica-se se o canônico já existe (GenericTable, Modal, StandardPagination, AnalyticsDashboard…). Bespoke só com divergência sancionada de <i>shape</i> ou <i>posse</i> (critério em <code>.claude/skills/_REUSE-CRITERION.md</code>).</li>
+    <li><b>Camadas não são over-engineering.</b> A cadeia <code>Route → Controller → Service → Repository → Prisma</code> (+ Policy), injeção via Factory, DTO Zod, soft-delete e o registro de rota em 3 toques são <i>requisitos</i> — não se "enxuga" uma policy ou um DTO.</li>
+    <li><b>O contrato é o gate final.</b> Toda skill herda <code>.claude/skills/_ARCHITECTURE-CONTRACT.md</code>; em conflito, o contrato prevalece.</li>
+  </ul>
+  <div class="note"><b>Fontes da verdade.</b> <i>skill define</i> (o que gerar) · <i>governance relaciona</i> (regra→gate→eval) · <i>cbm localiza</i> (codebase-memory, índice estrutural — não-autoritativo) · <i>código/testes confirmam</i> (verdade objetiva) · <i>skill-audit impede drift</i> (gate determinístico no CI).</div>
+
+  <!-- 2 -->
+  <h2 id="stop">2 · STOP &mdash; onde o módulo/feature vive</h2>
+  <p>Antes de qualquer linha, responda a pergunta binária. Ela decide a tecnologia e <b>todo o resto do roteamento já assume essa decisão tomada</b>.</p>
+  <table>
+    <tr><th>O dado/módulo é…</th><th>Tecnologia</th><th>Skill</th></tr>
+    <tr><td>Tabela que o <b>usuário cria/configura em runtime</b> (CRM, formulários, fluxos adaptáveis)</td><td><b>DynamicTable</b> (preset + plugin)</td><td><code>dynamic-table-preset-generator</code></td></tr>
+    <tr><td>Entidade com <b>invariante financeiro/legal/regulatório</b> que o banco deve garantir (contábil, folha, fiscal, RH)</td><td><b>Prisma first-class</b> (Model + Service + Repo + Policy)</td><td><code>fullstack-feature-generator</code></td></tr>
+  </table>
+  <div class="note bad"><b>Em dúvida → Prisma first-class.</b> "ERP" sozinho não decide. E <b>nunca</b> injete um serviço Prisma first-class (<code>PostingService</code>, <code>PayrollService</code>…) dentro de <code>DynamicTableService</code>, <code>RuleContext</code> ou um <code>RulePlugin</code>. Integração entre os dois mundos (ex.: venda→lançamento contábil) sobe a um <b>controller/serviço de integração</b> — nunca dentro do motor de plugins. Regra completa: <code>_ARCHITECTURE-CONTRACT.md §2.1</code>.</div>
+
+  <!-- 3 -->
+  <h2 id="invocar">3 · Como invocar uma skill</h2>
+  <p>Há três caminhos, do mais guiado ao mais direto:</p>
+  <div class="card">
+    <h3>a) Pelo orquestrador (recomendado para tarefas reais)</h3>
+    <p>Descreva a tarefa em linguagem natural e deixe o <code>luminaris-orchestrator</code> escolher as skills certas, na ordem certa, e delegar. Ele roda o STEP 0 (§2.1) e monta um plano com passos, dependências, checks e riscos.</p>
+    <pre><span class="c"># o agente analisa, classifica e produz o PLANO DE EXECUÇÃO</span>
+/luminaris-orchestrator <span class="s">"quero um módulo de folha de pagamento do zero"</span></pre>
+  </div>
+  <div class="card">
+    <h3>b) Direto, uma skill específica</h3>
+    <p>Quando você já sabe exatamente qual camada quer gerar:</p>
+    <pre>/frontend-modal-generator <span class="s">"modal de confirmação de exclusão de Lead"</span>
+/backend-service-generator <span class="s">"InvoiceService com create/getById/update/delete"</span></pre>
+    <p class="when">Cada skill aceita um <code>argument-hint</code> próprio (nome do recurso, ação, modo) — veja o catálogo abaixo.</p>
+  </div>
+  <div class="card">
+    <h3>c) Auditoria (manutenção, não geração)</h3>
+    <pre>/skill-audit governance-check   <span class="c"># coerência regra↔gate↔eval + self-check do auditor</span>
+/loop /skill-audit --sweep      <span class="c"># varredura comportamental completa (human-run)</span></pre>
+  </div>
+
+  <!-- 4 -->
+  <h2 id="agentes">4 · O loop de 3 agentes &mdash; separação estrita de papéis</h2>
+  <p>Tarefas não-triviais passam por três agentes com fronteiras rígidas. Cada um faz <b>uma</b> coisa e <b>delega</b> o resto — nenhum fecha o loop sozinho.</p>
+  <div class="flow">
+    <div class="step"><div class="role">orchestrator</div><h4>Decompõe & roteia</h4><p>Analisa a tarefa, roda o gate §2.1, escolhe skills + ordem, monta o plano. <b>Não</b> implementa nem aprova. Nunca se auto-atribui implementação/revisão.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="role">implementer</div><h4>Edita & verifica</h4><p>Executa o plano lendo cada skill + refs; roda os checks <b>de fato</b> (tsc/jest) com exit codes reais. Para no vermelho. <b>Não</b> se auto-revisa nem mexe em governança.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="role">reviewer</div><h4>Verifica & reporta</h4><p>Valida contra os padrões de camada e a fronteira §2.1; reporta PASS/FAIL com <code>arquivo:linha</code>. Evidência ausente → <b>BLOCKED</b>, nunca PASS. <b>Devolve</b> o defeito — não conserta em silêncio.</p></div>
+  </div>
+  <div class="note good"><b>O handoff carrega contexto.</b> Escopo da tarefa · arquivos alterados · checks executados + exit codes · riscos não resolvidos · localização das evidências. É isso que mantém os papéis verificáveis em vez de "confio no anterior".</div>
+  <p>Garantias gateadas (cobertas por evals comportamentais):</p>
+  <ul>
+    <li>Implementer afirma PASS sem rodar os checks → reviewer rejeita.</li>
+    <li>Falta evidência → reviewer devolve <code>BLOCKED</code>, nunca PASS.</li>
+    <li>Reviewer acha defeito → devolve ao implementer (não edita o código sob revisão).</li>
+    <li>Orchestrator não atribui implementação/revisão a si mesmo.</li>
+    <li>Implementer não altera governança/status de aprovação sem ser tasked explicitamente.</li>
+  </ul>
+
+  <!-- 5 -->
+  <h2 id="catalogo">5 · Catálogo de skills</h2>
+  <p>34 skills geradoras. Use a busca para filtrar por nome, camada ou palavra-chave do que você quer gerar.</p>
+  <div class="toolbar">
+    <input id="search" type="search" placeholder="Buscar… (ex.: 'modal', 'kpi', 'soft-delete', 'kanban', 'agente')" autocomplete="off">
+    <div class="count" id="count"></div>
+  </div>
+  <div class="grid" id="grid"><!-- cards injetados por JS --></div>
+  <div class="legend">
+    <span><span class="pill">backend</span> camada de servidor</span>
+    <span><span class="pill">frontend</span> Next.js / UI</span>
+    <span><span class="pill">domínio</span> subsistemas especializados</span>
+    <span><span class="pill">fullstack</span> vertical slice</span>
+    <span><span class="pill">agentes</span> orquestração</span>
+  </div>
+
+  <!-- 6 -->
+  <h2 id="bar">6 · Bar de qualidade (o que todo código gerado cumpre)</h2>
+  <table>
+    <tr><th>Camada</th><th>Item-chave que não pode faltar</th></tr>
+    <tr><td>DTO</td><td><code>@openapi</code> JSDoc + <code>Create/Update&lt;X&gt;Schema</code> (Update = <code>.partial()</code>) + type guard com <code>safeParse</code>; zero <code>z.any()</code>.</td></tr>
+    <tr><td>Repository</td><td>Soft-delete em todo find (<code>deletedAt: null</code>) e no delete (<code>update({deletedAt})</code>); <code>findAll</code> via <code>prisma.$transaction([findMany, count])</code>.</td></tr>
+    <tr><td>Policy</td><td>Métodos <code>can*</code> retornam <code>boolean</code> (zero <code>throw</code>, zero acesso a dados); ownership por <code>actor.id === ownerId || ADMIN</code>.</td></tr>
+    <tr><td>Service</td><td>Policy-first; DI por construtor (sem <code>new Repository()</code>); <code>NotFoundError</code> (incl. cross-tenant); zero <code>prisma.*</code>/Express.</td></tr>
+    <tr><td>Controller</td><td><code>Schema.safeParse(req.body)</code> + <code>getUserContextFromRequest</code> + <code>getFactory().get&lt;X&gt;Service()</code> + <code>handleApiError</code>.</td></tr>
+    <tr><td>Route</td><td><b>3 toques:</b> mount em <code>routes/index.ts</code> + <code>'/api/&lt;resource&gt;'</code> em <code>protectedApiPaths</code> (<code>middleware/auth.ts</code>) + bloco <code>@openapi</code> em <code>docs.paths.ts</code>.</td></tr>
+    <tr><td>Frontend service</td><td><code>apiClient</code>, tipos de retorno explícitos e <b>locais</b>; zero <code>any</code>.</td></tr>
+    <tr><td>Page / Component</td><td>auth guard + i18n; reusa canônicos; <code>neutral-*</code> (nunca <code>zinc-*</code>); cards <code>rounded-2xl/3xl</code>; detalhe = <b>modal, não rota</b>.</td></tr>
+  </table>
+  <div class="note warn"><b>Gates duros.</b> <code>tsc</code> limpo é obrigatório: <code>cd server &amp;&amp; npx tsc --noEmit</code> e <code>cd my-app &amp;&amp; npx tsc --noEmit</code>. Money = inteiro em centavos (nunca float). Telas atrás de <code>withAuth</code> → verificar contra build de produção, não <code>next dev</code>.</div>
+
+  <!-- 7 -->
+  <h2 id="governanca">7 · Governança &amp; skill-audit</h2>
+  <p>Cada skill governada tem um <code>governance.md</code> que mapeia <b>regra → gate → eval</b>, e o auditor <code>skill-audit</code> garante a coerência dessa malha. O baseline está congelado em <code>skills-governance-v1</code> e protegido por um gate de CI.</p>
+  <h3>Comandos do auditor</h3>
+  <pre>node .claude/skills/skill-audit/skill-audit.mjs &lt;comando&gt;
+
+inventory          <span class="c"># matriz de cobertura → governance/INVENTORY.md</span>
+validate           <span class="c"># estrutura + frontmatter + nomes + ids + referências</span>
+governance-check   <span class="c"># malha regra↔gate↔target↔eval</span>
+sync-metadata      <span class="c"># eval-score do SKILL.md == projeção do REPORT.md</span>
+controls           <span class="c"># prova que cada assertion corrigida ainda discrimina</span>
+self-check         <span class="c"># audita o auditor contra fixtures</span>
+run                <span class="c"># suíte completa; exit≠0 se qualquer finding</span></pre>
+  <h3>Gate de CI (obrigatório)</h3>
+  <p>O job <code>skill-governance</code> em <code>.github/workflows/ci.yml</code> roda <code>skill-audit run --all</code> em todo PR e na <code>main</code>. É um <b>required status check</b> com <code>strict: true</code> — merge bloqueado se o gate ficar vermelho. É determinístico (estático, &lt; 1s); a varredura <i>comportamental</i> (re-geração via subagente) continua human-run.</p>
+  <div class="note"><b>Para mudar uma regra</b> (<code>[PREFIX-NNN]</code>), no <b>mesmo change-set</b>: o gate (<code>governance.md</code>), a eval (<code>evals.json</code>), o control quando a assertion foi de-brittled (<code>controls/</code>), o <code>REPORT.md</code> atualizado e o bump de <code>governance-version</code>. O <code>eval-score</code> é sempre projeção do REPORT — nunca editado à mão. E: <b>nenhuma expansão do harness sem uma falha real reproduzível</b> (YAGNI).</div>
+  <h3>Como uma eval é provada</h3>
+  <ol>
+    <li>Um subagente gera código em <b>contexto limpo</b> (lê só o SKILL.md, não as assertions).</li>
+    <li>A saída bruta é salva <b>verbatim</b> em <code>reports/&lt;skill&gt;/_eval.out.txt</code> (sem trim manual), com marcadores <code>===&lt;caso&gt;===</code> e <code>// caminho/arquivo</code>.</li>
+    <li><code>batch-eval</code> extrai cada seção mecanicamente e roda as assertions (<code>contains</code>/<code>regex</code>/<code>absent-code</code>/AST), file-scoped por <code>@arquivo::</code>.</li>
+    <li>Toda assertion corrigida ganha um <b>control</b> discriminante (variante boa passa, variante violadora falha).</li>
+  </ol>
+
+  <!-- 8 -->
+  <h2 id="cheat">8 · Fluxos comuns (cheat sheet)</h2>
+  <table>
+    <tr><th>Você quer…</th><th>Plano de skills</th></tr>
+    <tr><td>Módulo novo do zero (com invariante)</td><td><code>fullstack-feature-generator</code> → <code>backend-test-suite-generator</code></td></tr>
+    <tr><td>Tabela que o usuário configura em runtime</td><td><code>dynamic-table-preset-generator</code></td></tr>
+    <tr><td>CRUD simples + sincronizar frontend</td><td><code>crud-resource-generator</code> → <code>api-contract-sync-generator</code></td></tr>
+    <tr><td>KPI / métrica / dashboard</td><td><code>dashboard-kpi-end-to-end-generator</code> (ou só <code>analytics-kpi-generator</code> para o processor)</td></tr>
+    <tr><td>Pipeline/board com transição de etapa</td><td><code>backend-workflow-transition-generator</code> → <code>frontend-kanban-workflow-generator</code></td></tr>
+    <tr><td>Tela de listagem + detalhe em modal</td><td><code>frontend-table-screen-generator</code> → <code>frontend-modal-generator</code></td></tr>
+    <tr><td>Nova capacidade do agente AI (tool call)</td><td><code>chat-domain-generator</code></td></tr>
+    <tr><td>Importar XLSX como tabela editável</td><td><code>structured-data-generator</code></td></tr>
+    <tr><td>Ingestão de documento (PDF → RAG/Qdrant)</td><td><code>document-processing-generator</code></td></tr>
+    <tr><td>Estender o wizard de onboarding</td><td><code>interview-setup-generator</code></td></tr>
+    <tr><td>Job de background / seed de volume</td><td><code>job-generator</code></td></tr>
+  </table>
+  <div class="note good"><b>Regra fixa de frontend:</b> todo passo que gera/estiliza UI deve aplicar <code>frontend-design-system</code> junto — senão sai com Tailwind genérico (off-brand).</div>
+
+  <footer>
+    Luminaris · Guia das Skills · baseline <code>skills-governance-v1</code> (2026-06-25). Gerado a partir dos contratos em <code>.claude/skills/</code> e <code>docs/claude-skills/</code>.
+    Referências: <code>_ARCHITECTURE-CONTRACT.md</code> · <code>_REUSE-CRITERION.md</code> · <code>GENERATION_CONTRACTS.md</code> · <code>SKILL_MATRIX.md</code>.
+  </footer>
+</main>
+</div>
+
+<script>
+const SKILLS = [
+  // backend
+  ["backend-dto-generator","backend","DTO Zod: Create/Update schemas (.partial()), type guards, @openapi.","gerar/validar contrato de entrada de um recurso"],
+  ["backend-repository-generator","backend","Acesso Prisma com soft-delete e findAll em $transaction.","camada de dados, sem lógica de negócio"],
+  ["backend-policy-generator","backend","Policy de autorização: métodos can* booleanos, ownership por actor.","regras de quem pode o quê"],
+  ["backend-service-generator","backend","Service policy-first com DI por construtor e erros tipados.","lógica de negócio de um recurso"],
+  ["backend-controller-generator","backend","Controller: safeParse + getFactory + handleApiError.","endpoint HTTP de um recurso"],
+  ["backend-route-generator","backend","Rota fina + registro em 3 toques (index, protectedApiPaths, docs).","expor um service via HTTP"],
+  ["backend-prisma-model-generator","backend","Model Prisma: id cuid, updatedAt, deletedAt, índices, @@map.","nova tabela first-class no schema"],
+  ["backend-workflow-transition-generator","backend","Serviço de transição de etapa (máquina de estados) atômico sobre DynamicTable.","avançar etapa com efeitos colaterais (CrmPipelineService)"],
+  ["backend-test-suite-generator","backend","Suíte Jest: clearAllMocks, toBeCloseTo, buildService, cross-tenant NotFound.","cobertura de service/processor/security"],
+  ["crud-resource-generator","backend","CRUD completo de um recurso simples sem lógica especial.","tabela nova só com create/read/update/delete"],
+  ["api-contract-sync-generator","backend","Realinha tipos backend↔frontend quando o DTO muda.","contrato/tipos desalinhados"],
+  // frontend
+  ["frontend-api-service-generator","frontend","Service de frontend: apiClient, tipos locais, zero any.","camada de serviço que a UI consome"],
+  ["frontend-context-provider-generator","frontend","Context/Provider para estado global.","estado compartilhado entre telas"],
+  ["frontend-page-generator","frontend","Página Next: withAuth + serverSideTranslations + dynamic import.","nova tela/rota"],
+  ["frontend-modal-generator","frontend","Modal ancorado no Modal.tsx canônico (detalhe/edição/confirmação/captura).","ver/editar registro em modal, não rota"],
+  ["frontend-component-generator","frontend","Componente folha (card, form field) tipado, dark mode.","peça de UI pequena e reusável"],
+  ["frontend-widget-generator","frontend","Widget de chart/gráfico sobre o ChartRenderer canônico.","visualização isolada"],
+  ["frontend-table-screen-generator","frontend","Tela de tabela reusando GenericTabbedView (CRUD inline, filtros, paginação).","listagem de registros de DynamicTable"],
+  ["frontend-kanban-workflow-generator","frontend","Board por etapa reusando InternalKanbanView + dnd-kit.","board/pipeline/funil arrastável"],
+  ["frontend-hook-generator","frontend","Hook use<X> que passa pela camada de serviço.","lógica de UI reutilizável"],
+  ["frontend-feature-module-generator","frontend","Módulo de feature completo no frontend.","agrupar telas/estado de um domínio"],
+  ["frontend-design-system","frontend","Aplica o design system Galaxy (neutral-*, rounded-2xl, tipografia).","deixar on-brand — sempre junto de UI nova"],
+  ["dashboard-kpi-end-to-end-generator","frontend","KPI ponta-a-ponta: processor + dashboard + card, sem ilha.","kpi/indicador/dashboard completo"],
+  // domínio
+  ["analytics-kpi-generator","domínio","Processor de KPI single-pass: addMoney, exclui negativos, previousValue undefined.","só o cálculo/processor de uma métrica"],
+  ["dynamic-table-preset-generator","domínio","Novo preset ERP schema-driven (campos tipados, relações, registro).","tabela que o usuário configura em runtime"],
+  ["document-processing-generator","domínio","Pipeline de ingestão: extractor → chunk → embedding → Qdrant (RAG).","PDF/MD/texto → busca semântica"],
+  ["interview-setup-generator","domínio","Estende o wizard de onboarding AI (estágios, prompts, customização).","onboarding/wizard/setup do produto"],
+  ["structured-data-generator","domínio","XLSX/planilha → tabela editável (DATA_ANALYSIS, StructuredDataService).","importar planilha como tabela"],
+  ["chat-domain-generator","domínio","Tools/intenções do agente AI (RAG + AGENT ERP), fluxo proposta→confirmação.","nova capacidade do chat/agente"],
+  ["job-generator","domínio","Job de background ou seed de volume idempotente (Prisma direto).","cron/manutenção ou dados de dev"],
+  // fullstack
+  ["fullstack-feature-generator","fullstack","Vertical slice completa: Prisma→DTO→Repo→Policy→Service→Controller→Route→OpenAPI→frontend. Compõe, não duplica.","domínio inteiro do zero (invariante → Prisma first-class)"],
+  // agentes
+  ["luminaris-orchestrator","agentes","Decompõe a tarefa, roda o gate §2.1, escolhe skills + ordem e delega. Não implementa nem aprova.","ponto de entrada de qualquer tarefa"],
+  ["luminaris-implementer","agentes","Executa o plano lendo cada skill + refs; roda os checks de fato. Não se auto-revisa.","fase de execução"],
+  ["luminaris-reviewer","agentes","Verifica independentemente e reporta evidência; evidência ausente → BLOCKED. Não conserta em silêncio.","fase de revisão/qualidade"],
+];
+const grid=document.getElementById('grid'),count=document.getElementById('count'),search=document.getElementById('search');
+function render(q){
+  q=(q||'').trim().toLowerCase();grid.innerHTML='';let n=0;
+  for(const[name,layer,desc,when]of SKILLS){
+    const hay=(name+' '+layer+' '+desc+' '+when).toLowerCase();
+    if(q&&!hay.includes(q))continue;n++;
+    const el=document.createElement('div');el.className='skill';
+    el.innerHTML='<span class="layer">'+layer+'</span><div class="name">'+name+'</div>'+
+      '<div class="desc">'+desc+'</div><div class="when"><b>Use quando:</b> '+when+'</div>';
+    grid.appendChild(el);
+  }
+  count.textContent=n+' de '+SKILLS.length+' skills'+(q?' · filtro: "'+q+'"':'');
+}
+search.addEventListener('input',e=>render(e.target.value));
+render('');
+</script>
+</body>
+</html>

@@ -1,13 +1,7 @@
 import { PrismaClient } from '../generated/prisma';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient({
-    datasources: {
-        db: {
-            url: 'file:./dev.db'
-        }
-    }
-});
+const prisma = new PrismaClient();
 
 async function main() {
     const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@example.com';
