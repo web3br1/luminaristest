@@ -105,3 +105,37 @@ This confirms the fix at the exact code path the browser would execute, but is *
 
 ### Final Decision (update)
 **PASS** — M1 and M2 both fixed and re-validated against a live seeded ledger (not mocks). Two caveats carried forward, both pre-existing from the original run: (1) human eye sign-off still pending (as before); (2) browser-rendered visual confirmation of the 4 date-bearing screens pending — this session verified the exact rendering code path and real data end-to-end, but could not capture a screenshot (Chrome extension unavailable).
+
+---
+
+## Update 2026-07-02 (post-merge) — full A–K re-run after PR #25 merge
+
+- **Trigger:** Diretoria directive to re-run the full A–K functional checklist after FIX-FE-INCR1-M1M2 landed.
+- **Code under test:** merged `main` — PR #25 merge commit `e7b727d` (feature `7c7ccf1`); validated from the `fix/accounting-dre-diagnostics-and-date-rendering` worktree, which is byte-identical to the merged feature tree.
+- **Environment:** backend `npm run dev` (ts-node-dev; same W1 caveat as prior runs — compiled `start` still unrelated-broken), **freshly restarted** (see the stale-runtime note below); isolated `dev.worktree.db` (not the shared `dev.db`); frontend production build (`next build` + `next start`).
+- **Fixture:** a `units` DynamicTable installed from preset + one unit row "Matriz" (`unitId = cmr3pxsbp0003ci1gva9xqa3q`); chart of accounts self-seeded on first read; a mixed asset+revenue ledger built through the real HTTP endpoints (so the M1 guard is genuinely exercised: a Caixa/Asset balance sits in the DRE-diagnostics input).
+
+### A–K checklist (API / behaviour layer, via the real endpoints the UI calls)
+
+| # | Section | Status | Evidence |
+|---|---------|--------|----------|
+| A | 7 tabs load without errors | **N/A (env)** | Not verifiable — the controllable Chrome could not reach the local dev server (see limitation below). |
+| B | Create/open period (OPEN) | **PASS** | `POST /{unit}/periods/seed-year` → 12 periods; `POST /periods/{jul}/open` → `status: OPEN` |
+| C | Post entry, entryNumber + fiscalYear | **PASS** | `POST /post` (Caixa D / Receita C, 2026-07-01) → `2026/0001`, `status: Posted`, stored `date: 2026-07-01T00:00:00.000Z` |
+| D | Post to non-open period → error | **PASS** | `POST /post` dated 2026-08-15 → `HTTP 422 { code: ACCOUNTING_PERIOD_NOT_OPEN, "Período contábil 2026/08 não está aberto…" }` |
+| E | Reverse entry | **PASS** | `POST /reverse` → `2026/0001` → `Reversed`, reversal `2026/0002` `Posted` |
+| F | Ledger reflects movements | **PASS** | `GET /ledger` Caixa 1.1.3: +30000 / −30000 (reversal) / +50000 → closing 50000; all rows dated 2026-07-01 |
+| G | Trial balance balanced | **PASS** | `GET /trial-balance` → `balanced: true`, débito = crédito = 110000 |
+| H | Balance sheet, asOf, reportStatus=OK | **PASS** | `GET /balance-sheet?asOf=2026-07-01` → `reportStatus: OK`, `balanced: true`, `assets: 50000`, `unmappedAccounts: []` |
+| **I** | Income statement, reportStatus=OK | **PASS** (was FAIL/M1) | `GET /income-statement?asOf=2026-07-01` → `reportStatus: OK`, `unmappedAccounts: []`, `grossRevenue: 50000`, `netResult: 50000` — the Caixa/Asset balance is NO LONGER flagged unmapped |
+| J | Reports expose reportStatus/diagnostics/mappingVersion | **PASS** | Both reports carry `reportStatus`, the full `diagnostics` shape, and `mappingVersion: statement-mapping.v1` |
+| K | UI loading/empty/error states | **N/A (env)** | Not verifiable — browser unreachable (see below). |
+
+### ⚠️ Stale-runtime incident (near false-negative — recorded for honesty)
+The **first** `GET /income-statement` call in this run returned the M1 bug symptom exactly — `reportStatus: INVALID`, Caixa (Asset, balance 50000) in `unmappedAccounts`. Investigation showed the on-disk fix was present and clean (`AccountingReportService.ts:264`, the DRE→BP guard; no dirty diff). The cause was a **stale long-running `ts-node-dev` process** that had respawned/crashed into a pre-fix transpile. Killing it and starting a **fresh** backend flipped the identical request to `reportStatus: OK, unmapped: 0`. The authoritative proof of M1 remains the unit tests (red-before/green-after) plus this fresh-backend re-run — never a dev server that has been running across edits. (Captured as a durable lesson.)
+
+### Environment limitation — browser-visual items (A, K, and M2 pixel paint)
+The controllable Chrome (claude-in-chrome) **could not reach the local dev servers**: it screenshots external sites fine (example.com), but navigations to `http://localhost:3000`, `http://127.0.0.1:3000`, and the LAN IP either render Chrome's error page or silently leave the tab on the previous page — i.e. the controllable browser is not co-located with / cannot route to this machine's dev server. Consequently **A** (visual tab render), **K** (UI loading/empty/error states), and a pixel-level confirmation that the M2 date fix paints `01/07/2026` in each of the 4 screens **could not be captured**. M2 remains verified only at the shipped-module + stored-data level (stored ISO `2026-07-01`; `my-app/features/accounting/lib/formatDate.ts` renders it `01/07/2026` under `America/Sao_Paulo`).
+
+### Final Decision (post-merge A–K)
+**PASS (data/behaviour) — with warnings.** Every API-observable A–K item passes on a freshly-restarted backend running the merged code, against a real mixed asset+revenue ledger; the item that was FAIL (**I / M1**) is now OK. **Outstanding (unchanged in kind from prior runs):** (1) human-eye sign-off; (2) live-browser visual confirmation of A, K, and the M2 date paint across the 4 screens — blocked here by the controllable Chrome being unable to reach localhost, not by any code defect. Recommend a browser pass from an environment whose Chrome can reach the local dev server (or a deployed instance) before final human sign-off.
