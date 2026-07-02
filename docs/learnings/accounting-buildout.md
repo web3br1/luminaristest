@@ -5,6 +5,27 @@ Entradas mais novas no topo.
 
 ---
 
+### 2026-07-02 · pitfall · Git checkout verificado ainda perde para sessão concorrente
+- **Contexto:** FIX-FE-INCR1-M1M2 — checkout de `fix/accounting-dre-diagnostics-and-date-rendering` a partir de `main`, confirmado ativo via `git branch --show-current`. Durante a edição, outra sessão no MESMO working directory compartilhado fez seu próprio checkout (`docs/fix-fe-incr1-m1m2-execution-brief`) e commitou — HEAD mudou por baixo, sem qualquer erro.
+- **Aprendizado:** um `git branch --show-current` logo após o checkout prova o estado NAQUELE instante, não durante toda a janela de edição seguinte. Numa working directory compartilhada entre sessões, isso não fecha a race — só um `git worktree` isolado fecha, porque nenhuma outra sessão consegue trocar o HEAD dele.
+- **Evidência:** `git reflog` mostrou `checkout: moving from fix/accounting-dre-diagnostics-and-date-rendering to docs/fix-fe-incr1-m1m2-execution-brief` no meio da sessão, sem nenhuma ação minha; recuperado via `git stash` do diff (nada tinha sido commitado ainda) + `git worktree add .claude/worktrees/fix-fe-incr1-m1m2 fix/accounting-dre-diagnostics-and-date-rendering`.
+- **Como aplicar:** para qualquer tarefa que vai gerar múltiplas edições/commits neste repo, abrir um worktree isolado ANTES de editar, não confiar em checkout+verify na working directory principal compartilhada.
+- **Durável?** sim → [[verify-write-context-before-writing]] (memória atualizada com este caso)
+
+### 2026-07-02 · pitfall · Teste de diagnóstico bidirecional sem fixture cruzada esconde guard faltante
+- **Contexto:** FIX-FE-INCR1-M1M2 — M1, `AccountingReportService.buildDiagnostics`.
+- **Aprendizado:** o guard recíproco BP→DRE existia; o simétrico DRE→BP não. 632/632 testes verdes o tempo todo, porque nenhum teste de `incomeStatement` misturava um saldo de Asset com Revenue — só natures do próprio statement. `reportStatus` ficava `INVALID` em qualquer ledger real (todo lançamento de receita debita caixa/a receber).
+- **Evidência:** `server/src/features/accounting/services/__tests__/AccountingReportService.bp-dre.test.ts` — testes pré-existentes de `incomeStatement` só usavam Revenue/Expense; T1 (novo, Asset+Revenue) provou vermelho-antes/verde-depois.
+- **Como aplicar:** todo teste de diagnóstico bidirecional (BP/DRE ou futuro terceiro statement) precisa de pelo menos uma fixture do "outro lado" com saldo não-zero — não só variações dentro do mesmo statement.
+- **Durável?** sim → [[bp-dre-diagnostics-test-must-mix-natures]]
+
+### 2026-07-02 · gotcha · Canônico de data corrige o bug mas muda o formato visual — verificar antes de reusar
+- **Contexto:** FIX-FE-INCR1-M1M2 — M2, 4 componentes accounting com `new Date(iso).toLocaleDateString('pt-BR')` local (off-by-one em UTC-3).
+- **Aprendizado:** o canônico `dashboard/shared/utils/formatters.ts` `formatDate(..., {dateOnly:true})` resolve o parsing (evita o shift), mas formata em `Intl.DateTimeFormat` com `month:'short'` → "01 de jul. de 2026", não o `dd/mm/aaaa` numérico que as 4 telas usam. Reuso direto teria corrigido a data e quebrado o formato visual silenciosamente — só foi pego rodando o canônico contra dado real ANTES de trocar os imports, não assumindo pela leitura do plano.
+- **Evidência:** `my-app/features/dashboard/shared/utils/formatters.ts:118-133` (`dateOptions.month = 'short'`); resolvido com wrapper local `my-app/features/accounting/lib/formatDate.ts` (reusa só a técnica de parse date-only-safe, formata numérico).
+- **Como aplicar:** antes de plugar um formatter compartilhado numa tela nova, rodar contra dado real e comparar o SHAPE de saída com o que a tela já mostra — "mesma classe de bug, mesma técnica de fix" não garante "mesmo formato visual". Divergência de shape sancionada quando o formato é parte do contrato visual da tela.
+- **Durável?** sim → [[date-only-rendering-utc-shift-class-bug]]
+
 ### 2026-06-27 · pitfall · `tx` não propagado ao repo = atomicidade aparente, falha real
 - **Contexto:** INCR-2 — G6 defect detectado pelo reviewer independente antes do commit (306f790).
 - **Aprendizado:** Abrir `runTransaction` mas chamar `accountRepo.create({...})` sem passar `tx` significa que a escrita vai ao `prisma` global, FORA da tx. A auditoria roda dentro; a mutação, fora. Se o audit ou `bumpHead` falhar depois, a conta fica persistida sem evento de auditoria — atomicidade quebrada em produção, invisível nos testes de alto nível.
