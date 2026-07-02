@@ -13,20 +13,6 @@ import { z } from 'zod';
  * saleItems/date) is REJECTED here — never silently stripped — so the payload can never reach the
  * write path. `paidByUserId` is derived from the auth context, NOT accepted from the client.
  */
-
-/** @openapi
- * components:
- *   schemas:
- *     RegisterPaymentInput:
- *       type: object
- *       required: [tableId, saleId, paymentMethod]
- *       properties:
- *         tableId:          { type: string }
- *         saleId:           { type: string }
- *         paymentMethod:    { type: string, enum: [Credit Card, Debit Card, Cash, Pix, Package Balance] }
- *         paidAt:           { type: string, description: "ISO datetime the payment occurred (settlement date). Defaults to now." }
- *         paymentReference: { type: string, description: "Optional external reference (NSU, transaction id…)." }
- */
 export const RegisterPaymentSchema = z
   .object({
     tableId: z.string().min(1),
