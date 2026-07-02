@@ -334,6 +334,27 @@ Se houver erros:
 - Classificar: import errado | tipo incompatível | campo faltando | método não existe
 - Incluir no relatório como FAIL com a linha exata
 
+## Phase 4.5 — Wiring de registro central (tsc-cego)
+
+**[REV-005]** O `tsc` compila verde mesmo quando um artefato novo **não foi registrado** no índice
+central — a rota fica sem `router.use`, a categoria de KPI/preset fica órfã, ou uma chave i18n existe
+em `en` e não em `pt`. Esses bugs só aparecem em runtime. Rode o gate de wiring:
+
+```bash
+node .claude/skills/skill-audit/skill-audit.mjs wiring
+```
+
+Cobre (cada um é tsc-cego):
+- **rota** montada em `server/src/routes/index.ts`
+- **categoria de KPI** importada em `analytics/kpis/index.ts`
+- **preset suite** em `dynamicTables/presets/index.ts` (`tablePresetSuites`)
+- **i18n** paridade de chaves `en`↔`pt`
+
+`exit≠0` = artefato órfão → **FAIL** com o nome ausente e o arquivo de registro. Reporte como os demais
+gates (não conserte — REV-004). Footguns intra-arquivo (chat `getTools`↔`handleToolCall`, widget no
+switch) e membership-parcial (factory, `_app` providers) **não** estão automatizados — checar à mão se
+a tarefa os toca.
+
 ## Phase 5 — Relatório final
 
 Produzir um relatório estruturado:
@@ -384,6 +405,7 @@ Produzir um relatório estruturado:
 - **[REV-004] Não corrija** os arquivos — apenas reporte com evidências e sugestão, e devolva ao implementador
 - **Seja específico** — toda FAIL deve ter arquivo:linha e correção sugerida
 - **[REV-002] Não aprove sem rodar tsc** — compilação é gate obrigatório
+- **[REV-005] Não aprove sem rodar o gate de wiring** — `tsc` verde não prova que o artefato foi registrado no índice central (rota/KPI/preset/i18n)
 - **[REV-003] Não aprove na confiança** — sem evidência do check (comando + exit code), o veredicto é BLOCKED/REPROVADO, nunca PASS
 - **Não ignore cross-layer** — um mismatch de tipo entre DTO e frontend service é um bug silencioso
 - **Não presuma** que o código está correto porque foi gerado por uma skill — valide sempre

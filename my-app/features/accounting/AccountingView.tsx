@@ -8,10 +8,11 @@ import { PeriodsPanel } from './components/PeriodsPanel';
 import { LedgerPanel } from './components/LedgerPanel';
 import { BalanceSheetPanel } from './components/BalanceSheetPanel';
 import { IncomeStatementPanel } from './components/IncomeStatementPanel';
+import { ImportExportPanel } from './components/ImportExportPanel';
 import { JournalEntryModal, type AccountOption } from './components/JournalEntryModal';
 import { accountingService } from '../../lib/services/accounting.service';
 
-type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'razao' | 'plano-de-contas' | 'bp' | 'dre';
+type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'importacao-exportacao';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'balancete',      label: 'Balancete' },
@@ -21,6 +22,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'plano-de-contas',label: 'Plano de Contas' },
   { id: 'bp',             label: 'BP' },
   { id: 'dre',            label: 'DRE' },
+  { id: 'importacao-exportacao', label: 'Importação/Exportação' },
 ];
 
 /**
@@ -180,6 +182,11 @@ export function AccountingView() {
       {/* ── DRE tab ────────────────────────────────────────────────────────── */}
       {activeTab === 'dre' && unitId && (
         <IncomeStatementPanel unitId={unitId} />
+      )}
+
+      {/* ── Importação/Exportação tab ──────────────────────────────────────── */}
+      {activeTab === 'importacao-exportacao' && unitId && (
+        <ImportExportPanel unitId={unitId} />
       )}
 
       {/* ── New Entry Modal ────────────────────────────────────────────────── */}
