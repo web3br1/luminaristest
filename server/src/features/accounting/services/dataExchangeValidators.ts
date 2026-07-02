@@ -1,5 +1,6 @@
 import type { InTable } from '../../../lib/spreadsheet';
 import type { ImportKind, ValidatedRow } from '../models/DataExchange.model';
+import { MAX_CENTS } from '../models/money';
 
 /**
  * Pure per-kind validators for the accounting Data Exchange import (BE-INCR-6). No IO —
@@ -19,14 +20,9 @@ export interface AccountLike {
 const NATURES = new Set(['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Upper bound for a single cents cell = the storage ceiling. `Posting.debitCents`/`creditCents`
-// are Prisma `Int` (signed 32-bit), so a value above this is rejected by the DB at write time
-// with an opaque `POST_FAILED` at commit — never a preview validation issue (ACC-INCR6-J-001).
-// Guarding here makes the preview reject it up front with a clear message instead. Anything the
-// column can hold passes.
-// ponytail: ceiling is Int32; raise to BigInt (schema Int→BigInt + BigInt read-side sweep) only
-// if a real posting leg ever needs to exceed ~R$21.47M.
-const MAX_CENTS = 2_147_483_647;
+// MAX_CENTS (Int32 storage ceiling) is shared with the direct /post DTO — see models/money.ts.
+// Guarding here makes the import preview reject an over-ceiling value with a clear message
+// instead of a late opaque POST_FAILED at commit (ACC-INCR6-J-001).
 
 const CHART_COLS = ['code', 'name', 'nature', 'acceptsEntries', 'parentCode'];
 const OPENING_COLS = ['accountCode', 'postingDate', 'description', 'debitCents', 'creditCents'];
