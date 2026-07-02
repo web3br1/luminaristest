@@ -19,6 +19,15 @@ export interface AccountLike {
 const NATURES = new Set(['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Upper bound for a single cents cell = the storage ceiling. `Posting.debitCents`/`creditCents`
+// are Prisma `Int` (signed 32-bit), so a value above this is rejected by the DB at write time
+// with an opaque `POST_FAILED` at commit — never a preview validation issue (ACC-INCR6-J-001).
+// Guarding here makes the preview reject it up front with a clear message instead. Anything the
+// column can hold passes.
+// ponytail: ceiling is Int32; raise to BigInt (schema Int→BigInt + BigInt read-side sweep) only
+// if a real posting leg ever needs to exceed ~R$21.47M.
+const MAX_CENTS = 2_147_483_647;
+
 const CHART_COLS = ['code', 'name', 'nature', 'acceptsEntries', 'parentCode'];
 const OPENING_COLS = ['accountCode', 'postingDate', 'description', 'debitCents', 'creditCents'];
 const JOURNAL_COLS = [
@@ -142,6 +151,8 @@ function validateOpening(table: InTable, accounts: Map<string, AccountLike>): Va
     const credit = parseCents(row[cCredit] ?? '');
     if (debit === null) return invalid(rowNumber, raw, 'BAD_DEBIT', 'debitCents deve ser inteiro ≥ 0.', 'debitCents');
     if (credit === null) return invalid(rowNumber, raw, 'BAD_CREDIT', 'creditCents deve ser inteiro ≥ 0.', 'creditCents');
+    if (debit > MAX_CENTS) return invalid(rowNumber, raw, 'DEBIT_TOO_LARGE', `debitCents excede o limite suportado (máx ${MAX_CENTS}).`, 'debitCents');
+    if (credit > MAX_CENTS) return invalid(rowNumber, raw, 'CREDIT_TOO_LARGE', `creditCents excede o limite suportado (máx ${MAX_CENTS}).`, 'creditCents');
     if ((debit > 0) === (credit > 0)) return invalid(rowNumber, raw, 'NOT_SINGLE_SIDED', 'Cada linha deve ter débito OU crédito (nunca ambos/nenhum).', 'debitCents');
 
     return {
@@ -206,6 +217,8 @@ function validateJournal(table: InTable, accounts: Map<string, AccountLike>): Va
     const credit = parseCents(row[idx.credit] ?? '');
     if (debit === null) return invalid(rowNumber, raw, 'BAD_DEBIT', 'debitCents deve ser inteiro ≥ 0.', 'debitCents', entryKey);
     if (credit === null) return invalid(rowNumber, raw, 'BAD_CREDIT', 'creditCents deve ser inteiro ≥ 0.', 'creditCents', entryKey);
+    if (debit > MAX_CENTS) return invalid(rowNumber, raw, 'DEBIT_TOO_LARGE', `debitCents excede o limite suportado (máx ${MAX_CENTS}).`, 'debitCents', entryKey);
+    if (credit > MAX_CENTS) return invalid(rowNumber, raw, 'CREDIT_TOO_LARGE', `creditCents excede o limite suportado (máx ${MAX_CENTS}).`, 'creditCents', entryKey);
     if ((debit > 0) === (credit > 0)) return invalid(rowNumber, raw, 'NOT_SINGLE_SIDED', 'Cada linha deve ter débito OU crédito.', 'debitCents', entryKey);
 
     return {
