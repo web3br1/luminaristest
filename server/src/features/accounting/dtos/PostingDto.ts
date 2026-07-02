@@ -23,7 +23,7 @@ import { z } from 'zod';
  *       type: object
  *       required: [date, description, lines]
  *       properties:
- *         date:        { type: string, description: "ISO date/datetime string" }
+ *         date:        { type: string, description: "Date-only string YYYY-MM-DD (parsed as UTC midnight — no time component)" }
  *         description: { type: string }
  *         sourceType:  { type: string, default: manual }
  *         sourceId:    { type: string }
@@ -57,7 +57,11 @@ export const PostEntrySchema = z.object({
   // unitId is the second tenancy axis (Contract §2): the security boundary is userId
   // (from auth), unitId is a user-owned sub-partition supplied by the request.
   unitId: z.string().min(1),
-  date: z.string().min(1),
+  // Date-only, no time component: fiscalYearFrom/extractYearMonth (PostingService) both
+  // parse this as UTC midnight — a datetime string would let the local calendar date and
+  // the UTC calendar date disagree, reintroducing the fiscal-year boundary bug this format
+  // was tightened to close.
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date deve ser YYYY-MM-DD'),
   description: z.string().min(1),
   sourceType: z.string().default('manual'),
   sourceId: z.string().optional(),
@@ -72,13 +76,13 @@ export const PostEntrySchema = z.object({
  *       required: [lancamentoId, reversalPostingDate]
  *       properties:
  *         lancamentoId:        { type: string }
- *         reversalPostingDate: { type: string, description: "ISO date for the reversal entry (and period gate)" }
+ *         reversalPostingDate: { type: string, description: "Date-only string YYYY-MM-DD for the reversal entry (and period gate)" }
  *         reason:              { type: string }
  */
 export const ReverseEntrySchema = z.object({
   unitId: z.string().min(1),
   lancamentoId: z.string().min(1),
-  reversalPostingDate: z.string().min(1),
+  reversalPostingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'reversalPostingDate deve ser YYYY-MM-DD'),
   reason: z.string().optional(),
 });
 

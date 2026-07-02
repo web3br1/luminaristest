@@ -761,10 +761,21 @@ describe('PostingService', () => {
       );
     });
 
-    it('postEntry: fiscalYear is derived from postingDate in America/Sao_Paulo', async () => {
+    it('postEntry: fiscalYear is derived from postingDate using UTC (matches the period gate)', async () => {
       const { svc, journalEntryRepo } = buildService();
-      // 2026-12-31 UTC midnight = Dec 30 in BRT (UTC-3) → still 2026
       await svc.postEntry(scope, { ...balancedInput, date: '2026-12-31' });
+      expect(journalEntryRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ fiscalYear: 2026 }),
+        txHandle,
+      );
+    });
+
+    it('postEntry: fiscalYear on Jan 1 matches the period gate (no America/Sao_Paulo shift into the prior year)', async () => {
+      const { svc, journalEntryRepo } = buildService();
+      // Regression guard: fiscalYearFrom used to convert UTC midnight to America/Sao_Paulo
+      // (UTC-3), landing on Dec 31 21:00 BRT and reporting 2025 for an entry the period
+      // gate (extractYearMonth, UTC-only) correctly placed in 2026-01.
+      await svc.postEntry(scope, { ...balancedInput, date: '2026-01-01' });
       expect(journalEntryRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ fiscalYear: 2026 }),
         txHandle,
