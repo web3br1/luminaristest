@@ -18,4 +18,9 @@ export class AccountingPolicy implements IAccountingPolicy {
   canRead(scope: AccountingScope): boolean {
     return !!scope.actorUserId;
   }
+
+  // ponytail: membership check entra quando unidade for compartilhada
+  canClosePeriod(scope: AccountingScope): boolean {
+    return !!scope.actorUserId;
+  }
 }

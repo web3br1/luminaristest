@@ -113,6 +113,17 @@ export const serviceId: ISchemaField = {
   searchable: false,
 };
 
+// --- Packages (prepaid, Incremento G) ---
+
+export const packageId: ISchemaField = {
+  name: 'packageId',
+  label: 'Package',
+  type: 'relation',
+  required: true,
+  relation: { targetTable: '@@PRESET_TABLE_KEY::packages' },
+  searchable: false,
+};
+
 // --- Sales ---
 
 export const saleId: ISchemaField = {

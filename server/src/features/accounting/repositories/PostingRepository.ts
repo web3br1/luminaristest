@@ -39,10 +39,23 @@ export class PostingRepository implements IPostingRepository {
   public async groupByAccount(
     scope: AccountingScope,
     statuses: string[],
+    options?: { from?: Date; to?: Date },
   ): Promise<AccountPostingTotals[]> {
+    const dateFilter =
+      options?.from || options?.to
+        ? {
+            date: {
+              ...(options.from ? { gte: options.from } : {}),
+              ...(options.to ? { lte: options.to } : {}),
+            },
+          }
+        : {};
     const grouped = await prisma.posting.groupBy({
       by: ['accountId'],
-      where: { ...accountingScopeWhere(scope), entry: { status: { in: statuses } } },
+      where: {
+        ...accountingScopeWhere(scope),
+        entry: { status: { in: statuses }, ...dateFilter },
+      },
       _sum: { debitCents: true, creditCents: true },
     });
 
@@ -51,6 +64,21 @@ export class PostingRepository implements IPostingRepository {
       debitCents: row._sum.debitCents ?? 0,
       creditCents: row._sum.creditCents ?? 0,
     }));
+  }
+
+  public async nextEntryNumber(
+    scope: AccountingScope,
+    fiscalYear: number,
+    tx: Prisma.TransactionClient,
+  ): Promise<number> {
+    const { userId, unitId } = accountingScopeWhere(scope);
+    const seq = await tx.journalEntrySequence.upsert({
+      where: { userId_unitId_fiscalYear: { userId, unitId, fiscalYear } },
+      create: { userId, unitId, fiscalYear, last: 1 },
+      update: { last: { increment: 1 } },
+      select: { last: true },
+    });
+    return seq.last;
   }
 
   public async runTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {

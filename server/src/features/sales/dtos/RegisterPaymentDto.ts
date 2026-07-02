@@ -1,0 +1,52 @@
+import { z } from 'zod';
+
+/**
+ * RegisterPaymentDto — input for the salon-sale payment transition (Incremento D / D1).
+ *
+ * This is the ONLY legitimate way to move a Finalized sale to paymentStatus='Paid': a dedicated
+ * server-orchestrated service performs an isSystem write of a STRICT whitelist (paymentStatus,
+ * paymentMethod, paidAt, paidByUserId, paymentReference). The settlement entry is booked POST-COMMIT
+ * by SalonSaleSettlementBridge.
+ *
+ * `.strict()` is deliberate (trust boundary, G2): the request may carry ONLY these keys. Any attempt
+ * to smuggle a frozen field (status/unitId/customerId/totalAmount/subtotal/discountAmount/taxAmount/
+ * saleItems/date) is REJECTED here — never silently stripped — so the payload can never reach the
+ * write path. `paidByUserId` is derived from the auth context, NOT accepted from the client.
+ */
+export const RegisterPaymentSchema = z
+  .object({
+    tableId: z.string().min(1),
+    saleId: z.string().min(1),
+    // Mirrors SelectPresets.paymentMethod EXACTLY — the mapper rejects anything else anyway.
+    paymentMethod: z.enum(['Credit Card', 'Debit Card', 'Cash', 'Pix', 'Package Balance']),
+    paidAt: z.string().datetime().optional(),
+    paymentReference: z.string().max(255).optional(),
+    // Which prepaid package balance to draw from (Incremento G P5). Required for
+    // 'Package Balance', and FORBIDDEN for every other method (no ambiguous payload).
+    packageId: z.string().min(1).optional(),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    if (v.paymentMethod === 'Package Balance') {
+      if (!v.packageId) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['packageId'],
+          message: 'packageId é obrigatório para pagamento com saldo de pacote.',
+        });
+      }
+    } else if (v.packageId !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['packageId'],
+        message: 'packageId só é permitido quando paymentMethod é Package Balance.',
+      });
+    }
+  });
+
+export type RegisterPaymentInput = z.infer<typeof RegisterPaymentSchema>;
+
+/** Type guard for RegisterPaymentInput. */
+export function isRegisterPaymentInput(obj: unknown): obj is RegisterPaymentInput {
+  return RegisterPaymentSchema.safeParse(obj).success;
+}

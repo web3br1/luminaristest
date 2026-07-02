@@ -15,6 +15,11 @@ import { SavedTableViewRepository } from '../features/savedViews/repositories/Sa
 import { AccountRepository } from '../features/accounting/repositories/AccountRepository';
 import { JournalEntryRepository } from '../features/accounting/repositories/JournalEntryRepository';
 import { PostingRepository } from '../features/accounting/repositories/PostingRepository';
+import { AccountingPeriodRepository } from '../features/accounting/repositories/AccountingPeriodRepository';
+import { AuditRepository } from '../features/accounting/repositories/AuditRepository';
+import { DocumentAttachmentRepository } from '../features/accounting/repositories/DocumentAttachmentRepository';
+import { DataExchangeRepository } from '../features/accounting/repositories/DataExchangeRepository';
+import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
 import { ChatInstancePolicy } from '../features/chatInstances/policies/ChatInstancePolicy';
@@ -27,6 +32,7 @@ import { DynamicTablePolicy } from '../features/dynamicTables/policies/DynamicTa
 import { AttachmentPolicy } from '../features/attachments/policies/AttachmentPolicy';
 import { SavedTableViewPolicy } from '../features/savedViews/policies/SavedTableViewPolicy';
 import { AccountingPolicy } from '../features/accounting/policies/AccountingPolicy';
+import { PackageBalancePolicy } from '../features/packages/policies/PackageBalancePolicy';
 
 // Features - Services
 import { ChatInstanceService } from '../features/chatInstances/services/ChatInstanceService';
@@ -44,9 +50,21 @@ import { KnowledgeGraphService } from '../features/chat/services/KnowledgeGraphS
 import { CrmPipelineService } from '../features/crm/services/CrmPipelineService';
 import { CrmAnalyticsService } from '../features/crm/services/CrmAnalyticsService';
 import { PostingService } from '../features/accounting/services/PostingService';
+import { PeriodService } from '../features/accounting/services/PeriodService';
+import { AuditService } from '../features/accounting/services/AuditService';
 import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
+import { DocumentAttachmentService } from '../features/accounting/services/DocumentAttachmentService';
+import { DataExchangeExportService } from '../features/accounting/services/DataExchangeExportService';
+import { DataExchangeImportService } from '../features/accounting/services/DataExchangeImportService';
+import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
+import { SalonSaleFinalizedMapper } from '../features/accounting/sync/mappers/SalonSaleFinalizedMapper';
+import { SalonSaleReturnedMapper } from '../features/accounting/sync/mappers/SalonSaleReturnedMapper';
+import { SalonSaleSettledMapper } from '../features/accounting/sync/mappers/SalonSaleSettledMapper';
+import { SalonPackageSoldMapper } from '../features/accounting/sync/mappers/SalonPackageSoldMapper';
+import { SalesCancellationService } from '../features/sales/services/SalesCancellationService';
+import { RegisterPaymentService } from '../features/sales/services/RegisterPaymentService';
 import { PresetSyncService } from '../features/dynamicTables/services/PresetSyncService';
 import { AttachmentService } from '../features/attachments/services/AttachmentService';
 import { SavedTableViewService } from '../features/savedViews/services/SavedTableViewService';
@@ -80,7 +98,13 @@ import type { ISavedTableViewPolicy } from '../features/savedViews/policies/ISav
 import type { IAccountRepository } from '../features/accounting/repositories/IAccountRepository';
 import type { IJournalEntryRepository } from '../features/accounting/repositories/IJournalEntryRepository';
 import type { IPostingRepository } from '../features/accounting/repositories/IPostingRepository';
+import type { IAccountingPeriodRepository } from '../features/accounting/repositories/IAccountingPeriodRepository';
+import type { IAuditRepository } from '../features/accounting/repositories/IAuditRepository';
+import type { IDocumentAttachmentRepository } from '../features/accounting/repositories/IDocumentAttachmentRepository';
+import type { IDataExchangeRepository } from '../features/accounting/repositories/IDataExchangeRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
+import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
+import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
 
 export class ApplicationFactory {
   private static instance: ApplicationFactory;
@@ -102,6 +126,11 @@ export class ApplicationFactory {
     account: IAccountRepository;
     journalEntry: IJournalEntryRepository;
     posting: IPostingRepository;
+    accountingPeriod: IAccountingPeriodRepository;
+    audit: IAuditRepository;
+    documentAttachment: IDocumentAttachmentRepository;
+    dataExchange: IDataExchangeRepository;
+    packageBalance: IPackageBalanceRepository;
   };
 
   private readonly policies: {
@@ -115,6 +144,7 @@ export class ApplicationFactory {
     attachment: IAttachmentPolicy;
     savedTableView: ISavedTableViewPolicy;
     accounting: IAccountingPolicy;
+    packageBalance: IPackageBalancePolicy;
   };
 
   public readonly services: {
@@ -131,9 +161,16 @@ export class ApplicationFactory {
     knowledgeGraph: KnowledgeGraphService;
     crmPipeline: CrmPipelineService;
     crmAnalytics: CrmAnalyticsService;
+    salesCancellation: SalesCancellationService;
+    registerPayment: RegisterPaymentService;
     posting: PostingService;
+    period: PeriodService;
     accountingSync: AccountingSyncService;
     accountingReport: AccountingReportService;
+    documentAttachment: DocumentAttachmentService;
+    dataExchangeExport: DataExchangeExportService;
+    dataExchangeImport: DataExchangeImportService;
+    packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
     savedTableView: SavedTableViewService;
@@ -162,6 +199,11 @@ export class ApplicationFactory {
       account: new AccountRepository(),
       journalEntry: new JournalEntryRepository(),
       posting: new PostingRepository(),
+      accountingPeriod: new AccountingPeriodRepository(),
+      audit: new AuditRepository(),
+      documentAttachment: new DocumentAttachmentRepository(),
+      dataExchange: new DataExchangeRepository(),
+      packageBalance: new PackageBalanceRepository(),
     };
 
     // Policies
@@ -176,6 +218,7 @@ export class ApplicationFactory {
       attachment: new AttachmentPolicy(),
       savedTableView: new SavedTableViewPolicy(),
       accounting: new AccountingPolicy(),
+      packageBalance: new PackageBalancePolicy(),
     };
 
     // Services (handling inter-dependencies)
@@ -210,17 +253,56 @@ export class ApplicationFactory {
       this.repositories.dynamicTable
     );
 
+    // Salon-sale cancellation/return transitions (Incremento D) — orchestration over
+    // DynamicTableService (no own Repository/Policy); the post-commit accounting effect is
+    // applied inside the service via SalonSaleReversalBridge.
+    const salesCancellationService = new SalesCancellationService(
+      dynamicTableService,
+      this.repositories.dynamicTable
+    );
+
+    // Salon-sale payment transition (Incremento D / D1) — same orchestration shape as
+    // salesCancellationService; the post-commit settlement is applied via SalonSaleSettlementBridge.
+    const packageBalanceService = new PackageBalanceService(
+      this.repositories.packageBalance,
+      this.policies.packageBalance
+    );
+
+    const registerPaymentService = new RegisterPaymentService(
+      dynamicTableService,
+      this.repositories.dynamicTable,
+      packageBalanceService
+    );
+
+    const auditService = new AuditService(
+      this.repositories.audit,
+      this.repositories.posting,
+    );
+
     const postingService = new PostingService(
       this.repositories.account,
       this.repositories.journalEntry,
       this.repositories.posting,
-      this.policies.accounting
+      this.policies.accounting,
+      this.repositories.accountingPeriod,
+      auditService,
+    );
+
+    const periodService = new PeriodService(
+      this.repositories.accountingPeriod,
+      this.policies.accounting,
+      this.repositories.posting,
+      auditService,
     );
 
     // AccountingSync — application-level integration adapter (NOT the DynamicTable
     // engine). Depends on postingService (above); first non-controller consumer.
     const accountingSyncService = new AccountingSyncService(postingService, [
       new CrmOpportunityWonMapper(),
+      new SalonSaleFinalizedMapper(),
+      new SalonSaleReturnedMapper(),
+      new SalonSaleSettledMapper(),
+      new SalonPackageSoldMapper(),
     ]);
 
     const accountingReportService = new AccountingReportService(
@@ -271,9 +353,32 @@ export class ApplicationFactory {
       knowledgeGraph: knowledgeGraphService,
       crmPipeline: crmPipelineService,
       crmAnalytics: crmAnalyticsService,
+      salesCancellation: salesCancellationService,
+      registerPayment: registerPaymentService,
       posting: postingService,
+      period: periodService,
       accountingSync: accountingSyncService,
       accountingReport: accountingReportService,
+      documentAttachment: new DocumentAttachmentService(
+        this.repositories.documentAttachment,
+        this.policies.accounting,
+        auditService,
+        this.repositories.journalEntry,
+      ),
+      dataExchangeExport: new DataExchangeExportService(
+        accountingReportService,
+        this.policies.accounting,
+        this.repositories.dataExchange,
+        auditService,
+      ),
+      dataExchangeImport: new DataExchangeImportService(
+        this.repositories.dataExchange,
+        this.policies.accounting,
+        auditService,
+        postingService,
+        postingService,
+      ),
+      packageBalance: packageBalanceService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
       savedTableView: new SavedTableViewService(
@@ -304,9 +409,16 @@ export class ApplicationFactory {
   public getKnowledgeGraphService = (): KnowledgeGraphService => this.services.knowledgeGraph;
   public getCrmPipelineService = (): CrmPipelineService => this.services.crmPipeline;
   public getCrmAnalyticsService = (): CrmAnalyticsService => this.services.crmAnalytics;
+  public getSalesCancellationService = (): SalesCancellationService => this.services.salesCancellation;
+  public getRegisterPaymentService = (): RegisterPaymentService => this.services.registerPayment;
   public getPostingService = (): PostingService => this.services.posting;
+  public getPeriodService = (): PeriodService => this.services.period;
   public getAccountingSyncService = (): AccountingSyncService => this.services.accountingSync;
   public getAccountingReportService = (): AccountingReportService => this.services.accountingReport;
+  public getDocumentAttachmentService = (): DocumentAttachmentService => this.services.documentAttachment;
+  public getDataExchangeExportService = (): DataExchangeExportService => this.services.dataExchangeExport;
+  public getDataExchangeImportService = (): DataExchangeImportService => this.services.dataExchangeImport;
+  public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;
   public getSavedTableViewService = (): SavedTableViewService => this.services.savedTableView;

@@ -31,6 +31,8 @@ export class JournalEntryRepository implements IJournalEntryRepository {
         sourceId: data.sourceId ?? null,
         createdById: data.createdById ?? null,
         postedById: data.postedById ?? null,
+        fiscalYear: data.fiscalYear,
+        entryNumber: data.entryNumber,
       },
     });
   }

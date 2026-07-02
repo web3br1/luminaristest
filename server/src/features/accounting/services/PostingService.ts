@@ -1,4 +1,4 @@
-import { AppError, ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
+import { AccountingPeriodNotOpenError, AppError, ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
 import logger from '../../../lib/logger';
 import { Prisma } from 'generated/prisma';
 import type { Account } from 'generated/prisma';
@@ -12,6 +12,8 @@ import type {
 } from '../repositories/IJournalEntryRepository';
 import type { IPostingRepository } from '../repositories/IPostingRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
+import type { IAccountingPeriodRepository } from '../repositories/IAccountingPeriodRepository';
+import type { AuditService } from './AuditService';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { accountingScopeWhere } from '../scope/AccountingScope';
 
@@ -35,7 +37,55 @@ export class PostingService {
     private readonly journalEntryRepo: IJournalEntryRepository,
     private readonly postingRepo: IPostingRepository,
     private readonly policy: IAccountingPolicy,
+    private readonly periodRepo: IAccountingPeriodRepository,
+    private readonly auditService: AuditService,
   ) {}
+
+  /** Derive year+month from an ISO date string using UTC (no tz shift for date-only strings). */
+  private extractYearMonth(dateStr: string): { year: number; month: number } {
+    // Date-only strings (YYYY-MM-DD) are parsed as UTC midnight by JS — no tz conversion needed.
+    const d = new Date(dateStr);
+    return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
+  }
+
+  /** Fiscal year from a posting date in America/Sao_Paulo (ADR-INCR3 Emenda 3). */
+  private fiscalYearFrom(dateStr: string): number {
+    return parseInt(
+      new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', year: 'numeric' }).format(
+        new Date(dateStr),
+      ),
+      10,
+    );
+  }
+
+  /**
+   * Preflight period gate (outside tx) — fast rejection before opening a transaction.
+   * The authoritative gate lives in assertPeriodOpenTx (inside the tx).
+   */
+  private async assertPeriodOpen(scope: AccountingScope, dateStr: string): Promise<void> {
+    const { year, month } = this.extractYearMonth(dateStr);
+    const period = await this.periodRepo.findByYearMonth(scope, year, month);
+    if (!period || period.status !== 'OPEN') {
+      throw new AccountingPeriodNotOpenError(year, month);
+    }
+  }
+
+  /**
+   * Authoritative period gate (inside tx) — re-checks AFTER the tx is open, immediately
+   * before the Posted write, to close the TOCTOU window where an admin could close the
+   * period between the preflight check and the commit.
+   */
+  private async assertPeriodOpenTx(
+    tx: Prisma.TransactionClient,
+    scope: AccountingScope,
+    dateStr: string,
+  ): Promise<void> {
+    const { year, month } = this.extractYearMonth(dateStr);
+    const period = await this.periodRepo.findByYearMonth(scope, year, month, tx);
+    if (!period || period.status !== 'OPEN') {
+      throw new AccountingPeriodNotOpenError(year, month);
+    }
+  }
 
   /**
    * Idempotently ensure the canonical chart of accounts exists for the scope.
@@ -106,6 +156,9 @@ export class PostingService {
     }
     const { userId, unitId } = accountingScopeWhere(scope);
 
+    // PERIOD GATE — preflight (fast rejection before tx); authoritative gate is inside the tx.
+    await this.assertPeriodOpen(scope, input.date);
+
     await this.ensureChartOfAccounts(scope);
 
     // BALANCE INVARIANT — integer cents, EXACT equality (no float/epsilon, Contract §2.1).
@@ -144,6 +197,12 @@ export class PostingService {
     try {
       // ATOMIC — entry header + all legs commit/roll back together.
       const entry = await this.postingRepo.runTransaction(async (tx) => {
+        // AUTHORITATIVE PERIOD GATE — inside the tx, before Posted. Closes the TOCTOU window.
+        await this.assertPeriodOpenTx(tx, scope, input.date);
+
+        const fiscalYear = this.fiscalYearFrom(input.date);
+        const entryNumber = await this.postingRepo.nextEntryNumber(scope, fiscalYear, tx);
+
         const created = await this.journalEntryRepo.create(
           {
             userId,
@@ -155,6 +214,8 @@ export class PostingService {
             sourceId: input.sourceId ?? null,
             createdById: scope.actorUserId,
             postedById: scope.actorUserId,
+            fiscalYear,
+            entryNumber,
           },
           tx,
         );
@@ -174,6 +235,13 @@ export class PostingService {
         }
 
         const postings = await this.postingRepo.findByEntryId(scope, created.id, tx);
+        await this.auditService.append(tx, scope, {
+          actorUserId: scope.actorUserId,
+          eventType:   'entry.posted',
+          targetType:  'journal_entry',
+          targetId:    created.id,
+          payload:     { sourceType, sourceId: input.sourceId, description: input.description, sumDebitCents: String(sumDebit), lineCount: String(resolvedLines.length) },
+        });
         return { ...created, postings };
       });
 
@@ -219,6 +287,9 @@ export class PostingService {
     }
     const { userId, unitId } = accountingScopeWhere(scope);
 
+    // PERIOD GATE — gate on the REVERSAL date (not the original entry date).
+    await this.assertPeriodOpen(scope, input.reversalPostingDate);
+
     const original = await this.journalEntryRepo.findById(scope, input.lancamentoId);
     if (!original) {
       throw new NotFoundError(`Lançamento '${input.lancamentoId}' não foi encontrado.`);
@@ -262,17 +333,29 @@ export class PostingService {
     let result: JournalEntryWithPostings;
     try {
       result = await this.postingRepo.runTransaction(async (tx) => {
+        // AUTHORITATIVE PERIOD GATE — inside the tx, on the reversal date.
+        await this.assertPeriodOpenTx(tx, scope, input.reversalPostingDate);
+
+        const reversalFiscalYear = this.fiscalYearFrom(input.reversalPostingDate);
+        const reversalEntryNumber = await this.postingRepo.nextEntryNumber(
+          scope,
+          reversalFiscalYear,
+          tx,
+        );
+
         const reversal = await this.journalEntryRepo.create(
           {
             userId,
             unitId,
-            date: new Date(),
-            description: `Estorno de ${original.id}`,
+            date: new Date(input.reversalPostingDate),
+            description: input.reason ? `Estorno de ${original.id} — ${input.reason}` : `Estorno de ${original.id}`,
             status: 'Posted',
             sourceType: 'reversal',
             sourceId: original.id,
             createdById: scope.actorUserId,
             postedById: scope.actorUserId,
+            fiscalYear: reversalFiscalYear,
+            entryNumber: reversalEntryNumber,
           },
           tx,
         );
@@ -296,6 +379,13 @@ export class PostingService {
         await this.journalEntryRepo.setReversedBy(scope, original.id, reversal.id, tx);
 
         const reversalPostings = await this.postingRepo.findByEntryId(scope, reversal.id, tx);
+        await this.auditService.append(tx, scope, {
+          actorUserId: scope.actorUserId,
+          eventType:   'entry.reversed',
+          targetType:  'journal_entry',
+          targetId:    reversal.id,
+          payload:     { originalId: original.id, reversalId: reversal.id, reason: input.reason },
+        });
         return { ...reversal, postings: reversalPostings };
       });
     } catch (error) {
@@ -375,13 +465,23 @@ export class PostingService {
     }
     const { userId, unitId } = accountingScopeWhere(scope);
     try {
-      return await this.accountRepo.create({
-        userId,
-        unitId,
-        code: dto.code,
-        name: dto.name,
-        nature: dto.nature,
-        acceptsEntries: dto.acceptsEntries ?? true,
+      return await this.postingRepo.runTransaction(async (tx) => {
+        const account = await this.accountRepo.create({
+          userId,
+          unitId,
+          code: dto.code,
+          name: dto.name,
+          nature: dto.nature,
+          acceptsEntries: dto.acceptsEntries ?? true,
+        }, tx);
+        await this.auditService.append(tx, scope, {
+          actorUserId: scope.actorUserId,
+          eventType:   'account.created',
+          targetType:  'account',
+          targetId:    account.id,
+          payload:     { code: account.code, name: account.name, nature: account.nature, acceptsEntries: String(account.acceptsEntries) },
+        });
+        return account;
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -432,7 +532,16 @@ export class PostingService {
       );
     }
 
-    await this.accountRepo.softDelete(scope, accountId);
+    await this.postingRepo.runTransaction(async (tx) => {
+      await this.accountRepo.softDelete(scope, accountId, tx);
+      await this.auditService.append(tx, scope, {
+        actorUserId: scope.actorUserId,
+        eventType:   'account.deleted',
+        targetType:  'account',
+        targetId:    accountId,
+        payload:     { code: account.code },
+      });
+    });
     logger.info('Account soft-deleted', { accountId, userId: scope.ownerUserId });
   }
 }

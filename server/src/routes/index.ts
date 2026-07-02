@@ -15,7 +15,9 @@ import analyticsRoutes from './analytics';
 import analyticsDefinitionsRoutes from './analyticsDefinitions';
 import crmRoutes from './crm';
 import accountingRoutes from './accounting';
+import salesRoutes from './sales';
 import savedViewsRoutes from './saved-views';
+import packageBalanceRoutes from './packageBalances';
 
 const router = Router();
 
@@ -55,7 +57,9 @@ router.use('/analytics', analyticsRoutes);
 router.use('/analytics/definitions', analyticsDefinitionsRoutes);
 router.use('/crm', crmRoutes);
 router.use('/accounting', accountingRoutes);
+router.use('/sales', salesRoutes);
 router.use('/saved-views', savedViewsRoutes);
+router.use('/package-balances', packageBalanceRoutes);
 
 export { router };
 

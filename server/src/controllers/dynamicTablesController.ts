@@ -9,6 +9,9 @@ import {
   CreateDynamicTableDataDto,
   UpdateDynamicTableDataDto,
 } from '@/features/dynamicTables/dtos/DynamicTable.dto';
+import { maybeSyncSalonSaleFinalized } from '@/features/accounting/sync/bridges/SalonSalesAccountingBridge';
+import { maybeSyncSalonPackageSold } from '@/features/accounting/sync/bridges/SalonPackageSoldBridge';
+import { maybeSyncSalonSaleSettled } from '@/features/accounting/sync/bridges/SalonSaleSettlementBridge';
 
 const cuidSchema = z.string().cuid();
 
@@ -88,6 +91,17 @@ export async function createTableData(req: Request, res: Response) {
 
     const service = getFactory().getDynamicTableService();
     const created = await service.createTableData(ctx, req.params.tableId, body.data);
+
+    // Post-commit accounting integration (§2.1: controller/integration layer, NEVER inside
+    // the DynamicTable engine). A sale may be born Finalized — non-fatal, idempotent. Revenue
+    // first, then settlement (a sale born Finalized+Paid): the settlement bridge's ordering gate
+    // requires the revenue entry, which the awaited finalize call books just above.
+    // Finalize is anti-revenue-gated for all-Package sales (Incremento G P4); the package-sold
+    // bridge books their origin (D 1.1.2 / C 2.1.1) instead. Exactly one of the two acts.
+    await maybeSyncSalonSaleFinalized(ctx, req.params.tableId, created);
+    await maybeSyncSalonPackageSold(ctx, req.params.tableId, created);
+    await maybeSyncSalonSaleSettled(ctx, req.params.tableId, created);
+
     return res.status(201).json({ success: true, data: created });
   } catch (error) {
     return handleApiError(error, res);
@@ -107,6 +121,15 @@ export async function updateTableData(req: Request, res: Response) {
 
     const service = getFactory().getDynamicTableService();
     const updated = await service.updateTableData(ctx, req.params.dataId, body.data);
+
+    // Post-commit accounting integration (§2.1: controller/integration layer, NEVER inside
+    // the DynamicTable engine). Fires on the Draft→Finalized transition — non-fatal,
+    // idempotent. tableId comes from the route param of PUT /:tableId/data/:dataId.
+    // Finalize is anti-revenue-gated for all-Package sales (Incremento G P4); the package-sold
+    // bridge books their origin instead. Exactly one of the two acts.
+    await maybeSyncSalonSaleFinalized(ctx, req.params.tableId, updated);
+    await maybeSyncSalonPackageSold(ctx, req.params.tableId, updated);
+
     return res.json({ success: true, data: updated });
   } catch (error) {
     return handleApiError(error, res);

@@ -36,6 +36,8 @@ model User {
   accounts       Account[]        // Relation to Account (accounting)
   journalEntries JournalEntry[]   // Relation to JournalEntry (accounting)
   postings       Posting[]        // Relation to Posting (accounting)
+  customerPackageBalances CustomerPackageBalance[] // Relation to CustomerPackageBalance (prepaid packages)
+  packageBalanceMovements PackageBalanceMovement[] // Relation to PackageBalanceMovement (prepaid packages)
 }
 
 // Per-user saved table views (query/filters/sort) for the canonical table stack.
@@ -287,6 +289,95 @@ model ActionProposal {
 // `unitId` is a DynamicTable row id (units live in DynamicTable), so it is a plain
 // scoped string, NOT a Prisma FK — same convention as SavedTableView.tableId.
 
+// Accounting periods — fiscal calendar months with a state machine controlling
+// whether postings are allowed. FUTURE = not yet opened; OPEN = accepts postings;
+// SOFT_CLOSED = closed but reopenable; HARD_CLOSED = terminal, never reopens.
+// Period is derived from entry.date in scope.timeZone — no FK on JournalEntry.
+enum AccountingPeriodStatus {
+  FUTURE
+  OPEN
+  SOFT_CLOSED
+  HARD_CLOSED
+}
+
+model AccountingPeriod {
+  id          String                  @id @default(cuid())
+  userId      String
+  unitId      String
+  year        Int
+  month       Int
+  status      AccountingPeriodStatus  @default(FUTURE)
+  openedAt    DateTime?
+  openedById  String?
+  closedAt    DateTime?
+  closedById  String?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  transitions AccountingPeriodTransition[]
+  @@unique([userId, unitId, year, month])
+  @@index([userId, unitId, status])
+  @@index([userId, unitId, year])
+  @@map("accounting_periods")
+}
+
+model AccountingPeriodTransition {
+  id          String                  @id @default(cuid())
+  userId      String
+  unitId      String
+  periodId    String
+  fromStatus  AccountingPeriodStatus?
+  toStatus    AccountingPeriodStatus
+  actorUserId String
+  reason      String?
+  occurredAt  DateTime                @default(now())
+  period      AccountingPeriod        @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  @@index([userId, unitId, periodId])
+  @@index([actorUserId, occurredAt])
+  @@map("accounting_period_transitions")
+}
+
+// Audit trail — append-only, hash-chained per (scopeUserId, unitId).
+// tamper-evident: detects mutation by the application; does NOT protect against
+// a DB operator rewriting the entire chain. Future hardening: DailyAuditAnchor.
+// No FK cascade on scopeUserId/actorUserId: deleting a user must NOT erase the trail.
+model AuditEvent {
+  id               String   @id @default(cuid())
+  scopeUserId      String
+  unitId           String
+  seq              BigInt
+  actorUserId      String?
+  actorType        String   @default("USER")
+  eventType        String
+  targetType       String
+  targetId         String
+  payload          String
+  prevHash         String
+  hash             String
+  hashVersion      Int      @default(1)
+  canonicalVersion Int      @default(1)
+  createdAt        DateTime
+  @@unique([scopeUserId, unitId, seq])
+  @@unique([scopeUserId, unitId, hash])
+  @@index([scopeUserId, unitId, createdAt])
+  @@index([scopeUserId, unitId, targetType, targetId])
+  @@index([actorUserId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("audit_events")
+}
+
+// Head of the audit chain per (scopeUserId, unitId). Optimistic-lock via version.
+// Genesis: nextSeq=1, headHash="0".repeat(64).
+model AuditChainHead {
+  scopeUserId String
+  unitId      String
+  nextSeq     BigInt
+  headHash    String
+  version     Int      @default(0)
+  updatedAt   DateTime @updatedAt
+  @@id([scopeUserId, unitId])
+  @@map("audit_chain_heads")
+}
+
 // Chart of accounts (plano de contas). Hierarchy is modeled by the coded key
 // (`code`, e.g. "1.1.2") — the parent is the prefix; there is no self-relation.
 // Only leaf accounts (`acceptsEntries`) receive ledger lines.
@@ -328,16 +419,122 @@ model JournalEntry {
   reversedBy   JournalEntry?  @relation("Reversal", fields: [reversedById], references: [id])
   reverses     JournalEntry?  @relation("Reversal")
   postings     Posting[]
+  attachments  DocumentAttachment[] @relation("JournalEntryAttachments")
   createdById  String?   // actor who created this entry (authorship trail)
   postedById   String?   // actor who posted/confirmed this entry (SoD trail)
+  fiscalYear   Int       // derived from date (postingDate) in America/Sao_Paulo; assigned at post time
+  entryNumber  Int       // sequential within (userId, unitId, fiscalYear); assigned at post time
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   // Idempotency — a real DB constraint (SQLite treats NULL sourceId as distinct, so
   // manual entries never collide). Closes the double-post window app code cannot.
   @@unique([userId, unitId, sourceType, sourceId])
+  @@unique([userId, unitId, fiscalYear, entryNumber])
   @@index([userId, unitId, status])
+  @@index([userId, unitId, fiscalYear])
   @@map("journal_entries")
+}
+
+// Sequential counter per (userId, unitId, fiscalYear). The posting transaction
+// does: upsert (last += 1) and uses the new last as entryNumber. Rollback
+// of the outer tx also rolls back the increment — gapless transacional.
+model JournalEntrySequence {
+  userId     String
+  unitId     String
+  fiscalYear Int
+  last       Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@id([userId, unitId, fiscalYear])
+  @@map("journal_entry_sequences")
+}
+
+// Documentary evidence attached to an accounting entry (BE-INCR-5). First-class
+// Prisma (NOT CrmAttachment): two-level tenancy (userId + unitId via AccountingScope),
+// a REAL FK to journal_entries, a sha256 integrity checksum, and audit-in-tx via
+// AuditService. `userId`/`unitId`/`uploadedById`/`deletedById` are plain scope/actor
+// strings (no User FK — mirrors AuditEvent/JournalEntry.createdById). The binary lives
+// on disk (lib/attachmentStorage); only the relative storageKey is stored here.
+// `targetType` is polymorphic-in-intent but the FK ties it to JournalEntry this
+// increment; broadening to other targets (INCR-6+) relaxes the FK.
+model DocumentAttachment {
+  id           String       @id @default(cuid())
+  userId       String       // scope owner (AccountingScope.ownerUserId); plain scope key
+  unitId       String       // business unit (scoped string, not a FK)
+  targetType   String       @default("JOURNAL_ENTRY")
+  targetId     String       // journal_entries.id
+  journalEntry JournalEntry @relation("JournalEntryAttachments", fields: [targetId], references: [id], onDelete: Cascade)
+  fileName     String       // sanitized display name (what is on disk), never raw client input
+  mimeType     String
+  fileSize     Int
+  sha256       String       // 64-char hex; computed server-side at upload
+  storageKey   String       // relative path within ATTACHMENTS_DIR (attachmentStorage.saveFile)
+  uploadedById String?      // actor who uploaded (AccountingScope.actorUserId); plain string
+  deletedById  String?      // actor who soft-deleted; plain string
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  @@index([userId, unitId, targetType, targetId])
+  @@index([deletedAt])
+  @@map("document_attachments")
+}
+
+// Accounting Data Exchange (BE/FE-INCR-6) — staging for CSV/XLSX import/export. System
+// lifecycle data (job status + per-row validation), NOT a financial-invariant table and
+// NOT a DynamicTable preset. Imports commit through PostingService.postEntry/createAccount;
+// this model never writes ledger data directly. Tenancy = plain scoped strings (no User FK).
+model AccountingDataExchangeJob {
+  id            String    @id @default(cuid())
+  userId        String    // scope owner (AccountingScope.ownerUserId); plain scope key
+  unitId        String    // business unit (scoped string, not a FK)
+  direction     String    // IMPORT | EXPORT
+  kind          String    // IMPORT_CHART_OF_ACCOUNTS | IMPORT_OPENING_BALANCES | IMPORT_JOURNAL_ENTRIES | EXPORT_*
+  status        String    // UPLOADED | VALIDATED | COMMITTING | COMMITTED | PARTIAL | FAILED | EXPORTED
+  originalName  String?   // client-supplied upload name (display only)
+  mimeType      String?
+  sizeBytes     Int?
+  sha256        String?   // 64-char hex of the uploaded/generated artifact
+  storageKey    String?   // relative path within ATTACHMENTS_DIR (attachmentStorage); source or artifact
+  totalRows     Int       @default(0)
+  validRows     Int       @default(0)
+  invalidRows   Int       @default(0)
+  committedRows Int       @default(0)
+  requestedById String    // actor who created the job; plain string
+  committedById String?   // actor who committed; plain string
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  committedAt   DateTime?
+  rows          AccountingDataExchangeRow[]
+
+  @@index([userId, unitId, createdAt])
+  @@map("accounting_data_exchange_jobs")
+}
+
+// One parsed row of an import job (export jobs carry no rows). Holds the raw + normalized
+// cells and the per-row validation outcome; targetId is set (plain string) after commit.
+model AccountingDataExchangeRow {
+  id             String                    @id @default(cuid())
+  userId         String                    // plain scope key (denormalized for scoped queries)
+  unitId         String
+  jobId          String
+  job            AccountingDataExchangeJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  rowNumber      Int                       // 1-based source row (for user-facing error reports)
+  groupKey       String?                   // entryKey — groups multi-line journal entries
+  rawJson        String                    // original parsed cells (JSON string)
+  normalizedJson String?                   // canonicalized cells (money as integer cents string); null if unparseable
+  status         String                    // VALID | INVALID | COMMITTED | SKIPPED
+  errorCode      String?
+  errorMessage   String?
+  field          String?                   // offending column, when applicable
+  targetType     String?                   // ACCOUNT | JOURNAL_ENTRY (set after commit)
+  targetId       String?                   // created entity id (plain string, not a FK)
+  createdAt      DateTime                  @default(now())
+
+  @@index([userId, unitId, jobId])
+  @@index([userId, unitId, groupKey])
+  @@map("accounting_data_exchange_rows")
 }
 
 // Ledger line (partida) — one leg of a double entry. Money is INTEGER CENTS; the
@@ -361,4 +558,59 @@ model Posting {
   @@index([entryId])
   @@index([accountId])
   @@map("postings")
+}
+
+// ── Prepaid packages (Incremento G — Prepaid Package Origin) ───────────────────
+// First-class Prisma (NOT DynamicTable): the prepaid balance carries a hard
+// financial invariant (balanceCents >= 0) that mirrors the liability account
+// 2.1.1 "Pacotes Pré-pagos", so it is modeled with real columns, integer-cent
+// money and DB-level unique constraints — same rationale as the accounting tower.
+// The package CATALOG and the package SALE stay in DynamicTable (operational
+// origin); only the balance lives here. Tenancy is two-level: userId (FK) AND
+// unitId (DynamicTable row id; scoped string, not a FK). `customerId`/`packageId`
+// are DynamicTable row ids (scoped strings, not FKs — same convention as unitId).
+
+// Current prepaid balance per customer × package (the invariant holder). The
+// `balanceCents` column is maintained (not recomputed) for O(1) sufficiency
+// checks; the append-only PackageBalanceMovement log is the source of truth for
+// idempotency and audit. The >= 0 guard is enforced inside the service tx
+// (SQLite has no CHECK constraint — same convention as the cents guards in DTOs).
+model CustomerPackageBalance {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId       String    // business unit (DynamicTable row id; scoped string, not a FK)
+  customerId   String    // customer (DynamicTable row id; scoped string, not a FK)
+  packageId    String    // package from the catalog (DynamicTable row id; scoped string, not a FK)
+  balanceCents Int       @default(0)
+  expiresAt    DateTime? // reserved for future expiry; NOT enforced in the G MVP
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@unique([userId, unitId, customerId, packageId]) // one live balance per customer × package
+  @@index([userId, unitId])
+  @@index([deletedAt])
+  @@map("customer_package_balances")
+}
+
+// Append-only movement log (one credit at package-sale origin, one debit per
+// consumption). This is the idempotency trap: the unique (userId, unitId, saleId,
+// kind) closes the double-credit / double-debit window that reconcile re-drives
+// would otherwise open. `deltaCents` is always > 0; the sign comes from `kind`.
+model PackageBalanceMovement {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId     String
+  customerId String
+  packageId  String
+  saleId     String   // the sale (DynamicTable row id) that originated this movement
+  kind       String   // 'credit' (package-sale origin) | 'debit' (Package Balance consumption)
+  deltaCents Int      // always > 0; direction is given by `kind`
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, unitId, saleId, kind]) // closes double-apply on reconcile re-drive
+  @@index([userId, unitId, customerId, packageId])
+  @@map("package_balance_movements")
 }

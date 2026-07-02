@@ -56,9 +56,9 @@ export class AccountRepository implements IAccountRepository {
     });
   }
 
-  public async softDelete(scope: AccountingScope, id: string): Promise<Account> {
+  public async softDelete(scope: AccountingScope, id: string, tx?: Prisma.TransactionClient): Promise<Account> {
     const { userId, unitId } = accountingScopeWhere(scope);
-    return prisma.account.update({
+    return (tx ?? prisma).account.update({
       where: { id, userId, unitId },
       data: { deletedAt: new Date() },
     });
