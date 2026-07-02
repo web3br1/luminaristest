@@ -6,12 +6,7 @@ import {
 } from '../../../lib/services/accounting.service';
 import { Modal } from '../../../components/ui/Modal';
 import { formatCents } from '../lib/formatCents';
-
-// ── local helpers ─────────────────────────────────────────────────────────────
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('pt-BR');
-}
+import { formatDate } from '../lib/formatDate';
 
 // ── sub-components ────────────────────────────────────────────────────────────
 

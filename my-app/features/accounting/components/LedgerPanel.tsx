@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react';
 import { accountingService, type AccountLedgerReport, type Account } from '../../../lib/services/accounting.service';
 import { formatCents } from '../lib/formatCents';
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('pt-BR');
-}
+import { formatDate } from '../lib/formatDate';
 
 interface Props {
   unitId: string;
