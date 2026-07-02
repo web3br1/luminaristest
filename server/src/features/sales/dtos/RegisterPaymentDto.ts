@@ -21,8 +21,28 @@ export const RegisterPaymentSchema = z
     paymentMethod: z.enum(['Credit Card', 'Debit Card', 'Cash', 'Pix', 'Package Balance']),
     paidAt: z.string().datetime().optional(),
     paymentReference: z.string().max(255).optional(),
+    // Which prepaid package balance to draw from (Incremento G P5). Required for
+    // 'Package Balance', and FORBIDDEN for every other method (no ambiguous payload).
+    packageId: z.string().min(1).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((v, ctx) => {
+    if (v.paymentMethod === 'Package Balance') {
+      if (!v.packageId) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['packageId'],
+          message: 'packageId é obrigatório para pagamento com saldo de pacote.',
+        });
+      }
+    } else if (v.packageId !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['packageId'],
+        message: 'packageId só é permitido quando paymentMethod é Package Balance.',
+      });
+    }
+  });
 
 export type RegisterPaymentInput = z.infer<typeof RegisterPaymentSchema>;
 

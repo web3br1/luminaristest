@@ -24,7 +24,8 @@ export type AccountingEvent = {
     | 'crm.opportunity.won'
     | 'salon.sale.finalized'
     | 'salon.sale.returned'
-    | 'salon.sale.settled';
+    | 'salon.sale.settled'
+    | 'salon.package.sold';
   /** The source record id. JournalEntry.sourceId (idempotency axis 2). */
   sourceId: string;
   /** Tenancy unit of the SOURCE record — never defaulted or inferred elsewhere. */
@@ -164,6 +165,36 @@ export function buildSalonSaleSettledEvent(fields: {
     currency: fields.currency,
     occurredAt: fields.occurredAt,
     paymentMethod: fields.paymentMethod,
+    label: fields.label,
+  };
+}
+
+/**
+ * Pure builder for the salon "package sold" event (Incremento G P4, origem) — shared by
+ * the package-sold bridge (live trigger, post-commit) and the reconciliation job (re-drive)
+ * so both emit identical events. Carries the raw float `totalAmount`; the mapper converts to
+ * cents.
+ *
+ * An all-Package sale is prepaid: selling it does NOT recognize revenue (that is deferred to
+ * consumption). It books the OBLIGATION instead — D 1.1.2 A Receber / C 2.1.1 Pacotes
+ * Pré-pagos — under a DISTINCT sourceType ('salon.package.sold') so it never collides with the
+ * (gated-out) revenue entry on @@unique([userId,unitId,sourceType,sourceId]).
+ */
+export function buildSalonPackageSoldEvent(fields: {
+  saleId: string;
+  unitId: string;
+  amount: number;
+  currency: string;
+  occurredAt: string;
+  label: string;
+}): AccountingEvent {
+  return {
+    sourceType: 'salon.package.sold',
+    sourceId: fields.saleId,
+    unitId: fields.unitId,
+    amount: fields.amount,
+    currency: fields.currency,
+    occurredAt: fields.occurredAt,
     label: fields.label,
   };
 }

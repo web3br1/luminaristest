@@ -26,7 +26,7 @@ function finalizedSaleRow(over: Record<string, unknown> = {}) {
   };
 }
 
-function buildService(over: { dts?: any; repo?: any } = {}) {
+function buildService(over: { dts?: any; repo?: any; pkg?: any } = {}) {
   const dynamicTableService = {
     updateTableData: jest.fn(async () => ({
       id: 'sale-1',
@@ -39,8 +39,17 @@ function buildService(over: { dts?: any; repo?: any } = {}) {
     findDataById: jest.fn(async () => finalizedSaleRow()),
     ...over.repo,
   };
-  const svc = new RegisterPaymentService(dynamicTableService as any, repository as any);
-  return { svc, dynamicTableService, repository };
+  const packageBalanceService = {
+    assertSufficient: jest.fn(async () => undefined),
+    debitForConsumption: jest.fn(async () => undefined),
+    ...over.pkg,
+  };
+  const svc = new RegisterPaymentService(
+    dynamicTableService as any,
+    repository as any,
+    packageBalanceService as any,
+  );
+  return { svc, dynamicTableService, repository, packageBalanceService };
 }
 
 const baseInput: RegisterPaymentInput = {
@@ -143,6 +152,98 @@ describe('RegisterPaymentService.registerPayment', () => {
     it('missing sale → NotFoundError', async () => {
       const { svc } = buildService({ repo: { findDataById: jest.fn(async () => null) } });
       await expect(svc.registerPayment(user, baseInput)).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
+
+  // --- Package Balance consumption (Incremento G P5) ---
+  describe('Package Balance consumption', () => {
+    const pbInput: RegisterPaymentInput = {
+      tableId: SALES_TABLE_ID,
+      saleId: 'sale-1',
+      paymentMethod: 'Package Balance',
+      packageId: 'pkg-1',
+    };
+    const saleWithCustomer = () => finalizedSaleRow({ customerId: 'cust-1' });
+
+    it('Cash/Pix/Card NEVER touch the package balance (regression)', async () => {
+      const { svc, packageBalanceService } = buildService();
+      await svc.registerPayment(user, baseInput); // Pix
+      expect(packageBalanceService.assertSufficient).not.toHaveBeenCalled();
+      expect(packageBalanceService.debitForConsumption).not.toHaveBeenCalled();
+    });
+
+    it('BLOCKS (ValidationError) when balance is insufficient — no write, no settlement, no debit', async () => {
+      const { svc, dynamicTableService, packageBalanceService } = buildService({
+        repo: { findDataById: jest.fn(async () => saleWithCustomer()) },
+        pkg: {
+          assertSufficient: jest.fn(async () => {
+            throw new ValidationError('saldo insuficiente');
+          }),
+          debitForConsumption: jest.fn(async () => undefined),
+        },
+      });
+      await expect(svc.registerPayment(user, pbInput)).rejects.toBeInstanceOf(ValidationError);
+      expect(dynamicTableService.updateTableData).not.toHaveBeenCalled();
+      expect(maybeSyncSalonSaleSettled).not.toHaveBeenCalled();
+      expect(packageBalanceService.debitForConsumption).not.toHaveBeenCalled();
+    });
+
+    it('with sufficient balance: marks Paid, then debits ONCE (post-commit) with cents', async () => {
+      const { svc, dynamicTableService, packageBalanceService } = buildService({
+        repo: { findDataById: jest.fn(async () => saleWithCustomer()) },
+      });
+      await svc.registerPayment(user, pbInput);
+      expect(packageBalanceService.assertSufficient).toHaveBeenCalledWith(
+        expect.objectContaining({ unitId: 'unit-1' }),
+        'cust-1',
+        'pkg-1',
+        25000,
+      );
+      expect(dynamicTableService.updateTableData).toHaveBeenCalledTimes(1);
+      expect(packageBalanceService.debitForConsumption).toHaveBeenCalledTimes(1);
+      expect(packageBalanceService.debitForConsumption).toHaveBeenCalledWith(
+        expect.objectContaining({ unitId: 'unit-1' }),
+        { customerId: 'cust-1', packageId: 'pkg-1', saleId: 'sale-1', amountCents: 25000 },
+      );
+    });
+
+    it('idempotent re-drive (already Paid): re-fires debit, never re-writes', async () => {
+      const paidRow = finalizedSaleRow({ paymentStatus: 'Paid', customerId: 'cust-1' });
+      const { svc, dynamicTableService, packageBalanceService } = buildService({
+        repo: { findDataById: jest.fn(async () => paidRow) },
+      });
+      await svc.registerPayment(user, pbInput);
+      expect(dynamicTableService.updateTableData).not.toHaveBeenCalled();
+      expect(packageBalanceService.debitForConsumption).toHaveBeenCalledTimes(1);
+    });
+
+    it('persists paidWithPackageId (P6) so reconcile can re-drive the debit', async () => {
+      const { svc, dynamicTableService } = buildService({
+        repo: { findDataById: jest.fn(async () => saleWithCustomer()) },
+      });
+      await svc.registerPayment(user, pbInput);
+      const [, , dto] = dynamicTableService.updateTableData.mock.calls[0];
+      expect(dto.data.paidWithPackageId).toBe('pkg-1');
+    });
+
+    it('does NOT persist paidWithPackageId for Cash/Pix/Card', async () => {
+      const { svc, dynamicTableService } = buildService();
+      await svc.registerPayment(user, baseInput); // Pix
+      const [, , dto] = dynamicTableService.updateTableData.mock.calls[0];
+      expect(dto.data).not.toHaveProperty('paidWithPackageId');
+    });
+
+    it('NON-FATAL debit: a post-commit debit failure does not throw (payment already committed)', async () => {
+      const { svc } = buildService({
+        repo: { findDataById: jest.fn(async () => saleWithCustomer()) },
+        pkg: {
+          assertSufficient: jest.fn(async () => undefined),
+          debitForConsumption: jest.fn(async () => {
+            throw new Error('balance store down');
+          }),
+        },
+      });
+      await expect(svc.registerPayment(user, pbInput)).resolves.toBeDefined();
     });
   });
 });

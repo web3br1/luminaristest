@@ -76,7 +76,7 @@ interface PostingsDrawerProps {
 function PostingsDrawer({ entry }: PostingsDrawerProps) {
   return (
     <tr>
-      <td colSpan={6} className="bg-neutral-950/60 px-6 pb-3 pt-1">
+      <td colSpan={8} className="bg-neutral-950/60 px-6 pb-3 pt-1">
         <table className="w-full text-xs">
           <thead>
             <tr className="text-left text-neutral-500">
@@ -132,6 +132,11 @@ function JournalEntryRow({ entry, onReverseClick }: JournalEntryRowProps) {
         <td className="w-8 px-3 py-2.5 text-neutral-500">
           {expanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
         </td>
+        <td className="px-4 py-2.5 font-mono text-xs text-neutral-500">
+          {entry.fiscalYear && entry.entryNumber != null
+            ? `${entry.fiscalYear}/${String(entry.entryNumber).padStart(4, '0')}`
+            : '—'}
+        </td>
         <td className="px-4 py-2.5 tabular-nums text-neutral-300">{formatDate(entry.date)}</td>
         <td className="max-w-xs px-4 py-2.5 text-neutral-100">
           <span className="line-clamp-1">{entry.description}</span>
@@ -170,6 +175,8 @@ function JournalEntryRow({ entry, onReverseClick }: JournalEntryRowProps) {
 interface JournalEntriesPanelProps {
   unitId: string;
   onReversalComplete?: () => void;
+  /** Navigate to the Períodos tab (used in PERIOD_NOT_OPEN error message). */
+  onNavigateToPeriods?: () => void;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -179,11 +186,13 @@ interface JournalEntriesPanelProps {
  * given business unit. Each row is expandable to show its individual postings.
  * Supports reversal (estorno) with a confirmation modal.
  */
-export function JournalEntriesPanel({ unitId, onReversalComplete }: JournalEntriesPanelProps) {
+export function JournalEntriesPanel({ unitId, onReversalComplete, onNavigateToPeriods }: JournalEntriesPanelProps) {
   const [entries, setEntries] = useState<JournalEntryWithFullPostings[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [periodError, setPeriodError] = useState(false);
   const [confirmReverseId, setConfirmReverseId] = useState<string | null>(null);
+  const [reversalDate, setReversalDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [isReversing, setIsReversing] = useState(false);
 
   // ── fetch ──────────────────────────────────────────────────────────────────
@@ -215,13 +224,18 @@ export function JournalEntriesPanel({ unitId, onReversalComplete }: JournalEntri
     if (!confirmReverseId || !confirmEntry) return;
     setIsReversing(true);
     setError(null);
+    setPeriodError(false);
     try {
-      await accountingService.reverseEntry({ unitId, lancamentoId: confirmReverseId });
+      await accountingService.reverseEntry({ unitId, lancamentoId: confirmReverseId, reversalPostingDate: reversalDate });
       setConfirmReverseId(null);
       await fetchEntries();
       onReversalComplete?.();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao estornar lançamento.';
+      // Detect ACCOUNTING_PERIOD_NOT_OPEN to show inline guidance
+      if (msg.includes('ACCOUNTING_PERIOD_NOT_OPEN') || msg.includes('período') && msg.includes('fechado')) {
+        setPeriodError(true);
+      }
       setError(msg);
     } finally {
       setIsReversing(false);
@@ -257,6 +271,7 @@ export function JournalEntriesPanel({ unitId, onReversalComplete }: JournalEntri
             <thead>
               <tr className="border-b border-neutral-800 text-left text-neutral-400">
                 <th className="w-8 px-3 py-3" aria-label="Expandir" />
+                <th className="px-4 py-3 font-medium">Nº</th>
                 <th className="px-4 py-3 font-medium">Data</th>
                 <th className="px-4 py-3 font-medium">Descrição</th>
                 <th className="px-4 py-3 text-right font-medium">Débitos</th>
@@ -282,7 +297,7 @@ export function JournalEntriesPanel({ unitId, onReversalComplete }: JournalEntri
       <Modal
         isOpen={!!confirmReverseId}
         onClose={() => {
-          if (!isReversing) setConfirmReverseId(null);
+          if (!isReversing) { setConfirmReverseId(null); setPeriodError(false); setError(null); }
         }}
         title="Confirmar estorno"
         themeColor="bg-red-600"
@@ -290,7 +305,7 @@ export function JournalEntriesPanel({ unitId, onReversalComplete }: JournalEntri
         footer={
           <>
             <button
-              onClick={() => setConfirmReverseId(null)}
+              onClick={() => { setConfirmReverseId(null); setPeriodError(false); setError(null); }}
               disabled={isReversing}
               className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-300 transition-colors hover:bg-neutral-700 disabled:opacity-50"
             >
@@ -316,7 +331,7 @@ export function JournalEntriesPanel({ unitId, onReversalComplete }: JournalEntri
           </>
         }
       >
-        <div className="px-6 py-5 text-sm text-neutral-300">
+        <div className="px-6 py-5 text-sm text-neutral-300 space-y-4">
           {confirmEntry && (
             <p>
               Estornar lançamento de{' '}
@@ -330,10 +345,33 @@ export function JournalEntriesPanel({ unitId, onReversalComplete }: JournalEntri
               ?
             </p>
           )}
-          <p className="mt-3 text-neutral-400">
-            Um novo lançamento oposto será criado automaticamente. Esta ação não pode ser
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+              Data do estorno
+            </label>
+            <input
+              type="date"
+              value={reversalDate}
+              onChange={(e) => setReversalDate(e.target.value)}
+              className="rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:border-red-500 focus:outline-none"
+            />
+          </div>
+          <p className="text-neutral-400">
+            Um novo lançamento oposto será criado automaticamente na data acima. Esta ação não pode ser
             desfeita.
           </p>
+          {periodError && onNavigateToPeriods && (
+            <div className="rounded-xl border border-amber-900/50 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
+              O período para a data selecionada está fechado.{' '}
+              <button
+                type="button"
+                onClick={() => { setConfirmReverseId(null); setPeriodError(false); setError(null); onNavigateToPeriods(); }}
+                className="underline hover:text-amber-200"
+              >
+                Ver Períodos
+              </button>
+            </div>
+          )}
         </div>
       </Modal>
     </div>

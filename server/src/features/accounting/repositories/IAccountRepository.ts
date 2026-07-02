@@ -49,5 +49,5 @@ export interface IAccountRepository {
   findManyByUnit(scope: AccountingScope): Promise<Account[]>;
 
   /** Soft-deletes an account (sets deletedAt). */
-  softDelete(scope: AccountingScope, id: string): Promise<Account>;
+  softDelete(scope: AccountingScope, id: string, tx?: Prisma.TransactionClient): Promise<Account>;
 }

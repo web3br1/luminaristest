@@ -1,5 +1,5 @@
 import type { ITableSchema } from '../../../models/DynamicTable.model';
-import { saleId, productId, serviceId, responsibleEmployeeId, appointmentId } from '../../fields/relation/RelationPresets';
+import { saleId, productId, serviceId, packageId, responsibleEmployeeId, appointmentId } from '../../fields/relation/RelationPresets';
 import { description } from '../../fields/text/TextPresets';
 import { quantity, unitPrice, commission } from '../../fields/number/NumberPresets';
 import { itemType } from '../../fields/select/SelectPresets';
@@ -16,6 +16,7 @@ export const saleItemsMixedModule = {
       itemType,
       { ...productId, required: false },
       { ...serviceId, required: false },
+      { ...packageId, required: false },
       { ...description, label: 'Description' },
       quantity,
       unitPrice,

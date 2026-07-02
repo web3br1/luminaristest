@@ -69,14 +69,16 @@ export const PostEntrySchema = z.object({
  *   schemas:
  *     ReverseEntryInput:
  *       type: object
- *       required: [lancamentoId]
+ *       required: [lancamentoId, reversalPostingDate]
  *       properties:
- *         lancamentoId: { type: string }
- *         reason:       { type: string }
+ *         lancamentoId:        { type: string }
+ *         reversalPostingDate: { type: string, description: "ISO date for the reversal entry (and period gate)" }
+ *         reason:              { type: string }
  */
 export const ReverseEntrySchema = z.object({
   unitId: z.string().min(1),
   lancamentoId: z.string().min(1),
+  reversalPostingDate: z.string().min(1),
   reason: z.string().optional(),
 });
 
@@ -160,3 +162,91 @@ export function isPostEntryInput(obj: unknown): obj is PostEntryInput {
 export function isReverseEntryInput(obj: unknown): obj is ReverseEntryInput {
   return ReverseEntrySchema.safeParse(obj).success;
 }
+
+// ---------------------------------------------------------------------------
+// Period management DTOs (INCR-1)
+// ---------------------------------------------------------------------------
+
+export const PeriodStatusEnum = z.enum(['FUTURE', 'OPEN', 'SOFT_CLOSED', 'HARD_CLOSED']);
+
+/** @openapi
+ * components:
+ *   schemas:
+ *     SeedYearInput:
+ *       type: object
+ *       required: [unitId, year]
+ *       properties:
+ *         unitId: { type: string }
+ *         year:   { type: integer, minimum: 2000, maximum: 2100 }
+ */
+export const SeedYearSchema = z
+  .object({
+    unitId: z.string().min(1),
+    year: z.number().int().min(2000).max(2100),
+  })
+  .strict();
+
+/** @openapi
+ * components:
+ *   schemas:
+ *     ClosePeriodInput:
+ *       type: object
+ *       required: [unitId, year, month]
+ *       properties:
+ *         unitId: { type: string }
+ *         year:   { type: integer }
+ *         month:  { type: integer, minimum: 1, maximum: 12 }
+ *         reason: { type: string }
+ */
+export const ClosePeriodSchema = z
+  .object({
+    unitId: z.string().min(1),
+    reason: z.string().optional(),
+  })
+  .strict();
+
+/** @openapi
+ * components:
+ *   schemas:
+ *     ReopenPeriodInput:
+ *       type: object
+ *       required: [unitId, periodId]
+ *       properties:
+ *         unitId:   { type: string }
+ *         periodId: { type: string }
+ *         reason:   { type: string }
+ */
+export const ReopenPeriodSchema = z
+  .object({
+    unitId: z.string().min(1),
+    periodId: z.string().min(1),
+    reason: z.string().optional(),
+  })
+  .strict();
+
+export type SeedYearInput = z.infer<typeof SeedYearSchema>;
+export type ClosePeriodInput = z.infer<typeof ClosePeriodSchema>;
+export type ReopenPeriodInput = z.infer<typeof ReopenPeriodSchema>;
+
+// ---------------------------------------------------------------------------
+// Financial statement DTOs (INCR-4)
+// ---------------------------------------------------------------------------
+
+/** Query DTO for GET /balance-sheet?unitId=&asOf=YYYY-MM-DD */
+export const BalanceSheetQuerySchema = z.object({
+  unitId: z.string().min(1),
+  asOf: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'asOf deve ser YYYY-MM-DD'),
+});
+
+/** Query DTO for GET /income-statement?unitId=&asOf=YYYY-MM-DD */
+export const IncomeStatementQuerySchema = z.object({
+  unitId: z.string().min(1),
+  asOf: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'asOf deve ser YYYY-MM-DD'),
+});
+
+export type BalanceSheetQueryInput = z.infer<typeof BalanceSheetQuerySchema>;
+export type IncomeStatementQueryInput = z.infer<typeof IncomeStatementQuerySchema>;

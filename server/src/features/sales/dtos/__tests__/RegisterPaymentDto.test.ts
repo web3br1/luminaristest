@@ -42,7 +42,25 @@ describe('RegisterPaymentSchema', () => {
   it.each(['Credit Card', 'Debit Card', 'Cash', 'Pix', 'Package Balance'])(
     'accepts the canonical paymentMethod %s',
     (paymentMethod) => {
-      expect(RegisterPaymentSchema.safeParse({ ...valid, paymentMethod }).success).toBe(true);
+      // Package Balance additionally requires packageId (Incremento G P5).
+      const extra = paymentMethod === 'Package Balance' ? { packageId: 'pkg-1' } : {};
+      expect(RegisterPaymentSchema.safeParse({ ...valid, paymentMethod, ...extra }).success).toBe(true);
     },
   );
+
+  // --- packageId conditional (Incremento G P5) ---
+  describe('packageId conditional', () => {
+    it('Package Balance REQUIRES packageId', () => {
+      expect(RegisterPaymentSchema.safeParse({ ...valid, paymentMethod: 'Package Balance' }).success).toBe(false);
+      expect(
+        RegisterPaymentSchema.safeParse({ ...valid, paymentMethod: 'Package Balance', packageId: 'pkg-1' }).success,
+      ).toBe(true);
+    });
+
+    it.each(['Cash', 'Pix', 'Credit Card', 'Debit Card'])('%s FORBIDS packageId (no ambiguous payload)', (paymentMethod) => {
+      expect(
+        RegisterPaymentSchema.safeParse({ ...valid, paymentMethod, packageId: 'pkg-1' }).success,
+      ).toBe(false);
+    });
+  });
 });

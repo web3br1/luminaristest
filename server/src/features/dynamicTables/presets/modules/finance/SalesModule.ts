@@ -151,6 +151,16 @@ export const salesModule = {
         searchable: false,
         description: 'External payment reference (NSU, transaction id…) recorded at payment time.',
       },
+      {
+        name: 'paidWithPackageId',
+        label: 'Paid With Package',
+        type: 'string',
+        required: false,
+        readOnly: true,
+        searchable: false,
+        description:
+          'Prepaid package used to settle this sale via Package Balance (Incremento G P6). Persisted so the reconcile can re-drive the balance debit; only RegisterPaymentService (isSystem) writes it.',
+      },
     ],
     immutableAfter: [
       {
