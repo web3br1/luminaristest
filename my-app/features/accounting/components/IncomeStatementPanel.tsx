@@ -2,13 +2,10 @@ import { useState } from 'react';
 import { FiAlertTriangle, FiXCircle } from 'react-icons/fi';
 import { accountingService, type IncomeStatementReport, type StatementSection } from '../../../lib/services/accounting.service';
 import { formatCents } from '../lib/formatCents';
+import { formatDate } from '../lib/formatDate';
 
 function today() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('pt-BR');
 }
 
 function SectionTable({ section, title, subtitle }: { section: StatementSection; title: string; subtitle?: string }) {

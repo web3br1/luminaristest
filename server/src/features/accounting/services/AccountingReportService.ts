@@ -259,6 +259,9 @@ export class AccountingReportService {
         // For BP diagnostics: Revenue/Expense accounts are DRE accounts represented via
         // netResultLine — they are not "unmapped", they just live on the other statement.
         if (statement === 'BP' && findMappingRule(row.nature, row.code, 'DRE')) continue;
+        // For DRE diagnostics: Asset/Liability/Equity accounts are BP accounts representing
+        // patrimonial position — they are not "unmapped", they just live on the other statement.
+        if (statement === 'DRE' && findMappingRule(row.nature, row.code, 'BP')) continue;
         unmappedAccounts.push({
           accountId: row.accountId,
           code: row.code,

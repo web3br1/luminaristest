@@ -74,3 +74,34 @@ Recommended next actions (in order):
 4. m1–m3 and W1 are non-blocking; W1 should be addressed before any real backend deploy.
 
 Everything else — the double-entry core, period state machine + posting gate, sequential numbering, reversal, ledger, trial balance, and balance sheet — validated cleanly against the production frontend build.
+
+---
+
+## Update 2026-07-02 — M1/M2 remediados
+
+- **Fix commit:** `3ae67c2` on `fix/accounting-dre-diagnostics-and-date-rendering` (FIX-FE-INCR1-M1M2, plan: `docs/accounting/FIX-FE-INCR1-M1M2-execution-brief.md`)
+- **Environment:** isolated `git worktree` (`.claude/worktrees/fix-fe-incr1-m1m2`) — a concurrent session was found to have raced the shared working directory mid-task (checked out a different branch and committed under this session; recovered before any commit, see PR notes). Backend: `npm run dev` (ts-node-dev, same W1 caveat as the original run — compiled `start` still fails, unrelated to this fix). Frontend: `next build` + `next start` (production build, per CLAUDE.md withAuth rule), fresh `next build` after the M2 fix.
+- **Database:** fresh worktree-local SQLite (`server/prisma/dev.worktree.db`), migrated clean (`prisma migrate status` → up to date, 0 drift) and seeded independently of the shared `dev.db` — avoids the dev.db collision documented for 2026-07-01.
+
+### Re-run — sections H and I
+
+Scenario: unit `verify-unit-1`, July/2026 period opened, one entry posted 2026-07-01 (Caixa D / Receita de Vendas C, R$300,00), via the live `POST /api/accounting/post` API against the real seeded chart of accounts (not a mock).
+
+| # | Section | Status | Evidence |
+|---|---------|--------|----------|
+| H | Balance sheet, asOf, reportStatus=OK | **PASS** | Live `GET /balance-sheet?unitId=verify-unit-1&asOf=2026-07-01` → `reportStatus: "OK"`, `balanced: true`, `diagnostics.unmappedAccounts: []`, Ativo Caixa 30000 cents |
+| I | Income statement, year_to_date, reportStatus=OK | **PASS** (was FAIL/M1) | Live `GET /income-statement?unitId=verify-unit-1&asOf=2026-07-01` → `reportStatus: "OK"` (previously `INVALID`), `diagnostics.unmappedAccounts: []`, `grossRevenue.totalCents: "30000"`, `netResult.amountCents: "30000"` |
+
+Regression coverage (unit level, `server/src/features/accounting/services/__tests__/AccountingReportService.bp-dre.test.ts`): T1 (asset+revenue → DRE OK) confirmed **red before the fix** (reverted the guard, T1 failed with `reportStatus: "INVALID"`) and **green after**; T2 (account unmapped in both BP and DRE → still INVALID, guard doesn't over-silence a genuine orphan); T3 (same mixed scenario → balanceSheet stays OK, BP guard untouched). Full suite: 655/655 (652 baseline + T1–T3).
+
+### Spot-check — date rendering (M2)
+
+The Chrome browser extension was unavailable for the entire session (`tabs_context_mcp` returned "not connected" on every retry), so the 4 screens could not be screenshotted directly. In its place: the real ISO date strings returned by the live API above (`entry.date: "2026-07-01T00:00:00.000Z"`, `fromDate: "2026-01-01"`, `toDate: "2026-07-01"`) were run through the actual shipped module (`my-app/features/accounting/lib/formatDate.ts`, imported via `tsx` from the production-built tree, system timezone confirmed `America/Sao_Paulo`):
+
+- Old buggy `new Date(iso).toLocaleDateString('pt-BR')` on the same strings → `30/06/2026` and `31/12/2025 a 30/06/2026` (reproduces the exact FAIL symptom).
+- New `formatDate` (local wrapper) on the same strings → `01/07/2026` and `01/01/2026 a 01/07/2026` (correct, numeric dd/mm/aaaa format preserved — the canonical `dashboard/shared` `formatDate(..., {dateOnly:true})` was evaluated for direct reuse but rejected: it renders long-form dates ("01 de jul. de 2026"), which would have silently changed the visual format across all 4 screens).
+
+This confirms the fix at the exact code path the browser would execute, but is **not** a substitute for an actual rendered screenshot. **Caveat:** live-browser visual confirmation across the 4 screens (BalanceSheetPanel, IncomeStatementPanel, JournalEntriesPanel, LedgerPanel) is still pending — recommended before human sign-off, whenever the Chrome extension is available.
+
+### Final Decision (update)
+**PASS** — M1 and M2 both fixed and re-validated against a live seeded ledger (not mocks). Two caveats carried forward, both pre-existing from the original run: (1) human eye sign-off still pending (as before); (2) browser-rendered visual confirmation of the 4 date-bearing screens pending — this session verified the exact rendering code path and real data end-to-end, but could not capture a screenshot (Chrome extension unavailable).

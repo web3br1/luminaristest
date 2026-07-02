@@ -384,6 +384,67 @@ describe('incomeStatement', () => {
     expect(report.reportStatus).toBe('INVALID');
     expect(report.diagnostics.unmappedAccounts[0].code).toBe('3.9.01');
   });
+
+  // ── FIX-FE-INCR1-M1M2 — T1: Asset (BP) accounts must not be flagged as
+  // "unmapped" in DRE diagnostics. Regression for the guard added at
+  // buildDiagnostics() mirroring the existing BP→DRE guard. ─────────────────
+  it('T1 — Caixa(Asset,D) + Receita(Revenue,C) → reportStatus OK, unmappedAccounts empty', async () => {
+    const accounts = [
+      makeAccount({ code: '1.1', nature: 'Asset' }),
+      makeAccount({ code: '3.1.01', nature: 'Revenue' }),
+    ];
+    const currentYearRaw: MockGroupByResult[] = [
+      { accountId: '1.1', debitCents: 10000, creditCents: 0 },
+      { accountId: '3.1.01', debitCents: 0, creditCents: 10000 },
+    ];
+    // Route by date: prior-year query (to < 2026) → empty (clean prior year, no WARNING noise).
+    const groupByFn = (opts?: { from?: Date; to?: Date }): MockGroupByResult[] => {
+      if (opts?.to && opts.to.getUTCFullYear() < 2026) return [];
+      return currentYearRaw;
+    };
+    const { svc } = buildService(accounts, groupByFn);
+    const report = await svc.incomeStatement(SCOPE, AS_OF);
+
+    expect(report.reportStatus).toBe('OK');
+    expect(report.diagnostics.unmappedAccounts).toEqual([]);
+    expect(report.grossRevenue.totalCents).toBe('10000');
+    expect(report.netResult.amountCents).toBe('10000');
+  });
+
+  // T2 — anti-over-silence: a genuinely orphan account (no rule in BP nor DRE)
+  // with balance must still flag INVALID. The BP-guard must not swallow it.
+  it('T2 — account unmapped in both BP and DRE, with balance → INVALID in unmappedAccounts', async () => {
+    const accounts = [makeAccount({ code: '9.9', nature: 'CustomNature' })];
+    const raw: MockGroupByResult[] = [{ accountId: '9.9', debitCents: 500, creditCents: 0 }];
+    const { svc } = buildService(accounts, raw);
+    const report = await svc.incomeStatement(SCOPE, AS_OF);
+
+    expect(report.reportStatus).toBe('INVALID');
+    expect(report.diagnostics.unmappedAccounts).toHaveLength(1);
+    expect(report.diagnostics.unmappedAccounts[0].code).toBe('9.9');
+  });
+
+  // T3 — symmetry preserved: same mixed Asset+Revenue scenario as T1 must keep
+  // balanceSheet reportStatus OK (the pre-existing BP→DRE guard is untouched).
+  it('T3 — same Caixa(Asset,D) + Receita(Revenue,C) scenario → balanceSheet stays OK', async () => {
+    const accounts = [
+      makeAccount({ code: '1.1', nature: 'Asset' }),
+      makeAccount({ code: '3.1.01', nature: 'Revenue' }),
+    ];
+    const currentYearRaw: MockGroupByResult[] = [
+      { accountId: '1.1', debitCents: 10000, creditCents: 0 },
+      { accountId: '3.1.01', debitCents: 0, creditCents: 10000 },
+    ];
+    const groupByFn = (opts?: { from?: Date; to?: Date }): MockGroupByResult[] => {
+      if (opts?.to && opts.to.getUTCFullYear() < 2026) return [];
+      return currentYearRaw;
+    };
+    const { svc } = buildService(accounts, groupByFn);
+    const report = await svc.balanceSheet(SCOPE, AS_OF);
+
+    expect(report.reportStatus).toBe('OK');
+    expect(report.diagnostics.unmappedAccounts).toEqual([]);
+  });
 });
 
 // ─── StatementMappingFixture standalone ──────────────────────────────────────
