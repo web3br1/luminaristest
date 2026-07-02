@@ -97,7 +97,136 @@ Independent of this session, `main` picked up `465f9a4` (#20) as its own clean c
 
 **PASS for Bloco A/B/C/D/I.** Both previously-identified stop-the-line blocks (D and I) are now green, run against a git-history-correct branch and a reconciliation-clean baseline. No new data-integrity bugs found; one already-known minor persists (reversal description shows raw entry id, not friendly number — same as FE-INCR1's m2).
 
-Not yet run: **F** (chart of accounts create-or-skip on genuine re-import), **G** (export CSV/XLSX round-trip for BP/DRE/Razão — only Balancete was round-tripped here), **H** (cross-tenant `NotFoundError`), **J** (money edges: large values, zero/blank cents). None of these are stop-the-line per the reaffirmed sequence, but should be closed before calling #21 fully done.
+Not yet run: **F** (chart of accounts create-or-skip on genuine re-import), **G** (export CSV/XLSX round-trip for BP/DRE/Razão — only Balancete was round-tripped here), **H** (cross-tenant `NotFoundError`), **J** (money edges: large values, zero/blank cents). None of these are stop-the-line per the reaffirmed sequence, but should be closed before calling #21 fully done. **→ Now closed: see "Bloco F/G/H/J — closeout pass (2026-07-02)" at the end of this doc.**
 4. Re-run B1/B2 once more after #20 is confirmed on `main` as a final gate, per governance (independent reviewer already PASS'd #20 at 647/647 — this pass only needed to confirm the FE branch's runtime behavior, which it now does).
 
 Bloco A (happy path) and the rest of Bloco B/C — chart of accounts creation, journal entries (both reference and reference-less), all 10 rejection codes, and the "preview never writes" invariant — all validated cleanly against the production frontend build.
+
+---
+
+# Bloco F/G/H/J — closeout pass (2026-07-02, post FIX-FE-INCR1-M1M2)
+
+The four blocks left as **"Not yet run"** above depended on the M1 (DRE `reportStatus`) / M2
+(date rendering) fixes, which are now in `main` (merge `e7b727d`, doc `bc1af0d`). This pass
+closes them. It does **not** re-touch A/B/C/D/I.
+
+## Environment
+- **Isolated git worktree** off `origin/main` @ `bc1af0d` (branch `valid/fe-incr6-fghj`) — per
+  `verify-write-context-before-writing`; node_modules shared read-only via junction, no shared
+  working dir.
+- **Isolated DB** `server/prisma/prisma/dev.fghj.db` (`migrate deploy` + seed; `migrate status`
+  = up to date, no drift) — never the shared `dev.db` (`stay-on-sqlite-no-postgres` /
+  dev.db-collision precedent).
+- **Backend FRESH** — `npm run dev` (ts-node-dev) started clean from the worktree @ `bc1af0d`
+  on `:3099`, health `{database:ok}` before any evidence (`stale-dev-server-serves-old-code`).
+- **Surface:** real HTTP API under `/api/accounting/data-exchange/*` (+ `/post`, report,
+  period endpoints) — the exact surface the FE Import/Export tab calls — driven with a
+  self-minted admin JWT. Scope `unitId` is a plain string, so each block used a hermetic unit
+  (`unit-fghj-F/G/H/J`); the chart of accounts self-seeds on first read per unit.
+- tester: Claude (agent-conducted, API-layer + FE source verification). **Browser gap declared
+  below**, consistent with the A/B/C and VALIDATION-STATUS passes.
+
+## Result: PASS for F / G / H — PASS-with-known-caveat for J
+34/34 API assertions behaved as specified once one wrong test-side assertion was corrected
+(DRE expense **sign**, see G3 note). One money edge re-confirms the **already-tracked**
+`ACC-INCR6-J-001` (Int32 money column ceiling) from the import surface — not a regression, not
+a new bug, has a repo-level test. No data-integrity defect surfaced in any block.
+
+### Bloco F — chart create-or-skip on a genuine mixed re-import
+Distinct from C2 (identical re-upload): this import mixes brand-new codes with codes that
+already exist (a canonical seed code **and** a code created by a prior import).
+
+| Case | Result | Evidence |
+|---|---|---|
+| F0 — seed import (2 brand-new leaf accounts `1.5.1`,`1.5.2` under parent `1`) | **PASS** | preview `validRows=2` → commit `committedRows=2`, status `COMMITTED` |
+| F1 — mixed re-import preview (`1.1.1` canonical-existing + `1.5.1` existing + `1.5.3` new) | **PASS** | `validRows=3`, `invalidRows=0` — existing accounts are **not** flagged at validation time (ACCOUNT_EXISTS is a commit-time decision) |
+| F2 — commit: only the new account is created | **PASS** | `committedRows=1` (just `1.5.3`), status `COMMITTED` |
+| F3 — the two existing rows are SKIPPED | **PASS** | `GET rows?status=SKIPPED` → 2 rows, both `errorCode=ACCOUNT_EXISTS` |
+| F4 — zero duplication (DB-level) | **PASS** | `Account` rows for the unit: no duplicate `code`; `1.1.1` count = **1**; `1.5.1/1.5.2/1.5.3` all present exactly once |
+
+### Bloco G — export round-trip BP/DRE/Razão (CSV **and** XLSX) + dates (M2) + DRE reportStatus (M1)
+Real active ledger seeded via `/post`: revenue R$1.000,00 (`1.1.1`↔`3.1`, date `2026-06-15`),
+expense R$300,00 (`4.1`↔`1.1.1`, date `2026-06-20`); `asOf=2026-06-30`. Artifacts downloaded
+via `GET /jobs/:id/download` and parsed.
+
+| Case | Result | Evidence |
+|---|---|---|
+| G1 — **Razão** CSV + XLSX: dates correct, **no −1 shift** (M2) | **PASS** | `date` column = `2026-06-15`, `2026-06-20` exactly in both formats; the two off-by-one dates (`…-14`/`…-19`) absent. (Razão is the only report whose export carries a date column.) |
+| G2 — **BP** CSV + XLSX | **PASS** | `ASSETS,1.1.1,Banco,70000` and `NET_RESULT,,…,70000` in both formats |
+| G3 — **DRE** CSV + XLSX | **PASS** | `GROSS_REVENUE,3.1,…,100000`; `EXPENSES,4.1,…,-30000`; `NET_RESULT,,…,70000` in both formats. **Note:** DRE amounts are **signed** — expenses are negative contributions (`100000 + (−30000) = 70000`); this is the report's designed shape (confirmed against `incomeStatement().expenses.accounts`), not a defect. An initial test assertion wrongly expected an unsigned `30000`; corrected. |
+| G4 — **DRE reportStatus === OK** over a real active ledger + revenue (M1) | **PASS** | `GET /income-statement?asOf=2026-06-30` → `reportStatus:"OK"`, `netResult.amountCents:"70000"` — the M1 always-INVALID bug is gone against a real book |
+| G5 — BP reportStatus === OK | **PASS** | `GET /balance-sheet` → `reportStatus:"OK"` |
+| G6 — FE on-screen date render (dd/mm/aaaa, no shift) | **PASS (source-verified; browser gap)** | `features/accounting/lib/formatDate.ts` slices to date-only and parses as **local** midnight (`new Date(datePart+'T00:00:00')`, no `Z`) → dd/mm/aaaa with no UTC−3 shift; used by `LedgerPanel` (date column), and per the M2 commit also `BalanceSheetPanel`/`IncomeStatementPanel`/`JournalEntriesPanel`. Verified by source, not by a live click — see browser gap. |
+
+### Bloco H — cross-tenant NotFoundError
+An EXPORT job and an IMPORT job created under `(admin, unit-fghj-H-A)`; every job-scoped read
+and the commit attempted from a foreign scope. Job scoping is `{ userId: ownerUserId, unitId }`.
+
+| Case | Result | Evidence |
+|---|---|---|
+| H1–H4 — same user, **different unitId** | **PASS** | `getJob`, `rows`, `download`, `commit` → **404** each |
+| H5–H8 — **different user**, same unitId | **PASS** | `getJob`, `rows`, `download`, `commit` → **404** each |
+| H9 — no leakage in the 404 | **PASS** | 404 body = `{"code":"NOT_FOUND","message":"Job não encontrado."}` (58 bytes on download); no `storageKey`, no rows, no artifact bytes |
+| H10 — control: owner reads own job | **PASS** | same job under its true scope → **200** (proves the 404s are scoping, not a blanket failure) |
+
+### Bloco J — money edges (integer cents)
+Money is integer cents; the validator's `parseCents` accepts a non-negative **safe** integer
+(`Number.isSafeInteger`). Persisted columns `Posting.debitCents/creditCents` are Prisma `Int`
+(signed 32-bit).
+
+| Case | Result | Evidence |
+|---|---|---|
+| J1 — Int32-max value (`2147483647`) | **PASS** | journal preview VALID → commit `COMMITTED` → `EXPORT_TRIAL_BALANCE` `balanceCents = 2147483647` **exactly** (no float error, no NaN) |
+| J2 — overflow `MAX+1` (`9007199254740992`) at validation | **PASS** | `validRows=0`, rows `INVALID` `BAD_DEBIT/BAD_CREDIT` — rejected cleanly at preview |
+| J3 — zero on **both** sides | **PASS** | `INVALID` `NOT_SINGLE_SIDED` |
+| J4 — zero on **one** side opposite a value | **PASS** | `validRows=2`, VALID (a 0 is legal opposite a non-zero leg) |
+| J5 — blank/absent cents | **PASS** | `validRows=0`, `INVALID` `BAD_DEBIT` (empty fails `^\d+$`, no NaN) |
+| J6 — opening-balances overflow parity | **PASS** | opening-balances `MAX+1` → `validRows=0`, `BAD_DEBIT` (same guard as journal) |
+| J7 — near-`MAX_SAFE_INTEGER` (`9007199254740991`) commit | **PASS (confirms known `ACC-INCR6-J-001`)** | validator says **VALID** (it's a safe JS integer), but commit **FAILED**: both rows `POST_FAILED` with `"…does not fit in an INT column, try migrating 'debitCents' to BIGINT"`, job `FAILED`, **zero entries persisted**. The import path **contains** the raw Prisma error as a per-row `POST_FAILED` (not an opaque 500). No silent overflow/wraparound/partial post. |
+
+## Findings
+
+- **`ACC-INCR6-J-001` (Minor, already tracked — re-confirmed from the FE import surface).** The
+  import validator's upper bound (`Number.isSafeInteger`, ~9.0e15) is wider than the storage
+  column (`Int` = ±2,147,483,647 cents ≈ ±R$21,474,836.47). Values in the gap pass **preview
+  as VALID** and are only rejected at **commit** (`POST_FAILED`/`FAILED`). This is the same
+  ceiling proven at the repository layer by `PostingRepository.moneyOverflow.test.ts`
+  (`ACC-INCR6-J-001` — a value one cent over Int32 is never caught as a `ValidationError`; the
+  Int32-max value itself round-trips exactly; the on-the-fly `_sum` aggregate for
+  Balancete/BP/DRE is **not** clipped). Import-path nuance vs. the raw `/post` probe: the
+  importer's per-group `try/catch` turns the raw Prisma error into a contained `POST_FAILED`
+  row + `FAILED` job, so the FE surfaces a per-row reason rather than a 500. **Not fixed here**
+  — the real fix is a schema migration `Int → BigInt` on `debitCents/creditCents`
+  (+ `deltaCents`) plus an import-validator upper-bound guard, which is a code decision outside
+  this validation's scope. Practical exposure: a salon ERP posting leg > R$21.47M; loud and
+  safe today, never silent corruption.
+- **DRE sign convention (not a defect).** The DRE export/report returns expense amounts
+  **signed negative** so `NET_RESULT = Σrevenue + Σ(signed expenses)`. Documented here only
+  because a first-pass test assertion mistook the correct `-30000` for a bug.
+
+## Browser gap (declared)
+Consistent with the A/B/C pass and `FE-INCR6-VALIDATION-STATUS.md`: in this environment the
+controllable browser reaches external sites but not `localhost`/private IPs, and the shared
+`:3000`/backend are owned by other sessions. So F/G/H/J were validated at the **API layer**
+(the identical HTTP surface the tab calls) plus **FE source verification** for the render-only
+concern (G6 date formatting). The prod FE build itself compiles clean (`next build`, exit 0).
+Not a code defect — a harness limitation. Residual for human sign-off: a live authenticated
+click-through of the Import/Export tab (upload→preview→commit→export) and a visual read of the
+dd/mm/aaaa dates on the Razão/BP/DRE screens.
+
+## Gates (this pass, in the worktree)
+- `cd server && npx tsc --noEmit` → **0**
+- `cd my-app && npx tsc --noEmit` → **0**
+- `cd server && npm test` → **655/655 pass, exit 0** (the `TECH-DEBT-TEST-001` prisma.ts
+  post-teardown flake did not trigger this run; not touched either way)
+- `cd my-app && npx next build` → **clean, exit 0**
+- `npx prisma migrate status` → **up to date, no drift** (no new migration)
+- `docs:generate` → **N/A** (no route/DTO touched; this pass is docs-only)
+
+## Status update — Next Steps
+**F / G / H / J are now CLOSED** (J closed with the known-caveat cross-reference to
+`ACC-INCR6-J-001`). Combined across all passes: **A / B / C / D / F / G / H / I / J = PASS**
+(J with the tracked Int32-ceiling caveat). Remaining before calling FE-INCR-6 fully done:
+- Human sign-off with a live authenticated browser click-through (the declared browser gap).
+- `ACC-INCR6-J-001` fix decision (schema `Int → BigInt` + validator upper-bound guard) — its
+  own change, not this validation.
