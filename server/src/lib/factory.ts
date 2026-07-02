@@ -18,6 +18,7 @@ import { PostingRepository } from '../features/accounting/repositories/PostingRe
 import { AccountingPeriodRepository } from '../features/accounting/repositories/AccountingPeriodRepository';
 import { AuditRepository } from '../features/accounting/repositories/AuditRepository';
 import { DocumentAttachmentRepository } from '../features/accounting/repositories/DocumentAttachmentRepository';
+import { DataExchangeRepository } from '../features/accounting/repositories/DataExchangeRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
@@ -53,6 +54,8 @@ import { PeriodService } from '../features/accounting/services/PeriodService';
 import { AuditService } from '../features/accounting/services/AuditService';
 import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
 import { DocumentAttachmentService } from '../features/accounting/services/DocumentAttachmentService';
+import { DataExchangeExportService } from '../features/accounting/services/DataExchangeExportService';
+import { DataExchangeImportService } from '../features/accounting/services/DataExchangeImportService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
@@ -98,6 +101,7 @@ import type { IPostingRepository } from '../features/accounting/repositories/IPo
 import type { IAccountingPeriodRepository } from '../features/accounting/repositories/IAccountingPeriodRepository';
 import type { IAuditRepository } from '../features/accounting/repositories/IAuditRepository';
 import type { IDocumentAttachmentRepository } from '../features/accounting/repositories/IDocumentAttachmentRepository';
+import type { IDataExchangeRepository } from '../features/accounting/repositories/IDataExchangeRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
 import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
@@ -125,6 +129,7 @@ export class ApplicationFactory {
     accountingPeriod: IAccountingPeriodRepository;
     audit: IAuditRepository;
     documentAttachment: IDocumentAttachmentRepository;
+    dataExchange: IDataExchangeRepository;
     packageBalance: IPackageBalanceRepository;
   };
 
@@ -163,6 +168,8 @@ export class ApplicationFactory {
     accountingSync: AccountingSyncService;
     accountingReport: AccountingReportService;
     documentAttachment: DocumentAttachmentService;
+    dataExchangeExport: DataExchangeExportService;
+    dataExchangeImport: DataExchangeImportService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
@@ -195,6 +202,7 @@ export class ApplicationFactory {
       accountingPeriod: new AccountingPeriodRepository(),
       audit: new AuditRepository(),
       documentAttachment: new DocumentAttachmentRepository(),
+      dataExchange: new DataExchangeRepository(),
       packageBalance: new PackageBalanceRepository(),
     };
 
@@ -357,6 +365,19 @@ export class ApplicationFactory {
         auditService,
         this.repositories.journalEntry,
       ),
+      dataExchangeExport: new DataExchangeExportService(
+        accountingReportService,
+        this.policies.accounting,
+        this.repositories.dataExchange,
+        auditService,
+      ),
+      dataExchangeImport: new DataExchangeImportService(
+        this.repositories.dataExchange,
+        this.policies.accounting,
+        auditService,
+        postingService,
+        postingService,
+      ),
       packageBalance: packageBalanceService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
@@ -395,6 +416,8 @@ export class ApplicationFactory {
   public getAccountingSyncService = (): AccountingSyncService => this.services.accountingSync;
   public getAccountingReportService = (): AccountingReportService => this.services.accountingReport;
   public getDocumentAttachmentService = (): DocumentAttachmentService => this.services.documentAttachment;
+  public getDataExchangeExportService = (): DataExchangeExportService => this.services.dataExchangeExport;
+  public getDataExchangeImportService = (): DataExchangeImportService => this.services.dataExchangeImport;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;

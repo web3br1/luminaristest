@@ -481,6 +481,62 @@ model DocumentAttachment {
   @@map("document_attachments")
 }
 
+// Accounting Data Exchange (BE/FE-INCR-6) — staging for CSV/XLSX import/export. System
+// lifecycle data (job status + per-row validation), NOT a financial-invariant table and
+// NOT a DynamicTable preset. Imports commit through PostingService.postEntry/createAccount;
+// this model never writes ledger data directly. Tenancy = plain scoped strings (no User FK).
+model AccountingDataExchangeJob {
+  id            String    @id @default(cuid())
+  userId        String    // scope owner (AccountingScope.ownerUserId); plain scope key
+  unitId        String    // business unit (scoped string, not a FK)
+  direction     String    // IMPORT | EXPORT
+  kind          String    // IMPORT_CHART_OF_ACCOUNTS | IMPORT_OPENING_BALANCES | IMPORT_JOURNAL_ENTRIES | EXPORT_*
+  status        String    // UPLOADED | VALIDATED | COMMITTING | COMMITTED | PARTIAL | FAILED | EXPORTED
+  originalName  String?   // client-supplied upload name (display only)
+  mimeType      String?
+  sizeBytes     Int?
+  sha256        String?   // 64-char hex of the uploaded/generated artifact
+  storageKey    String?   // relative path within ATTACHMENTS_DIR (attachmentStorage); source or artifact
+  totalRows     Int       @default(0)
+  validRows     Int       @default(0)
+  invalidRows   Int       @default(0)
+  committedRows Int       @default(0)
+  requestedById String    // actor who created the job; plain string
+  committedById String?   // actor who committed; plain string
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  committedAt   DateTime?
+  rows          AccountingDataExchangeRow[]
+
+  @@index([userId, unitId, createdAt])
+  @@map("accounting_data_exchange_jobs")
+}
+
+// One parsed row of an import job (export jobs carry no rows). Holds the raw + normalized
+// cells and the per-row validation outcome; targetId is set (plain string) after commit.
+model AccountingDataExchangeRow {
+  id             String                    @id @default(cuid())
+  userId         String                    // plain scope key (denormalized for scoped queries)
+  unitId         String
+  jobId          String
+  job            AccountingDataExchangeJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  rowNumber      Int                       // 1-based source row (for user-facing error reports)
+  groupKey       String?                   // entryKey — groups multi-line journal entries
+  rawJson        String                    // original parsed cells (JSON string)
+  normalizedJson String?                   // canonicalized cells (money as integer cents string); null if unparseable
+  status         String                    // VALID | INVALID | COMMITTED | SKIPPED
+  errorCode      String?
+  errorMessage   String?
+  field          String?                   // offending column, when applicable
+  targetType     String?                   // ACCOUNT | JOURNAL_ENTRY (set after commit)
+  targetId       String?                   // created entity id (plain string, not a FK)
+  createdAt      DateTime                  @default(now())
+
+  @@index([userId, unitId, jobId])
+  @@index([userId, unitId, groupKey])
+  @@map("accounting_data_exchange_rows")
+}
+
 // Ledger line (partida) — one leg of a double entry. Money is INTEGER CENTS; the
 // closing invariant Σdebit = Σcredit per entry is exact integer equality. `userId`
 // and `unitId` are denormalized for fast tenant-scoped groupBy (trial balance).
