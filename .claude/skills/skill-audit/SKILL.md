@@ -177,7 +177,9 @@ sync-metadata      # status/eval-score do SKILL.md == projeção do REPORT.md
 coverage           # materializa governance/coverage-auto.md + verifica gates
 eval [--changed]   # valida ESTRUTURA dos evals; execução comportamental é BLOCKED (model-in-loop)
 self-check         # prova contra fixtures que o auditor detecta cada código de falha
-run                # suíte completa; exit≠0 se qualquer finding
+wiring             # membership em registro central do APP gerado (tsc-cego): rota montada,
+                   #   categoria KPI/preset órfã, paridade i18n en↔pt → check-registries.mjs + check-i18n-keys.mjs
+run                # suíte completa (inclui wiring); exit≠0 se qualquer finding
 ```
 
 Exit code `0` = sem findings; `1` = findings; `2` = comando inválido. Códigos de falha

@@ -1690,6 +1690,21 @@
  *             properties:
  *               success: { type: boolean, example: false }
  *               error: { type: string }
+ *   schemas:
+ *     DocumentAttachment:
+ *       type: object
+ *       required: [id, targetType, targetId, fileName, mimeType, fileSize, sha256, createdAt]
+ *       properties:
+ *         id:           { type: string, format: cuid }
+ *         targetType:   { type: string, enum: [JOURNAL_ENTRY] }
+ *         targetId:     { type: string }
+ *         fileName:     { type: string }
+ *         mimeType:     { type: string }
+ *         fileSize:     { type: integer }
+ *         sha256:       { type: string, description: 64-char hex checksum }
+ *         uploadedById: { type: string, nullable: true }
+ *         createdAt:    { type: string, format: date-time }
+ *         deletedAt:    { type: string, format: date-time, nullable: true }
  */
 
 /**
@@ -1942,6 +1957,109 @@
  * @openapi
  * paths:
  *
+ *   # ─── ACCOUNTING ATTACHMENTS / EVIDENCE (BE-INCR-5) ───────────────────────
+ *
+ *   /api/accounting/attachments:
+ *     post:
+ *       summary: Upload documentary evidence to a journal entry
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           multipart/form-data:
+ *             schema:
+ *               type: object
+ *               required: [unitId, targetId, file]
+ *               properties:
+ *                 unitId:     { type: string }
+ *                 targetType: { type: string, enum: [JOURNAL_ENTRY], default: JOURNAL_ENTRY }
+ *                 targetId:   { type: string, description: journal entry id }
+ *                 file:       { type: string, format: binary }
+ *       responses:
+ *         '201':
+ *           description: Attachment metadata (binary persisted to disk)
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:    { $ref: '#/components/schemas/DocumentAttachment' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *         '413': { description: File too large }
+ *         '415': { description: Unsupported media type / content mismatch }
+ *         '500': { $ref: '#/components/responses/InternalServerError' }
+ *
+ *   /api/accounting/attachments/{id}:
+ *     get:
+ *       summary: Download an attachment binary by id
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path,  name: id,     required: true, schema: { type: string } }
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *       responses:
+ *         '200':
+ *           description: File stream
+ *           content:
+ *             application/octet-stream:
+ *               schema: { type: string, format: binary }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *         '500': { $ref: '#/components/responses/InternalServerError' }
+ *     delete:
+ *       summary: Soft-delete an attachment (binary retained for audit)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path,  name: id,     required: true, schema: { type: string } }
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *       responses:
+ *         '200':
+ *           description: Soft-deleted
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data: { type: object, properties: { ok: { type: boolean, example: true } } }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *         '500': { $ref: '#/components/responses/InternalServerError' }
+ *
+ *   /api/accounting/journal-entries/{journalEntryId}/attachments:
+ *     get:
+ *       summary: List attachments for a journal entry
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path,  name: journalEntryId, required: true, schema: { type: string } }
+ *         - { in: query, name: unitId,         required: true, schema: { type: string } }
+ *       responses:
+ *         '200':
+ *           description: Attachment list
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data: { type: array, items: { $ref: '#/components/schemas/DocumentAttachment' } }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '500': { $ref: '#/components/responses/InternalServerError' }
+ */
+
+/**
+ * @openapi
+ * paths:
+ *
  *   # ─── ACCOUNTING PERIODS (INCR-1) ─────────────────────────────────────────
  *
  *   /api/accounting/{unitId}/periods:
@@ -2061,5 +2179,184 @@
  *         '200': { description: Period reopened }
  *         '400': { $ref: '#/components/responses/BadRequestError' }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ */
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     DataExchangeJob:
+ *       type: object
+ *       properties:
+ *         id:        { type: string }
+ *         direction: { type: string, enum: [IMPORT, EXPORT] }
+ *         kind:      { type: string }
+ *         status:    { type: string }
+ *         fileName:  { type: string, nullable: true }
+ *         mimeType:  { type: string, nullable: true }
+ *         sizeBytes: { type: integer, nullable: true }
+ *         sha256:    { type: string, nullable: true }
+ *         totalRows: { type: integer }
+ *         createdAt: { type: string, format: date-time }
+ *
+ * paths:
+ *
+ *   # ─── ACCOUNTING DATA EXCHANGE (BE-INCR-6) ───────────────────────────────
+ *
+ *   /api/accounting/data-exchange/exports:
+ *     post:
+ *       summary: Export a report or blank import template to CSV/XLSX
+ *       description: Renders read-only report data (trial balance, ledger, BP, DRE) or a blank import template; persists the artifact and returns a job. Download via /jobs/{jobId}/download.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [kind, format, unitId]
+ *               properties:
+ *                 kind:         { type: string, enum: [EXPORT_TRIAL_BALANCE, EXPORT_GENERAL_LEDGER, EXPORT_BALANCE_SHEET, EXPORT_INCOME_STATEMENT, EXPORT_TEMPLATE] }
+ *                 format:       { type: string, enum: [csv, xlsx] }
+ *                 unitId:       { type: string }
+ *                 asOf:         { type: string, description: 'YYYY-MM-DD — required for BP/DRE' }
+ *                 accountCode:  { type: string, description: 'required for EXPORT_GENERAL_LEDGER' }
+ *                 templateKind: { type: string, enum: [IMPORT_CHART_OF_ACCOUNTS, IMPORT_OPENING_BALANCES, IMPORT_JOURNAL_ENTRIES], description: 'required for EXPORT_TEMPLATE' }
+ *       responses:
+ *         '201':
+ *           description: Export job created
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:    { $ref: '#/components/schemas/DataExchangeJob' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '403': { $ref: '#/components/responses/ForbiddenError' }
+ *
+ *   /api/accounting/data-exchange/jobs/{jobId}:
+ *     get:
+ *       summary: Get a data-exchange job summary
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: jobId, required: true, schema: { type: string } }
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *       responses:
+ *         '200':
+ *           description: Job summary
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:    { $ref: '#/components/schemas/DataExchangeJob' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/accounting/data-exchange/jobs/{jobId}/download:
+ *     get:
+ *       summary: Download a data-exchange artifact (CSV/XLSX stream)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: jobId, required: true, schema: { type: string } }
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *       responses:
+ *         '200':
+ *           description: Artifact stream
+ *           content:
+ *             application/octet-stream:
+ *               schema: { type: string, format: binary }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/accounting/data-exchange/imports:
+ *     post:
+ *       summary: Upload + validate a CSV/XLSX import (chart, opening balances, or journal entries)
+ *       description: Parses and per-row validates the file, staging a VALIDATED job. Does NOT write ledger data — call /jobs/{jobId}/commit to persist. Preview rows via /jobs/{jobId}/rows.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           multipart/form-data:
+ *             schema:
+ *               type: object
+ *               required: [kind, unitId, file]
+ *               properties:
+ *                 kind:   { type: string, enum: [IMPORT_CHART_OF_ACCOUNTS, IMPORT_OPENING_BALANCES, IMPORT_JOURNAL_ENTRIES] }
+ *                 unitId: { type: string }
+ *                 file:   { type: string, format: binary, description: CSV or XLSX }
+ *       responses:
+ *         '201':
+ *           description: Import validated and staged
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:    { $ref: '#/components/schemas/DataExchangeJob' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '403': { $ref: '#/components/responses/ForbiddenError' }
+ *
+ *   /api/accounting/data-exchange/jobs/{jobId}/rows:
+ *     get:
+ *       summary: List import rows (preview + error report)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: jobId, required: true, schema: { type: string } }
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: status, required: false, schema: { type: string, enum: [VALID, INVALID, COMMITTED, SKIPPED] } }
+ *       responses:
+ *         '200':
+ *           description: Rows
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:    { type: array, items: { type: object } }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/accounting/data-exchange/jobs/{jobId}/commit:
+ *     post:
+ *       summary: Commit a staged import (writes accounts / journal entries via posting services)
+ *       description: Commits VALID rows through createAccount/postEntry (authoritative period gate + balance re-checked in-tx). Per-entry atomic, partial success. Idempotent — already-committed rows are skipped.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: jobId, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId]
+ *               properties:
+ *                 unitId: { type: string }
+ *       responses:
+ *         '200':
+ *           description: Commit result (job with committedRows)
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:    { $ref: '#/components/schemas/DataExchangeJob' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '403': { $ref: '#/components/responses/ForbiddenError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
  */
 export {};

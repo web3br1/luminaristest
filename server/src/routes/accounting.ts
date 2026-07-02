@@ -17,6 +17,22 @@ import {
   hardClosePeriod,
   reopenPeriod,
 } from '../controllers/accountingController';
+import {
+  documentAttachmentUpload,
+  createDocumentAttachment,
+  listDocumentAttachments,
+  downloadDocumentAttachment,
+  deleteDocumentAttachment,
+} from '../controllers/documentAttachmentController';
+import {
+  createDataExchangeExport,
+  getDataExchangeJob,
+  downloadDataExchangeArtifact,
+  dataExchangeImportUpload,
+  createDataExchangeImport,
+  listDataExchangeRows,
+  commitDataExchangeImport,
+} from '../controllers/dataExchangeController';
 
 const router = Router();
 
@@ -37,6 +53,20 @@ router.delete('/accounts/:id', deleteAccount);
 
 // Journal entry listing.
 router.get('/entries', listEntries);
+
+// Documentary evidence / attachments on journal entries (BE-INCR-5).
+router.post('/attachments', documentAttachmentUpload, createDocumentAttachment);
+router.get('/attachments/:id', downloadDocumentAttachment);
+router.delete('/attachments/:id', deleteDocumentAttachment);
+router.get('/journal-entries/:journalEntryId/attachments', listDocumentAttachments);
+
+// Data Exchange — CSV/XLSX import + report export (BE-INCR-6).
+router.post('/data-exchange/exports', createDataExchangeExport);
+router.post('/data-exchange/imports', dataExchangeImportUpload, createDataExchangeImport);
+router.get('/data-exchange/jobs/:jobId', getDataExchangeJob);
+router.get('/data-exchange/jobs/:jobId/rows', listDataExchangeRows);
+router.get('/data-exchange/jobs/:jobId/download', downloadDataExchangeArtifact);
+router.post('/data-exchange/jobs/:jobId/commit', commitDataExchangeImport);
 
 // Accounting period management (INCR-1).
 // NOTE: /:unitId/periods must come before /periods/:id routes to avoid param clash.
