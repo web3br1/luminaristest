@@ -6,8 +6,8 @@
  * only reads through the (mocked) repositories. DynamicTableService is not involved.
  *
  * These tests pin the Contract §2.1 invariants:
- *  - trialBalance aggregates BOTH 'Posted' AND 'Reversed' parent statuses (a reversed
- *    entry + its reversal net to ZERO);
+ *  - trialBalance aggregates 'Posted', 'Reconciled' AND 'Reversed' parent statuses
+ *    (emenda INCR4-A; a reversed entry + its reversal net to ZERO);
  *  - the `balanced` flag is EXACT integer equality Σdebit === Σcredit (no epsilon);
  *  - all amounts stay INTEGER CENTS (rows + grand totals);
  *  - accountLedger NotFound + Forbidden guards.
