@@ -83,8 +83,10 @@ flowchart TD
 `getLiabilityCents` do job), `ReconciliationService` (import sha256-idempotente, auto-match D6, manual N↔1,
 unmatch soft + flip-back, pendências §4.5), emenda INCR4-B, rotas `/api/accounting/reconciliation/*` + OpenAPI.
 Cada PR com review independente (worktree isolado) — 2 FAILs corrigidos e re-aprovados no processo.
-**Pendente:** FE (frontend-deferred, aba própria) · sign-off humano em browser · smoke `migrate deploy` sobre
-backup do `dev.db` real antes de deploy.
+Smoke-gate de deploy sobre backup do `dev.db` **real** também PASS (2026-07-03,
+`SMOKE-MIGRATION-GATE-BE-INCR7-DEPLOY.md`) — migração aplicada limpa sobre dados vivos, dev.db original
+comprovadamente intocado (md5+mtime), 408/408 testes accounting verdes, `tsc` limpo.
+**Pendente:** FE (frontend-deferred, aba própria) · sign-off humano em browser.
 Emendas pós-ratificação no ADR §3: sha256 liberado no soft-delete (`deleted:<id>`) · nota derivação D5
 stale-on-new-bank-account (aceito no MVP).
 
