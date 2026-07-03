@@ -116,3 +116,45 @@ Entradas mais novas no topo.
 - **Evidência:** `server/src/routes/docs.ts:28`, `server/scripts/generate-openapi.js:25`.
 - **Como aplicar:** `@openapi` vai no controller/route; sempre rodar `npm run docs:generate`. Saldar pendência: `/package-balances` ainda fora do `openapi.json`.
 - **Durável?** sim → [[openapi-wiring-static-artifact]] (já na memória).
+
+### 2026-07-03 · decision · Conciliação usa models próprios, não novo ImportKind (fronteira Prisma↔Prisma)
+- **Contexto:** BE-INCR-7 D1 — onde vive a ingestão de extrato bancário.
+- **Aprendizado:** O motor de import (DataExchange) sempre POSTA no ledger no commit; extrato bancário não posta nada — LIGA linhas a postings existentes. Forçar um `IMPORT_BANK_STATEMENT` ramificaria validators/mappers ledger-específicos para um alvo que não é escrita de ledger. É a mesma fronteira do §2.1, aplicada entre dois módulos Prisma.
+- **Evidência:** `docs/adr/ADR-INCR7-bank-reconciliation.md` D1; `DataExchangeImportService.ts` (commit resolve em ACCOUNT|JOURNAL_ENTRY via PostingService). Reusado só o parser puro `lib/spreadsheet.parseTable`.
+- **Como aplicar:** "Passa pelo mesmo arquivo" não implica "mesmo pipeline" — a pergunta é o que o commit ESCREVE.
+- **Durável?** avaliar (candidato: fronteira-por-efeito-de-escrita).
+
+### 2026-07-03 · decision · Flip D5 derivado+reversível+auditado; auto-match abstém no empate (D6)
+- **Contexto:** BE-INCR-7 D5/D6 (opção B escolhida pelo usuário).
+- **Aprendizado:** `Reconciled` nunca é setado à mão: deriva de "todo posting de conta-banco tem match ativo", recomputado bidirecional em match/unmatch na MESMA tx (0-row no update condicional = TOCTOU → rollback). Auto-match comita SÓ no candidato único — abster no empate torna o re-run idempotente por construção (nunca há escolha, logo nunca há corrida de escolha).
+- **Evidência:** `ReconciliationService.recomputeEntryFlip` + `updateEntryStatus` tipado `'Posted'|'Reconciled'`; testes match-flip (flip, flip-back, 0-row).
+- **Como aplicar:** Estado derivado com update condicional por from-status é o padrão para marcadores reversíveis sobre entidades imutáveis.
+- **Durável?** não (vive no ADR-INCR7).
+
+### 2026-07-03 · pattern · Emenda de status é class-fix: landar no-op-primeiro + varrer todo filtro
+- **Contexto:** Emenda INCR4-A (`Reconciled` conta como status de ledger).
+- **Aprendizado:** A constante (`LEDGER_STATUSES`) era só metade da classe — a varredura (`grep` de filtros de status fora de testes) achou um segundo ponto: `getLiabilityCents` no job de sync-reconcile (o saldo do passivo 2.1.1 encolheria silenciosamente pós-conciliação). Landar ANTES do writer do novo status torna a emenda no-op nos dados atuais e fecha a janela "flip sem relatório reconhecer".
+- **Evidência:** PR #35 (varredura documentada no corpo); reviewer independente refez a varredura e confirmou zero resíduo.
+- **Como aplicar:** Emenda de semântica de status = enumerar TODO `status ===/in/includes` do server e julgar hit a hit (classe relatório vs elegibilidade vs candidato); o reviewer refaz a varredura por conta própria.
+- **Durável?** sim → reforça [[idempotency-class-fix-discipline]].
+
+### 2026-07-03 · gotcha · Regex YYYY-MM-DD não valida calendário — JS Date rola overflow em silêncio
+- **Contexto:** MAJOR-1 do review do PR5 (provado em runtime: `new Date('2026-02-30')` → 2026-03-02).
+- **Aprendizado:** Regex + NaN-check deixam passar datas inexistentes que MUTAM silenciosamente (+até 3 dias) — distorce janela de match, fiscal year e relatórios datados. O fix é round-trip: parse UTC midnight → format → comparar com a string original. Era uma CLASSE (7 sites em 5 arquivos: DTOs de posting/data-exchange/reconciliation + validators + parseLines), não um ponto.
+- **Evidência:** `server/src/features/accounting/models/dates.ts::isValidDateOnly` (casa canônica, como MAX_CENTS em money.ts); testes pinando 2026-02-30/2026-06-31.
+- **Como aplicar:** Toda fronteira date-only usa `isValidDateOnly`, nunca regex crua; validação nova de formato = procurar a classe inteira antes de fechar o PR.
+- **Durável?** sim (candidato a memória: date-only-regex-nao-valida-calendario).
+
+### 2026-07-03 · gotcha · @@unique sobre coluna de idempotência conflita com soft-delete
+- **Contexto:** MAJOR-2 do review do PR5 — delete→re-import do mesmo arquivo dava P2002 cru para sempre.
+- **Aprendizado:** `@@unique([userId,unitId,sha256])` inclui linhas soft-deletadas (SQLite/Prisma sem partial index); o pre-check do service filtra `deletedAt: null` → o fluxo natural "importei errado → excluí → re-importo" morre na constraint. Fix: o soft-delete reescreve a coluna de idempotência para `deleted:<id>` (colisão-livre; valor original preservado no audit payload). Idempotência é propriedade de linhas ATIVAS.
+- **Evidência:** `ReconciliationRepository.softDeleteStatement`; emenda no ADR-INCR7 §3.
+- **Como aplicar:** Ao combinar @@unique de idempotência + soft-delete, decidir NA MODELAGEM quem libera a chave (rename-on-delete) — senão o unique "protege" contra o próprio fluxo de correção.
+- **Durável?** sim (candidato a memória: unique-de-idempotencia-x-soft-delete).
+
+### 2026-07-03 · pattern · Generators fazem scaffold de camada; núcleo bespoke é preenchido por ADR
+- **Contexto:** Roteamento do plano BE-INCR-7 (nota do orquestrador confirmada na execução).
+- **Aprendizado:** Nenhum generator produz auto-match/flip/unmatch — as skills deram os contratos de camada (model/repo/policy/DTO/rota) e o implementer preencheu o núcleo lendo ADR §3/§4. O que manteve a qualidade foi o par contrato-de-camada + review independente por PR (2 FAILs reais pegos: coerce.boolean e a dupla data/sha256).
+- **Evidência:** PRs #32–#37; relatórios dos reviewers (worktrees isolados, gates re-executados com exit codes).
+- **Como aplicar:** Módulo Prisma com lógica de domínio: usar skills para a forma, ADR para o comportamento, reviewer independente para a verdade.
+- **Durável?** não (já vive em reviewer-independence-separate-agent + este ledger).

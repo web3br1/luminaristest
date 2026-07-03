@@ -16,7 +16,7 @@
 | [INCR-2](ADR-INCR2-audit-trail.md) | AuditEvent append-only (hash-chain, tamper-evident) | Accepted w/ amendments (ratif.) | 2026-06-27 | PRISMA_FIRST_CLASS |
 | [INCR-3](ADR-INCR3-entry-numbering.md) | Numeração sequencial gapless (Livro Diário) | Accepted w/ amendments (ratif.) | 2026-06-27 | PRISMA_FIRST_CLASS |
 | [INCR-4](ADR-INCR4-bp-dre.md) | Demonstrações BP + DRE | Accepted w/ amendments (ratif.) | 2026-06-27 | READ_ONLY_REPORT |
-| [INCR-7](ADR-INCR7-bank-reconciliation.md) | Conciliação Bancária (7 decisões) | Accepted (ratif. por delegação) — impl. não iniciada | 2026-07-03 | PRISMA_FIRST_CLASS |
+| [INCR-7](ADR-INCR7-bank-reconciliation.md) | Conciliação Bancária (7 decisões) | Accepted w/ amendments (ratif. por delegação) — backend implementado (PRs #32–#37+) | 2026-07-03 | PRISMA_FIRST_CLASS |
 
 ## Bridges de integração (venda DynamicTable → ledger Prisma)
 
@@ -36,7 +36,7 @@ Registrado aqui para a rastreabilidade não ter buraco silencioso:
 |---|---|---|
 | INCR-5 Anexos/Evidências | `docs/accounting/BE-INCR5-attachments-evidence-brief.md` | Mergeado (sem ADR dedicado) |
 | INCR-6 Data Exchange (import/export) | `docs/accounting/BE-INCR6-data-exchange-brief.md` (+ closeouts) | Mergeado (sem ADR dedicado) |
-| ~~INCR-7 Conciliação Bancária~~ | ~~PRE-ADR~~ → **ADR ratificado** [ADR-INCR7](ADR-INCR7-bank-reconciliation.md) | 7 decisões travadas 2026-07-03; impl. pendente |
+| ~~INCR-7 Conciliação Bancária~~ | ~~PRE-ADR~~ → **backend implementado** [ADR-INCR7](ADR-INCR7-bank-reconciliation.md) | 7 decisões travadas 2026-07-03; backend mergeado (PRs #32–#37+); FE deferido |
 | Roadmap/decisões travadas & rejeitadas | `docs/accounting/ACCOUNTING-MASTER-MAP.md` (§1, §4) | Fonte de verdade do roadmap |
 | ADR-B01 (idempotência AccountingSync) | referenciado por C01/D01 como *Related* | **Ausente deste dir** — decisão vive na memória `accounting-sync-b1` |
 
