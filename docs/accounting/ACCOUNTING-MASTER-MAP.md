@@ -1,0 +1,184 @@
+# Grafo-Mestre REAL — Módulo Contábil Luminaris
+
+> **Fonte de verdade do roadmap contábil.** Este documento é o grafo-mestre **reconciliado com as
+> decisões commitadas** do projeto — não a visão aspiracional de "sistema contábil universal".
+> Onde um grafo aspiracional (o de 35 seções) diverge deste, **este vence** até que um ADR mude a
+> decisão. Todo nó aqui tem um **estado** (legenda §7) e, quando relevante, o ADR/memória que o fixou.
+>
+> **Regra de uso (arquiteto/orquestrador):** nenhuma skill de geração roteia contra um nó marcado
+> 🔴/⚫ sem **ADR em disco + sinal humano**. Nós ✅ estão fechados; nós ⏳ são o incremento corrente.
+>
+> Última reconciliação: **2026-07-03** · HEAD de referência: `761b358` (INCR-6 fechado, brief INCR-7 mergeado).
+
+---
+
+## 1. Decisões TRAVADAS — os trilhos que moldam todo o resto
+
+Estas não são "preferências": são decisões commitadas. Reabrir qualquer uma é `DECISÃO ARQUITETURAL`
+(ADR + sinal humano), **não** feature comum.
+
+| # | Decisão travada | Por quê / evidência |
+|---|---|---|
+| T1 | **SQLite** (WAL + busy_timeout). Sem Postgres. | `stay-on-sqlite-no-postgres`. Todo "exclusion constraint" aspiracional → **gate transacional em app + `@@unique`**. |
+| T2 | **Tenancy = `AccountingScope`** (`ownerUserId` + `unitId` + ledger `DEFAULT` implícito). **Sem** torre `LegalEntity/Ledger/Establishment`. | `accounting-scope-foundation-no-multicompany`; `AccountingScope.ts:12-25`. |
+| T3 | **Contabilidade é Prisma first-class.** Model + Service + Repository + Policy próprios. **Nunca** DynamicTable, **nunca** serviço Prisma injetado no motor de plugins. | Contrato §2.1 (`AC-2.1-B1..B5`); `accounting-is-first-class-prisma`. |
+| T4 | **Dinheiro = centavo inteiro `Int`**, teto Int32 compartilhado (`MAX_CENTS`). Igualdade exata, sem epsilon. | `money.ts:14`; `dynamictable-money-and-uniqueness-limits`. Upgrade a `BigInt` só quando um leg real passar de ~R$ 21,47M. |
+| T5 | **Estorno é lançamento novo**, nunca edição/delete destrutivo do original. Post é imutável. | `JournalEntry` `reversedById`; `accounting-increment-d1-settlement`. |
+| T6 | **Gate de invariante mutável re-checado DENTRO da `runTransaction`** (TOCTOU). Todo `tx` propaga a todo write do bloco. | `authoritative-gate-inside-tx`; `tx-nao-propagado-ao-repo`. |
+| T7 | **Idempotência liga em identidade do evento** (`sourceType+sourceId`, sha256 do arquivo), **nunca em `userId`**. Guarda pré-tx via repo injetado. | `JournalEntry @@unique([userId,unitId,sourceType,sourceId])`; `orchestration-service-tx-repo-smell`; `idempotency-class-fix-discipline`. |
+| T8 | **Auditoria append-only hash-chain, in-tx, exceção ao `onDelete:Cascade`.** | `AuditEvent` (INCR-2); `audit-log-no-fk-cascade`. |
+| T9 | **BRL-only.** Sem multi-moeda — `Posting`/`JournalEntry` não têm campo de moeda. | `AccountingScope.baseCurrencyCode:'BRL'`; grep no schema. |
+| T10 | **Integração origem→ledger = bridge pós-commit explícita** por origem (fora do motor). **Não** existe rule engine dirigido por template. | `accounting-increment-c-salon-bridge` (ADR-C01); AccountingSync. |
+| T11 | **Deploy single-process, SQLite local.** Scheduler in-process. Sem fila/outbox/DLQ. | `accounting-sync-b1-merged`. |
+| T12 | **Governança:** `PLAN → ADR → BRIEF → impl → test → review independente → PR → merge → smoke-gate → closeout → memória`. Review por **agente separado**; smoke-migration-gate antes de dados reais. | `reviewer-independence-separate-agent`; `accounting-incr1-db-risk`; `verify-write-context-before-writing`. |
+
+---
+
+## 2. Estado atual — a fundação que está de pé
+
+Cadeia de dependência **real** (só nós construídos + o corrente). Cada `INCR-N` está mergeado em `main`.
+
+```mermaid
+flowchart TD
+    classDef done fill:#064e3b,stroke:#10b981,color:#d1fae5;
+    classDef wip fill:#78350f,stroke:#f59e0b,color:#fef3c7;
+
+    A["✅ AccountingScope<br/>(owner+unit+DEFAULT)"]:::done
+    B["✅ Plano de Contas<br/>Account · code hierárquico"]:::done
+    C["✅ Períodos INCR-1<br/>FUTURE/OPEN/SOFT/HARD · gate in-tx"]:::done
+    D["✅ JournalEntry + Posting<br/>Σdébito=Σcrédito"]:::done
+    F["✅ Estorno<br/>reversedById · original intacto"]:::done
+    G["✅ Auditoria INCR-2<br/>hash-chain in-tx"]:::done
+    H["✅ Numeração INCR-3<br/>fiscalYear+entryNumber gapless"]:::done
+    I["✅ Anexos INCR-5<br/>DocumentAttachment · sha256"]:::done
+    R["✅ Reports INCR-4<br/>Balancete·Razão·BP·DRE + drill"]:::done
+    X["✅ Data Exchange INCR-6<br/>import/export CSV/XLSX · staging"]:::done
+    FE["✅ Frontend FE-INCR-1<br/>7 abas contábeis"]:::done
+    BR["✅ Bridges pós-commit<br/>salon (C) · AccountingSync"]:::done
+    T["⏳ Conciliação Bancária<br/>BE-INCR-7 · ADR ratificado · impl. pendente"]:::wip
+
+    A --> B --> D
+    A --> C --> D
+    D --> F
+    D --> G
+    D --> H
+    D --> I
+    D --> R
+    R --> X
+    D --> FE
+    BR --> D
+    R --> T
+    D --> T
+```
+
+**Núcleo 1 (ledger confiável) — fechado.** Núcleo de operação/relatório/evidência/troca de dados — fechado.
+Único resíduo do trilho anterior (A–J do INCR-6): **sign-off humano no browser**.
+
+---
+
+## 3. Incremento corrente — Conciliação Bancária (BE-INCR-7)
+
+**Estado:** ⏳ **ADR ratificado** (`docs/adr/ADR-INCR7-bank-reconciliation.md`, 2026-07-03, por delegação);
+implementação **não iniciada**. Próximo: orquestrador monta o plano de skills → implementer.
+
+**Escopo travado (MVP enxuto — 3 entidades):**
+
+```
+BankStatement          cabeçalho · glAccountId (âncora na conta-banco, D4) · sha256 (idempotência re-import)
+BankStatementLine      linha · amountCents Int SINALIZADO (MAX_CENTS) · status UNMATCHED|MATCHED|IGNORED
+ReconciliationMatch    vínculo linha↔posting (D3) · unmatch soft (D7) · @@unique(statementLineId,postingId)
+```
+
+**7 decisões ratificadas:** D1 models próprios + reusa só `parseTable` (não novo ImportKind) · D2 CSV/XLSX only ·
+D3 linha↔posting, N:M estrutural mas **1 match ativo por posting** no MVP (fecha double-link in-tx) · D4 âncora
+no `Account` existente · **D5 `JournalEntry.status=Reconciled` NO MVP** (opção B): flip derivado/reversível/
+auditado `Posted↔Reconciled` quando todos os postings de conta-banco casam — **exige emenda INCR4-A**
+(`LEDGER_STATUSES` passa a incluir `Reconciled`, senão some do BP/DRE) + INCR4-B (estorno exige unmatch antes) ·
+D6 janela ±3d, auto-match só no candidato único (abstém no empate = idempotente) · D7 unmatch soft, flipa
+`Reconciled→Posted`, auditado.
+
+**Regra-dura:** conciliar **não muda valor de ledger** — motor escreve nos vínculos + flipa `JournalEntry.status`
+(marcador reversível); nenhum `Posting`/débito/crédito muda. Ajuste real = novo lançamento via
+`PostingService.postEntry` (gated por período).
+
+**Desambiguação:** ≠ `AccountingSync "reconcile"` (job CRM Won→lançamento, já existe em `features/accounting/sync/`).
+
+---
+
+## 4. Decisões REJEITADAS — não reabrir sem ADR
+
+O grafo aspiracional propõe estes; o projeto **decidiu contra** (registrado). Se algum voltar, é `DECISÃO ARQUITETURAL`.
+
+| Proposta aspiracional | Estado | Por quê rejeitada / vencedor |
+|---|---|---|
+| Torre `Workspace→LegalEntity→Establishment→Ledger` (multiempresa) | 🔴 **Rejeitada** | Vencedor: `AccountingScope` de 2 níveis. `accounting-scope-foundation-no-multicompany`. |
+| PostgreSQL / exclusion constraints | 🔴 **Rejeitada** | Vencedor: SQLite tunado + gate transacional + `@@unique`. `stay-on-sqlite-no-postgres`. |
+| Contabilidade como preset DynamicTable | 🔴 **Rejeitada** | Vencedor: Prisma first-class. Contrato §2.1. |
+| **Motor de Regras Contábeis** (`conditionsJson`/`templateJson` gera lançamento) | 🔴 **Rejeitada (recomendação de domínio)** | Vencedor: **bridge pós-commit explícita por origem**. Um engine dirigido por template no caminho do ledger reintroduz o "motor de plugins" no ponto mais crítico (quem valida que o template balanceia? versionamento?). ADR-C01 fixou o padrão de bridge. |
+| Multi-moeda (`transactionCurrencyCode`/`exchangeRate`) | 🔴 **Fora / ADR próprio** | BRL-only. Campo reservado no `AccountingScope` como slot futuro, sem implementação. |
+
+---
+
+## 5. Domínios DIFERIDOS — reais, mas cada um é seu próprio ADR/incremento
+
+Ordenados por proximidade da fundação. **Nenhum** é "o próximo passo" antes do INCR-7 fechar.
+
+| Domínio | Estado | Gate para começar |
+|---|---|---|
+| **SourceDocument + JournalEntrySource** (proveniência formal) | ⚫ Diferido — **extensão**, não greenfield | Proveniência mínima já existe (`sourceType/sourceId`/`externalReference`, D1). Candidato mais defensável pós-INCR-7. |
+| **OFX/CNAB/NF-e** (ingestão bancária/fiscal rica) | ⚫ Diferido | ADR próprio; depende do INCR-7 (CSV/XLSX) provado. |
+| **ECD / ECF readiness** (compliance) | ⚫ Diferido | Depende de proveniência + mapeamento referencial versionado. |
+| **Torre de aprovação** (maker-checker, SoD, `submittedById`/`approvedById`/`version`/`contentHash`) | ⚫ Diferido | Model atual só tem `Draft\|Posted\|Reconciled\|Reversed`. ADR + invariantes ACC-016/017. |
+| **Dimensões** (centro de custo/projeto — DimensionDefinition/Value/PostingDimension) | ⚫ Diferido | Sem precedente; YAGNI até demanda real. |
+| **Subrazões** (AR, AP, estoque, imobilizado, **folha**, **fiscal/tributos**) | ⚫ Diferido | Cada um é módulo ERP first-class próprio. Folha/fiscal = domínios pesados isolados. |
+| **Integração inbox/outbox/DLQ** | ⚫ Diferido | Só faz sentido quando sair de single-process (T11). Bridges cobrem a escala atual. |
+| **IA/analytics** (sugestão de conta/conciliação, anomalias) | ⚫ Diferido | Sobre um ledger já confiável; IA sugere, humano contabiliza. |
+| **LGPD/RBAC granular** | ⚫ Parcial | Autorização no servidor já vale; mascaramento/retenção/papéis finos = incremento próprio. |
+
+---
+
+## 6. Mapa de reuso canônico — os blocos reais a reaproveitar
+
+Antes de gerar "novo", reuse (Contrato §0). Confirmado por código:
+
+| Bloco | Onde |
+|---|---|
+| `AccountingScope` / `accountingScopeWhere` | `features/accounting/scope/AccountingScope.ts` |
+| `PostingService.postEntry` (lançar ajustes) | `features/accounting/services/PostingService.ts` |
+| `AuditService.append(tx, scope, event)` | `features/accounting/services/AuditService.ts` |
+| `MAX_CENTS` | `features/accounting/models/money.ts` |
+| `DocumentAttachment` (anexar extrato) | `features/accounting/services/DocumentAttachmentService.ts` |
+| Parser puro `parseTable` | `lib/spreadsheet` (desacoplado do model INCR-6) |
+| `AccountingReportService` (as_of + groupByAccount) | INCR-4 |
+| Gate de período | INCR-1 |
+| Factory / rota-3-toques / DTO Zod `.strict()` / Policy | Contrato §2/§3 |
+
+---
+
+## 7. Régua de progresso — os 5 núcleos (do grafo aspiracional §32), % real
+
+| Núcleo | Estado | % | Falta |
+|---|---|---|---|
+| **1 — Ledger confiável** | ✅ | ~95% | (nada estrutural; "permissões/aprovação" que o grafo mistura aqui são torre nova, não gap) |
+| **2 — Operação real** | 🟡 | ~60% | aprovação, dimensões, busca/filtros ricos |
+| **3 — Integração** | 🟡 | ~25% | SourceDocument formal, inbox, outbox (só se sair de single-process) |
+| **4 — Gestão** | 🟡 | ~50% | fluxo de caixa, análise por dimensão, variação mensal |
+| **5 — Compliance** | ⚫ | ~5% | ECD/ECF readiness, mapeamento referencial, pacotes, recibos |
+
+**Posição:** fundação (Núcleo 1) completa, Núcleo 2 mais da metade; ramos de expansão à frente. Nó corrente = **Conciliação**.
+
+---
+
+## 8. Legenda de estados
+
+| Marca | Significado |
+|---|---|
+| ✅ | Construído e mergeado em `main` |
+| ⏳ | Incremento corrente (PRE-ADR ou em execução) |
+| 🔴 | Decisão **rejeitada** — reabrir exige ADR + sinal humano |
+| ⚫ | Diferido — real, mas fora do escopo atual; ADR/incremento próprio |
+| 🟡 | Parcial |
+
+> **Como manter este doc:** a cada incremento fechado, promova o nó ⏳→✅ e registre o ADR/merge. Ao
+> avaliar qualquer proposta nova, cheque primeiro se ela colide com §1 (travadas) ou §4 (rejeitadas) —
+> se colidir, é ADR, não tarefa.
