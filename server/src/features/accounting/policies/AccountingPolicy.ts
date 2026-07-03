@@ -23,4 +23,8 @@ export class AccountingPolicy implements IAccountingPolicy {
   canClosePeriod(scope: AccountingScope): boolean {
     return !!scope.actorUserId;
   }
+
+  canReconcile(scope: AccountingScope): boolean {
+    return !!scope.actorUserId;
+  }
 }

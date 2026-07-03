@@ -18,4 +18,7 @@ export interface IAccountingPolicy {
 
   /** Can open, close, or reopen accounting periods. */
   canClosePeriod(scope: AccountingScope): boolean;
+
+  /** Can import statements and match/unmatch bank reconciliation (BE-INCR-7). */
+  canReconcile(scope: AccountingScope): boolean;
 }
