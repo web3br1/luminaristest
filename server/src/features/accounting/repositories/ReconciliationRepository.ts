@@ -353,6 +353,34 @@ export class ReconciliationRepository implements IReconciliationRepository {
     return count;
   }
 
+  public async findUnmatchedLinesByAccount(
+    scope: AccountingScope,
+    glAccountId: string,
+    options?: { from?: Date; to?: Date },
+    tx?: Prisma.TransactionClient,
+  ): Promise<BankStatementLine[]> {
+    const dateFilter =
+      options?.from || options?.to
+        ? {
+            date: {
+              ...(options.from ? { gte: options.from } : {}),
+              ...(options.to ? { lte: options.to } : {}),
+            },
+          }
+        : {};
+    return (tx ?? prisma).bankStatementLine.findMany({
+      where: {
+        ...accountingScopeWhere(scope),
+        status: 'UNMATCHED',
+        ...dateFilter,
+        // Only lines of ACTIVE statements of this bank account — lines under a
+        // soft-deleted statement are dead for reporting purposes.
+        statement: { glAccountId, deletedAt: null },
+      },
+      orderBy: [{ date: 'asc' }, { lineNumber: 'asc' }],
+    });
+  }
+
   public async findUnmatchedBankPostings(
     scope: AccountingScope,
     glAccountId: string,

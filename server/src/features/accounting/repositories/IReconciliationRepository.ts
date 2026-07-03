@@ -227,6 +227,17 @@ export interface IReconciliationRepository {
   ): Promise<number>;
 
   /**
+   * Pending-report read (§4.5): UNMATCHED lines across all ACTIVE statements of
+   * a bank GL account, optionally windowed by line date, ordered by date asc.
+   */
+  findUnmatchedLinesByAccount(
+    scope: AccountingScope,
+    glAccountId: string,
+    options?: { from?: Date; to?: Date },
+    tx?: Prisma.TransactionClient,
+  ): Promise<BankStatementLine[]>;
+
+  /**
    * Pending-report read (§4.5): postings on the bank GL account with no active
    * match, entry status in ledger statuses, optionally windowed by entry date.
    */
