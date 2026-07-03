@@ -129,6 +129,69 @@ describe('ReconciliationService.manualMatch (D3 aggregation)', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
+  it('rejects a zero-side posting even when the aggregate Σ closes (direction gate under skipExactAmountCheck)', async () => {
+    // Σ(debit) = 15000 + 0 = |line| ✓ — but p2 moves nothing on the debit side;
+    // the per-posting direction gate (sideAmount > 0) must still fire in-tx.
+    const p1 = posting('p1', 15000);
+    const p2 = { ...posting('p2', 0), creditCents: 500 };
+    const { svc } = buildService({
+      repo: {
+        findPostingById: jest.fn(async (_s: unknown, id: string) => (id === 'p1' ? p1 : p2)),
+      },
+    });
+    // The throw aborts the tx — p1's side-effects roll back with it in production
+    // (the mocked runTransaction has no rollback semantics, so only the rejection is asserted).
+    await expect(
+      svc.manualMatch(scope, { statementLineId: 'l1', postingIds: ['p1', 'p2'] }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('rejects a posting from another account even when Σ closes (gate 2 on the manual path)', async () => {
+    const other = { ...posting('p1', 15000), accountId: 'acc-other' };
+    const { svc } = buildService({
+      repo: { findPostingById: jest.fn(async () => other) },
+    });
+    await expect(
+      svc.manualMatch(scope, { statementLineId: 'l1', postingIds: ['p1'] }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('rejects a posting whose entry is not Posted even when Σ closes (gate 2 on the manual path)', async () => {
+    const reversed = posting('p1', 15000, 'Reversed');
+    const { svc } = buildService({
+      repo: { findPostingById: jest.fn(async () => reversed) },
+    });
+    await expect(
+      svc.manualMatch(scope, { statementLineId: 'l1', postingIds: ['p1'] }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('MAJOR guard: rejects a second full aggregation on an already-MATCHED line (over-match)', async () => {
+    // Line already fully explained by an earlier batch; a new batch whose Σ also
+    // closes would take Σ(active matches) to 2×|line|. Gate 0 in-tx must reject.
+    const { svc, repo } = buildService({
+      repo: {
+        findLineById: jest.fn(async () => ({ ...line, status: 'MATCHED' })),
+      },
+    });
+    await expect(
+      svc.manualMatch(scope, { statementLineId: 'l1', postingIds: ['p2'] }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.createMatch).not.toHaveBeenCalled();
+  });
+
+  it('MAJOR guard (race shape): line UNMATCHED but an active match already exists in-tx → rejects', async () => {
+    const { svc, repo } = buildService({
+      repo: {
+        findActiveMatchesByLine: jest.fn(async () => [{ ...activeMatch, id: 'm-race' }]),
+      },
+    });
+    await expect(
+      svc.manualMatch(scope, { statementLineId: 'l1', postingIds: ['p1'] }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.createMatch).not.toHaveBeenCalled();
+  });
+
   it('double-link: posting already actively matched → rejected in-tx (TOCTOU)', async () => {
     const { svc } = buildService({
       repo: { findActiveMatchByPosting: jest.fn(async () => ({ ...activeMatch, id: 'm-other' })) },

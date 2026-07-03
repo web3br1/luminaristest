@@ -335,7 +335,7 @@ export class ReconciliationService {
     // Gate 3 — max 1 active match per posting (D3; closes the duplicated-line hole).
     const activeOnPosting = await this.repo.findActiveMatchByPosting(scope, posting.id, tx);
     if (activeOnPosting) {
-      throw new ValidationError('O posting já está conciliado com outra linha (unmatch primeiro).');
+      throw new ValidationError('O posting já possui vínculo ativo (unmatch primeiro).');
     }
     // Gate 4 — direction always; exact cents for single matches (integer equality,
     // no epsilon — ACC-014). Manual AGGREGATION (N postings ↔ 1 line, D3) skips the
@@ -474,7 +474,22 @@ export class ReconciliationService {
     if (!statement) throw new NotFoundError('Extrato não encontrado.');
 
     await this.repo.runTransaction(async (tx) => {
-      // Resolve every posting in-tx first, so the aggregate check sees one snapshot.
+      // Gate 0 (in-tx, ACC-011): the line must be UNMATCHED with ZERO active
+      // matches. Σ(batch) === |line| means the batch is the WHOLE explanation —
+      // a second full batch on a MATCHED line (or a concurrent manualMatch
+      // racing this one) would over-match the line to 2×|line|.
+      const freshLine = await this.repo.findLineById(scope, input.statementLineId, tx);
+      if (!freshLine) throw new NotFoundError('Linha de extrato não encontrada.');
+      if (freshLine.status !== 'UNMATCHED') {
+        throw new ValidationError(
+          `Linha está ${freshLine.status} — desfaça os vínculos (unmatch) antes de re-conciliar.`,
+        );
+      }
+      const activeOnLine = await this.repo.findActiveMatchesByLine(scope, freshLine.id, tx);
+      if (activeOnLine.length > 0) {
+        throw new ValidationError('Linha já possui vínculo ativo — desfaça (unmatch) antes.');
+      }
+      // Resolve every posting in-tx, so the aggregate check sees one snapshot.
       const postings: CandidatePosting[] = [];
       for (const postingId of input.postingIds) {
         const posting = await this.repo.findPostingById(scope, postingId, tx);
