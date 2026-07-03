@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MAX_CENTS } from '../models/money';
+import { isValidDateOnly } from '../models/dates';
 
 /**
  * PostingDto — double-entry posting engine inputs (Phase 2).
@@ -65,7 +66,9 @@ export const PostEntrySchema = z.object({
   // parse this as UTC midnight — a datetime string would let the local calendar date and
   // the UTC calendar date disagree, reintroducing the fiscal-year boundary bug this format
   // was tightened to close.
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date deve ser YYYY-MM-DD'),
+  // isValidDateOnly = regex + round-trip: JS Date rolls '2026-02-30' to 03-02, which
+  // would silently shift the fiscal date (class-fix, see models/dates.ts).
+  date: z.string().refine(isValidDateOnly, 'date deve ser uma data real YYYY-MM-DD'),
   description: z.string().min(1),
   sourceType: z.string().default('manual'),
   sourceId: z.string().optional(),
@@ -86,7 +89,7 @@ export const PostEntrySchema = z.object({
 export const ReverseEntrySchema = z.object({
   unitId: z.string().min(1),
   lancamentoId: z.string().min(1),
-  reversalPostingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'reversalPostingDate deve ser YYYY-MM-DD'),
+  reversalPostingDate: z.string().refine(isValidDateOnly, 'reversalPostingDate deve ser uma data real YYYY-MM-DD'),
   reason: z.string().optional(),
 });
 
@@ -243,17 +246,13 @@ export type ReopenPeriodInput = z.infer<typeof ReopenPeriodSchema>;
 /** Query DTO for GET /balance-sheet?unitId=&asOf=YYYY-MM-DD */
 export const BalanceSheetQuerySchema = z.object({
   unitId: z.string().min(1),
-  asOf: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'asOf deve ser YYYY-MM-DD'),
+  asOf: z.string().refine(isValidDateOnly, 'asOf deve ser uma data real YYYY-MM-DD'),
 });
 
 /** Query DTO for GET /income-statement?unitId=&asOf=YYYY-MM-DD */
 export const IncomeStatementQuerySchema = z.object({
   unitId: z.string().min(1),
-  asOf: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'asOf deve ser YYYY-MM-DD'),
+  asOf: z.string().refine(isValidDateOnly, 'asOf deve ser uma data real YYYY-MM-DD'),
 });
 
 export type BalanceSheetQueryInput = z.infer<typeof BalanceSheetQuerySchema>;

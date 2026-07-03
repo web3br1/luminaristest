@@ -182,7 +182,11 @@ describe('ReconciliationService.importStatement', () => {
   it.each([
     ['zero amount', 'date,amountCents,description\n2026-06-15,0,PIX\n'],
     ['non-integer amount', 'date,amountCents,description\n2026-06-15,150.00,PIX\n'],
-    ['bad date', 'date,amountCents,description\n15/06/2026,15000,PIX\n'],
+    ['bad date format', 'date,amountCents,description\n15/06/2026,15000,PIX\n'],
+    // JS Date would silently roll 2026-02-30 to 03-02 — must REJECT, never shift
+    // (distorts the D6 ±3-day window). Round-trip check via isValidDateOnly.
+    ['calendar-invalid date (day overflow)', 'date,amountCents,description\n2026-02-30,15000,PIX\n'],
+    ['calendar-invalid date (June 31st)', 'date,amountCents,description\n2026-06-31,15000,PIX\n'],
     ['empty description', 'date,amountCents,description\n2026-06-15,15000,\n'],
     ['missing required column', 'date,description\n2026-06-15,PIX\n'],
   ])('ALL-OR-NOTHING: %s → ValidationError, nothing written', async (_label, csv) => {
@@ -271,6 +275,43 @@ describe('ReconciliationService.autoMatchStatement (D6)', () => {
   it('TOCTOU: posting got an active match between query and commit → rejects (rollback)', async () => {
     const { svc } = buildService({
       repo: { findActiveMatchByPosting: jest.fn(async () => ({ id: 'other-match', unmatchedAt: null })) },
+    });
+    await expect(svc.autoMatchStatement(scope, 'st1')).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('TOCTOU: statement soft-deleted between preflight and tx → NotFoundError (liveness re-check in-tx)', async () => {
+    const { svc } = buildService({
+      repo: {
+        findStatementById: jest
+          .fn()
+          .mockResolvedValueOnce({ ...statement }) // preflight (outside tx)
+          .mockResolvedValue(null), // in-tx re-read: gone
+      },
+    });
+    await expect(svc.autoMatchStatement(scope, 'st1')).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('in-tx gate: candidate whose account does not belong to the statement → rejects', async () => {
+    const { svc } = buildService({
+      repo: { findCandidatePostings: jest.fn(async () => [{ ...candidate, accountId: 'acc-other' }]) },
+    });
+    await expect(svc.autoMatchStatement(scope, 'st1')).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('in-tx gate: candidate whose entry is no longer Posted → rejects', async () => {
+    const { svc } = buildService({
+      repo: {
+        findCandidatePostings: jest.fn(async () => [
+          { ...candidate, entry: { ...candidate.entry, status: 'Reversed' } },
+        ]),
+      },
+    });
+    await expect(svc.autoMatchStatement(scope, 'st1')).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('in-tx gate: candidate with mismatched cents → rejects (exact integer equality)', async () => {
+    const { svc } = buildService({
+      repo: { findCandidatePostings: jest.fn(async () => [{ ...candidate, debitCents: 14999 }]) },
     });
     await expect(svc.autoMatchStatement(scope, 'st1')).rejects.toBeInstanceOf(ValidationError);
   });

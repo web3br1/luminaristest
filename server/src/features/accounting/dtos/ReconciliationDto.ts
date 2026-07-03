@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MAX_CENTS } from '../models/money';
+import { isValidDateOnly } from '../models/dates';
 
 /**
  * ReconciliationDto — bank reconciliation inputs (BE-INCR-7 / ADR-INCR7).
@@ -38,9 +39,8 @@ const optionalSignedCents = z.preprocess(
  */
 const dateOnly = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'data deve ser YYYY-MM-DD')
-  .transform((s) => new Date(`${s}T00:00:00.000Z`))
-  .refine((d) => !Number.isNaN(d.getTime()), 'data inválida');
+  .refine(isValidDateOnly, 'data deve ser uma data real YYYY-MM-DD')
+  .transform((s) => new Date(`${s}T00:00:00.000Z`));
 
 /**
  * Body of a multipart statement import (the file itself is handled server-side;

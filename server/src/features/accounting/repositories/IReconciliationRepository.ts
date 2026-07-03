@@ -61,7 +61,9 @@ export interface IReconciliationRepository {
    * Soft-deletes a statement within the scope. Throws NotFoundError if no active
    * row. Deleting a statement with ACTIVE matches must be blocked at the service
    * level (use countActiveMatchesByStatement) — the soft-delete itself does not
-   * cascade nor unmatch.
+   * cascade nor unmatch. The row's sha256 is rewritten to `deleted:<id>` so the
+   * @@unique frees the hash and the same file can be re-imported (D1 idempotency
+   * is an ACTIVE-statement property; the original hash lives in the audit trail).
    */
   softDeleteStatement(
     scope: AccountingScope,

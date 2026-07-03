@@ -98,7 +98,15 @@ export class ReconciliationRepository implements IReconciliationRepository {
     // active statement — fail loud, never no-op (same pattern as DocumentAttachment).
     const { count } = await (tx ?? prisma).bankStatement.updateMany({
       where: { id, ...accountingScopeWhere(scope), deletedAt: null },
-      data: { deletedAt: new Date() },
+      data: {
+        deletedAt: new Date(),
+        // Frees @@unique([userId,unitId,sha256]) so the SAME file can be re-imported
+        // after deletion (delete→re-import would otherwise hit a raw P2002 forever).
+        // D1 idempotency applies to ACTIVE statements; the original sha256 survives in
+        // the reconciliation.statement_deleted audit payload. `deleted:<id>` is
+        // collision-free (id is the PK).
+        sha256: `deleted:${id}`,
+      },
     });
     if (count === 0) {
       throw new NotFoundError(`Extrato '${id}' não encontrado para exclusão.`);

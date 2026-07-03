@@ -8,6 +8,7 @@ import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { AccountingScope } from '../scope/AccountingScope';
 import type { AuditService } from './AuditService';
 import { MAX_CENTS } from '../models/money';
+import { isValidDateOnly } from '../models/dates';
 import type {
   CandidatePosting,
   CreateBankStatementLineInput,
@@ -172,15 +173,14 @@ export class ReconciliationService {
       const rawAmount = row[cAmount] ?? '';
       const description = (row[cDesc] ?? '').trim();
 
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
-        errors.push({ row: rowNumber, error: `date '${rawDate}' deve ser YYYY-MM-DD.` });
+      // Round-trip calendar check (isValidDateOnly): JS Date rolls day overflow
+      // forward ('2026-02-30' -> 03-02), which would silently MUTATE the line date
+      // and distort the D6 ±3-day window — reject, never shift.
+      if (!isValidDateOnly(rawDate)) {
+        errors.push({ row: rowNumber, error: `date '${rawDate}' deve ser uma data real YYYY-MM-DD.` });
         return;
       }
       const date = new Date(`${rawDate}T00:00:00.000Z`);
-      if (Number.isNaN(date.getTime())) {
-        errors.push({ row: rowNumber, error: `date '${rawDate}' inválida.` });
-        return;
-      }
       // SIGNED integer cents (same "tudo em centavos" convention as INCR-6 templates).
       if (!/^-?\d+$/.test(rawAmount)) {
         errors.push({ row: rowNumber, error: `amountCents '${rawAmount}' deve ser inteiro (centavos, sinalizado).` });
@@ -226,10 +226,16 @@ export class ReconciliationService {
     if (!this.policy.canReconcile(scope)) {
       throw new ForbiddenError('Você não tem permissão para conciliar.');
     }
-    const statement = await this.repo.findStatementById(scope, statementId);
-    if (!statement) throw new NotFoundError('Extrato não encontrado.');
+    const preflight = await this.repo.findStatementById(scope, statementId);
+    if (!preflight) throw new NotFoundError('Extrato não encontrado.');
 
+    // ponytail: one interactive tx for the whole statement (Prisma default 5s) —
+    // chunk per N lines if real statements ever hit the timeout.
     return this.repo.runTransaction(async (tx) => {
+      // Liveness re-check in-tx (ACC-011): a concurrent deleteStatement must not
+      // interleave matches under a soft-deleted statement.
+      const statement = await this.repo.findStatementById(scope, statementId, tx);
+      if (!statement) throw new NotFoundError('Extrato não encontrado.');
       const lines = await this.repo.findLinesByStatement(scope, statementId, 'UNMATCHED', tx);
       const summary: AutoMatchSummary = { processed: 0, matched: 0, zeroCandidates: 0, ambiguous: 0 };
 
@@ -239,7 +245,7 @@ export class ReconciliationService {
         if (candidates.length === 1) {
           // Único candidato — comita (D6). Abster no empate é o que torna o
           // re-run idempotente por construção: nunca há escolha entre candidatos.
-          await this.commitMatch(tx, scope, statement, line, candidates[0], 'AUTO');
+          await this.commitMatch(tx, scope, line, candidates[0], 'AUTO');
           summary.matched++;
         } else if (candidates.length === 0) {
           summary.zeroCandidates++;
@@ -296,24 +302,26 @@ export class ReconciliationService {
   }
 
   /**
-   * Match core — the in-tx authoritative gate (ADR §3, ACC-011). Every check
-   * re-runs INSIDE the tx even when the caller pre-filtered, because the state
-   * can change between suggestion and commit (TOCTOU).
+   * Match core — the in-tx authoritative gate (ADR §3, ACC-011). Line and
+   * statement are re-read INSIDE the tx; the POSTING object must itself have
+   * been read in-tx by the caller (candidate query or findPostingById with tx),
+   * otherwise entry.status is stale — the TOCTOU the gate exists to close.
    */
   private async commitMatch(
     tx: Prisma.TransactionClient,
     scope: AccountingScope,
-    statement: BankStatement,
     line: BankStatementLine,
     posting: CandidatePosting,
     matchType: ReconciliationMatchType,
   ): Promise<void> {
-    // Gate 1 — line is alive and matchable (re-read in-tx).
+    // Gate 1 — line is alive and matchable, under a LIVE statement (re-read in-tx).
     const freshLine = await this.repo.findLineById(scope, line.id, tx);
     if (!freshLine) throw new NotFoundError('Linha de extrato não encontrada.');
     if (freshLine.status === 'IGNORED') {
       throw new ValidationError('Linha marcada como IGNORED não pode ser conciliada.');
     }
+    const statement = await this.repo.findStatementById(scope, freshLine.statementId, tx);
+    if (!statement) throw new NotFoundError('Extrato não encontrado.');
     // Gate 2 — posting belongs to the statement's bank account and entry is Posted.
     if (posting.accountId !== statement.glAccountId) {
       throw new ValidationError('O posting não pertence à conta-banco deste extrato.');
