@@ -313,6 +313,7 @@ export class ReconciliationService {
     line: BankStatementLine,
     posting: CandidatePosting,
     matchType: ReconciliationMatchType,
+    options?: { skipExactAmountCheck?: boolean },
   ): Promise<void> {
     // Gate 1 — line is alive and matchable, under a LIVE statement (re-read in-tx).
     const freshLine = await this.repo.findLineById(scope, line.id, tx);
@@ -336,11 +337,15 @@ export class ReconciliationService {
     if (activeOnPosting) {
       throw new ValidationError('O posting já está conciliado com outra linha (unmatch primeiro).');
     }
-    // Gate 4 — exact cents + direction (integer equality, no epsilon — ACC-014).
-    const expected = Math.abs(freshLine.amountCents);
-    const actual = freshLine.amountCents > 0 ? posting.debitCents : posting.creditCents;
-    if (freshLine.amountCents === 0 || actual !== expected) {
-      throw new ValidationError('Valor/direção do posting não confere com a linha do extrato.');
+    // Gate 4 — direction always; exact cents for single matches (integer equality,
+    // no epsilon — ACC-014). Manual AGGREGATION (N postings ↔ 1 line, D3) skips the
+    // per-posting equality: manualMatch enforces Σ(side amounts) === |line| instead.
+    const sideAmount = freshLine.amountCents > 0 ? posting.debitCents : posting.creditCents;
+    if (freshLine.amountCents === 0 || sideAmount <= 0) {
+      throw new ValidationError('Direção do posting não confere com a linha do extrato.');
+    }
+    if (!options?.skipExactAmountCheck && sideAmount !== Math.abs(freshLine.amountCents)) {
+      throw new ValidationError('Valor do posting não confere com a linha do extrato.');
     }
 
     // Gate 5 — create (or reactivate the soft-undone unique pair) + line status.
@@ -395,18 +400,19 @@ export class ReconciliationService {
 
     // Gate 6 — derived flip (D5): Posted -> Reconciled when EVERY bank-account
     // posting of the entry has an active match (this tx sees the one just created).
-    await this.recomputeEntryFlip(tx, scope, posting.entry.id);
+    await this.recomputeEntryFlip(tx, scope, posting.entry.id, posting.entry.status);
   }
 
   /**
-   * D5 derivation, shared by match (flip) and — in the next increment — unmatch
-   * (flip-back). Reads the per-posting state in-tx and conditionally flips; a
-   * 0-row conditional update means the entry changed under us — rollback (ACC-011).
+   * D5 derivation, shared by match (flip) and unmatch (flip-back). Reads the
+   * per-posting state in-tx and conditionally flips in EITHER direction; a 0-row
+   * conditional update means the entry changed under us — rollback (ACC-011).
    */
   private async recomputeEntryFlip(
     tx: Prisma.TransactionClient,
     scope: AccountingScope,
     entryId: string,
+    currentStatus: string,
   ): Promise<void> {
     const states = await this.repo.findEntryPostingsReconciliationState(scope, entryId, tx);
     const bankAccountIds = new Set(await this.repo.findScopeBankAccountIds(scope, tx));
@@ -414,7 +420,7 @@ export class ReconciliationService {
     if (bankPostings.length === 0) return;
 
     const allMatched = bankPostings.every((s) => s.hasActiveMatch);
-    if (allMatched) {
+    if (allMatched && currentStatus === 'Posted') {
       const flipped = await this.repo.updateEntryStatus(scope, entryId, 'Posted', 'Reconciled', tx);
       if (flipped === 0) {
         // Entry is no longer Posted (reversed/changed between gate and flip) — TOCTOU.
@@ -430,7 +436,162 @@ export class ReconciliationService {
         targetId: entryId,
         payload: { derivedFrom: 'all_bank_postings_matched' },
       });
+    } else if (!allMatched && currentStatus === 'Reconciled') {
+      // Flip-back (D7): the derived condition no longer holds — reversible marker.
+      const flipped = await this.repo.updateEntryStatus(scope, entryId, 'Reconciled', 'Posted', tx);
+      if (flipped === 0) {
+        throw new ServiceError(
+          'Lançamento mudou de status durante o unmatch — operação cancelada.',
+          'RECONCILE_RACE',
+        );
+      }
+      await this.audit.append(tx, scope, {
+        actorUserId: scope.actorUserId,
+        eventType: 'reconciliation.entry_unreconciled',
+        targetType: 'JOURNAL_ENTRY',
+        targetId: entryId,
+        payload: { derivedFrom: 'bank_posting_unmatched' },
+      });
     }
+  }
+
+  // ── Manual match / unmatch / ignore (§4.3, D3/D7) ─────────────────────────
+  /**
+   * Manual match: links ONE line to N postings (D3 aggregation). The whole set
+   * commits in a single tx; the aggregate invariant is Σ(side amounts) === |line|
+   * (exact integer equality, ACC-014) — a MATCHED line is always fully explained.
+   */
+  async manualMatch(
+    scope: AccountingScope,
+    input: { statementLineId: string; postingIds: string[] },
+  ): Promise<{ matchedPostings: number }> {
+    if (!this.policy.canReconcile(scope)) {
+      throw new ForbiddenError('Você não tem permissão para conciliar.');
+    }
+    const line = await this.repo.findLineById(scope, input.statementLineId);
+    if (!line) throw new NotFoundError('Linha de extrato não encontrada.');
+    const statement = await this.repo.findStatementById(scope, line.statementId);
+    if (!statement) throw new NotFoundError('Extrato não encontrado.');
+
+    await this.repo.runTransaction(async (tx) => {
+      // Resolve every posting in-tx first, so the aggregate check sees one snapshot.
+      const postings: CandidatePosting[] = [];
+      for (const postingId of input.postingIds) {
+        const posting = await this.repo.findPostingById(scope, postingId, tx);
+        if (!posting) throw new NotFoundError(`Posting '${postingId}' não encontrado.`);
+        postings.push(posting);
+      }
+      const side = line.amountCents > 0 ? 'debitCents' : 'creditCents';
+      const sum = postings.reduce((acc, p) => acc + p[side], 0);
+      if (sum !== Math.abs(line.amountCents)) {
+        throw new ValidationError(
+          `Σ dos postings (${sum}) não confere com a linha (${Math.abs(line.amountCents)}) — agregação deve fechar exata (centavos).`,
+        );
+      }
+      for (const posting of postings) {
+        // commitMatch re-reads line + statement in-tx (liveness); postings above
+        // were read in-tx too — the whole gate sees one snapshot.
+        await this.commitMatch(tx, scope, line, posting, 'MANUAL', {
+          skipExactAmountCheck: true,
+        });
+      }
+    });
+    return { matchedPostings: input.postingIds.length };
+  }
+
+  /**
+   * Soft-undo of an active match (D7/ACC-018): the link row is preserved
+   * (unmatchedAt/unmatchedById), the line status is recomputed, and the entry
+   * flip-back Reconciled -> Posted happens in the SAME tx when the derived
+   * condition no longer holds.
+   */
+  async unmatch(
+    scope: AccountingScope,
+    input: { matchId: string; reason?: string },
+  ): Promise<void> {
+    if (!this.policy.canReconcile(scope)) {
+      throw new ForbiddenError('Você não tem permissão para conciliar.');
+    }
+    const match = await this.repo.findMatchById(scope, input.matchId);
+    if (!match) throw new NotFoundError('Vínculo não encontrado.');
+    if (match.unmatchedAt !== null) {
+      throw new ValidationError('Vínculo já está desfeito.');
+    }
+
+    await this.repo.runTransaction(async (tx) => {
+      const undone = await this.repo.softUnmatch(scope, match.id, scope.actorUserId, tx);
+      if (undone === 0) {
+        throw new ServiceError('Vínculo já desfeito por outra operação.', 'RECONCILE_RACE');
+      }
+      // Line recompute: back to UNMATCHED only when no active match remains (aggregation).
+      const remaining = await this.repo.findActiveMatchesByLine(scope, match.statementLineId, tx);
+      if (remaining.length === 0) {
+        const flipped = await this.repo.updateLineStatus(
+          scope,
+          match.statementLineId,
+          'MATCHED',
+          'UNMATCHED',
+          tx,
+        );
+        if (flipped === 0) {
+          throw new ServiceError('Conflito ao atualizar a linha — tente novamente.', 'RECONCILE_RACE');
+        }
+      }
+      await this.audit.append(tx, scope, {
+        actorUserId: scope.actorUserId,
+        eventType: 'reconciliation.unmatched',
+        targetType: 'RECONCILIATION_MATCH',
+        targetId: match.id,
+        payload: {
+          statementLineId: match.statementLineId,
+          postingId: match.postingId,
+          ...(input.reason ? { reason: input.reason } : {}),
+        },
+      });
+      // Flip-back recompute (D5/D7) — findPostingById does NOT filter entry status,
+      // so it reaches the Reconciled entry (the reason the method exists).
+      const posting = await this.repo.findPostingById(scope, match.postingId, tx);
+      if (!posting) {
+        throw new ServiceError('Posting do vínculo não encontrado — estado inconsistente.', 'RECONCILE_RACE');
+      }
+      await this.recomputeEntryFlip(tx, scope, posting.entry.id, posting.entry.status);
+    });
+  }
+
+  /** Marks/unmarks a line as IGNORED (e.g. a fee to be posted via /post). */
+  async setLineIgnored(
+    scope: AccountingScope,
+    input: { statementLineId: string; ignored: boolean },
+  ): Promise<void> {
+    if (!this.policy.canReconcile(scope)) {
+      throw new ForbiddenError('Você não tem permissão para conciliar.');
+    }
+    const line = await this.repo.findLineById(scope, input.statementLineId);
+    if (!line) throw new NotFoundError('Linha de extrato não encontrada.');
+    const statement = await this.repo.findStatementById(scope, line.statementId);
+    if (!statement) throw new NotFoundError('Extrato não encontrado.');
+
+    await this.repo.runTransaction(async (tx) => {
+      const fresh = await this.repo.findLineById(scope, input.statementLineId, tx);
+      if (!fresh) throw new NotFoundError('Linha de extrato não encontrada.');
+      const target = input.ignored ? 'IGNORED' : 'UNMATCHED';
+      if (fresh.status === target) return; // idempotent no-op
+      if (fresh.status === 'MATCHED') {
+        throw new ValidationError('Linha com vínculo ativo — desfaça (unmatch) antes.');
+      }
+      const from = input.ignored ? 'UNMATCHED' : 'IGNORED';
+      const flipped = await this.repo.updateLineStatus(scope, fresh.id, from, target, tx);
+      if (flipped === 0) {
+        throw new ServiceError('Conflito ao atualizar a linha — tente novamente.', 'RECONCILE_RACE');
+      }
+      await this.audit.append(tx, scope, {
+        actorUserId: scope.actorUserId,
+        eventType: input.ignored ? 'reconciliation.line_ignored' : 'reconciliation.line_unignored',
+        targetType: 'BANK_STATEMENT_LINE',
+        targetId: fresh.id,
+        payload: { statementId: fresh.statementId },
+      });
+    });
   }
 
   // ── Pending report (§4.5, as-of — ACC-021) ────────────────────────────────

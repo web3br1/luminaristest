@@ -274,6 +274,13 @@ export async function reconcileSalonCancellations(
         if (entry && entry.status === 'Posted') {
           await deps.reverse(scope, sale.unitId, entry.id);
           didReverse = true;
+        } else if (entry && entry.status === 'Reconciled') {
+          // INCR4-B: a bank-reconciled entry blocks the reversal — surface it as a
+          // FAILURE (never an idempotent hit): the pending estorno would otherwise
+          // be silently masked until someone unmatches.
+          throw new Error(
+            `Entry '${entry.id}' (${sourceType}) está conciliado — desfaça a conciliação (unmatch) antes de estornar.`,
+          );
         }
       }
 
