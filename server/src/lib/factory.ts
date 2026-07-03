@@ -18,6 +18,7 @@ import { PostingRepository } from '../features/accounting/repositories/PostingRe
 import { AccountingPeriodRepository } from '../features/accounting/repositories/AccountingPeriodRepository';
 import { AuditRepository } from '../features/accounting/repositories/AuditRepository';
 import { DocumentAttachmentRepository } from '../features/accounting/repositories/DocumentAttachmentRepository';
+import { ReconciliationRepository } from '../features/accounting/repositories/ReconciliationRepository';
 import { DataExchangeRepository } from '../features/accounting/repositories/DataExchangeRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
@@ -101,6 +102,7 @@ import type { IPostingRepository } from '../features/accounting/repositories/IPo
 import type { IAccountingPeriodRepository } from '../features/accounting/repositories/IAccountingPeriodRepository';
 import type { IAuditRepository } from '../features/accounting/repositories/IAuditRepository';
 import type { IDocumentAttachmentRepository } from '../features/accounting/repositories/IDocumentAttachmentRepository';
+import type { IReconciliationRepository } from '../features/accounting/repositories/IReconciliationRepository';
 import type { IDataExchangeRepository } from '../features/accounting/repositories/IDataExchangeRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
@@ -129,6 +131,7 @@ export class ApplicationFactory {
     accountingPeriod: IAccountingPeriodRepository;
     audit: IAuditRepository;
     documentAttachment: IDocumentAttachmentRepository;
+    reconciliation: IReconciliationRepository;
     dataExchange: IDataExchangeRepository;
     packageBalance: IPackageBalanceRepository;
   };
@@ -202,6 +205,7 @@ export class ApplicationFactory {
       accountingPeriod: new AccountingPeriodRepository(),
       audit: new AuditRepository(),
       documentAttachment: new DocumentAttachmentRepository(),
+      reconciliation: new ReconciliationRepository(),
       dataExchange: new DataExchangeRepository(),
       packageBalance: new PackageBalanceRepository(),
     };
