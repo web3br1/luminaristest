@@ -71,11 +71,11 @@ function buildService(over: {
 describe('AccountingReportService.trialBalance', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('aggregates over BOTH Posted AND Reversed statuses (excludes only Draft)', async () => {
+  it('aggregates over Posted, Reconciled AND Reversed statuses (excludes only Draft — emenda INCR4-A)', async () => {
     const groupByAccount = jest.fn(async () => []);
     const { svc } = buildService({ postingRepo: { groupByAccount } });
     await svc.trialBalance(scope);
-    expect(groupByAccount).toHaveBeenCalledWith(scope, ['Posted', 'Reversed'], undefined);
+    expect(groupByAccount).toHaveBeenCalledWith(scope, ['Posted', 'Reconciled', 'Reversed'], undefined);
   });
 
   it('builds rows in INTEGER CENTS, joined to the chart, sorted by code asc', async () => {

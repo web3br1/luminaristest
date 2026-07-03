@@ -135,7 +135,7 @@ describe('trialBalance — byte-identical after getAccountBalances() refactor', 
     // Third arg (options) must be undefined — no date filter added
     expect(postingRepo.groupByAccount).toHaveBeenCalledWith(
       SCOPE,
-      ['Posted', 'Reversed'],
+      ['Posted', 'Reconciled', 'Reversed'], // emenda INCR4-A (ADR-INCR7 D5)
       undefined,
     );
   });
