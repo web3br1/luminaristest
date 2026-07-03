@@ -391,6 +391,7 @@ model Account {
   nature         String    // Asset | Liability | Equity | Revenue | Expense
   acceptsEntries Boolean   @default(true)
   postings       Posting[]
+  bankStatements BankStatement[] @relation("AccountBankStatements")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
@@ -553,11 +554,92 @@ model Posting {
   creditCents Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime?    @updatedAt
+  reconciliationMatches ReconciliationMatch[] @relation("PostingReconciliationMatches")
 
   @@index([userId, unitId])
   @@index([entryId])
   @@index([accountId])
   @@map("postings")
+}
+
+// ── Bank reconciliation (BE-INCR-7 / ADR-INCR7) ────────────────────────────────
+// First-class Prisma — links bank statement lines to existing ledger postings.
+// Changes NO ledger money value; the only ledger write is the derived, reversible
+// and audited JournalEntry.status flip Posted<->Reconciled (ADR-INCR7 D5).
+// Tenancy = AccountingScope (userId + unitId, plain scope strings — same
+// convention as DocumentAttachment/AccountingDataExchangeJob). SQLite.
+
+// One imported bank statement file for one GL bank account (ADR-INCR7 D1/D4).
+model BankStatement {
+  id                  String    @id @default(cuid())
+  userId              String    // AccountingScope.ownerUserId (plain scope key)
+  unitId              String    // business unit (scoped string, not a FK)
+  glAccountId         String    // bank GL account (accounts.id) this statement belongs to (D4)
+  glAccount           Account   @relation("AccountBankStatements", fields: [glAccountId], references: [id])
+  statementRef        String?   // bank-provided statement id/label (display)
+  periodStart         DateTime
+  periodEnd           DateTime
+  openingBalanceCents Int?      // optional control totals (|v| <= MAX_CENTS)
+  closingBalanceCents Int?
+  sha256              String    // file hash — re-import idempotency (D1/ACC-013)
+  attachmentId        String?   // DocumentAttachment of the raw file (INCR-5)
+  importedById        String?   // actor (AccountingScope.actorUserId); plain string
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+  lines               BankStatementLine[]
+
+  @@unique([userId, unitId, sha256]) // re-import of the same file does not duplicate
+  @@index([userId, unitId, glAccountId])
+  @@index([deletedAt])
+  @@map("bank_statements")
+}
+
+// One parsed statement line (staging; immutable — no soft-delete, status covers IGNORED).
+model BankStatementLine {
+  id          String   @id @default(cuid())
+  userId      String
+  unitId      String
+  statementId String
+  statement   BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  lineNumber  Int      // 1-based, source order
+  date        DateTime
+  amountCents Int      // SIGNED: >0 inflow (statement credit), <0 outflow. |v| <= MAX_CENTS (ACC-014)
+  description String
+  externalRef String?  // bank transaction/document id, when present
+  status      String   @default("UNMATCHED") // UNMATCHED | MATCHED | IGNORED
+  rawJson     String   // original parsed cells (JSON string)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  matches     ReconciliationMatch[]
+
+  @@unique([statementId, lineNumber])
+  @@index([userId, unitId, statementId, status])
+  @@index([userId, unitId, date])
+  @@map("bank_statement_lines")
+}
+
+// Statement line <-> posting link (D3: N:M structural; MVP enforces max 1 active
+// match per posting via the in-tx gate). Undo is SOFT (unmatchedAt) — the trail
+// is never erased (D7/ACC-018); active match = unmatchedAt == null.
+model ReconciliationMatch {
+  id              String   @id @default(cuid())
+  userId          String
+  unitId          String
+  statementLineId String
+  statementLine   BankStatementLine @relation(fields: [statementLineId], references: [id], onDelete: Cascade)
+  postingId       String
+  posting         Posting  @relation("PostingReconciliationMatches", fields: [postingId], references: [id])
+  matchType       String   // AUTO | MANUAL (D6)
+  matchedById     String?  // actor; plain string
+  createdAt       DateTime @default(now())
+  unmatchedAt     DateTime? // soft-undo (D7/ACC-018)
+  unmatchedById   String?
+
+  @@unique([statementLineId, postingId]) // auto-match re-drive does not duplicate the link (ACC-013)
+  @@index([userId, unitId, postingId])
+  @@index([userId, unitId, statementLineId])
+  @@map("reconciliation_matches")
 }
 
 // ── Prepaid packages (Incremento G — Prepaid Package Origin) ───────────────────
