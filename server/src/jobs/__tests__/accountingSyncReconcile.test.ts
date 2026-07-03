@@ -288,6 +288,19 @@ describe('reconcileSalonCancellations', () => {
     expect(summary).toEqual({ total: 1, synced: 0, idempotentHits: 1, failed: 0 });
   });
 
+  it('INCR4-B: a RECONCILED entry blocks the reversal as a FAILURE, never an idempotent hit', async () => {
+    const deps = buildCancelDeps({
+      findEntry: jest.fn(async (_s: AccountingScope, type: string) =>
+        type === 'salon.sale.finalized' ? { id: 'entry-1', status: 'Reconciled' } : null,
+      ),
+    });
+    const summary = await reconcileSalonCancellations(deps);
+
+    expect(deps.reverse).not.toHaveBeenCalled();
+    // The pending estorno must be SURFACED (failed), not masked as idempotent.
+    expect(summary).toEqual({ total: 1, synced: 0, idempotentHits: 0, failed: 1 });
+  });
+
   it('adaptive (D2-Q4): also reverses a Posted settlement entry', async () => {
     const deps = buildCancelDeps({
       findEntry: jest.fn(async (_s: AccountingScope, type: string) =>
