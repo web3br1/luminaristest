@@ -22,9 +22,31 @@ const signedCents = z.coerce
   .max(MAX_CENTS, { message: `valor excede o limite suportado (máx ${MAX_CENTS}).` });
 
 /**
+ * Optional control-total: '' (empty form field) and null mean "not provided" —
+ * they must NOT coerce to 0, which would fake a declared R$0,00 balance and
+ * create a spurious control-total mismatch.
+ */
+const optionalSignedCents = z.preprocess(
+  (v) => (v === '' || v === null || v === undefined ? undefined : v),
+  signedCents.optional(),
+);
+
+/**
+ * Date-only (YYYY-MM-DD), parsed as UTC midnight — same tightening as
+ * PostingDto.date: a datetime-with-timezone string would let the local and UTC
+ * calendar dates disagree (day-shift class bug).
+ */
+const dateOnly = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'data deve ser YYYY-MM-DD')
+  .transform((s) => new Date(`${s}T00:00:00.000Z`))
+  .refine((d) => !Number.isNaN(d.getTime()), 'data inválida');
+
+/**
  * Body of a multipart statement import (the file itself is handled server-side;
  * sha256/lines are derived — never accepted from the client). Multipart fields
- * arrive as strings, hence z.coerce on dates/numbers.
+ * arrive as strings: dates are date-only strings (dateOnly) and numbers are
+ * coerced; '' / null on optional totals mean "not provided", never 0.
  *
  * @openapi
  * components:
@@ -47,10 +69,10 @@ export const ImportBankStatementSchema = z
     unitId: idLike,
     glAccountId: idLike,
     statementRef: z.string().min(1).max(120).optional(),
-    periodStart: z.coerce.date(),
-    periodEnd: z.coerce.date(),
-    openingBalanceCents: signedCents.optional(),
-    closingBalanceCents: signedCents.optional(),
+    periodStart: dateOnly,
+    periodEnd: dateOnly,
+    openingBalanceCents: optionalSignedCents,
+    closingBalanceCents: optionalSignedCents,
   })
   .superRefine((body, ctx) => {
     if (body.periodEnd < body.periodStart) {
@@ -111,7 +133,11 @@ export const ManualMatchSchema = z.object({
   unitId: idLike,
   statementLineId: idLike,
   // ponytail: 50 legs per line is far above any real aggregation; raise if a case appears
-  postingIds: z.array(idLike).min(1).max(50),
+  postingIds: z
+    .array(idLike)
+    .min(1)
+    .max(50)
+    .refine((ids) => new Set(ids).size === ids.length, 'postingIds duplicados.'),
 });
 export type ManualMatchDto = z.infer<typeof ManualMatchSchema>;
 export function isManualMatchInput(v: unknown): v is ManualMatchDto {
@@ -160,7 +186,9 @@ export function isUnmatchInput(v: unknown): v is UnmatchDto {
 export const SetLineIgnoredSchema = z.object({
   unitId: idLike,
   statementLineId: idLike,
-  ignored: z.coerce.boolean(),
+  // JSON body — strict boolean. NEVER z.coerce.boolean(): it Boolean()-casts any
+  // input, so the string 'false' would flip to true on a state-changing write.
+  ignored: z.boolean(),
 });
 export type SetLineIgnoredDto = z.infer<typeof SetLineIgnoredSchema>;
 export function isSetLineIgnoredInput(v: unknown): v is SetLineIgnoredDto {
@@ -208,8 +236,8 @@ export const PendingReportQuerySchema = z
   .object({
     unitId: idLike,
     glAccountId: idLike,
-    from: z.coerce.date().optional(),
-    to: z.coerce.date().optional(),
+    from: dateOnly.optional(),
+    to: dateOnly.optional(),
   })
   .superRefine((query, ctx) => {
     if (query.from && query.to && query.to < query.from) {
