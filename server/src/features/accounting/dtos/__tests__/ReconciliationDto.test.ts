@@ -78,6 +78,16 @@ describe('ImportBankStatementSchema — control-totals and dates', () => {
     ).toBe(false);
   });
 
+  it('rejects calendar-invalid dates that JS Date would silently roll forward (round-trip check)', () => {
+    // new Date('2026-02-30') -> 2026-03-02; regex+NaN alone would let the shifted date through.
+    expect(
+      ImportBankStatementSchema.safeParse({ ...base, periodStart: '2026-02-30' }).success,
+    ).toBe(false);
+    expect(
+      ImportBankStatementSchema.safeParse({ ...base, periodEnd: '2026-06-31' }).success,
+    ).toBe(false);
+  });
+
   it('rejects periodEnd < periodStart', () => {
     expect(
       ImportBankStatementSchema.safeParse({

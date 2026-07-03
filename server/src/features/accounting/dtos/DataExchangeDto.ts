@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { IMPORT_KINDS } from '../models/DataExchange.model';
+import { isValidDateOnly } from '../models/dates';
 
 /**
  * Zod DTOs for the accounting Data Exchange (BE-INCR-6). Validation happens at the
@@ -8,7 +9,7 @@ import { IMPORT_KINDS } from '../models/DataExchange.model';
 
 const dateOnly = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve estar no formato YYYY-MM-DD');
+  .refine(isValidDateOnly, 'Data deve ser uma data real no formato YYYY-MM-DD');
 
 /** Export kinds wired so far (Phase 3). EXPORT_IMPORT_ERRORS joins in Phase 5. */
 export const IMPLEMENTED_EXPORT_KINDS = [

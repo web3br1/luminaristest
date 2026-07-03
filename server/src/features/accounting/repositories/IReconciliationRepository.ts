@@ -61,7 +61,9 @@ export interface IReconciliationRepository {
    * Soft-deletes a statement within the scope. Throws NotFoundError if no active
    * row. Deleting a statement with ACTIVE matches must be blocked at the service
    * level (use countActiveMatchesByStatement) — the soft-delete itself does not
-   * cascade nor unmatch.
+   * cascade nor unmatch. The row's sha256 is rewritten to `deleted:<id>` so the
+   * @@unique frees the hash and the same file can be re-imported (D1 idempotency
+   * is an ACTIVE-statement property; the original hash lives in the audit trail).
    */
   softDeleteStatement(
     scope: AccountingScope,
@@ -225,6 +227,17 @@ export interface IReconciliationRepository {
     toStatus: 'Posted' | 'Reconciled',
     tx: Prisma.TransactionClient,
   ): Promise<number>;
+
+  /**
+   * Pending-report read (§4.5): UNMATCHED lines across all ACTIVE statements of
+   * a bank GL account, optionally windowed by line date, ordered by date asc.
+   */
+  findUnmatchedLinesByAccount(
+    scope: AccountingScope,
+    glAccountId: string,
+    options?: { from?: Date; to?: Date },
+    tx?: Prisma.TransactionClient,
+  ): Promise<BankStatementLine[]>;
 
   /**
    * Pending-report read (§4.5): postings on the bank GL account with no active

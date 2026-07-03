@@ -54,6 +54,7 @@ import { PostingService } from '../features/accounting/services/PostingService';
 import { PeriodService } from '../features/accounting/services/PeriodService';
 import { AuditService } from '../features/accounting/services/AuditService';
 import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
+import { ReconciliationService } from '../features/accounting/services/ReconciliationService';
 import { DocumentAttachmentService } from '../features/accounting/services/DocumentAttachmentService';
 import { DataExchangeExportService } from '../features/accounting/services/DataExchangeExportService';
 import { DataExchangeImportService } from '../features/accounting/services/DataExchangeImportService';
@@ -170,6 +171,7 @@ export class ApplicationFactory {
     period: PeriodService;
     accountingSync: AccountingSyncService;
     accountingReport: AccountingReportService;
+    reconciliation: ReconciliationService;
     documentAttachment: DocumentAttachmentService;
     dataExchangeExport: DataExchangeExportService;
     dataExchangeImport: DataExchangeImportService;
@@ -363,6 +365,12 @@ export class ApplicationFactory {
       period: periodService,
       accountingSync: accountingSyncService,
       accountingReport: accountingReportService,
+      reconciliation: new ReconciliationService(
+        this.repositories.reconciliation,
+        this.repositories.account,
+        this.policies.accounting,
+        auditService,
+      ),
       documentAttachment: new DocumentAttachmentService(
         this.repositories.documentAttachment,
         this.policies.accounting,
@@ -419,6 +427,7 @@ export class ApplicationFactory {
   public getPeriodService = (): PeriodService => this.services.period;
   public getAccountingSyncService = (): AccountingSyncService => this.services.accountingSync;
   public getAccountingReportService = (): AccountingReportService => this.services.accountingReport;
+  public getReconciliationService = (): ReconciliationService => this.services.reconciliation;
   public getDocumentAttachmentService = (): DocumentAttachmentService => this.services.documentAttachment;
   public getDataExchangeExportService = (): DataExchangeExportService => this.services.dataExchangeExport;
   public getDataExchangeImportService = (): DataExchangeImportService => this.services.dataExchangeImport;

@@ -232,6 +232,17 @@ Back-relations a adicionar: `Account.bankStatements BankStatement[] @relation("A
 upgrade quando houver demanda. Match/unmatch **não** têm gate de período (não mutam valor de ledger, só o
 marcador de estado); o **ajuste** posta via `PostingService` que já é gated por período.
 
+**[EMENDA 2026-07-03 — soft-delete × sha256]** O soft-delete de um `BankStatement` reescreve `sha256`
+para `deleted:<id>` (colisão-livre; hash original preservado no payload do `AuditEvent
+reconciliation.statement_deleted`). Sem isso, o `@@unique([userId,unitId,sha256])` — que inclui linhas
+soft-deletadas — tornaria o fluxo natural *importar errado → excluir → re-importar* um beco sem saída
+com P2002 cru. A idempotência de re-import (D1) é propriedade de statements **ATIVOS**.
+
+**[NOTA — derivação D5 e novas contas-banco]** O flip é recomputado **somente** em match/unmatch. Importar
+um statement para uma **segunda** conta-banco não recomputa entries já `Reconciled` (podem ficar com perna
+nova inconciliável até unmatch+rematch). Comportamento aceito no MVP; recompute-on-import é upgrade se
+o caso aparecer na prática.
+
 ---
 
 ## 4. Fluxo (MVP)
