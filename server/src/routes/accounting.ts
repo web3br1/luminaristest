@@ -25,6 +25,19 @@ import {
   deleteDocumentAttachment,
 } from '../controllers/documentAttachmentController';
 import {
+  bankStatementUpload,
+  importBankStatement,
+  listBankStatements,
+  listBankStatementLines,
+  deleteBankStatement,
+  autoMatchBankStatement,
+  getLineSuggestions,
+  createManualMatch,
+  unmatchReconciliation,
+  setLineIgnored,
+  getPendingReport,
+} from '../controllers/reconciliationController';
+import {
   createDataExchangeExport,
   getDataExchangeJob,
   downloadDataExchangeArtifact,
@@ -67,6 +80,18 @@ router.get('/data-exchange/jobs/:jobId', getDataExchangeJob);
 router.get('/data-exchange/jobs/:jobId/rows', listDataExchangeRows);
 router.get('/data-exchange/jobs/:jobId/download', downloadDataExchangeArtifact);
 router.post('/data-exchange/jobs/:jobId/commit', commitDataExchangeImport);
+
+// Bank reconciliation — statement import, match/unmatch, pending report (BE-INCR-7).
+router.post('/reconciliation/statements', bankStatementUpload, importBankStatement);
+router.get('/reconciliation/statements', listBankStatements);
+router.get('/reconciliation/statements/:id/lines', listBankStatementLines);
+router.delete('/reconciliation/statements/:id', deleteBankStatement);
+router.post('/reconciliation/statements/:id/auto-match', autoMatchBankStatement);
+router.get('/reconciliation/lines/:id/suggestions', getLineSuggestions);
+router.post('/reconciliation/lines/:id/ignore', setLineIgnored);
+router.post('/reconciliation/matches', createManualMatch);
+router.post('/reconciliation/matches/:id/unmatch', unmatchReconciliation);
+router.get('/reconciliation/pending', getPendingReport);
 
 // Accounting period management (INCR-1).
 // NOTE: /:unitId/periods must come before /periods/:id routes to avoid param clash.
