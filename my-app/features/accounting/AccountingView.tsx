@@ -186,7 +186,7 @@ export function AccountingView() {
 
       {/* ── Importação/Exportação tab ──────────────────────────────────────── */}
       {activeTab === 'importacao-exportacao' && unitId && (
-        <ImportExportPanel unitId={unitId} />
+        <ImportExportPanel unitId={unitId} onCommitSuccess={reload} />
       )}
 
       {/* ── New Entry Modal ────────────────────────────────────────────────── */}

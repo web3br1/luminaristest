@@ -1,4 +1,6 @@
-import { useRef, useState } from 'react';
+// React default import: tsconfig uses jsx:"preserve", so vitest/esbuild transforms JSX with the
+// classic runtime and needs React in scope (same pattern as crm/ui/StatusBadge, the tested precedent).
+import React, { useRef, useState } from 'react';
 import { FiUploadCloud, FiDownload, FiCheckCircle, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
 import {
   dataExchangeService,
@@ -34,15 +36,29 @@ function resolveError(e: unknown): string {
   return 'Ocorreu um erro. Tente novamente.';
 }
 
-/** Status → badge classes (COMMITTED green, PARTIAL amber, FAILED red, else neutral). */
-function statusBadge(status: string): string {
-  if (status === 'COMMITTED' || status === 'VALIDATED') return 'bg-emerald-600/15 text-emerald-400';
+/**
+ * Status → badge classes (COMMITTED green, PARTIAL amber, FAILED red, else neutral).
+ * A COMMITTED/VALIDATED job with validation-rejected rows goes amber too: those rows never
+ * enter validRows, so the backend status is legitimately COMMITTED — but a green badge next
+ * to "Inválidas: N" reads as fully clean when it wasn't (FE-INCR6 J2).
+ */
+export function statusBadge(status: string, invalidRows = 0): string {
+  if (status === 'COMMITTED' || status === 'VALIDATED') {
+    return invalidRows > 0 ? 'bg-amber-600/15 text-amber-400' : 'bg-emerald-600/15 text-emerald-400';
+  }
   if (status === 'PARTIAL') return 'bg-amber-600/15 text-amber-400';
   if (status === 'FAILED') return 'bg-red-600/15 text-red-400';
   return 'bg-neutral-700/40 text-neutral-300';
 }
 
-export function ImportExportPanel({ unitId }: { unitId: string }) {
+export function ImportExportPanel({
+  unitId,
+  onCommitSuccess,
+}: {
+  unitId: string;
+  /** Fired after a commit writes rows — lets the parent refetch the (already-mounted) Balancete (FE-INCR6 W1). */
+  onCommitSuccess?: () => void;
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Import state
@@ -103,6 +119,8 @@ export function ImportExportPanel({ unitId }: { unitId: string }) {
       const result = await dataExchangeService.commit(job.id, unitId);
       setJob(result);
       await refreshRows(result.id);
+      // Only a commit that actually wrote rows changes the ledger views.
+      if (result.committedRows > 0) onCommitSuccess?.();
     } catch (err) {
       setImportError(resolveError(err));
     } finally {
@@ -204,8 +222,8 @@ export function ImportExportPanel({ unitId }: { unitId: string }) {
         {job && (
           <div className="mt-5">
             <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${statusBadge(job.status)}`}>
-                {job.status === 'COMMITTED' || job.status === 'VALIDATED' ? <FiCheckCircle size={13} /> : <FiAlertTriangle size={13} />}
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${statusBadge(job.status, job.invalidRows)}`}>
+                {(job.status === 'COMMITTED' || job.status === 'VALIDATED') && job.invalidRows === 0 ? <FiCheckCircle size={13} /> : <FiAlertTriangle size={13} />}
                 {job.status}
               </span>
               <span className="text-neutral-400">Total: <strong className="text-neutral-200">{job.totalRows}</strong></span>
