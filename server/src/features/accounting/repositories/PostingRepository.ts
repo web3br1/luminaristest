@@ -9,9 +9,10 @@ import type {
 } from './IPostingRepository';
 
 /**
- * Prisma-backed repository for ledger lines (`postings`). Only place with
- * prisma.posting.* access. Money is INTEGER CENTS (Int columns) — groupByAccount
- * sums those Int columns exactly, never floats.
+ * Prisma-backed repository for ledger lines (`postings`). Money is INTEGER CENTS
+ * (Int columns) — groupByAccount sums those Int columns exactly, never floats.
+ * (ReconciliationRepository also READS prisma.posting for its domain queries —
+ * BE-INCR-7; this repo remains the only WRITE surface for postings.)
  */
 export class PostingRepository implements IPostingRepository {
   public async create(data: CreatePostingInput, tx?: Prisma.TransactionClient): Promise<Posting> {
