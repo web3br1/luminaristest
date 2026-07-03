@@ -133,13 +133,16 @@ export interface IncomeStatementReport {
 /**
  * AccountingReportService — read-only ledger reporting, FIRST-CLASS PRISMA.
  *
- * CRITICAL (Contract §2.1): aggregates include BOTH 'Posted' AND 'Reversed' parent
- * statuses (exclude only 'Draft'), so a reversed entry + its reversal net to zero —
- * summing only 'Posted' would count just the reversal and break the ledger.
+ * CRITICAL (Contract §2.1): aggregates include 'Posted', 'Reconciled' AND 'Reversed'
+ * parent statuses (exclude only 'Draft'), so a reversed entry + its reversal net to
+ * zero — summing only 'Posted' would count just the reversal and break the ledger.
+ * 'Reconciled' (ADR-INCR7 D5, emenda INCR4-A) is economically identical to 'Posted' —
+ * a reversible bank-reconciliation marker, NOT a money change; omitting it would make
+ * a reconciled entry vanish from BP/DRE/razão/balancete.
  */
 export class AccountingReportService {
   /** Statuses that contribute to the ledger: everything except Draft. */
-  private static readonly LEDGER_STATUSES = ['Posted', 'Reversed'];
+  private static readonly LEDGER_STATUSES = ['Posted', 'Reconciled', 'Reversed'];
 
   constructor(
     private readonly accountRepo: IAccountRepository,
