@@ -55,7 +55,7 @@ flowchart TD
     X["✅ Data Exchange INCR-6<br/>import/export CSV/XLSX · staging"]:::done
     FE["✅ Frontend FE-INCR-1<br/>7 abas contábeis"]:::done
     BR["✅ Bridges pós-commit<br/>salon (C) · AccountingSync"]:::done
-    T["⏳ Conciliação Bancária<br/>BE-INCR-7 · ADR ratificado · impl. pendente"]:::wip
+    T["✅ Conciliação Bancária<br/>BE-INCR-7 · backend completo · FE deferido"]:::done
 
     A --> B --> D
     A --> C --> D
@@ -78,8 +78,15 @@ flowchart TD
 
 ## 3. Incremento corrente — Conciliação Bancária (BE-INCR-7)
 
-**Estado:** ⏳ **ADR ratificado** (`docs/adr/ADR-INCR7-bank-reconciliation.md`, 2026-07-03, por delegação);
-implementação **não iniciada**. Próximo: orquestrador monta o plano de skills → implementer.
+**Estado:** ✅ **Backend implementado** (2026-07-03, PRs #32–#37 + rotas): models+migração (smoke-gate PASS,
+`SMOKE-MIGRATION-GATE-BE-INCR7.md`), repository, policy+DTOs, emenda INCR4-A (class-fix `LEDGER_STATUSES` +
+`getLiabilityCents` do job), `ReconciliationService` (import sha256-idempotente, auto-match D6, manual N↔1,
+unmatch soft + flip-back, pendências §4.5), emenda INCR4-B, rotas `/api/accounting/reconciliation/*` + OpenAPI.
+Cada PR com review independente (worktree isolado) — 2 FAILs corrigidos e re-aprovados no processo.
+**Pendente:** FE (frontend-deferred, aba própria) · sign-off humano em browser · smoke `migrate deploy` sobre
+backup do `dev.db` real antes de deploy.
+Emendas pós-ratificação no ADR §3: sha256 liberado no soft-delete (`deleted:<id>`) · nota derivação D5
+stale-on-new-bank-account (aceito no MVP).
 
 **Escopo travado (MVP enxuto — 3 entidades):**
 
