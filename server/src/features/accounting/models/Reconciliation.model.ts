@@ -60,7 +60,12 @@ export interface CreateReconciliationMatchInput {
 export interface CandidatePostingQuery {
   glAccountId: string;
   side: 'debit' | 'credit';
-  /** Absolute value in integer cents — exact equality, no epsilon (ACC-014). */
+  /**
+   * Absolute value in integer cents — exact equality, no epsilon (ACC-014).
+   * MUST be > 0 (caller guarantees): 0 would match the untouched side of any
+   * leg (debitCents/creditCents default to 0) — the service rejects zero-value
+   * lines before suggesting/matching.
+   */
   amountCents: number;
   dateFrom: Date;
   dateTo: Date;

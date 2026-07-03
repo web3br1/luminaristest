@@ -105,6 +105,20 @@ export class ReconciliationRepository implements IReconciliationRepository {
     }
   }
 
+  public async countActiveMatchesByStatement(
+    scope: AccountingScope,
+    statementId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    return (tx ?? prisma).reconciliationMatch.count({
+      where: {
+        ...accountingScopeWhere(scope),
+        unmatchedAt: null,
+        statementLine: { statementId },
+      },
+    });
+  }
+
   // ── Lines ─────────────────────────────────────────────────────────────────
   public async createLines(
     lines: CreateBankStatementLineInput[],
@@ -302,6 +316,17 @@ export class ReconciliationRepository implements IReconciliationRepository {
     }));
   }
 
+  public async findPostingById(
+    scope: AccountingScope,
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<CandidatePosting | null> {
+    return (tx ?? prisma).posting.findFirst({
+      where: { id, ...accountingScopeWhere(scope) },
+      include: CANDIDATE_ENTRY_SELECT,
+    });
+  }
+
   public async findScopeBankAccountIds(
     scope: AccountingScope,
     tx?: Prisma.TransactionClient,
@@ -317,8 +342,8 @@ export class ReconciliationRepository implements IReconciliationRepository {
   public async updateEntryStatus(
     scope: AccountingScope,
     entryId: string,
-    fromStatus: string,
-    toStatus: string,
+    fromStatus: 'Posted' | 'Reconciled',
+    toStatus: 'Posted' | 'Reconciled',
     tx: Prisma.TransactionClient,
   ): Promise<number> {
     const { count } = await tx.journalEntry.updateMany({

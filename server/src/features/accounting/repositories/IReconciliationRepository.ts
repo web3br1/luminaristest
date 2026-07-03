@@ -57,12 +57,24 @@ export interface IReconciliationRepository {
     limit?: number,
   ): Promise<{ statements: BankStatement[]; total: number }>;
 
-  /** Soft-deletes a statement within the scope. Throws NotFoundError if no active row. */
+  /**
+   * Soft-deletes a statement within the scope. Throws NotFoundError if no active
+   * row. Deleting a statement with ACTIVE matches must be blocked at the service
+   * level (use countActiveMatchesByStatement) — the soft-delete itself does not
+   * cascade nor unmatch.
+   */
   softDeleteStatement(
     scope: AccountingScope,
     id: string,
     tx?: Prisma.TransactionClient,
   ): Promise<void>;
+
+  /** Counts ACTIVE matches across all lines of a statement (delete guard input). */
+  countActiveMatchesByStatement(
+    scope: AccountingScope,
+    statementId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number>;
 
   // ── Lines ─────────────────────────────────────────────────────────────────
   /** Bulk-inserts parsed lines (tx-aware). Returns the inserted count. */
@@ -183,6 +195,17 @@ export interface IReconciliationRepository {
     tx: Prisma.TransactionClient,
   ): Promise<EntryPostingReconciliationState[]>;
 
+  /**
+   * Scoped posting read with the entry summary — the unmatch path (D7) resolves
+   * match.postingId -> entryId for the flip-back recompute (a Reconciled entry is
+   * unreachable via findCandidatePostings, which filters status 'Posted').
+   */
+  findPostingById(
+    scope: AccountingScope,
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<CandidatePosting | null>;
+
   /** Distinct GL account ids that have an active statement in this scope ("bank accounts"). */
   findScopeBankAccountIds(
     scope: AccountingScope,
@@ -192,13 +215,14 @@ export interface IReconciliationRepository {
   /**
    * Conditionally flips a journal entry status (fromStatus -> toStatus).
    * Returns affected-row count — 0 means the entry lost the race (TOCTOU
-   * guard, ACC-011). The ONLY ledger write this module performs (D5).
+   * guard, ACC-011). The ONLY ledger write this module performs (D5) — the
+   * union type structurally forbids any flip outside Posted<->Reconciled.
    */
   updateEntryStatus(
     scope: AccountingScope,
     entryId: string,
-    fromStatus: string,
-    toStatus: string,
+    fromStatus: 'Posted' | 'Reconciled',
+    toStatus: 'Posted' | 'Reconciled',
     tx: Prisma.TransactionClient,
   ): Promise<number>;
 
