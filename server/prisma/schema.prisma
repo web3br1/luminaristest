@@ -622,6 +622,8 @@ model BankStatementLine {
 // Statement line <-> posting link (D3: N:M structural; MVP enforces max 1 active
 // match per posting via the in-tx gate). Undo is SOFT (unmatchedAt) — the trail
 // is never erased (D7/ACC-018); active match = unmatchedAt == null.
+// No updatedAt (deliberate): the only sanctioned mutation is the soft-undo,
+// which self-timestamps via unmatchedAt/unmatchedById.
 model ReconciliationMatch {
   id              String   @id @default(cuid())
   userId          String

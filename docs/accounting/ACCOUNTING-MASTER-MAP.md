@@ -55,7 +55,7 @@ flowchart TD
     X["✅ Data Exchange INCR-6<br/>import/export CSV/XLSX · staging"]:::done
     FE["✅ Frontend FE-INCR-1<br/>7 abas contábeis"]:::done
     BR["✅ Bridges pós-commit<br/>salon (C) · AccountingSync"]:::done
-    T["⏳ Conciliação Bancária<br/>BE-INCR-7 · PRE-ADR"]:::wip
+    T["⏳ Conciliação Bancária<br/>BE-INCR-7 · ADR ratificado · impl. pendente"]:::wip
 
     A --> B --> D
     A --> C --> D
