@@ -6,6 +6,8 @@ As regras pesadas vivem nos docs abaixo — este arquivo é só a orientação s
 - **Bar de qualidade / camadas:** `.claude/skills/_ARCHITECTURE-CONTRACT.md`
 - **Critério reuse-vs-bespoke:** `.claude/skills/_REUSE-CRITERION.md`
 - **Scaffolding (nomes/paths por camada):** `docs/claude-skills/GENERATION_CONTRACTS.md`
+- **Disciplina operacional do agente (OPS-001..004):** `.claude/skills/_OPERATING-GATES.md`
+  (versão portável p/ outros projetos: `docs/operating-manual/PORTABLE-GUIDE.md`)
 
 ## STOP — reflexo obrigatório ANTES de qualquer planejamento ou código
 
@@ -72,3 +74,18 @@ recriar, YAGNI — e o codebase-memory é o que torna esse instinto fundamentado
 - `tsc` limpo é gate: `cd server && npx tsc --noEmit` e `cd my-app && npx tsc --noEmit` — não avance vermelho.
 - `neutral-*`, **nunca** `zinc-*`; cards `rounded-2xl`/`3xl`; zero `any` evitável.
 - Telas atrás de `withAuth` → verifique contra **build de produção**, não `next dev`.
+
+## Gates de envio [OPS-001] — antes de fechar resposta/relatório/PR
+
+Cinco perguntas binárias; cada uma aponta um artefato **no próprio texto**; qualquer "não" bloqueia:
+
+1. Aponto a frase que responde ao **objetivo** (não à letra) do pedido?
+2. Todo claim carrega grau — verificado / inferido / assumido? (só evidência promove grau)
+3. Escrevi **qual** caso adversarial tentei contra a conclusão e o que aconteceu?
+4. Existe checagem que **teria falhado** se eu estivesse errado?
+5. As duas primeiras linhas, sozinhas, entregam a verdade **e** o risco principal?
+
+Travou no raciocínio (claim revisado 2× sem fato novo / aceite não cabe numa frase)? → protocolo de
+teto **[OPS-002]**: pare de aprofundar, converta em checagem (executar → teste vermelho → bisect →
+ler fonte), declare o aberto — nunca blefe continuidade. Detalhe + OPS-003/004 em
+`.claude/skills/_OPERATING-GATES.md`.
