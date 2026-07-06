@@ -274,6 +274,13 @@ export async function reconcileSalonCancellations(
         if (entry && entry.status === 'Posted') {
           await deps.reverse(scope, sale.unitId, entry.id);
           didReverse = true;
+        } else if (entry && entry.status === 'Reconciled') {
+          // INCR4-B: a bank-reconciled entry blocks the reversal — surface it as a
+          // FAILURE (never an idempotent hit): the pending estorno would otherwise
+          // be silently masked until someone unmatches.
+          throw new Error(
+            `Entry '${entry.id}' (${sourceType}) está conciliado — desfaça a conciliação (unmatch) antes de estornar.`,
+          );
         }
       }
 
@@ -952,7 +959,10 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
       });
       if (!account) return 0;
       const agg = await prisma.posting.aggregate({
-        where: { accountId: account.id, entry: { status: { in: ['Posted', 'Reversed'] } } },
+        // Ledger-status class (emenda INCR4-A): 'Reconciled' is economically identical
+        // to 'Posted' — omitting it would silently shrink the liability balance once a
+        // package entry gets bank-reconciled (ADR-INCR7 D5).
+        where: { accountId: account.id, entry: { status: { in: ['Posted', 'Reconciled', 'Reversed'] } } },
         _sum: { debitCents: true, creditCents: true },
       });
       // 2.1.1 is a liability (credit-normal): balance = Σcredit − Σdebit.

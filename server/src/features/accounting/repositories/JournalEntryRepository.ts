@@ -11,9 +11,11 @@ import type {
 } from './IJournalEntryRepository';
 
 /**
- * Prisma-backed repository for journal-entry headers (`journal_entries`). Only place
- * with prisma.journalEntry.* access. Tenancy is two-level via AccountingScope.
- * No soft-delete here — posted entries are immutable, corrections happen via reversal.
+ * Prisma-backed repository for journal-entry headers (`journal_entries`). Tenancy is
+ * two-level via AccountingScope. No soft-delete here — posted entries are immutable,
+ * corrections happen via reversal. (ReconciliationRepository also touches
+ * prisma.journalEntry for the single sanctioned status flip Posted<->Reconciled —
+ * ADR-INCR7 D5; all other entry writes stay here.)
  */
 export class JournalEntryRepository implements IJournalEntryRepository {
   public async create(

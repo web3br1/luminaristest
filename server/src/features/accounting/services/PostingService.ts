@@ -321,6 +321,13 @@ export class PostingService {
       return { reversal: priorReversal, original };
     }
 
+    // INCR4-B (ADR-INCR7 D5): a Reconciled entry must be un-reconciled first — a
+    // clear error instead of silently reversing over reconciled state.
+    if (original.status === 'Reconciled') {
+      throw new ValidationError(
+        'Lançamento conciliado — desfaça a conciliação (unmatch) antes de estornar.',
+      );
+    }
     if (original.status !== 'Posted') {
       throw new ValidationError('Apenas lançamentos postados podem ser estornados.');
     }

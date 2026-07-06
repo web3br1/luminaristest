@@ -403,6 +403,17 @@ describe('PostingService', () => {
       expect(journalEntryRepo.create).not.toHaveBeenCalled();
     });
 
+    it('INCR4-B: rejects reversing a Reconciled entry with a clear "unmatch first" error, no write', async () => {
+      const { svc, journalEntryRepo } = buildService({
+        journalEntryRepo: { findById: jest.fn(async () => ({ ...original, status: 'Reconciled' })) },
+      });
+      await expect(
+        svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1', reversalPostingDate: '2026-06-23' }),
+      ).rejects.toThrow(/desfaça a conciliação/);
+      expect($transaction).not.toHaveBeenCalled();
+      expect(journalEntryRepo.create).not.toHaveBeenCalled();
+    });
+
     it('missing / other-unit entry → NotFoundError (findById is scope-scoped)', async () => {
       const findById = jest.fn(async () => null);
       const { svc, journalEntryRepo } = buildService({

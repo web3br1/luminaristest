@@ -18,6 +18,7 @@ import { PostingRepository } from '../features/accounting/repositories/PostingRe
 import { AccountingPeriodRepository } from '../features/accounting/repositories/AccountingPeriodRepository';
 import { AuditRepository } from '../features/accounting/repositories/AuditRepository';
 import { DocumentAttachmentRepository } from '../features/accounting/repositories/DocumentAttachmentRepository';
+import { ReconciliationRepository } from '../features/accounting/repositories/ReconciliationRepository';
 import { DataExchangeRepository } from '../features/accounting/repositories/DataExchangeRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
@@ -53,6 +54,7 @@ import { PostingService } from '../features/accounting/services/PostingService';
 import { PeriodService } from '../features/accounting/services/PeriodService';
 import { AuditService } from '../features/accounting/services/AuditService';
 import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
+import { ReconciliationService } from '../features/accounting/services/ReconciliationService';
 import { DocumentAttachmentService } from '../features/accounting/services/DocumentAttachmentService';
 import { DataExchangeExportService } from '../features/accounting/services/DataExchangeExportService';
 import { DataExchangeImportService } from '../features/accounting/services/DataExchangeImportService';
@@ -101,6 +103,7 @@ import type { IPostingRepository } from '../features/accounting/repositories/IPo
 import type { IAccountingPeriodRepository } from '../features/accounting/repositories/IAccountingPeriodRepository';
 import type { IAuditRepository } from '../features/accounting/repositories/IAuditRepository';
 import type { IDocumentAttachmentRepository } from '../features/accounting/repositories/IDocumentAttachmentRepository';
+import type { IReconciliationRepository } from '../features/accounting/repositories/IReconciliationRepository';
 import type { IDataExchangeRepository } from '../features/accounting/repositories/IDataExchangeRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
@@ -129,6 +132,7 @@ export class ApplicationFactory {
     accountingPeriod: IAccountingPeriodRepository;
     audit: IAuditRepository;
     documentAttachment: IDocumentAttachmentRepository;
+    reconciliation: IReconciliationRepository;
     dataExchange: IDataExchangeRepository;
     packageBalance: IPackageBalanceRepository;
   };
@@ -167,6 +171,7 @@ export class ApplicationFactory {
     period: PeriodService;
     accountingSync: AccountingSyncService;
     accountingReport: AccountingReportService;
+    reconciliation: ReconciliationService;
     documentAttachment: DocumentAttachmentService;
     dataExchangeExport: DataExchangeExportService;
     dataExchangeImport: DataExchangeImportService;
@@ -202,6 +207,7 @@ export class ApplicationFactory {
       accountingPeriod: new AccountingPeriodRepository(),
       audit: new AuditRepository(),
       documentAttachment: new DocumentAttachmentRepository(),
+      reconciliation: new ReconciliationRepository(),
       dataExchange: new DataExchangeRepository(),
       packageBalance: new PackageBalanceRepository(),
     };
@@ -359,6 +365,12 @@ export class ApplicationFactory {
       period: periodService,
       accountingSync: accountingSyncService,
       accountingReport: accountingReportService,
+      reconciliation: new ReconciliationService(
+        this.repositories.reconciliation,
+        this.repositories.account,
+        this.policies.accounting,
+        auditService,
+      ),
       documentAttachment: new DocumentAttachmentService(
         this.repositories.documentAttachment,
         this.policies.accounting,
@@ -415,6 +427,7 @@ export class ApplicationFactory {
   public getPeriodService = (): PeriodService => this.services.period;
   public getAccountingSyncService = (): AccountingSyncService => this.services.accountingSync;
   public getAccountingReportService = (): AccountingReportService => this.services.accountingReport;
+  public getReconciliationService = (): ReconciliationService => this.services.reconciliation;
   public getDocumentAttachmentService = (): DocumentAttachmentService => this.services.documentAttachment;
   public getDataExchangeExportService = (): DataExchangeExportService => this.services.dataExchangeExport;
   public getDataExchangeImportService = (): DataExchangeImportService => this.services.dataExchangeImport;

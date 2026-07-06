@@ -1,6 +1,7 @@
 import type { InTable } from '../../../lib/spreadsheet';
 import type { ImportKind, ValidatedRow } from '../models/DataExchange.model';
 import { MAX_CENTS } from '../models/money';
+import { isValidDateOnly } from '../models/dates';
 
 /**
  * Pure per-kind validators for the accounting Data Exchange import (BE-INCR-6). No IO —
@@ -18,7 +19,8 @@ export interface AccountLike {
 }
 
 const NATURES = new Set(['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']);
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// isValidDateOnly (models/dates.ts) = regex + calendar round-trip — a regex alone lets
+// '2026-02-30' import and silently shift to 03-02 downstream (class-fix).
 
 // MAX_CENTS (Int32 storage ceiling) is shared with the direct /post DTO — see models/money.ts.
 // Guarding here makes the import preview reject an over-ceiling value with a clear message
@@ -141,7 +143,7 @@ function validateOpening(table: InTable, accounts: Map<string, AccountLike>): Va
 
     if (!acc) return invalid(rowNumber, raw, 'ACCOUNT_NOT_FOUND', `accountCode '${accountCode}' não existe.`, 'accountCode');
     if (!acc.acceptsEntries) return invalid(rowNumber, raw, 'ACCOUNT_NOT_LEAF', `accountCode '${accountCode}' não aceita lançamentos.`, 'accountCode');
-    if (!DATE_RE.test(postingDate)) return invalid(rowNumber, raw, 'BAD_DATE', 'postingDate deve ser YYYY-MM-DD.', 'postingDate');
+    if (!isValidDateOnly(postingDate)) return invalid(rowNumber, raw, 'BAD_DATE', 'postingDate deve ser YYYY-MM-DD.', 'postingDate');
 
     const debit = parseCents(row[cDebit] ?? '');
     const credit = parseCents(row[cCredit] ?? '');
@@ -207,7 +209,7 @@ function validateJournal(table: InTable, accounts: Map<string, AccountLike>): Va
     if (!entryKey) return invalid(rowNumber, raw, 'ENTRY_KEY_REQUIRED', 'entryKey é obrigatório.', 'entryKey');
     if (!acc) return invalid(rowNumber, raw, 'ACCOUNT_NOT_FOUND', `accountCode '${accountCode}' não existe.`, 'accountCode', entryKey);
     if (!acc.acceptsEntries) return invalid(rowNumber, raw, 'ACCOUNT_NOT_LEAF', `accountCode '${accountCode}' não aceita lançamentos.`, 'accountCode', entryKey);
-    if (!DATE_RE.test(postingDate)) return invalid(rowNumber, raw, 'BAD_DATE', 'postingDate deve ser YYYY-MM-DD.', 'postingDate', entryKey);
+    if (!isValidDateOnly(postingDate)) return invalid(rowNumber, raw, 'BAD_DATE', 'postingDate deve ser YYYY-MM-DD.', 'postingDate', entryKey);
 
     const debit = parseCents(row[idx.debit] ?? '');
     const credit = parseCents(row[idx.credit] ?? '');
