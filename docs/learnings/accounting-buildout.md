@@ -158,3 +158,24 @@ Entradas mais novas no topo.
 - **Evidência:** PRs #32–#37; relatórios dos reviewers (worktrees isolados, gates re-executados com exit codes).
 - **Como aplicar:** Módulo Prisma com lógica de domínio: usar skills para a forma, ADR para o comportamento, reviewer independente para a verdade.
 - **Durável?** não (já vive em reviewer-independence-separate-agent + este ledger).
+
+### 2026-07-06 · decision · Proveniência = descritor EXPLÍCITO no DTO, não inferência de sourceId
+- **Contexto:** BE-INCR-8 (ADR-INCR8 D5), seam na tx do `postEntry`.
+- **Aprendizado:** Popular `SourceDocument` inferindo origem de "todo `sourceId` não-nulo" criaria origem espúria para `reversal` (que TEM `sourceId=originalId` e é interno). A escolha certa é um campo opcional `sourceDocument?` no `PostEntryInput` (`.strict()`): presente ⇒ origem criada na mesma tx; ausente ⇒ nenhuma (manual e reversal não passam descritor). O seam nasce num único ponto por onde toda origem externa já passa, sem allowlist hardcoded de `sourceType`.
+- **Evidência:** `PostingService.ts` (bloco `if (input.sourceDocument)` dentro do `runTransaction`); `ReverseEntrySchema` sem campo `sourceDocument` (reversal não pode carregar descritor); testes manual/reversal-sem-origem.
+- **Como aplicar:** Camada descritiva populada por quem escreve = descritor explícito no input, não adivinhação a partir de uma chave que outro caminho reusa com semântica diferente.
+- **Durável?** sim → [[accounting-incr8-source-document-provenance]].
+
+### 2026-07-06 · pattern · Smoke-migration-gate prova T7 com fingerprint de idempotência antes/depois
+- **Contexto:** BE-INCR-8 — migração additiva (2 tabelas novas) sobre `dev.db` real.
+- **Aprendizado:** "A migração não toca a idempotência viva" vira prova concreta com um script que, ANTES e DEPOIS do `migrate deploy`, lê todas as tuplas `(userId,unitId,sourceType,sourceId,fiscalYear,entryNumber,status)` de `journal_entries`, ordena e faz sha256. Fingerprint byte-idêntico + contagem inalterada + tabelas novas vazias = prova de zero-toque no ledger. Muito mais forte que "a migração é additiva, confie".
+- **Evidência:** `scratchpad/smoke-snapshot.js`; gate rodou BEFORE=AFTER=`2e0a748f…bb70`, 15→15 entries, `source_documents`/`journal_entry_sources` = 0.
+- **Como aplicar:** Migração que jura não mexer numa invariante existente = snapshot canônico + hash da invariante antes/depois do deploy sobre dados reais, não só inspeção do SQL.
+- **Durável?** sim → reforça [[accounting-incr1-db-risk]].
+
+### 2026-07-06 · gotcha · dev.db real vive no caminho-chamariz `server/prisma/prisma/dev.db`
+- **Contexto:** BE-INCR-8, montagem do smoke-migration-gate.
+- **Aprendizado:** `server/prisma/dev.db` (o path do datasource `file:./prisma/dev.db`) está com **0 bytes**; o banco POPULADO (667 KB, 15 lançamentos, migrações até data-exchange) é `server/prisma/prisma/dev.db` — o caminho-chamariz que o runtime realmente usou (mesma classe do bug de decoy-path do seed, memória INCR-6). Fazer backup do path "correto" copia um arquivo vazio e o gate valida nada.
+- **Evidência:** `ls -la` dos dois paths; o backup do 0-byte tinha `_prisma_migrations` vazio e aplicou TODA a cadeia; o backup do 667 KB tinha só a INCR-8 pendente.
+- **Como aplicar:** Antes de qualquer smoke-gate, `find . -name dev.db` e escolher o de MAIOR tamanho / com dados — nunca assumir que o path do datasource é o povoado.
+- **Durável?** sim (candidato reforça o decoy-path já anotado em [[accounting-incr6-data-exchange-plan]]).

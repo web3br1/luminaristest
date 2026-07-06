@@ -134,7 +134,7 @@ Ordenados por proximidade da fundação. **Nenhum** é "o próximo passo" antes 
 
 | Domínio | Estado | Gate para começar |
 |---|---|---|
-| **SourceDocument + JournalEntrySource** (proveniência formal) | ⏳ **Corrente (PRE-ADR fechado)** — extensão, não greenfield | **ADR-INCR8 ratificado 2026-07-03** (altitude **A1 seam fino**; impl. não iniciada). Proveniência mínima real = `sourceType`+`sourceId` (NÃO `externalReference` — este só existe no import, dobrado em `sourceId`). Seam popula em novos writes, sem backfill, T7 intocada; consumidor (ECD/ECF) segue diferido. Brief `BE-INCR8-source-document-provenance-scope-brief.md`. |
+| **SourceDocument + JournalEntrySource** (proveniência formal) | ✅ **Implementado + review independente PASS 2026-07-06** (commit `a18886c`, branch `claude/hopeful-herschel-95a24c`; **merge a `main` + sign-off humano pendentes**) | **ADR-INCR8** (altitude **A1 seam fino**). First-class Prisma: `SourceDocument`+`JournalEntrySource` (migração additiva, 0 ALTER), `SourceProvenanceRepository`, DTO `sourceDocument?` `.strict()`, seam na tx do `postEntry` (origem+link+audit `entry.source_recorded` átomos), import desdobra `externalReference`→`externalRef` com `sourceId` **byte-idêntico** (T7 intocada), no-cascade (sem FK User, D7). Consumidor (ECD/ECF) segue diferido. Gates: tsc×2 limpo, jest 752/752, **smoke-migration-gate PASS** (dev.db real: 15→15 entries, fingerprint de idempotência byte-idêntico, tabelas novas vazias). Brief + ADR em `docs/`. |
 | **OFX/CNAB/NF-e** (ingestão bancária/fiscal rica) | ⚫ Diferido | ADR próprio; depende do INCR-7 (CSV/XLSX) provado. |
 | **ECD / ECF readiness** (compliance) | ⚫ Diferido | Depende de proveniência + mapeamento referencial versionado. |
 | **Torre de aprovação** (maker-checker, SoD, `submittedById`/`approvedById`/`version`/`contentHash`) | ⚫ Diferido | Model atual só tem `Draft\|Posted\|Reconciled\|Reversed`. ADR + invariantes ACC-016/017. |
@@ -170,11 +170,11 @@ Antes de gerar "novo", reuse (Contrato §0). Confirmado por código:
 |---|---|---|---|
 | **1 — Ledger confiável** | ✅ | ~95% | (nada estrutural; "permissões/aprovação" que o grafo mistura aqui são torre nova, não gap) |
 | **2 — Operação real** | 🟡 | ~60% | aprovação, dimensões, busca/filtros ricos |
-| **3 — Integração** | 🟡 | ~25% | SourceDocument formal, inbox, outbox (só se sair de single-process) |
+| **3 — Integração** | 🟡 | ~35% | ~~SourceDocument formal~~ (✅ BE-INCR-8, review PASS, merge pendente); inbox, outbox (só se sair de single-process) |
 | **4 — Gestão** | 🟡 | ~50% | fluxo de caixa, análise por dimensão, variação mensal |
 | **5 — Compliance** | ⚫ | ~5% | ECD/ECF readiness, mapeamento referencial, pacotes, recibos |
 
-**Posição:** fundação (Núcleo 1) completa, Núcleo 2 mais da metade; ramos de expansão à frente. Nó corrente = **Conciliação**.
+**Posição:** fundação (Núcleo 1) completa, Núcleo 2 mais da metade; ramos de expansão à frente. Último nó fechado = **Proveniência formal (BE-INCR-8)** — review PASS, merge/sign-off pendentes. Próximos candidatos são todos ⚫ diferidos (§5); ECD/ECF ganha agora o drill-down até o documento de origem que o destrava.
 
 ---
 
