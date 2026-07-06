@@ -97,11 +97,21 @@ trabalho em incrementos onde:
 - um incremento = uma sessão/PR. Com modelo mais fraco, a tentação é dar tarefas maiores; resista —
   é a direção errada.
 
+**Loops delimitados.** Todo trabalho iterativo (tentar → verificar → tentar de novo) roda com dois
+freios declarados **antes** de começar: (1) condição de parada verificável por **avaliador externo ao
+executor** — quem implementa não decide que terminou (mesma lógica do passo 3); (2) **teto duro de
+iterações** ("pare após N tentativas"). Bater o teto sem fechar não pede mais tentativas — cai no
+protocolo de teto de capacidade: declarar o aberto. O cap é a versão *estrutural* daquele protocolo:
+não depende de o agente perceber os próprios sinais. E antes de um lote grande, **pilote numa fatia
+pequena** para calibrar custo e taxa de acerto.
+
 ### 5. Verificação > raciocínio, no prompt
 
 Instrução literal para o doc sempre-ativo: **"não afirme comportamento; execute."** Todo claim que
 pode virar comando, vira: rodar a expressão no console, escrever o teste, bisseção. Modelo-com-execução
-empata com modelo-maior-de-memória em quase todo claim verificável. Complementos:
+empata com modelo-maior-de-memória em quase todo claim verificável. Corolário de custo: trabalho
+determinístico que se repete vira **script versionado**, não re-raciocínio a cada execução — rodar
+script é mais barato e mais confiável que re-derivar os passos. Complementos:
 
 - Orçamento de pensamento (effort/extended thinking) no máximo nas tarefas de risco silencioso;
   modo rápido só no mecânico.
