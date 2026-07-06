@@ -134,7 +134,7 @@ Ordenados por proximidade da fundação. **Nenhum** é "o próximo passo" antes 
 
 | Domínio | Estado | Gate para começar |
 |---|---|---|
-| **SourceDocument + JournalEntrySource** (proveniência formal) | ⚫ Diferido — **extensão**, não greenfield | Proveniência mínima já existe (`sourceType/sourceId`/`externalReference`, D1). Candidato mais defensável pós-INCR-7. |
+| **SourceDocument + JournalEntrySource** (proveniência formal) | ⏳ **Corrente (PRE-ADR fechado)** — extensão, não greenfield | **ADR-INCR8 ratificado 2026-07-03** (altitude **A1 seam fino**; impl. não iniciada). Proveniência mínima real = `sourceType`+`sourceId` (NÃO `externalReference` — este só existe no import, dobrado em `sourceId`). Seam popula em novos writes, sem backfill, T7 intocada; consumidor (ECD/ECF) segue diferido. Brief `BE-INCR8-source-document-provenance-scope-brief.md`. |
 | **OFX/CNAB/NF-e** (ingestão bancária/fiscal rica) | ⚫ Diferido | ADR próprio; depende do INCR-7 (CSV/XLSX) provado. |
 | **ECD / ECF readiness** (compliance) | ⚫ Diferido | Depende de proveniência + mapeamento referencial versionado. |
 | **Torre de aprovação** (maker-checker, SoD, `submittedById`/`approvedById`/`version`/`contentHash`) | ⚫ Diferido | Model atual só tem `Draft\|Posted\|Reconciled\|Reversed`. ADR + invariantes ACC-016/017. |
