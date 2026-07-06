@@ -3,7 +3,7 @@ schema_version: 1
 type: skill-governance
 governance-skill-id: SKL-ORCHESTRATOR
 skill_path: ./SKILL.md
-status: validated
+status: changed-since-eval
 owner: engineering
 criticality: high
 evaluation:
@@ -36,6 +36,14 @@ rules:
     gates:
       - type: eval
         target: ./evals/evals.json#edge-1
+  # Adicionadas na v1.1.0 (mapa-mestre contábil). Sem eval ainda → pending-eval;
+  # exigem novo caso em evals.json e re-auditoria antes de voltar a `validated`.
+  ORCH-006:
+    status: pending-eval
+    gates: []
+  ORCH-007:
+    status: pending-eval
+    gates: []
 ---
 
 # Governança — `luminaris-orchestrator`
@@ -54,6 +62,10 @@ Agente de **orquestração** — papel: decompor, rotear e rastrear. Os evals av
 - `ORCH-003` — NUNCA atribui implementação/revisão a si mesmo: delega ao `luminaris-implementer` e ao `luminaris-reviewer`.
 - `ORCH-004` — o handoff carrega escopo + passos/skills + ordem/dependências + checks de validação + riscos.
 - `ORCH-005` — não inventa skills (só as do SKILL_MATRIX); em ambiguidade, pergunta antes de planejar.
+- `ORCH-006` — tarefa contábil: lê `docs/accounting/ACCOUNTING-MASTER-MAP.md` primeiro; o mapa é o veredito de posição e a guarda de roteamento (§1 travadas / §4 rejeitadas → `DECISÃO ARQUITETURAL`, não roteia). *(pending-eval)*
+- `ORCH-007` — plano que fecha incremento contábil inclui passo de closeout que promove o nó no mapa (executado pelo implementer, não pelo orquestrador). *(pending-eval)*
 
-Status `validated`: avaliado em 2026-06-25 (score 1.00 — ver `REPORT.md`). `governance-eval-score`/
-`governance-last-evaluated` no frontmatter são **projeção** do `REPORT.md` (SG-011); materializados na promoção (SG-048).
+Status `changed-since-eval`: última avaliação em 2026-06-25 (score 1.00 — ver `REPORT.md`), mas a v1.1.0
+adicionou `ORCH-006/007` (mapa-mestre contábil) **sem eval**. Rodar `skill-audit` com um novo caso cobrindo
+os dois antes de voltar a `validated`. `governance-eval-score`/`governance-last-evaluated` no frontmatter
+refletem a **última** avaliação real (SG-011), não a versão atual — por isso o status sinaliza a defasagem.
