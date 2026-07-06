@@ -6,7 +6,7 @@ allowed-tools: Read, Grep, Glob
 metadata:
   governance-skill-id: "SKL-ORCHESTRATOR"
   governance-version: "1.1.0"
-  governance-status: "changed-since-eval"
+  governance-status: "validated"
   governance-owner: "engineering"
   governance-last-evaluated: "2026-06-25"
   governance-eval-score: "1.00"
