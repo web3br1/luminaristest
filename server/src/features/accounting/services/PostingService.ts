@@ -13,6 +13,7 @@ import type {
 import type { IPostingRepository } from '../repositories/IPostingRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { IAccountingPeriodRepository } from '../repositories/IAccountingPeriodRepository';
+import type { ISourceProvenanceRepository } from '../repositories/ISourceProvenanceRepository';
 import type { AuditService } from './AuditService';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { accountingScopeWhere } from '../scope/AccountingScope';
@@ -39,6 +40,7 @@ export class PostingService {
     private readonly policy: IAccountingPolicy,
     private readonly periodRepo: IAccountingPeriodRepository,
     private readonly auditService: AuditService,
+    private readonly sourceProvenanceRepo: ISourceProvenanceRepository,
   ) {}
 
   /** Derive year+month from an ISO date string using UTC (no tz shift for date-only strings). */
@@ -247,6 +249,42 @@ export class PostingService {
           targetId:    created.id,
           payload:     { sourceType, sourceId: input.sourceId, description: input.description, sumDebitCents: String(sumDebit), lineCount: String(resolvedLines.length) },
         });
+
+        // BE-INCR-8 — formal provenance (ADR-INCR8 D5). When the caller passes an origin
+        // descriptor, record a SourceDocument + JournalEntrySource in THIS tx — atomic with
+        // the entry (ACC-011/012), tx propagated (T6). Absent ⇒ no origin: manual (no
+        // descriptor) and reversal (a separate path that never sets one) get NONE. This layer
+        // writes NO ledger value; idempotency stays in JournalEntry.@@unique (T7/D2) and a
+        // re-post short-circuits before the tx, so no SourceDocument is ever duplicated.
+        if (input.sourceDocument) {
+          const sd = input.sourceDocument;
+          const sourceDocument = await this.sourceProvenanceRepo.createSourceDocument(
+            {
+              userId,
+              unitId,
+              sourceType,
+              externalRef: sd.externalRef ?? null,
+              documentDate: sd.documentDate ? new Date(sd.documentDate) : null,
+              description: sd.description ?? null,
+              attachmentId: sd.attachmentId ?? null,
+              rawJson: sd.rawJson ?? null,
+              createdById: scope.actorUserId,
+            },
+            tx,
+          );
+          await this.sourceProvenanceRepo.linkEntry(
+            { userId, unitId, journalEntryId: created.id, sourceDocumentId: sourceDocument.id },
+            tx,
+          );
+          await this.auditService.append(tx, scope, {
+            actorUserId: scope.actorUserId,
+            eventType:   'entry.source_recorded',
+            targetType:  'journal_entry',
+            targetId:    created.id,
+            payload:     { journalEntryId: created.id, sourceDocumentId: sourceDocument.id, externalRef: sd.externalRef, sourceType },
+          });
+        }
+
         return { ...created, postings };
       });
 

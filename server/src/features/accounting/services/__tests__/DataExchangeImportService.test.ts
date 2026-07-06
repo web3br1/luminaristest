@@ -68,7 +68,12 @@ const accountReader: IAccountReader = {
   ]),
 };
 
-type PostEntryArg = { sourceType?: string; sourceId?: string; lines: unknown[] };
+type PostEntryArg = {
+  sourceType?: string;
+  sourceId?: string;
+  sourceDocument?: { externalRef?: string; documentDate?: string; description?: string };
+  lines: unknown[];
+};
 function makePoster() {
   const createAccount = jest.fn(async (_s: unknown, dto: { code: string }) => ({ id: `acc-${dto.code}`, code: dto.code }));
   const postEntry = jest.fn<Promise<{ id: string }>, [unknown, PostEntryArg]>(async () => ({ id: 'entry-1' }));
@@ -156,8 +161,36 @@ describe('DataExchangeImportService — journal entries', () => {
     const res = await svc.commit(scope, job.id);
     expect(postEntry).toHaveBeenCalledTimes(2);
     expect(res.committedRows).toBe(4);
+    // T7 byte-identical: sourceId (the dedup key) is UNCHANGED by BE-INCR-8 — still the
+    // externalReference when present (journalSourceId untouched).
     const refs = postEntry.mock.calls.map((c) => c[1].sourceId).sort();
     expect(refs).toEqual(['REF1', 'REF2']);
+    // BE-INCR-8 (D6): the human reference is ALSO unfolded into the origin descriptor
+    // (externalRef), first-class and searchable — desconflated from the dedup key.
+    const docRefs = postEntry.mock.calls.map((c) => c[1].sourceDocument?.externalRef).sort();
+    expect(docRefs).toEqual(['REF1', 'REF2']);
+  });
+
+  it('BE-INCR-8: a blank externalReference unfolds to NO externalRef but keeps the di: dedup key (desconflação)', async () => {
+    const { repo } = makeRepo();
+    const { poster, postEntry } = makePoster();
+    const svc = new DataExchangeImportService(repo, new AccountingPolicy(), audit, accountReader, poster);
+
+    const job = await svc.uploadAndValidate(scope, 'IMPORT_JOURNAL_ENTRIES',
+      csv('entryKey,documentDate,postingDate,description,accountCode,debitCents,creditCents,lineDescription,externalReference\n' +
+          'L1,2026-07-01,2026-07-01,Aporte,1.1.01,100000,0,,\n' +
+          'L1,2026-07-01,2026-07-01,Aporte,2.1.01,0,100000,,\n'));
+    expect(job.validRows).toBe(2);
+
+    await svc.commit(scope, job.id);
+    const arg = postEntry.mock.calls[0][1];
+    // No human reference → dedup falls back to the file+entryKey hash (unchanged behavior)...
+    expect(arg.sourceId).toMatch(/^di:[a-f0-9]{40}$/);
+    // ...and the origin descriptor carries no externalRef (nothing to unfold), but is still
+    // present for drill-down (description). externalRef must NOT be the di: hash (that would
+    // re-conflate the dedup key into the human reference field).
+    expect(arg.sourceDocument?.externalRef).toBeUndefined();
+    expect(arg.sourceDocument?.description).toBeDefined();
   });
 
   it('is idempotent — a second commit does not re-post', async () => {

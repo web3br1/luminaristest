@@ -63,6 +63,7 @@ function buildService(over: {
   policy?: any;
   periodRepo?: any;
   auditService?: any;
+  sourceProvenanceRepo?: any;
 } = {}) {
   const accountRepo = {
     findByCode: jest.fn(async (_scope: AccountingScope, code: string) => ({
@@ -124,6 +125,13 @@ function buildService(over: {
 
   const auditService = { append: jest.fn(async () => {}), ...over.auditService };
 
+  const sourceProvenanceRepo = {
+    createSourceDocument: jest.fn(async (data: any) => ({ id: 'srcdoc-1', ...data })),
+    linkEntry: jest.fn(async (data: any) => ({ id: 'jes-1', ...data })),
+    findSourcesByEntry: jest.fn(async () => []),
+    ...over.sourceProvenanceRepo,
+  };
+
   const svc = new PostingService(
     accountRepo as any,
     journalEntryRepo as any,
@@ -131,8 +139,9 @@ function buildService(over: {
     policy as any,
     periodRepo as any,
     auditService as any,
+    sourceProvenanceRepo as any,
   );
-  return { svc, accountRepo, journalEntryRepo, postingRepo, policy, periodRepo, auditService };
+  return { svc, accountRepo, journalEntryRepo, postingRepo, policy, periodRepo, auditService, sourceProvenanceRepo };
 }
 
 const balancedInput = {
@@ -837,6 +846,123 @@ describe('PostingService', () => {
       await expect(svc.postEntry(scope, balancedInput)).rejects.toThrow('DB error');
       // nextEntryNumber was called inside the tx that rolled back — number is not consumed
       expect(postingRepo.nextEntryNumber).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── BE-INCR-8 / ADR-INCR8 — formal provenance seam ────────────────────────────
+  describe('postEntry — provenance (BE-INCR-8 / ADR-INCR8)', () => {
+    const withDoc = {
+      ...balancedInput,
+      sourceType: 'salon.sale.finalized',
+      sourceId: 'sale-1',
+      sourceDocument: {
+        externalRef: 'NF-123',
+        documentDate: '2026-06-20',
+        description: 'Venda salão',
+        attachmentId: 'att-9',
+      },
+    };
+
+    it('records SourceDocument + JournalEntrySource + entry.source_recorded audit — all in the SAME tx', async () => {
+      const { svc, sourceProvenanceRepo, auditService } = buildService();
+      await svc.postEntry(scope, withDoc);
+
+      expect($transaction).toHaveBeenCalledTimes(1);
+      expect(sourceProvenanceRepo.createSourceDocument).toHaveBeenCalledTimes(1);
+      expect(sourceProvenanceRepo.createSourceDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u1',
+          unitId,
+          sourceType: 'salon.sale.finalized', // origin sourceType mirrors the entry (D5)
+          externalRef: 'NF-123',
+          documentDate: new Date('2026-06-20'), // date-only string → Date
+          description: 'Venda salão',
+          attachmentId: 'att-9',
+          createdById: 'u1',
+        }),
+        txHandle, // propagated tx (T6) — same handle threaded to every provenance write
+      );
+      expect(sourceProvenanceRepo.linkEntry).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'u1', unitId, journalEntryId: 'entry-1', sourceDocumentId: 'srcdoc-1' }),
+        txHandle,
+      );
+      // entry.source_recorded appended in the SAME tx (ACC-019), payload in the allowlist.
+      expect(auditService.append).toHaveBeenCalledWith(
+        txHandle,
+        scope,
+        expect.objectContaining({
+          eventType: 'entry.source_recorded',
+          targetType: 'journal_entry',
+          targetId: 'entry-1',
+          payload: expect.objectContaining({
+            journalEntryId: 'entry-1',
+            sourceDocumentId: 'srcdoc-1',
+            externalRef: 'NF-123',
+            sourceType: 'salon.sale.finalized',
+          }),
+        }),
+      );
+    });
+
+    it('atomicity: if linkEntry throws, the whole postEntry rejects (entry + origin roll back together)', async () => {
+      const { svc, sourceProvenanceRepo } = buildService({
+        sourceProvenanceRepo: { linkEntry: jest.fn(async () => { throw new Error('link failed'); }) },
+      });
+      await expect(svc.postEntry(scope, withDoc)).rejects.toThrow('link failed');
+      // createSourceDocument ran, but the throw inside the same $transaction fn rolls it all back —
+      // no entry-with-orphan-origin, no origin-without-entry.
+      expect(sourceProvenanceRepo.createSourceDocument).toHaveBeenCalledTimes(1);
+    });
+
+    it('T7 idempotent re-post: an existing entry short-circuits BEFORE the tx — no new SourceDocument', async () => {
+      const existing = { id: 'entry-existing', postings: [] };
+      const { svc, sourceProvenanceRepo, journalEntryRepo } = buildService({
+        journalEntryRepo: { findBySource: jest.fn(async () => existing) },
+      });
+      const result = await svc.postEntry(scope, withDoc);
+      expect(result).toBe(existing);
+      expect(journalEntryRepo.findBySource).toHaveBeenCalledWith(scope, 'salon.sale.finalized', 'sale-1');
+      expect(sourceProvenanceRepo.createSourceDocument).not.toHaveBeenCalled();
+      expect(sourceProvenanceRepo.linkEntry).not.toHaveBeenCalled();
+    });
+
+    it('manual entry (no descriptor) records NO origin', async () => {
+      const { svc, sourceProvenanceRepo } = buildService();
+      await svc.postEntry(scope, balancedInput); // no sourceDocument
+      expect(sourceProvenanceRepo.createSourceDocument).not.toHaveBeenCalled();
+      expect(sourceProvenanceRepo.linkEntry).not.toHaveBeenCalled();
+    });
+
+    it('reversal records NO origin (estorno is internal, never carries a descriptor)', async () => {
+      const original = {
+        id: 'orig-1', status: 'Posted', reversedById: null,
+        postings: [
+          { accountId: 'a1', debitCents: 10000, creditCents: 0 },
+          { accountId: 'a2', debitCents: 0, creditCents: 10000 },
+        ],
+      };
+      const { svc, sourceProvenanceRepo } = buildService({
+        journalEntryRepo: {
+          findById: jest.fn(async () => original),
+          findBySource: jest.fn(async () => null),
+        },
+        postingRepo: {
+          nextEntryNumber: jest.fn(async () => 5),
+          findByEntryId: jest.fn(async () => original.postings),
+        },
+      });
+      await svc.reverseEntry(scope, { unitId, lancamentoId: 'orig-1', reversalPostingDate: '2026-06-24' });
+      expect(sourceProvenanceRepo.createSourceDocument).not.toHaveBeenCalled();
+      expect(sourceProvenanceRepo.linkEntry).not.toHaveBeenCalled();
+    });
+
+    it('desconflação: two entries sharing an externalRef under DIFFERENT sourceIds each get their own SourceDocument (externalRef is not a dedup key — D6)', async () => {
+      const { svc, sourceProvenanceRepo } = buildService();
+      await svc.postEntry(scope, { ...withDoc, sourceId: 'sale-A', sourceDocument: { externalRef: 'NF-DUP' } });
+      await svc.postEntry(scope, { ...withDoc, sourceId: 'sale-B', sourceDocument: { externalRef: 'NF-DUP' } });
+      expect(sourceProvenanceRepo.createSourceDocument).toHaveBeenCalledTimes(2);
+      const refs = sourceProvenanceRepo.createSourceDocument.mock.calls.map((c: any[]) => c[0].externalRef);
+      expect(refs).toEqual(['NF-DUP', 'NF-DUP']); // no collision — externalRef participates in no dedup key
     });
   });
   });

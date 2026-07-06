@@ -421,6 +421,7 @@ model JournalEntry {
   reverses     JournalEntry?  @relation("Reversal")
   postings     Posting[]
   attachments  DocumentAttachment[] @relation("JournalEntryAttachments")
+  sources      JournalEntrySource[] @relation("JournalEntrySources")
   createdById  String?   // actor who created this entry (authorship trail)
   postedById   String?   // actor who posted/confirmed this entry (SoD trail)
   fiscalYear   Int       // derived from date (postingDate) in America/Sao_Paulo; assigned at post time
@@ -642,6 +643,56 @@ model ReconciliationMatch {
   @@index([userId, unitId, postingId])
   @@index([userId, unitId, statementLineId])
   @@map("reconciliation_matches")
+}
+
+// ── Formal provenance (BE-INCR-8 / ADR-INCR8) ──────────────────────────────────
+// First-class Prisma — camada DESCRITIVA/de rastreio ao lado do ledger. NÃO muda
+// nenhum valor de ledger, NÃO substitui a idempotência (T7 vive em
+// JournalEntry.@@unique([userId,unitId,sourceType,sourceId])). Tenancy = AccountingScope
+// (userId+unitId, plain scope strings, SEM FK User → no-cascade, ACC-020). SQLite.
+
+// O documento/evento de origem que originou lançamento(s). Uniforme entre origens (CRM,
+// salão, import). Campos mínimos deliberados (A1 seam fino — mitiga shape especulativo
+// pré-ECD/ECF).
+model SourceDocument {
+  id           String   @id @default(cuid())
+  userId       String   // AccountingScope.ownerUserId (plain scope key; SEM FK User — D7)
+  unitId       String   // business unit (scoped string, not a FK)
+  sourceType   String   // taxonomia viva: crm.opportunity.won | salon.sale.* | IMPORT_JOURNAL_ENTRIES | ...
+  externalRef  String?  // referência HUMANA do documento (NF nº X, boleto nº Y) — separada do sourceId/idempotência (D6)
+  documentDate DateTime? // data do documento de origem, quando distinta da data de lançamento
+  description  String?  // rótulo curto da origem (display/drill-down)
+  attachmentId String?  // DocumentAttachment do arquivo bruto, quando houver (INCR-5); plain string
+  rawJson      String?  // snapshot opcional da origem (JSON string)
+  createdById  String?  // ator (AccountingScope.actorUserId); plain string
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime? // soft-delete p/ correção futura; NENHUM path de delete é wired no MVP
+  sources      JournalEntrySource[]
+
+  // SEM @@unique de idempotência (D2): a dedup do ledger é do JournalEntry; postEntry
+  // curto-circuita no idempotent-hit antes de criar a origem, então re-post não duplica.
+  @@index([userId, unitId, sourceType])
+  @@index([userId, unitId, externalRef])
+  @@index([deletedAt])
+  @@map("source_documents")
+}
+
+// Vínculo entry <-> documento de origem. N:M estrutural (D3); MVP escreve 1 entry <- 1 documento.
+model JournalEntrySource {
+  id               String   @id @default(cuid())
+  userId           String   // plain scope key (denormalizado p/ query scoped; SEM FK User — D7)
+  unitId           String
+  journalEntryId   String
+  journalEntry     JournalEntry   @relation("JournalEntrySources", fields: [journalEntryId], references: [id], onDelete: Cascade)
+  sourceDocumentId String
+  sourceDocument   SourceDocument @relation(fields: [sourceDocumentId], references: [id])
+  createdAt        DateTime @default(now())
+
+  @@unique([journalEntryId, sourceDocumentId]) // re-drive não duplica o vínculo
+  @@index([userId, unitId, sourceDocumentId])
+  @@index([userId, unitId, journalEntryId])
+  @@map("journal_entry_sources")
 }
 
 // ── Prepaid packages (Incremento G — Prepaid Package Origin) ───────────────────
