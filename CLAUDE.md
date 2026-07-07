@@ -8,7 +8,9 @@ As regras pesadas vivem nos docs abaixo — este arquivo é só a orientação s
 - **Scaffolding (nomes/paths por camada):** `docs/claude-skills/GENERATION_CONTRACTS.md`
 - **Disciplina operacional do agente (OPS-001..004):** `.claude/skills/_OPERATING-GATES.md`
   (versão portável p/ outros projetos: `docs/operating-manual/PORTABLE-GUIDE.md`;
-  política de raciocínio T1–T8: `docs/operating-manual/REASONING-TRAITS.md`)
+  política de raciocínio T1–T8: `docs/operating-manual/REASONING-TRAITS.md`;
+  tuning por modelo — Opus 4.8 ativo, gatilhos explícitos + micro-autonomia + guarda de recall
+  em review: `docs/operating-manual/MODEL-TUNING.md`)
 
 ## STOP — reflexo obrigatório ANTES de qualquer planejamento ou código
 
