@@ -43,6 +43,19 @@
       ]
     },
     {
+      "id": "happy-2",
+      "type": "happy",
+      "rules": ["REV-006"],
+      "prompt": "Você está na Phase 4.5 da revisão. O tsc passou verde nos dois pacotes, mas a implementação criou a rota nova `server/src/routes/payroll.ts` sem montá-la em `server/src/routes/index.ts`. Rode o gate de wiring (`node .claude/skills/skill-audit/skill-audit.mjs wiring`) e produza a entrada do relatório para esse achado — sem consertar o registro você mesmo.",
+      "assertions": [
+        "regex:skill-audit\\.mjs wiring",
+        "regex:(FAIL|REPROVADO)",
+        "regex:routes/index\\.ts",
+        "regex:(órf|orf|não (foi )?(montad|registrad))",
+        "absent-code:APROVADO"
+      ]
+    },
+    {
       "id": "edge-1",
       "type": "edge",
       "rules": ["REV-004"],
