@@ -148,6 +148,8 @@ Se nenhuma ambiguidade → prosseguir para Phase 4.
 ## PLANO DE EXECUÇÃO — [nome da tarefa]
 
 **Tarefa:** [descrição original do usuário]
+**Intenção:** [por que / para quem / o que o resultado habilita — o implementador toma decisões
+melhores conhecendo o objetivo, não só a letra do pedido]
 **Risco:** [Low | Medium | High]
 **Branch recomendada:** [feature/<nome> se risco High]
 
