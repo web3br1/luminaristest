@@ -91,6 +91,12 @@ funciona como equalizador de modelo: duas amostras independentes têm erros pouc
 N amostras + um juiz adversarial compram com tokens o que falta em peso. Para as decisões mais duras,
 escale para N=3 tentativas independentes + juiz.
 
+**Cobertura antes de filtro.** Instrução conservadora no prompt do revisor ("só reporte o grave",
+"não faça nitpick") é seguida **literalmente** pelos modelos atuais e derruba recall medido — o
+modelo acha o bug e depois decide não reportar. Padrão: o passo de achado reporta **tudo** com
+confiança + severidade estimada; a filtragem por importância é um passo separado, downstream
+(veredicto/humano). Nunca peça conservadorismo a quem acha; peça ao que filtra.
+
 **O juiz também tem viés — medido, não especulado:** juízes-LLM favorecem o próprio estilo/família
 (*self-preference*), a posição do candidato (A vs B) e formatação bonita sobre conteúdo. Mitigações
 com ganho comprovado: rubrica explícita + raciocínio passo a passo **antes** do veredito; em
@@ -140,6 +146,15 @@ script é mais barato e mais confiável que re-derivar os passos. Complementos:
 - Contexto enxuto: raciocínio degrada com janela inchada. Localize primeiro (busca/índice/grafo),
   carregue só o arquivo que importa. Um índice de memória externo (fatos duráveis em arquivos, uma
   linha por fato num índice) vence despejar histórico na janela.
+
+**Calibre a prescrição ao modelo** (assimetria documentada pela Anthropic): modelos do topo
+**degradam** com scaffolding passo-a-passo — dê objetivo + restrições e deixe-os escolher os
+passos; modelos um degrau abaixo **sub-alcançam** capacidades que exigem decisão (memória,
+subagentes, busca) — escreva o *gatilho* na própria descrição de cada tool/skill ("chame isto
+quando…"), não só o que ela faz. Corolários: (a) ao trocar o modelo do projeto, re-teste a dose de
+prescrição **antes** de reescrever prompts; (b) conceda autonomia nas micro-decisões (escolha
+razoável + nota, pergunta só para escopo/destrutivo) — corta a taxa de bloqueio por pergunta sem
+aumentar over-reach.
 
 ### 6. Feche o ciclo: cada bug vira regra ou gate
 
