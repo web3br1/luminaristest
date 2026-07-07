@@ -104,3 +104,14 @@ Evidência própria do repo de que a classe existe: `tx-nao-propagado-ao-repo` (
 Gaps declarados de propósito (OPS-001 gate 5 aplicado a este próprio doc): a metade auto-reportada
 dessas regras só fecha com **review independente** (`reviewer-independence-separate-agent`) — que já é
 norma da casa e é o enforcement de última instância de todas as quatro.
+
+## Validação empírica
+
+**Teste de sistema 2026-07-07** (lacuna real do CRM, pipeline orchestrator→implementer→reviewer,
+artefatos em `docs/operating-manual/system-test-2026-07-07/` na branch do teste): **9/10** no
+scorecard; mutação de controle (handoff sem a seção OPS-001) **reprovada por forma** pelo revisor
+de contexto fresco. Achados que viraram patch: P3 (pré-condição de ambiente no tsc do reviewer) e
+P4 (seção rotulada obrigatória — o check por artefatos avulsos era satisfazível implicitamente).
+Achados com dono externo: P1 (camada não merjada → decisão de merge do PR #44) e P2 (main com 35
+erros de server tsc pré-existentes — cliente Prisma stale, task própria). n=1 — prova que o
+pipeline *pode* segurar; consistência (pass^k) exige repetição em outras lacunas.
