@@ -74,6 +74,12 @@ Todo gate que puder virar máquina, vire máquina:
 | "invariante de domínio" | constraint no banco / assertion em runtime — nunca só validação na aplicação |
 | "formato do relatório" | template/checklist que o revisor rejeita por forma antes de julgar mérito |
 
+**Teste o teste.** Gate que nunca falhou é gate não-provado: cobertura que executa código sem afirmar
+comportamento passa igual. Periodicamente, quebre de propósito — injete um bug pequeno e confirme que
+a suite fica vermelha (o conceito de *mutation testing*, aplicável a qualquer gate: lint, checklist de
+review, validação). E gate que passa 100% há muito tempo dá **sinal zero**: ou saturou (suba a barra)
+ou quebrou (teste-o).
+
 O que não vira máquina (gates 1–3, teto de capacidade) fica auto-reportado — e é exatamente por isso
 que existe o passo 3.
 
@@ -85,12 +91,22 @@ funciona como equalizador de modelo: duas amostras independentes têm erros pouc
 N amostras + um juiz adversarial compram com tokens o que falta em peso. Para as decisões mais duras,
 escale para N=3 tentativas independentes + juiz.
 
+**O juiz também tem viés — medido, não especulado:** juízes-LLM favorecem o próprio estilo/família
+(*self-preference*), a posição do candidato (A vs B) e formatação bonita sobre conteúdo. Mitigações
+com ganho comprovado: rubrica explícita + raciocínio passo a passo **antes** do veredito; em
+comparações, alternar a ordem e agregar; cegar o juiz para autoria; quando possível, juiz de
+família/modelo diferente do executor. E declare o que o veredito mede: *uma de N tentativas basta*
+(criação — pegue a melhor) é diferente de *todas as N precisam passar* (confiabilidade — o padrão
+para trabalho recorrente voltado a usuário).
+
 ### 4. Tarefas pequenas, teste de aceite antes
 
 Folga de raciocínio só é estressada quando o problema inteiro precisa caber numa cabeça. Corte o
 trabalho em incrementos onde:
 
-- o teste de aceite é enunciado em uma frase **antes** de implementar;
+- o teste de aceite é enunciado em uma frase **antes** de implementar — e passa no teste da
+  concordância: dois avaliadores independentes chegariam ao mesmo veredito de pass/fail? Se não,
+  a tarefa está **ambígua**, não difícil;
 - cada peça tem condição de verdade própria — "posso errar A e ainda acertar B?" (se um bug em A
   envenena a checagem de B, o corte está errado: corte por **fronteira de dado e invariante**, não
   por passo cronológico);
@@ -104,6 +120,12 @@ iterações** ("pare após N tentativas"). Bater o teto sem fechar não pede mai
 protocolo de teto de capacidade: declarar o aberto. O cap é a versão *estrutural* daquele protocolo:
 não depende de o agente perceber os próprios sinais. E antes de um lote grande, **pilote numa fatia
 pequena** para calibrar custo e taxa de acerto.
+
+**Trabalho que atravessa sessões/contextos** externaliza o estado (arquivo de progresso + commits
+descritivos) e **re-entra verificando**: toda sessão começa confirmando que o que estava verde
+continua verde, antes de tocar coisa nova. E a lista do que está *done* vive **fora do poder de
+edição do executor** — marcar item como concluído exige passar na verificação dele, nunca editar a
+lista. (Vitória prematura é o modo de falha nº 1 de trabalho longo.)
 
 ### 5. Verificação > raciocínio, no prompt
 
