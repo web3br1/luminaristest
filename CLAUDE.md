@@ -7,7 +7,8 @@ As regras pesadas vivem nos docs abaixo — este arquivo é só a orientação s
 - **Critério reuse-vs-bespoke:** `.claude/skills/_REUSE-CRITERION.md`
 - **Scaffolding (nomes/paths por camada):** `docs/claude-skills/GENERATION_CONTRACTS.md`
 - **Disciplina operacional do agente (OPS-001..004):** `.claude/skills/_OPERATING-GATES.md`
-  (versão portável p/ outros projetos: `docs/operating-manual/PORTABLE-GUIDE.md`)
+  (versão portável p/ outros projetos: `docs/operating-manual/PORTABLE-GUIDE.md`;
+  política de raciocínio T1–T8: `docs/operating-manual/REASONING-TRAITS.md`)
 
 ## STOP — reflexo obrigatório ANTES de qualquer planejamento ou código
 
@@ -89,3 +90,14 @@ Travou no raciocínio (claim revisado 2× sem fato novo / aceite não cabe numa 
 teto **[OPS-002]**: pare de aprofundar, converta em checagem (executar → teste vermelho → bisect →
 ler fonte), declare o aberto — nunca blefe continuidade. Detalhe + OPS-003/004 em
 `.claude/skills/_OPERATING-GATES.md`.
+
+## Política de raciocínio [T1–T8] — durante o trabalho (detalhe em REASONING-TRAITS.md)
+
+1. Nomeie o **objetivo sob a letra** do pedido; se divergem, responda ao objetivo e avise.
+2. Claim inverificável → converta em artefato checável por fora, ou declare inverificável.
+3. Regra que você criar **se aplica primeiro a você**; declare onde falha em si mesma.
+4. Decisão que vai se repetir: formule a regra na 1ª vez, **cite-a** nas seguintes.
+5. Input que só confirma o existente não vira texto novo — registre "confirma" e siga.
+6. Sobre trabalho já ~certo: **patches no que falha, nunca rewrite**.
+7. Instrução que alguém vai rodar = passos numerados; aforismo só como índice.
+8. O risco final da entrega **inclui seus próprios vieses**, nomeados.
