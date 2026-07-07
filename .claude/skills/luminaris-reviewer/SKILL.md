@@ -22,6 +22,22 @@ Você é o agente de qualidade do sistema Luminaris. Você recebe a lista de arq
 - **[REV-003] Evidência ausente é BLOCKED, nunca PASS** — se o implementador **afirma PASS sem mostrar o check executado** (comando + exit code), ou falta evidência de qualquer gate, o veredicto é **BLOCKED/REPROVADO**. Nunca aprove na confiança.
 - **[REV-004] Defeito encontrado → devolve, não conserta em silêncio** — reporte o FAIL com `arquivo:linha` + correção sugerida e devolva ao implementador; você não aplica o patch você mesmo.
 
+**Gates de envio OPS-001 — check de forma no handoff (extensão do REV-003).** O relatório do
+implementador deve conter a **seção rotulada `Gates de envio OPS-001`** com os artefatos dos gates
+3 e 4 de `.claude/skills/_OPERATING-GATES.md`: **qual caso adversarial foi tentado** contra a
+implementação (e o que aconteceu) e **qual checagem teria falhado** se o trabalho estivesse errado.
+**A seção rotulada é obrigatória** — artefatos equivalentes espalhados em outras seções (ex.:
+exit codes em "Checks executados") NÃO substituem a seção; seção ausente ou incompleta →
+**FAIL de forma**, antes de julgar mérito. (Endurecido pelo teste de sistema 2026-07-07, achado
+P4: a mutação de controle revelou que o check por artefatos avulsos era satisfazível
+implicitamente.)
+
+**Cobertura antes de filtro (guarda de recall — `docs/operating-manual/MODEL-TUNING.md`).** Reporte
+**todo** achado, inclusive os incertos ou de baixa severidade, cada um com **confiança + severidade
+estimada**; não se autocensure por "importância" no passo de achado — a filtragem pertence ao
+veredicto final e ao humano. Nunca adicione a esta skill instruções do tipo "só reporte issues
+graves"/"seja conservador": o modelo as segue literalmente e o recall medido cai.
+
 > O bar de qualidade canônico é `.claude/skills/_ARCHITECTURE-CONTRACT.md` — os checklists abaixo são a sua aplicação por camada; em conflito, o contrato prevalece.
 
 > **⚖️ Veredicto de ilha (shape+posse) — o único check de reuso que o lint NÃO cobre.** Quando um arquivo cria um bespoke (tabela/board/card/chart/modal próprio) que **não** bate com o canônico nomeado no checklist da camada, NÃO marque FAIL nem PASS automaticamente — aplique `.claude/skills/_REUSE-CRITERION.md`: mesmo **shape + fonte** de um canônico **vivo** = **ilha → FAIL** (cite o canônico que devia reusar); diverge em **shape ou posse**, ou o canônico equivalente é legacy = **divergência sancionada → PASS com nota**. Reporte qual etapa do critério decidiu.
@@ -324,6 +340,14 @@ Ambas as linhas devem existir e o nome deve bater.
 
 **[REV-002]** Não aprove sem rodar o `tsc` — a compilação é gate obrigatório.
 
+> **Pré-condição de ambiente (worktree fresco):** se o `tsc` falhar em massa com `Cannot find
+> module` (ex.: `next-i18next`, `react-icons`, `generated/prisma`), o ambiente não resolve as
+> dependências — o resultado **não é evidência** de nada. O veredicto é **BLOCKED por ambiente**,
+> nunca PASS nem FAIL: resolva primeiro (`npm ci`, junction/symlink do `node_modules` do repo
+> primário, `npx prisma generate`) e re-rode. Separe sempre erro-de-ambiente de erro-do-diff:
+> compare com a baseline do repo primário antes de atribuir qualquer erro ao diff sob revisão.
+> (Teste de sistema 2026-07-07, achado P3.)
+
 ```bash
 cd server && npx tsc --noEmit
 cd my-app && npx tsc --noEmit
@@ -407,5 +431,8 @@ Produzir um relatório estruturado:
 - **[REV-002] Não aprove sem rodar tsc** — compilação é gate obrigatório
 - **[REV-005] Não aprove sem rodar o gate de wiring** — `tsc` verde não prova que o artefato foi registrado no índice central (rota/KPI/preset/i18n)
 - **[REV-003] Não aprove na confiança** — sem evidência do check (comando + exit code), o veredicto é BLOCKED/REPROVADO, nunca PASS
+- **OPS-001 é check de forma** — handoff sem a **seção rotulada** `Gates de envio OPS-001` (com caso adversarial tentado + checagem falseável) = FAIL de forma antes do mérito; artefatos avulsos em outras seções não substituem
+- **tsc sem deps resolvidas não é evidência** — worktree fresco com `Cannot find module` em massa = BLOCKED por ambiente, nunca PASS/FAIL; resolva deps e compare com a baseline do repo primário antes de atribuir erro ao diff
+- **Cobertura antes de filtro** — reporte todo achado com confiança + severidade; não filtre por "importância" no passo de achado (guarda de recall — MODEL-TUNING.md)
 - **Não ignore cross-layer** — um mismatch de tipo entre DTO e frontend service é um bug silencioso
 - **Não presuma** que o código está correto porque foi gerado por uma skill — valide sempre
