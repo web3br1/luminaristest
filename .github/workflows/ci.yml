@@ -25,6 +25,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Sem postinstall no server/ → `npm ci` NÃO gera o client. tsc contra um client stale
+      # produz os 35 erros de accounting/repositories/ReconciliationRepository.ts (schema TEM
+      # os modelos; faltava só o generate reproduzível). Este passo fecha o gap P2.
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
       - name: Typecheck
         run: npx tsc --noEmit
 
@@ -85,6 +91,30 @@ jobs:
 
       - name: skill-audit run --all (0 findings required)
         run: node .claude/skills/skill-audit/skill-audit.mjs run
+
+  # Gate de PRESENÇA da camada de governança operacional (OPS-001..004). O `skill-audit` acima
+  # cobre drift interno das skills, mas NÃO garante que os artefatos-âncora existam — docs/skills
+  # podem regredir silenciosamente (gap P1 do teste de sistema 2026-07-07). Este job falha se:
+  #   • .claude/skills/_OPERATING-GATES.md sumir, OU
+  #   • a referência "Gates de envio OPS-001" sair do reviewer OU do implementer.
+  # NOTA: bloqueante desde já (decisão do usuário). Fica VERMELHO até PR #44 (camada OPS-001)
+  # ser mergeada em main — os três alvos ainda não estão em main na criação deste workflow.
+  governance-presence:
+    name: Governance – OPS-001 layer present
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert operating-gates layer exists
+        shell: bash
+        run: |
+          set -uo pipefail
+          fail=0
+          [ -f .claude/skills/_OPERATING-GATES.md ] || { echo "::error::.claude/skills/_OPERATING-GATES.md ausente (camada OPS-001)."; fail=1; }
+          grep -q "Gates de envio OPS-001" .claude/skills/luminaris-reviewer/SKILL.md    || { echo "::error::reviewer SKILL.md sem 'Gates de envio OPS-001'."; fail=1; }
+          grep -q "Gates de envio OPS-001" .claude/skills/luminaris-implementer/SKILL.md || { echo "::error::implementer SKILL.md sem 'Gates de envio OPS-001'."; fail=1; }
+          [ "$fail" = 0 ] && echo "OK: camada de governança OPS-001 presente."
+          exit "$fail"
 
   # Diff-scoped design gate. A base ainda tem ~33 ocorrências de `zinc-` pré-existentes
   # (contrato §4: superfícies dark = neutral-*). Em vez de reprovar nelas (refactor =
