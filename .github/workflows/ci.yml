@@ -25,6 +25,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # generated/prisma is gitignored and npm ci does NOT regenerate it (no postinstall).
+      # Without this, tsc sees a stale/absent client and the reconciliation layer (BankStatement,
+      # BankStatementLine, ReconciliationMatch) fails to type-check — contract §1 gate on main.
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
       - name: Typecheck
         run: npx tsc --noEmit
 
