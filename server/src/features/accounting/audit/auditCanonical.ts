@@ -12,6 +12,9 @@ export const CANONICAL_VERSION = 1;
 const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   'entry.posted':    ['sourceType', 'sourceId', 'description', 'sumDebitCents', 'lineCount'],
   'entry.reversed':  ['originalId', 'reversalId', 'reason'],
+  // BE-INCR-8 — formal provenance. Recorded in the same tx as the entry when an origin
+  // descriptor is present. Only ids/type/ref — never rawJson or attachment bytes (PII-safe).
+  'entry.source_recorded': ['journalEntryId', 'sourceDocumentId', 'externalRef', 'sourceType'],
   'account.created': ['code', 'name', 'nature', 'acceptsEntries'],
   'account.deleted': ['code'],
   'period.opened':      ['year', 'month', 'fromStatus', 'toStatus'],
