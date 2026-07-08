@@ -1,0 +1,365 @@
+{
+  "view": {
+    "title": "Accounting",
+    "subtitle": "Double-entry ledger — trial balance by unit",
+    "unit": "Unit",
+    "loadingUnits": "Loading…",
+    "noUnit": "No unit",
+    "selectUnitPrompt": "Select a unit to view the accounting data.",
+    "balancete": "Trial Balance",
+    "balanced": "Balanced (Σdebit = Σcredit)",
+    "unbalanced": "Unbalanced — check the ledger",
+    "newEntry": "New Journal Entry",
+    "tabs": {
+      "balancete": "Trial Balance",
+      "periodos": "Periods",
+      "lancamentos": "Journal Entries",
+      "razao": "Ledger",
+      "planoDeContas": "Chart of Accounts",
+      "bp": "BS",
+      "dre": "IS",
+      "importacaoExportacao": "Import/Export"
+    },
+    "error": {
+      "units": "Failed to load units.",
+      "report": "Failed to load trial balance."
+    }
+  },
+  "trialBalance": {
+    "loading": "Loading trial balance…",
+    "selectUnit": "Select a unit.",
+    "empty": "No entries posted for this unit yet.",
+    "col": {
+      "code": "Code",
+      "account": "Account",
+      "nature": "Nature",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balance": "Balance"
+    },
+    "total": "Total",
+    "nature": {
+      "Asset": "Asset",
+      "Liability": "Liability",
+      "Equity": "Equity",
+      "Revenue": "Revenue",
+      "Expense": "Expense"
+    }
+  },
+  "periods": {
+    "error": {
+      "load": "Failed to load periods.",
+      "seed": "Failed to seed periods.",
+      "transition": "Period transition failed."
+    },
+    "fiscalYear": "Fiscal Year",
+    "seeding": "Creating…",
+    "seedYear": "Seed {{year}}",
+    "loading": "Loading periods…",
+    "emptyYear": "No periods created for {{year}}. Click \"Seed {{year}}\" to initialize.",
+    "months": {
+      "1": "Jan",
+      "2": "Feb",
+      "3": "Mar",
+      "4": "Apr",
+      "5": "May",
+      "6": "Jun",
+      "7": "Jul",
+      "8": "Aug",
+      "9": "Sep",
+      "10": "Oct",
+      "11": "Nov",
+      "12": "Dec"
+    },
+    "status": {
+      "FUTURE": "Future",
+      "OPEN": "Open",
+      "SOFT_CLOSED": "Soft Closed",
+      "HARD_CLOSED": "Hard Closed"
+    },
+    "action": {
+      "open": "Open",
+      "softClose": "Soft close",
+      "hardClose": "Hard close",
+      "reopen": "Reopen"
+    },
+    "hardClosed": "Permanently closed",
+    "notCreated": "Not created",
+    "actionLabel": {
+      "soft-close": "Soft close",
+      "hard-close": "Hard close",
+      "reopen": "Reopen period"
+    },
+    "reasonOptional": "reason (optional)",
+    "reasonPlaceholder": "Justification…",
+    "wait": "Please wait…",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  },
+  "ledger": {
+    "accountLabel": "Account",
+    "loadingOption": "Loading…",
+    "closingBalanceInline": "Closing balance:",
+    "closingBalance": "Closing balance",
+    "empty": "No entries in this account.",
+    "loadingLedger": "Loading ledger…",
+    "col": {
+      "date": "Date",
+      "description": "Description",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balance": "Balance"
+    },
+    "error": {
+      "loadAccounts": "Failed to load chart of accounts.",
+      "loadLedger": "Failed to load ledger."
+    }
+  },
+  "chartOfAccounts": {
+    "title": "Chart of Accounts",
+    "newAccount": "New Account",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "delete": "Delete",
+    "yes": "Yes",
+    "no": "No",
+    "loading": "Loading chart of accounts…",
+    "empty": "No accounts registered for this unit.",
+    "form": {
+      "heading": "New ledger account",
+      "code": "Code",
+      "codePlaceholder": "e.g. 1.1.01",
+      "name": "Name",
+      "namePlaceholder": "e.g. Cash",
+      "type": "Type",
+      "acceptsEntries": "Accepts entries"
+    },
+    "col": {
+      "code": "Code",
+      "name": "Name",
+      "type": "Type",
+      "acceptsEntries": "Accepts entries",
+      "actions": "Actions"
+    },
+    "nature": {
+      "asset": "Asset",
+      "liability": "Liability",
+      "equity": "Equity",
+      "revenue": "Revenue",
+      "expense": "Expense"
+    },
+    "deleteConfirm": {
+      "title": "Delete account?",
+      "message": "Delete account {{code}} — {{name}}? This action cannot be undone.",
+      "confirm": "Yes, delete"
+    },
+    "error": {
+      "load": "Failed to load accounts.",
+      "create": "Failed to create account.",
+      "delete": "Failed to delete account."
+    }
+  },
+  "journalEntries": {
+    "status": {
+      "Draft": "Draft",
+      "Posted": "Posted",
+      "Reconciled": "Reconciled",
+      "Reversed": "Reversed"
+    },
+    "reversalBadge": "Reversal",
+    "postings": {
+      "account": "Account",
+      "debit": "Debit",
+      "credit": "Credit"
+    },
+    "reverseAction": {
+      "enabledTitle": "Reverse this entry",
+      "disabledTitle": "Entry already reversed",
+      "label": "Reverse"
+    },
+    "error": {
+      "load": "Failed to load journal entries.",
+      "reverse": "Failed to reverse entry."
+    },
+    "loading": "Loading journal entries…",
+    "empty": "No journal entries posted for this unit yet.",
+    "col": {
+      "expand": "Expand",
+      "number": "No.",
+      "date": "Date",
+      "description": "Description",
+      "debits": "Debits",
+      "credits": "Credits",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "confirmModal": {
+      "title": "Confirm reversal",
+      "cancel": "Cancel",
+      "reversing": "Reversing…",
+      "confirm": "Confirm reversal",
+      "reverseEntryOf": "Reverse entry from",
+      "reversalDateLabel": "Reversal date",
+      "warning": "A new offsetting entry will be created automatically on the date above. This action cannot be undone.",
+      "periodClosed": "The period for the selected date is closed.",
+      "viewPeriods": "View Periods"
+    }
+  },
+  "journalEntryModal": {
+    "title": "New Journal Entry",
+    "field": {
+      "date": "Date",
+      "description": "Description",
+      "descriptionPlaceholder": "Entry memo…",
+      "selectAccount": "— select account —"
+    },
+    "column": {
+      "account": "Account",
+      "debitCredit": "D / C",
+      "amount": "Amount (R$)"
+    },
+    "lines": {
+      "heading": "Entries"
+    },
+    "line": {
+      "add": "+ Add line",
+      "remove": "Remove line"
+    },
+    "toggle": {
+      "debitTitle": "Debit — click to toggle",
+      "creditTitle": "Credit — click to toggle"
+    },
+    "balance": {
+      "totalDebit": "Σ Debits: {{value}}",
+      "totalCredit": "Σ Credits: {{value}}",
+      "balanced": "Balanced ✓",
+      "unbalanced": "Unbalanced"
+    },
+    "button": {
+      "cancel": "Cancel",
+      "post": "Post",
+      "posting": "Posting…"
+    },
+    "error": {
+      "unbalanced": "The entry is unbalanced. Adjust the amounts before posting.",
+      "missingAccount": "Select an account for each line.",
+      "missingAmount": "Enter an amount greater than zero on each line.",
+      "postFailed": "Error posting the entry. Please try again."
+    }
+  },
+  "balanceSheet": {
+    "controls": {
+      "asOf": "Position as of",
+      "calculating": "Calculating…",
+      "generate": "Generate BS"
+    },
+    "error": {
+      "load": "Failed to load balance sheet."
+    },
+    "empty": "Select the date and click \"Generate BS\" to view the Balance Sheet.",
+    "header": {
+      "asOf": "Position as of"
+    },
+    "balanced": "Balanced",
+    "unbalanced": "Unbalanced",
+    "section": {
+      "assets": "Assets",
+      "liabilities": "Liabilities",
+      "equity": "Equity",
+      "empty": "No accounts with balance",
+      "total": "Total"
+    },
+    "netResult": {
+      "title": "Net Result for the Period",
+      "range": "{{from}} to {{to}}",
+      "calculated": "calculated"
+    },
+    "status": {
+      "ok": "OK",
+      "warning": "Warning",
+      "invalid": "Invalid",
+      "mappingVersion": "Mapping version: {{version}}"
+    },
+    "diagnostics": {
+      "unmappedTitle": "Unmapped accounts with balance:",
+      "unclosedPriorYear": "Prior-year result not closed ({{amount}})"
+    }
+  },
+  "incomeStatement": {
+    "empty": "No accounts with balance",
+    "total": "Total",
+    "asOfLabel": "Up to",
+    "calculating": "Calculating…",
+    "generate": "Generate Income Statement",
+    "loadError": "Failed to load income statement.",
+    "emptyState": "Select the date and click \"Generate Income Statement\" to view the Income Statement.",
+    "dateRangeSeparator": "to",
+    "unmappedTitle": "Unmapped accounts with balance:",
+    "section": {
+      "grossRevenue": "Gross Revenue",
+      "revenueDeductions": "(−) Revenue Deductions",
+      "expenses": "(−) Expenses"
+    },
+    "netResult": "Net Result for the Period",
+    "calculatedSemantics": "calculated — {{semantics}}",
+    "status": {
+      "ok": "OK",
+      "warning": "Warning",
+      "invalid": "Invalid"
+    },
+    "mappingVersionTitle": "Version: {{version}}"
+  },
+  "importExport": {
+    "importKind": {
+      "chartOfAccounts": "Chart of Accounts",
+      "openingBalances": "Opening Balances",
+      "journalEntries": "Journal Entries"
+    },
+    "exportKind": {
+      "trialBalance": "Trial Balance",
+      "generalLedger": "General Ledger",
+      "balanceSheet": "Balance Sheet",
+      "incomeStatement": "Income Statement"
+    },
+    "import": {
+      "title": "Import",
+      "description": "Upload a CSV/XLSX, review the validation and confirm. Nothing is saved until you confirm.",
+      "typeLabel": "Type",
+      "downloadTemplate": "Download template",
+      "uploading": "Uploading…",
+      "selectFile": "Select file",
+      "committing": "Confirming…",
+      "confirm": "Confirm import ({{count}})"
+    },
+    "export": {
+      "title": "Export",
+      "description": "Download reports in CSV or XLSX.",
+      "reportLabel": "Report",
+      "dateLabel": "Date",
+      "accountLabel": "Account",
+      "exporting": "Exporting…",
+      "submit": "Export"
+    },
+    "stats": {
+      "total": "Total:",
+      "valid": "Valid:",
+      "invalid": "Invalid:",
+      "committed": "Saved:"
+    },
+    "table": {
+      "row": "Row",
+      "status": "Status",
+      "field": "Field",
+      "error": "Error",
+      "showingLimited": "Showing 200 of {{total}} rows."
+    },
+    "error": {
+      "generic": "An error occurred. Please try again.",
+      "invalidFile": "Invalid file — upload CSV or XLSX.",
+      "fileTooLarge": "File too large.",
+      "asOfRequired": "Enter the date (asOf) for BS/IS.",
+      "accountRequired": "Enter the account code for the General Ledger."
+    }
+  }
+}

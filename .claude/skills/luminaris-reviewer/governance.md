@@ -32,6 +32,10 @@ rules:
     gates:
       - type: eval
         target: ./evals/evals.json#happy-1
+  REV-006:
+    gates:
+      - type: eval
+        target: ./evals/evals.json#happy-2
 ---
 
 # Governança — `luminaris-reviewer`
@@ -50,6 +54,7 @@ Agente **revisor** — papel: verificar de forma independente e reportar evidên
 - `REV-003` — evidência ausente / checks não executados ⇒ **BLOCKED/REPROVADO**, nunca PASS (não aprova na confiança).
 - `REV-004` — defeito encontrado ⇒ devolve ao implementador com `arquivo:linha` + correção sugerida; não conserta em silêncio.
 - `REV-005` — fronteira §2.1 (serviço Prisma first-class no motor DynamicTable) e veredicto de ilha (shape+posse) são FAIL-direto.
+- `REV-006` — não aprova sem rodar o gate de wiring (`skill-audit.mjs wiring`) — registro central tsc-cego (rota/KPI/preset/i18n); `exit≠0` = FAIL.
 
 Status `validated`: avaliado em 2026-06-25 (score 1.00 — ver `REPORT.md`). `governance-eval-score`/
 `governance-last-evaluated` no frontmatter são **projeção** do `REPORT.md` (SG-011); materializados na promoção (SG-048).

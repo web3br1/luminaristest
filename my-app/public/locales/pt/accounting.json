@@ -1,0 +1,365 @@
+{
+  "view": {
+    "title": "Contabilidade",
+    "subtitle": "Razão de partida dobrada — balancete por unidade",
+    "unit": "Unidade",
+    "loadingUnits": "Carregando…",
+    "noUnit": "Nenhuma unidade",
+    "selectUnitPrompt": "Selecione uma unidade para visualizar os dados contábeis.",
+    "balancete": "Balancete",
+    "balanced": "Balanceado (Σdébito = Σcrédito)",
+    "unbalanced": "Desbalanceado — verifique o razão",
+    "newEntry": "Novo Lançamento",
+    "tabs": {
+      "balancete": "Balancete",
+      "periodos": "Períodos",
+      "lancamentos": "Lançamentos",
+      "razao": "Razão",
+      "planoDeContas": "Plano de Contas",
+      "bp": "BP",
+      "dre": "DRE",
+      "importacaoExportacao": "Importação/Exportação"
+    },
+    "error": {
+      "units": "Falha ao carregar as unidades.",
+      "report": "Falha ao carregar o balancete."
+    }
+  },
+  "trialBalance": {
+    "loading": "Carregando balancete…",
+    "selectUnit": "Selecione uma unidade.",
+    "empty": "Nenhum lançamento postado nesta unidade ainda.",
+    "col": {
+      "code": "Código",
+      "account": "Conta",
+      "nature": "Natureza",
+      "debit": "Débito",
+      "credit": "Crédito",
+      "balance": "Saldo"
+    },
+    "total": "Total",
+    "nature": {
+      "Asset": "Ativo",
+      "Liability": "Passivo",
+      "Equity": "Patrimônio",
+      "Revenue": "Receita",
+      "Expense": "Despesa"
+    }
+  },
+  "periods": {
+    "error": {
+      "load": "Erro ao carregar períodos.",
+      "seed": "Erro ao semear períodos.",
+      "transition": "Erro na transição de período."
+    },
+    "fiscalYear": "Exercício",
+    "seeding": "Criando…",
+    "seedYear": "Semear {{year}}",
+    "loading": "Carregando períodos…",
+    "emptyYear": "Nenhum período criado para {{year}}. Clique em \"Semear {{year}}\" para inicializar.",
+    "months": {
+      "1": "Jan",
+      "2": "Fev",
+      "3": "Mar",
+      "4": "Abr",
+      "5": "Mai",
+      "6": "Jun",
+      "7": "Jul",
+      "8": "Ago",
+      "9": "Set",
+      "10": "Out",
+      "11": "Nov",
+      "12": "Dez"
+    },
+    "status": {
+      "FUTURE": "Futuro",
+      "OPEN": "Aberto",
+      "SOFT_CLOSED": "Fech. Parcial",
+      "HARD_CLOSED": "Definitivo"
+    },
+    "action": {
+      "open": "Abrir",
+      "softClose": "Fechar parcial",
+      "hardClose": "Fechar definitivo",
+      "reopen": "Reabrir"
+    },
+    "hardClosed": "Definitivamente fechado",
+    "notCreated": "Não criado",
+    "actionLabel": {
+      "soft-close": "Fechar parcialmente",
+      "hard-close": "Fechar definitivamente",
+      "reopen": "Reabrir período"
+    },
+    "reasonOptional": "motivo (opcional)",
+    "reasonPlaceholder": "Justificativa…",
+    "wait": "Aguarde…",
+    "confirm": "Confirmar",
+    "cancel": "Cancelar"
+  },
+  "ledger": {
+    "accountLabel": "Conta",
+    "loadingOption": "Carregando…",
+    "closingBalanceInline": "Saldo final:",
+    "closingBalance": "Saldo final",
+    "empty": "Nenhum lançamento nesta conta.",
+    "loadingLedger": "Carregando razão…",
+    "col": {
+      "date": "Data",
+      "description": "Histórico",
+      "debit": "Débito",
+      "credit": "Crédito",
+      "balance": "Saldo"
+    },
+    "error": {
+      "loadAccounts": "Erro ao carregar plano de contas.",
+      "loadLedger": "Erro ao carregar razão."
+    }
+  },
+  "chartOfAccounts": {
+    "title": "Plano de Contas",
+    "newAccount": "Nova Conta",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "delete": "Excluir",
+    "yes": "Sim",
+    "no": "Não",
+    "loading": "Carregando plano de contas…",
+    "empty": "Nenhuma conta cadastrada nesta unidade.",
+    "form": {
+      "heading": "Nova conta contábil",
+      "code": "Código",
+      "codePlaceholder": "Ex: 1.1.01",
+      "name": "Nome",
+      "namePlaceholder": "Ex: Caixa",
+      "type": "Tipo",
+      "acceptsEntries": "Aceita lançamentos"
+    },
+    "col": {
+      "code": "Código",
+      "name": "Nome",
+      "type": "Tipo",
+      "acceptsEntries": "Aceita lançamentos",
+      "actions": "Ações"
+    },
+    "nature": {
+      "asset": "Ativo",
+      "liability": "Passivo",
+      "equity": "Patrimônio",
+      "revenue": "Receita",
+      "expense": "Despesa"
+    },
+    "deleteConfirm": {
+      "title": "Excluir conta?",
+      "message": "Excluir conta {{code}} — {{name}}? Esta ação não pode ser desfeita.",
+      "confirm": "Sim, excluir"
+    },
+    "error": {
+      "load": "Erro ao carregar contas.",
+      "create": "Erro ao criar conta.",
+      "delete": "Erro ao excluir conta."
+    }
+  },
+  "journalEntries": {
+    "status": {
+      "Draft": "Rascunho",
+      "Posted": "Postado",
+      "Reconciled": "Conciliado",
+      "Reversed": "Estornado"
+    },
+    "reversalBadge": "Estorno",
+    "postings": {
+      "account": "Conta",
+      "debit": "Débito",
+      "credit": "Crédito"
+    },
+    "reverseAction": {
+      "enabledTitle": "Estornar este lançamento",
+      "disabledTitle": "Lançamento já estornado",
+      "label": "Estornar"
+    },
+    "error": {
+      "load": "Erro ao carregar lançamentos.",
+      "reverse": "Erro ao estornar lançamento."
+    },
+    "loading": "Carregando lançamentos…",
+    "empty": "Nenhum lançamento postado nesta unidade ainda.",
+    "col": {
+      "expand": "Expandir",
+      "number": "Nº",
+      "date": "Data",
+      "description": "Descrição",
+      "debits": "Débitos",
+      "credits": "Créditos",
+      "status": "Status",
+      "actions": "Ações"
+    },
+    "confirmModal": {
+      "title": "Confirmar estorno",
+      "cancel": "Cancelar",
+      "reversing": "Estornando…",
+      "confirm": "Confirmar estorno",
+      "reverseEntryOf": "Estornar lançamento de",
+      "reversalDateLabel": "Data do estorno",
+      "warning": "Um novo lançamento oposto será criado automaticamente na data acima. Esta ação não pode ser desfeita.",
+      "periodClosed": "O período para a data selecionada está fechado.",
+      "viewPeriods": "Ver Períodos"
+    }
+  },
+  "journalEntryModal": {
+    "title": "Novo Lançamento",
+    "field": {
+      "date": "Data",
+      "description": "Descrição",
+      "descriptionPlaceholder": "Histórico do lançamento…",
+      "selectAccount": "— selecione a conta —"
+    },
+    "column": {
+      "account": "Conta",
+      "debitCredit": "D / C",
+      "amount": "Valor (R$)"
+    },
+    "lines": {
+      "heading": "Partidas"
+    },
+    "line": {
+      "add": "+ Adicionar linha",
+      "remove": "Remover linha"
+    },
+    "toggle": {
+      "debitTitle": "Débito — clique para alternar",
+      "creditTitle": "Crédito — clique para alternar"
+    },
+    "balance": {
+      "totalDebit": "Σ Débitos: {{value}}",
+      "totalCredit": "Σ Créditos: {{value}}",
+      "balanced": "Balanceado ✓",
+      "unbalanced": "Desequilibrado"
+    },
+    "button": {
+      "cancel": "Cancelar",
+      "post": "Postar",
+      "posting": "Postando…"
+    },
+    "error": {
+      "unbalanced": "O lançamento está desequilibrado. Ajuste os valores antes de postar.",
+      "missingAccount": "Selecione uma conta para cada linha.",
+      "missingAmount": "Informe um valor maior que zero em cada linha.",
+      "postFailed": "Erro ao postar o lançamento. Tente novamente."
+    }
+  },
+  "balanceSheet": {
+    "controls": {
+      "asOf": "Posição em",
+      "calculating": "Calculando…",
+      "generate": "Gerar BP"
+    },
+    "error": {
+      "load": "Erro ao carregar balanço patrimonial."
+    },
+    "empty": "Selecione a data e clique em \"Gerar BP\" para visualizar o Balanço Patrimonial.",
+    "header": {
+      "asOf": "Posição em"
+    },
+    "balanced": "Balanceado",
+    "unbalanced": "Desbalanceado",
+    "section": {
+      "assets": "Ativo",
+      "liabilities": "Passivo",
+      "equity": "Patrimônio Líquido",
+      "empty": "Sem contas com saldo",
+      "total": "Total"
+    },
+    "netResult": {
+      "title": "Resultado do Exercício",
+      "range": "{{from}} a {{to}}",
+      "calculated": "calculado"
+    },
+    "status": {
+      "ok": "OK",
+      "warning": "Aviso",
+      "invalid": "Inválido",
+      "mappingVersion": "Versão de mapeamento: {{version}}"
+    },
+    "diagnostics": {
+      "unmappedTitle": "Contas sem mapeamento com saldo:",
+      "unclosedPriorYear": "Resultado do exercício anterior não encerrado ({{amount}})"
+    }
+  },
+  "incomeStatement": {
+    "empty": "Sem contas com saldo",
+    "total": "Total",
+    "asOfLabel": "Até",
+    "calculating": "Calculando…",
+    "generate": "Gerar DRE",
+    "loadError": "Erro ao carregar DRE.",
+    "emptyState": "Selecione a data e clique em \"Gerar DRE\" para visualizar a Demonstração do Resultado.",
+    "dateRangeSeparator": "a",
+    "unmappedTitle": "Contas sem mapeamento com saldo:",
+    "section": {
+      "grossRevenue": "Receita Bruta",
+      "revenueDeductions": "(−) Deduções de Receita",
+      "expenses": "(−) Despesas"
+    },
+    "netResult": "Resultado Líquido do Exercício",
+    "calculatedSemantics": "calculado — {{semantics}}",
+    "status": {
+      "ok": "OK",
+      "warning": "Aviso",
+      "invalid": "Inválido"
+    },
+    "mappingVersionTitle": "Versão: {{version}}"
+  },
+  "importExport": {
+    "importKind": {
+      "chartOfAccounts": "Plano de Contas",
+      "openingBalances": "Saldos Iniciais",
+      "journalEntries": "Lançamentos"
+    },
+    "exportKind": {
+      "trialBalance": "Balancete",
+      "generalLedger": "Razão",
+      "balanceSheet": "Balanço Patrimonial",
+      "incomeStatement": "DRE"
+    },
+    "import": {
+      "title": "Importação",
+      "description": "Envie um CSV/XLSX, revise a validação e confirme. Nada é gravado até você confirmar.",
+      "typeLabel": "Tipo",
+      "downloadTemplate": "Baixar modelo",
+      "uploading": "Enviando…",
+      "selectFile": "Selecionar arquivo",
+      "committing": "Confirmando…",
+      "confirm": "Confirmar importação ({{count}})"
+    },
+    "export": {
+      "title": "Exportação",
+      "description": "Baixe relatórios em CSV ou XLSX.",
+      "reportLabel": "Relatório",
+      "dateLabel": "Data",
+      "accountLabel": "Conta",
+      "exporting": "Exportando…",
+      "submit": "Exportar"
+    },
+    "stats": {
+      "total": "Total:",
+      "valid": "Válidas:",
+      "invalid": "Inválidas:",
+      "committed": "Gravadas:"
+    },
+    "table": {
+      "row": "Linha",
+      "status": "Status",
+      "field": "Campo",
+      "error": "Erro",
+      "showingLimited": "Mostrando 200 de {{total}} linhas."
+    },
+    "error": {
+      "generic": "Ocorreu um erro. Tente novamente.",
+      "invalidFile": "Arquivo inválido — envie CSV ou XLSX.",
+      "fileTooLarge": "Arquivo muito grande.",
+      "asOfRequired": "Informe a data (asOf) para BP/DRE.",
+      "accountRequired": "Informe o código da conta para o Razão."
+    }
+  }
+}

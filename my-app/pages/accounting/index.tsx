@@ -14,6 +14,7 @@ import { AccountingView } from '../../features/accounting/AccountingView';
  */
 function AccountingPage() {
   const { t } = useTranslation('common');
+  const { t: tAcc } = useTranslation('accounting');
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
   const [checking, setChecking] = useState(true);
@@ -30,7 +31,7 @@ function AccountingPage() {
   return (
     <>
       <Head>
-        <title>{t('appName')} - Contabilidade</title>
+        <title>{t('appName')} - {tAcc('view.title', 'Contabilidade')}</title>
       </Head>
       <div className="min-h-screen bg-neutral-950 text-neutral-100">
         {checking ? (
@@ -50,7 +51,7 @@ export default AccountingPage;
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
   return {
     props: {
-      ...(await serverSideTranslations(locale || 'pt', ['common'])),
+      ...(await serverSideTranslations(locale || 'pt', ['common', 'accounting'])),
     },
   };
 };
