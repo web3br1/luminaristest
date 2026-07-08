@@ -20,6 +20,7 @@ import { AuditRepository } from '../features/accounting/repositories/AuditReposi
 import { DocumentAttachmentRepository } from '../features/accounting/repositories/DocumentAttachmentRepository';
 import { ReconciliationRepository } from '../features/accounting/repositories/ReconciliationRepository';
 import { DataExchangeRepository } from '../features/accounting/repositories/DataExchangeRepository';
+import { SourceProvenanceRepository } from '../features/accounting/repositories/SourceProvenanceRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
@@ -105,6 +106,7 @@ import type { IAuditRepository } from '../features/accounting/repositories/IAudi
 import type { IDocumentAttachmentRepository } from '../features/accounting/repositories/IDocumentAttachmentRepository';
 import type { IReconciliationRepository } from '../features/accounting/repositories/IReconciliationRepository';
 import type { IDataExchangeRepository } from '../features/accounting/repositories/IDataExchangeRepository';
+import type { ISourceProvenanceRepository } from '../features/accounting/repositories/ISourceProvenanceRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
 import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
@@ -135,6 +137,7 @@ export class ApplicationFactory {
     reconciliation: IReconciliationRepository;
     dataExchange: IDataExchangeRepository;
     packageBalance: IPackageBalanceRepository;
+    sourceProvenance: ISourceProvenanceRepository;
   };
 
   private readonly policies: {
@@ -210,6 +213,7 @@ export class ApplicationFactory {
       reconciliation: new ReconciliationRepository(),
       dataExchange: new DataExchangeRepository(),
       packageBalance: new PackageBalanceRepository(),
+      sourceProvenance: new SourceProvenanceRepository(),
     };
 
     // Policies
@@ -292,6 +296,7 @@ export class ApplicationFactory {
       this.policies.accounting,
       this.repositories.accountingPeriod,
       auditService,
+      this.repositories.sourceProvenance,
     );
 
     const periodService = new PeriodService(

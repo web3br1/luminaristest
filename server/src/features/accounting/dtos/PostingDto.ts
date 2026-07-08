@@ -29,6 +29,15 @@ import { isValidDateOnly } from '../models/dates';
  *         description: { type: string }
  *         sourceType:  { type: string, default: manual }
  *         sourceId:    { type: string }
+ *         sourceDocument:
+ *           type: object
+ *           description: "Optional origin descriptor (BE-INCR-8). When present, postEntry records a SourceDocument + JournalEntrySource in the same tx. Absent for manual/reversal. Does NOT affect idempotency (sourceId) — externalRef is the human document reference, separate from the dedup key (D6)."
+ *           properties:
+ *             externalRef:  { type: string, description: "Human document reference (NF nº X, boleto nº Y) — separate from sourceId/idempotency" }
+ *             documentDate: { type: string, description: "Date-only YYYY-MM-DD of the source document, when distinct from the posting date" }
+ *             description:  { type: string }
+ *             attachmentId: { type: string, description: "DocumentAttachment id of the raw file (INCR-5), when any" }
+ *             rawJson:      { type: string, description: "Optional JSON snapshot of the origin" }
  *         lines:
  *           type: array
  *           minItems: 2
@@ -72,6 +81,21 @@ export const PostEntrySchema = z.object({
   description: z.string().min(1),
   sourceType: z.string().default('manual'),
   sourceId: z.string().optional(),
+  // BE-INCR-8: optional origin descriptor. When present, postEntry creates a SourceDocument +
+  // JournalEntrySource in the SAME tx (D5). Absent ⇒ no origin (manual/reversal). `.strict()`
+  // rejects unknown descriptor keys so a typo'd field fails loud instead of being silently
+  // dropped. externalRef is the human document reference, kept SEPARATE from sourceId (the
+  // idempotency key) — this is the whole point of the seam (D6). documentDate is date-only.
+  sourceDocument: z
+    .object({
+      externalRef: z.string().min(1).optional(),
+      documentDate: z.string().refine(isValidDateOnly, 'documentDate deve ser uma data real YYYY-MM-DD').optional(),
+      description: z.string().min(1).optional(),
+      attachmentId: z.string().min(1).optional(),
+      rawJson: z.string().optional(),
+    })
+    .strict()
+    .optional(),
   lines: z.array(PostEntryLineSchema).min(2),
 });
 

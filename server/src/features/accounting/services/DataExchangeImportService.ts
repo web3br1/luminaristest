@@ -37,6 +37,9 @@ export interface IPoster {
     scope: AccountingScope,
     input: {
       unitId: string; date: string; description: string; sourceType?: string; sourceId?: string;
+      // BE-INCR-8: optional origin descriptor unfolded from the import (D6). externalRef is the
+      // human document reference — kept SEPARATE from sourceId (the dedup key stays byte-identical).
+      sourceDocument?: { externalRef?: string; documentDate?: string; description?: string; attachmentId?: string; rawJson?: string };
       lines: Array<{ accountCode: string; debitCents: number; creditCents: number }>;
     },
   ): Promise<{ id: string }>;
@@ -306,12 +309,24 @@ export class DataExchangeImportService {
       const parsed = group.map((r) => JSON.parse(r.normalizedJson as string) as NormalizedLine);
       const head = parsed[0];
       try {
+        // BE-INCR-8 (D6): the human externalReference is UNFOLDED into the origin descriptor
+        // (SourceDocument.externalRef) instead of being conflated with the dedup key. `sourceId`
+        // stays BYTE-IDENTICAL — journalSourceId still folds externalReference internally, so the
+        // T7 idempotency of the import does not change; externalRef is now ALSO carried, first-
+        // class and searchable, and two documents sharing an externalRef under different sourceIds
+        // no longer collide.
+        const externalRef = head.externalReference?.trim() || undefined;
         const entry = await this.poster.postEntry(scope, {
           unitId: scope.unitId,
           date: head.postingDate,
           description: head.description ?? 'Lançamento importado',
           sourceType: 'IMPORT_JOURNAL_ENTRIES',
           sourceId: this.journalSourceId(fileSha, key, head.externalReference),
+          sourceDocument: {
+            externalRef,
+            description: head.description ?? 'Lançamento importado',
+            documentDate: head.postingDate,
+          },
           lines: parsed.map((n) => ({ accountCode: n.accountCode, debitCents: n.debitCents, creditCents: n.creditCents })),
         });
         for (const row of group) {
