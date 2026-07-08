@@ -211,8 +211,14 @@ Se um arquivo de referência que deveria existir não existe (path errado):
 - [x] cd my-app && npx tsc --noEmit → PASS
 - [x] cd server && npx jest features/appointments → PASS (3 testes)
 
+### Gates de envio OPS-001 (o revisor reprova por forma se ausentes)
+- Caso adversarial tentado: [qual caso — vazio/zero/concorrente/re-run/cross-tenant — e o que aconteceu]
+- Checagem que teria falhado se errado: [teste vermelho→verde / comando executado / fixture assimétrica]
+- Risco principal remanescente: [uma frase — o nº 1 silencioso, não o óbvio]
+
 ### Pendências (se houver)
 - [lista de qualquer desvio do plano original]
+- [micro-decisões tomadas sem perguntar — ver Restrições]
 ```
 
 Em seguida:
@@ -225,6 +231,10 @@ Ação: leia `.claude/skills/luminaris-reviewer/SKILL.md` e valide os arquivos l
 ## Restrições do implementador
 
 - **[IMPL-001] Não decida o que implementar** — siga o plano do orquestrador fielmente
+- **Micro-decisões dentro do plano: decida e anote, não pergunte** — para escolhas menores que o
+  plano não especifica (nome de variável, valor default, qual entre abordagens equivalentes),
+  escolha a opção razoável e registre em Pendências; pare para perguntar **só** em mudança de
+  escopo ou ação destrutiva (guidance de modelo — `docs/operating-manual/MODEL-TUNING.md`)
 - **Não pule a leitura de arquivos de referência** — code without reading = code without context
 - **[IMPL-003] Não avance se tsc falhar** — um erro em cadeia é pior que parar cedo; corrija e re-rode antes de seguir
 - **[IMPL-005] Não se auto-aprove** — você não é o revisor; entregue ao `luminaris-reviewer` em vez de declarar APROVADO

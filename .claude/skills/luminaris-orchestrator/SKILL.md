@@ -5,7 +5,7 @@ argument-hint: "[descrição da tarefa em linguagem natural]"
 allowed-tools: Read, Grep, Glob
 metadata:
   governance-skill-id: "SKL-ORCHESTRATOR"
-  governance-version: "1.0.0"
+  governance-version: "1.1.0"
   governance-status: "validated"
   governance-owner: "engineering"
   governance-last-evaluated: "2026-06-25"
@@ -33,6 +33,13 @@ docs/claude-skills/GENERATION_CONTRACTS.md ← contratos de geração por camada
 
 > **Vertical-slice de referência:** a feature `server/src/features/users/` (DTO → Repository → Policy → Service → `controllers/userController.ts` → `routes/users.ts` → `my-app/lib/services/user.service.ts`) é o exemplar mais limpo do repo. Ao planejar uma feature/CRUD/contrato, assuma que o implementador a espelha. (Backend de CRM como `server/src/features/crm/services/CrmPipelineService.ts` é exemplar de service-orquestra-DynamicTable; o frontend do CRM NÃO é modelo.)
 
+> **Regra fixa (aprender com decisões passadas — rastreabilidade de entrada):** se existir um **ledger de
+> learnings** para o esforço da tarefa (`docs/learnings/<esforço>.md` — ex.: `accounting-buildout.md`), **leia
+> as entradas `decision`/`pitfall`/`pattern` antes de rotear.** É onde escolhas de roteamento passadas e suas
+> consequências ficam registradas (ex.: "tal rota virou ilha", "tal módulo foi Prisma por invariante X"). Não
+> re-decida o que o ledger já resolveu; se contradisser, trate como sinal, não ignore. O ledger é o índice — não
+> há sistema separado a consultar. (Durável cross-esforço → também aparece na auto-memória via `MEMORY.md`.)
+
 ## Phase 2 — Classificar a tarefa
 
 Analise o argumento `$ARGUMENTS` e classifique em uma das categorias:
@@ -52,14 +59,26 @@ Se a tarefa cria um **módulo/entidade nova**, rode o teste binário do `_ARCHIT
 ### Lente de domínio contábil — consultar ANTES de planejar tarefa de contabilidade
 
 Se a tarefa toca o módulo **contábil** (ledger, lançamento, conta, período, BP/DRE, conciliação,
-fechamento, ECD/ECF, ou qualquer coisa em `server/src/features/accounting/`), **primeiro rode a
-persona `luminaris-accounting-architect`** e anexe o PARECER DE DOMÍNIO ao plano. Ela dá o que a
-tabela de sinais não vê: invariantes (TOCTOU dentro da tx, idempotência por evento, entryNumber no
-POST, estorno não-destrutivo), o bloco do roadmap, o que já está mergeado pra reusar, e — crítico —
-**colisões com decisões já commitadas** (o doc de plano contábil propõe torre multiempresa/Postgres
-que o projeto **rejeitou**). Se o parecer marcar `DECISÃO ARQUITETURAL`, **não roteie skills de
-geração** contra ela sem ADR + sinal humano (Phase 3 → perguntar). Contabilidade é sempre
-**Prisma first-class** — nunca DynamicTable.
+fechamento, ECD/ECF, ou qualquer coisa em `server/src/features/accounting/`), execute **nesta ordem**:
+
+**1. [ORCH-006] Leia o grafo-mestre real — `docs/accounting/ACCOUNTING-MASTER-MAP.md` — ANTES de tudo.**
+É a **fonte única do roadmap contábil** (reconciliado com as decisões commitadas). Use-o para três coisas:
+   - **Posição:** §2/§3 dizem o que já está ✅ fechado (não re-planeje o que existe) e qual é o nó ⏳
+     corrente. §6 lista os blocos canônicos a reusar.
+   - **Guarda de roteamento (dura):** se a tarefa colide com **§1 (decisões travadas T1–T12)** ou pede algo
+     de **§4 (rejeitadas: torre multiempresa, Postgres, DynamicTable p/ contábil, rule engine dirigido por
+     template, multi-moeda)**, isso é **`DECISÃO ARQUITETURAL`** — **não roteie skills de geração**; leve à
+     Phase 3 (perguntar) e exija ADR + sinal humano. O mapa (não a memória do agente) é o veredito.
+   - **Diferidos (§5):** nós ⚫ são domínios de ADR próprio — não os puxe para o plano do incremento corrente.
+
+**2. Rode a persona `luminaris-accounting-architect`** e anexe o PARECER DE DOMÍNIO ao plano. Ela dá o que
+a tabela de sinais não vê: invariantes (TOCTOU dentro da tx, idempotência por evento, entryNumber no POST,
+estorno não-destrutivo), e confirma no código o que o mapa afirma (CBM-001). Se o parecer marcar
+`DECISÃO ARQUITETURAL`, aplica-se a guarda acima. Contabilidade é sempre **Prisma first-class** — nunca
+DynamicTable.
+
+> Se o mapa e um doc aspiracional (grafo de "sistema contábil universal") divergirem, **o mapa vence**.
+> O aspiracional é backlog de longo prazo, não escopo roteável.
 
 ### Sinais → Skill principal
 
@@ -129,6 +148,8 @@ Se nenhuma ambiguidade → prosseguir para Phase 4.
 ## PLANO DE EXECUÇÃO — [nome da tarefa]
 
 **Tarefa:** [descrição original do usuário]
+**Intenção:** [por que / para quem / o que o resultado habilita — o implementador toma decisões
+melhores conhecendo o objetivo, não só a letra do pedido]
 **Risco:** [Low | Medium | High]
 **Branch recomendada:** [feature/<nome> se risco High]
 
@@ -154,9 +175,22 @@ Se nenhuma ambiguidade → prosseguir para Phase 4.
 
 - [HIGH se fullstack-feature-generator ou prisma-model-generator estiverem no plano]
 - [Recomendação: usar em branch separada se risco HIGH]
+
+### Decisões a registrar (rastreabilidade)
+
+- [toda escolha de roteamento/arquitetura NÃO-óbvia feita neste plano: Prisma vs DynamicTable e por quê;
+   rota recusada por colidir com §1/§4 do master map; divisão de PR; reuso-vs-bespoke sancionado]
+- [categoria: `decision` (com ponteiro pro ADR, se houver) | `pitfall` | `pattern`]
+- [destino: efêmero → `docs/learnings/<esforço>.md`; durável → auto-memória — a skill `learning-log` decide]
 ```
 
 > Todo passo herda o `_ARCHITECTURE-CONTRACT.md` — o plano não precisa repetir as regras cross-cutting, mas DEVE assumir que o implementador as aplica em cada arquivo.
+
+> **[ORCH-007] Closeout do mapa (só tarefas contábeis).** Todo plano que fecha um incremento contábil DEVE
+> incluir, como último passo, **atualizar `docs/accounting/ACCOUNTING-MASTER-MAP.md`**: promover o nó de
+> ⏳→✅ (com o ADR/merge de referência) ou registrar a decisão nova em §1/§4/§5. Esse passo é do
+> **`luminaris-implementer`** (o orquestrador não edita arquivos — ORCH-001); o orquestrador só o coloca no
+> plano. É assim que o progresso fica registrado num lugar só — nunca hardcode progresso nesta skill.
 
 ## Phase 5 — Handoff ao implementador
 
@@ -167,6 +201,10 @@ PLANO PRONTO. Entregar ao agente implementador.
 
 Ação: leia `.claude/skills/luminaris-implementer/SKILL.md` e execute o plano acima.
 Confirme com o usuário antes de iniciar se o risco for HIGH.
+
+Closeout: ao fechar, capture cada item de "Decisões a registrar" via a skill `learning-log`
+(ledger do esforço ou auto-memória, conforme a durabilidade) e, se contábil, promova o nó no
+master map (ORCH-007). O orquestrador NÃO escreve — quem fecha o loop registra.
 ```
 
 ## Restrições do orquestrador

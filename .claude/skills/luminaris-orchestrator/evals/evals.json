@@ -54,6 +54,18 @@
       ]
     },
     {
+      "id": "happy-accounting-1",
+      "type": "happy",
+      "rules": ["ORCH-006", "ORCH-007"],
+      "prompt": "Monte o PLANO DE EXECUÇÃO para um incremento contábil novo (ex.: proveniência formal SourceDocument/JournalEntrySource). Antes de rotear, consulte o roadmap contábil (docs/accounting/ACCOUNTING-MASTER-MAP.md) para saber a posição atual e tratar qualquer colisão com decisões travadas (§1) ou rejeitadas (§4) como DECISÃO ARQUITETURAL (não roteia sem ADR). Inclua, como último passo do plano, o closeout que promove o nó no master map.",
+      "assertions": [
+        "regex:(ACCOUNTING-MASTER-MAP|master map|grafo-mestre)",
+        "regex:(DECIS[ÃA]O ARQUITETURAL|travadas|rejeitadas|§1|§4)",
+        "regex:(closeout|promov|⏳|ORCH-007)",
+        "regex:(implementer|luminaris-implementer)"
+      ]
+    },
+    {
       "id": "regression-1",
       "type": "regression",
       "rules": ["ORCH-003"],
