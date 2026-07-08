@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'next-i18next';
 import { DynamicTableService } from '../../../lib/services/dynamic-table.service';
 import { accountingService } from '../../../lib/services/accounting.service';
 import type { TrialBalanceReport } from '../../../lib/services/accounting.service';
@@ -24,6 +25,7 @@ interface RowLike {
  * coupling to DynamicTable — the accounting data itself is first-class Prisma).
  */
 export function useAccountingData() {
+  const { t } = useTranslation('accounting');
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [unitId, setUnitId] = useState<string>('');
   const [report, setReport] = useState<TrialBalanceReport | null>(null);
@@ -60,7 +62,7 @@ export function useAccountingData() {
         }
       } catch {
         if (active) {
-          setError('Falha ao carregar as unidades.');
+          setError(t('view.error.units', 'Falha ao carregar as unidades.'));
           setLoadingUnits(false);
         }
       }
@@ -68,7 +70,7 @@ export function useAccountingData() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [t]);
 
   const loadReport = useCallback(async (uid: string) => {
     if (!uid) {
@@ -81,12 +83,12 @@ export function useAccountingData() {
       const r = await accountingService.getTrialBalance({ unitId: uid });
       setReport(r);
     } catch {
-      setError('Falha ao carregar o balancete.');
+      setError(t('view.error.report', 'Falha ao carregar o balancete.'));
       setReport(null);
     } finally {
       setLoadingReport(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (unitId) loadReport(unitId);

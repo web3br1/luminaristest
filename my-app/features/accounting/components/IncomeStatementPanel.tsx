@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'next-i18next';
 import { FiAlertTriangle, FiXCircle } from 'react-icons/fi';
 import { accountingService, type IncomeStatementReport, type StatementSection } from '../../../lib/services/accounting.service';
 import { formatCents } from '../lib/formatCents';
@@ -9,6 +10,7 @@ function today() {
 }
 
 function SectionTable({ section, title, subtitle }: { section: StatementSection; title: string; subtitle?: string }) {
+  const { t } = useTranslation('accounting');
   const total = parseInt(section.totalCents, 10);
   return (
     <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/50">
@@ -33,14 +35,14 @@ function SectionTable({ section, title, subtitle }: { section: StatementSection;
           {section.accounts.length === 0 && (
             <tr>
               <td colSpan={2} className="px-4 py-3 text-center text-xs text-neutral-600">
-                Sem contas com saldo
+                {t('incomeStatement.empty', 'Sem contas com saldo')}
               </td>
             </tr>
           )}
         </tbody>
         <tfoot>
           <tr className="border-t border-neutral-700 bg-neutral-900/80">
-            <td className="px-4 py-2.5 text-xs font-semibold text-neutral-400">Total</td>
+            <td className="px-4 py-2.5 text-xs font-semibold text-neutral-400">{t('incomeStatement.total', 'Total')}</td>
             <td className={`px-4 py-2.5 text-right tabular-nums font-bold text-sm ${total >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {formatCents(total)}
             </td>
@@ -56,6 +58,7 @@ interface Props {
 }
 
 export function IncomeStatementPanel({ unitId }: Props) {
+  const { t } = useTranslation('accounting');
   const [asOf, setAsOf] = useState(today());
   const [report, setReport] = useState<IncomeStatementReport | null>(null);
   const [loading, setLoading] = useState(false);
@@ -68,7 +71,7 @@ export function IncomeStatementPanel({ unitId }: Props) {
     try {
       setReport(await accountingService.getIncomeStatement(unitId, asOf));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar DRE.');
+      setError(err instanceof Error ? err.message : t('incomeStatement.loadError', 'Erro ao carregar DRE.'));
       setReport(null);
     } finally {
       setLoading(false);
@@ -82,7 +85,7 @@ export function IncomeStatementPanel({ unitId }: Props) {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-sm">
-          <span className="text-neutral-400">Até</span>
+          <span className="text-neutral-400">{t('incomeStatement.asOfLabel', 'Até')}</span>
           <input
             type="date"
             value={asOf}
@@ -96,7 +99,7 @@ export function IncomeStatementPanel({ unitId }: Props) {
           disabled={loading || !asOf}
           className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-600 disabled:opacity-50"
         >
-          {loading ? 'Calculando…' : 'Gerar DRE'}
+          {loading ? t('incomeStatement.calculating', 'Calculando…') : t('incomeStatement.generate', 'Gerar DRE')}
         </button>
       </div>
 
@@ -108,7 +111,7 @@ export function IncomeStatementPanel({ unitId }: Props) {
 
       {!report && !loading && !error && (
         <div className="py-12 text-center text-neutral-500">
-          Selecione a data e clique em "Gerar DRE" para visualizar a Demonstração do Resultado.
+          {t('incomeStatement.emptyState', 'Selecione a data e clique em "Gerar DRE" para visualizar a Demonstração do Resultado.')}
         </div>
       )}
 
@@ -118,7 +121,7 @@ export function IncomeStatementPanel({ unitId }: Props) {
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-neutral-400">
               <span className="text-neutral-200">{formatDate(report.fromDate)}</span>
-              {' a '}
+              {` ${t('incomeStatement.dateRangeSeparator', 'a')} `}
               <span className="text-neutral-200">{formatDate(report.toDate)}</span>
               <span className="ml-2 text-xs text-neutral-600">({report.periodSemantics})</span>
             </span>
@@ -130,7 +133,7 @@ export function IncomeStatementPanel({ unitId }: Props) {
             <div className="space-y-2">
               {report.reportStatus === 'INVALID' && report.diagnostics.unmappedAccounts.length > 0 && (
                 <div className="rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
-                  <p className="font-semibold mb-1">Contas sem mapeamento com saldo:</p>
+                  <p className="font-semibold mb-1">{t('incomeStatement.unmappedTitle', 'Contas sem mapeamento com saldo:')}</p>
                   {report.diagnostics.unmappedAccounts.map((a) => (
                     <div key={a.accountId} className="text-xs">{a.code} — {a.name} ({formatCents(a.balanceCents)})</div>
                   ))}
@@ -145,15 +148,15 @@ export function IncomeStatementPanel({ unitId }: Props) {
           )}
 
           {/* DRE sections */}
-          <SectionTable section={report.grossRevenue} title="Receita Bruta" subtitle="3.1" />
-          <SectionTable section={report.revenueDeductions} title="(−) Deduções de Receita" subtitle="3.2" />
-          <SectionTable section={report.expenses} title="(−) Despesas" />
+          <SectionTable section={report.grossRevenue} title={t('incomeStatement.section.grossRevenue', 'Receita Bruta')} subtitle="3.1" />
+          <SectionTable section={report.revenueDeductions} title={t('incomeStatement.section.revenueDeductions', '(−) Deduções de Receita')} subtitle="3.2" />
+          <SectionTable section={report.expenses} title={t('incomeStatement.section.expenses', '(−) Despesas')} />
 
           {/* Net result */}
           <div className="rounded-2xl border border-neutral-700/60 bg-neutral-900/60 px-4 py-4 flex items-center justify-between">
             <div>
-              <p className="text-base font-bold text-neutral-100">Resultado Líquido do Exercício</p>
-              <p className="text-xs text-neutral-500 mt-0.5">calculado — {report.periodSemantics}</p>
+              <p className="text-base font-bold text-neutral-100">{t('incomeStatement.netResult', 'Resultado Líquido do Exercício')}</p>
+              <p className="text-xs text-neutral-500 mt-0.5">{t('incomeStatement.calculatedSemantics', 'calculado — {{semantics}}', { semantics: report.periodSemantics })}</p>
             </div>
             <span className={`tabular-nums text-lg font-bold ${net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {formatCents(net)}
@@ -166,13 +169,14 @@ export function IncomeStatementPanel({ unitId }: Props) {
 }
 
 function StatusBadge({ status, mappingVersion }: { status: 'OK' | 'WARNING' | 'INVALID'; mappingVersion: string }) {
+  const { t } = useTranslation('accounting');
   const cfg = {
-    OK:      { label: 'OK',      cls: 'bg-emerald-900/40 text-emerald-300' },
-    WARNING: { label: 'Aviso',   cls: 'bg-amber-900/40 text-amber-300' },
-    INVALID: { label: 'Inválido',cls: 'bg-red-900/40 text-red-300' },
+    OK:      { label: t('incomeStatement.status.ok', 'OK'),            cls: 'bg-emerald-900/40 text-emerald-300' },
+    WARNING: { label: t('incomeStatement.status.warning', 'Aviso'),    cls: 'bg-amber-900/40 text-amber-300' },
+    INVALID: { label: t('incomeStatement.status.invalid', 'Inválido'), cls: 'bg-red-900/40 text-red-300' },
   }[status];
   return (
-    <span title={`Versão: ${mappingVersion}`}
+    <span title={t('incomeStatement.mappingVersionTitle', 'Versão: {{version}}', { version: mappingVersion })}
       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.cls}`}>
       {status === 'WARNING' && <FiAlertTriangle size={11} />}
       {status === 'INVALID' && <FiXCircle size={11} />}

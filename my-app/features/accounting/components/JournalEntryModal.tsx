@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'next-i18next';
 import { Modal } from '../../../components/ui/Modal';
 import { accountingService } from '../../../lib/services/accounting.service';
 
@@ -54,6 +55,7 @@ export function JournalEntryModal({
   accounts,
   onSuccess,
 }: JournalEntryModalProps) {
+  const { t } = useTranslation('accounting');
   const [date, setDate] = useState<string>(today);
   const [description, setDescription] = useState('');
   const [lines, setLines] = useState<Line[]>(DEFAULT_LINES);
@@ -107,7 +109,12 @@ export function JournalEntryModal({
     setError(null);
 
     if (!isBalanced) {
-      setError('O lançamento está desequilibrado. Ajuste os valores antes de postar.');
+      setError(
+        t(
+          'journalEntryModal.error.unbalanced',
+          'O lançamento está desequilibrado. Ajuste os valores antes de postar.',
+        ),
+      );
       return;
     }
 
@@ -115,11 +122,13 @@ export function JournalEntryModal({
     const missingAmount = lines.some((l) => parseBrl(l.amountBrl) <= 0);
 
     if (missingAccount) {
-      setError('Selecione uma conta para cada linha.');
+      setError(t('journalEntryModal.error.missingAccount', 'Selecione uma conta para cada linha.'));
       return;
     }
     if (missingAmount) {
-      setError('Informe um valor maior que zero em cada linha.');
+      setError(
+        t('journalEntryModal.error.missingAmount', 'Informe um valor maior que zero em cada linha.'),
+      );
       return;
     }
 
@@ -143,7 +152,9 @@ export function JournalEntryModal({
       onClose();
     } catch (err: unknown) {
       const msg =
-        err instanceof Error ? err.message : 'Erro ao postar o lançamento. Tente novamente.';
+        err instanceof Error
+          ? err.message
+          : t('journalEntryModal.error.postFailed', 'Erro ao postar o lançamento. Tente novamente.');
       setError(msg);
     } finally {
       setIsSubmitting(false);
@@ -155,7 +166,7 @@ export function JournalEntryModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Novo Lançamento"
+      title={t('journalEntryModal.title', 'Novo Lançamento')}
       maxWidth="max-w-2xl"
       isDirty={isDirty}
       themeColor="bg-emerald-600"
@@ -167,7 +178,7 @@ export function JournalEntryModal({
             className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-300 transition-colors hover:bg-neutral-700 hover:text-neutral-100 disabled:opacity-50"
             disabled={isSubmitting}
           >
-            Cancelar
+            {t('journalEntryModal.button.cancel', 'Cancelar')}
           </button>
           <button
             type="button"
@@ -175,7 +186,9 @@ export function JournalEntryModal({
             disabled={!isBalanced || isSubmitting}
             className="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSubmitting ? 'Postando…' : 'Postar'}
+            {isSubmitting
+              ? t('journalEntryModal.button.posting', 'Postando…')
+              : t('journalEntryModal.button.post', 'Postar')}
           </button>
         </>
       }
@@ -185,7 +198,7 @@ export function JournalEntryModal({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
-              Data
+              {t('journalEntryModal.field.date', 'Data')}
             </label>
             <input
               type="date"
@@ -196,13 +209,13 @@ export function JournalEntryModal({
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
-              Descrição
+              {t('journalEntryModal.field.description', 'Descrição')}
             </label>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Histórico do lançamento…"
+              placeholder={t('journalEntryModal.field.descriptionPlaceholder', 'Histórico do lançamento…')}
               className="rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:border-emerald-500 focus:outline-none"
             />
           </div>
@@ -211,15 +224,15 @@ export function JournalEntryModal({
         {/* ── Lines ── */}
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
-            Partidas
+            {t('journalEntryModal.lines.heading', 'Partidas')}
           </p>
 
           <div className="overflow-hidden rounded-2xl border border-neutral-800">
             {/* Header */}
             <div className="grid grid-cols-[1fr_auto_auto_auto] gap-0 border-b border-neutral-800 bg-neutral-900 px-3 py-2 text-xs font-medium text-neutral-500">
-              <span>Conta</span>
-              <span className="px-3 text-center">D / C</span>
-              <span className="px-3 text-right">Valor (R$)</span>
+              <span>{t('journalEntryModal.column.account', 'Conta')}</span>
+              <span className="px-3 text-center">{t('journalEntryModal.column.debitCredit', 'D / C')}</span>
+              <span className="px-3 text-right">{t('journalEntryModal.column.amount', 'Valor (R$)')}</span>
               <span className="w-8" />
             </div>
 
@@ -235,7 +248,7 @@ export function JournalEntryModal({
                   onChange={(e) => updateLine(line.id, { accountCode: e.target.value })}
                   className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-sm text-neutral-100 focus:border-emerald-500 focus:outline-none"
                 >
-                  <option value="">— selecione a conta —</option>
+                  <option value="">{t('journalEntryModal.field.selectAccount', '— selecione a conta —')}</option>
                   {entryAccounts.map((a) => (
                     <option key={a.id} value={a.code}>
                       {a.code} — {a.name}
@@ -252,7 +265,11 @@ export function JournalEntryModal({
                       ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30'
                       : 'bg-amber-600/20 text-amber-400 hover:bg-amber-600/30'
                   }`}
-                  title={line.side === 'DEBIT' ? 'Débito — clique para alternar' : 'Crédito — clique para alternar'}
+                  title={
+                    line.side === 'DEBIT'
+                      ? t('journalEntryModal.toggle.debitTitle', 'Débito — clique para alternar')
+                      : t('journalEntryModal.toggle.creditTitle', 'Crédito — clique para alternar')
+                  }
                 >
                   {line.side === 'DEBIT' ? 'D' : 'C'}
                 </button>
@@ -273,8 +290,8 @@ export function JournalEntryModal({
                   onClick={() => removeLine(line.id)}
                   disabled={lines.length <= 2}
                   className="ml-3 flex h-7 w-7 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-30"
-                  title="Remover linha"
-                  aria-label="Remover linha"
+                  title={t('journalEntryModal.line.remove', 'Remover linha')}
+                  aria-label={t('journalEntryModal.line.remove', 'Remover linha')}
                 >
                   ×
                 </button>
@@ -288,7 +305,7 @@ export function JournalEntryModal({
             onClick={addLine}
             className="mt-1 rounded-xl border border-dashed border-neutral-700 px-4 py-2 text-xs font-medium text-neutral-400 transition-colors hover:border-emerald-600 hover:text-emerald-400"
           >
-            + Adicionar linha
+            {t('journalEntryModal.line.add', '+ Adicionar linha')}
           </button>
         </div>
 
@@ -296,20 +313,24 @@ export function JournalEntryModal({
         <div className="flex items-center justify-between rounded-2xl border border-neutral-800 bg-neutral-900/50 px-4 py-3">
           <p className="text-xs text-neutral-400">
             <span className="tabular-nums text-neutral-300">
-              Σ Débitos: {formatCents(totalDebit)}
+              {t('journalEntryModal.balance.totalDebit', 'Σ Débitos: {{value}}', {
+                value: formatCents(totalDebit),
+              })}
             </span>
             <span className="mx-2 text-neutral-600">|</span>
             <span className="tabular-nums text-neutral-300">
-              Σ Créditos: {formatCents(totalCredit)}
+              {t('journalEntryModal.balance.totalCredit', 'Σ Créditos: {{value}}', {
+                value: formatCents(totalCredit),
+              })}
             </span>
           </p>
           {isBalanced ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600/15 px-3 py-1 text-xs font-semibold text-emerald-400">
-              Balanceado ✓
+              {t('journalEntryModal.balance.balanced', 'Balanceado ✓')}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-600/15 px-3 py-1 text-xs font-semibold text-amber-400">
-              Desequilibrado
+              {t('journalEntryModal.balance.unbalanced', 'Desequilibrado')}
             </span>
           )}
         </div>

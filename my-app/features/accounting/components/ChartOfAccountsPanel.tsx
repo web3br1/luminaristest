@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'next-i18next';
 import { ConfirmModal } from '../../../components/ui/feedback/ConfirmModal';
 import { accountingService } from '../../../lib/services/accounting.service';
 
@@ -20,6 +21,16 @@ export interface ChartOfAccountsPanelProps {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+
+// Enum key → pt-BR default label (used as i18n fallback via
+// `t('chartOfAccounts.nature.' + key, defaultLabel)`).
+const NATURE_KEY: Record<Account['nature'], string> = {
+  Asset: 'asset',
+  Liability: 'liability',
+  Equity: 'equity',
+  Revenue: 'revenue',
+  Expense: 'expense',
+};
 
 const TYPE_LABEL: Record<Account['nature'], string> = {
   Asset: 'Ativo',
@@ -53,6 +64,7 @@ const EMPTY_FORM = {
  * DynamicTable).
  */
 export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanelProps) {
+  const { t } = useTranslation('accounting');
   // ── State ──────────────────────────────────────────────────────────────────
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(false);
@@ -75,12 +87,12 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
       }).getAccounts(unitId);
       setAccounts(res.accounts);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro ao carregar contas.';
+      const msg = err instanceof Error ? err.message : t('chartOfAccounts.error.load', 'Erro ao carregar contas.');
       setError(msg);
     } finally {
       setLoading(false);
     }
-  }, [unitId]);
+  }, [unitId, t]);
 
   useEffect(() => {
     void fetchAccounts();
@@ -106,7 +118,7 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
       setShowAddForm(false);
       await fetchAccounts();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro ao criar conta.';
+      const msg = err instanceof Error ? err.message : t('chartOfAccounts.error.create', 'Erro ao criar conta.');
       setError(msg);
     } finally {
       setIsSubmitting(false);
@@ -124,7 +136,7 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
       setConfirmDeleteId(null);
       await fetchAccounts();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro ao excluir conta.';
+      const msg = err instanceof Error ? err.message : t('chartOfAccounts.error.delete', 'Erro ao excluir conta.');
       setDeleteError(msg);
     } finally {
       setIsSubmitting(false);
@@ -134,7 +146,11 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
   // ── Derived ────────────────────────────────────────────────────────────────
   const pendingAccount = accounts.find((a) => a.id === confirmDeleteId);
   const deleteMessage = pendingAccount
-    ? `Excluir conta ${pendingAccount.code} — ${pendingAccount.name}? Esta ação não pode ser desfeita.`
+    ? t(
+        'chartOfAccounts.deleteConfirm.message',
+        'Excluir conta {{code}} — {{name}}? Esta ação não pode ser desfeita.',
+        { code: pendingAccount.code, name: pendingAccount.name },
+      )
     : undefined;
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -142,14 +158,14 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-neutral-100">Plano de Contas</h2>
+        <h2 className="text-lg font-semibold text-neutral-100">{t('chartOfAccounts.title', 'Plano de Contas')}</h2>
         {canManage && (
           <button
             type="button"
             onClick={() => setShowAddForm((v) => !v)}
             className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 active:bg-emerald-800"
           >
-            {showAddForm ? 'Cancelar' : 'Nova Conta'}
+            {showAddForm ? t('chartOfAccounts.cancel', 'Cancelar') : t('chartOfAccounts.newAccount', 'Nova Conta')}
           </button>
         )}
       </div>
@@ -160,13 +176,13 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
           onSubmit={handleAddSubmit}
           className="rounded-2xl border border-neutral-700 bg-neutral-900/60 p-5 space-y-4"
         >
-          <p className="text-sm font-semibold text-neutral-300">Nova conta contábil</p>
+          <p className="text-sm font-semibold text-neutral-300">{t('chartOfAccounts.form.heading', 'Nova conta contábil')}</p>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* Code */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-neutral-400" htmlFor="acc-code">
-                Código
+                {t('chartOfAccounts.form.code', 'Código')}
               </label>
               <input
                 id="acc-code"
@@ -174,7 +190,7 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
                 required
                 value={newAccount.code}
                 onChange={(e) => setNewAccount((s) => ({ ...s, code: e.target.value }))}
-                placeholder="Ex: 1.1.01"
+                placeholder={t('chartOfAccounts.form.codePlaceholder', 'Ex: 1.1.01')}
                 className="rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 outline-none focus:border-emerald-500"
               />
             </div>
@@ -182,7 +198,7 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
             {/* Name */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-neutral-400" htmlFor="acc-name">
-                Nome
+                {t('chartOfAccounts.form.name', 'Nome')}
               </label>
               <input
                 id="acc-name"
@@ -190,7 +206,7 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
                 required
                 value={newAccount.name}
                 onChange={(e) => setNewAccount((s) => ({ ...s, name: e.target.value }))}
-                placeholder="Ex: Caixa"
+                placeholder={t('chartOfAccounts.form.namePlaceholder', 'Ex: Caixa')}
                 className="rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 outline-none focus:border-emerald-500"
               />
             </div>
@@ -198,7 +214,7 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
             {/* Type */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-neutral-400" htmlFor="acc-type">
-                Tipo
+                {t('chartOfAccounts.form.type', 'Tipo')}
               </label>
               <select
                 id="acc-type"
@@ -208,9 +224,9 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
                 }
                 className="rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-emerald-500"
               >
-                {ACCOUNT_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {ACCOUNT_TYPES.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {t('chartOfAccounts.nature.' + NATURE_KEY[opt.value], opt.label)}
                   </option>
                 ))}
               </select>
@@ -231,7 +247,7 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
                 htmlFor="acc-accepts-entries"
                 className="text-sm font-medium text-neutral-300 cursor-pointer"
               >
-                Aceita lançamentos
+                {t('chartOfAccounts.form.acceptsEntries', 'Aceita lançamentos')}
               </label>
             </div>
           </div>
@@ -253,14 +269,14 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
               disabled={isSubmitting}
               className="rounded-xl border border-neutral-700 px-4 py-2 text-sm font-semibold text-neutral-300 transition hover:bg-neutral-800 disabled:opacity-50"
             >
-              Cancelar
+              {t('chartOfAccounts.cancel', 'Cancelar')}
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
               className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
             >
-              {isSubmitting ? 'Salvando…' : 'Salvar'}
+              {isSubmitting ? t('chartOfAccounts.saving', 'Salvando…') : t('chartOfAccounts.save', 'Salvar')}
             </button>
           </div>
         </form>
@@ -275,21 +291,21 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
 
       {/* Table */}
       {loading ? (
-        <div className="py-16 text-center text-neutral-400">Carregando plano de contas…</div>
+        <div className="py-16 text-center text-neutral-400">{t('chartOfAccounts.loading', 'Carregando plano de contas…')}</div>
       ) : accounts.length === 0 ? (
         <div className="py-16 text-center text-neutral-500">
-          Nenhuma conta cadastrada nesta unidade.
+          {t('chartOfAccounts.empty', 'Nenhuma conta cadastrada nesta unidade.')}
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/50">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-neutral-800 text-left text-neutral-400">
-                <th className="px-4 py-3 font-medium">Código</th>
-                <th className="px-4 py-3 font-medium">Nome</th>
-                <th className="px-4 py-3 font-medium">Tipo</th>
-                <th className="px-4 py-3 font-medium">Aceita lançamentos</th>
-                {canManage && <th className="px-4 py-3 font-medium">Ações</th>}
+                <th className="px-4 py-3 font-medium">{t('chartOfAccounts.col.code', 'Código')}</th>
+                <th className="px-4 py-3 font-medium">{t('chartOfAccounts.col.name', 'Nome')}</th>
+                <th className="px-4 py-3 font-medium">{t('chartOfAccounts.col.type', 'Tipo')}</th>
+                <th className="px-4 py-3 font-medium">{t('chartOfAccounts.col.acceptsEntries', 'Aceita lançamentos')}</th>
+                {canManage && <th className="px-4 py-3 font-medium">{t('chartOfAccounts.col.actions', 'Ações')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -301,16 +317,19 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
                   <td className="px-4 py-2.5 font-mono text-neutral-300">{account.code}</td>
                   <td className="px-4 py-2.5 text-neutral-100">{account.name}</td>
                   <td className="px-4 py-2.5 text-neutral-400">
-                    {TYPE_LABEL[account.nature] ?? account.nature}
+                    {t(
+                      'chartOfAccounts.nature.' + (NATURE_KEY[account.nature] ?? account.nature),
+                      TYPE_LABEL[account.nature] ?? account.nature,
+                    )}
                   </td>
                   <td className="px-4 py-2.5">
                     {account.acceptsEntries ? (
                       <span className="inline-flex items-center rounded-full bg-emerald-600/15 px-2 py-0.5 text-xs font-medium text-emerald-400">
-                        Sim
+                        {t('chartOfAccounts.yes', 'Sim')}
                       </span>
                     ) : (
                       <span className="inline-flex items-center rounded-full bg-neutral-700/50 px-2 py-0.5 text-xs font-medium text-neutral-500">
-                        Não
+                        {t('chartOfAccounts.no', 'Não')}
                       </span>
                     )}
                   </td>
@@ -325,7 +344,7 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
                           }}
                           className="rounded-lg border border-red-900/50 px-2.5 py-1 text-xs font-semibold text-red-400 transition hover:bg-red-950/30 hover:text-red-300"
                         >
-                          Excluir
+                          {t('chartOfAccounts.delete', 'Excluir')}
                         </button>
                       )}
                     </td>
@@ -346,10 +365,10 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
         }}
         onConfirm={handleDeleteConfirm}
         variant="danger"
-        title="Excluir conta?"
+        title={t('chartOfAccounts.deleteConfirm.title', 'Excluir conta?')}
         message={deleteMessage}
-        confirmLabel="Sim, excluir"
-        cancelLabel="Cancelar"
+        confirmLabel={t('chartOfAccounts.deleteConfirm.confirm', 'Sim, excluir')}
+        cancelLabel={t('chartOfAccounts.cancel', 'Cancelar')}
         isLoading={isSubmitting}
         error={deleteError}
       />

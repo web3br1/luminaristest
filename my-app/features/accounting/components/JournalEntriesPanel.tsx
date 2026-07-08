@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'next-i18next';
 import { FiChevronDown, FiChevronRight, FiRotateCcw } from 'react-icons/fi';
 import {
   accountingService,
@@ -15,10 +16,12 @@ interface StatusBadgeProps {
 }
 
 function StatusBadge({ entry }: StatusBadgeProps) {
+  const { t } = useTranslation('accounting');
+
   if (entry.reversedById) {
     return (
       <span className="inline-flex items-center rounded-full bg-neutral-700/60 px-2 py-0.5 text-xs font-medium text-neutral-300">
-        Estornado
+        {t('journalEntries.status.Reversed', 'Estornado')}
       </span>
     );
   }
@@ -26,7 +29,7 @@ function StatusBadge({ entry }: StatusBadgeProps) {
     // Catch Reversed status without reversedById set (defensive)
     return (
       <span className="inline-flex items-center rounded-full bg-neutral-700/60 px-2 py-0.5 text-xs font-medium text-neutral-300">
-        Estornado
+        {t('journalEntries.status.Reversed', 'Estornado')}
       </span>
     );
   }
@@ -34,7 +37,7 @@ function StatusBadge({ entry }: StatusBadgeProps) {
   if (entry.sourceType === 'Reversal') {
     return (
       <span className="inline-flex items-center rounded-full bg-blue-900/40 px-2 py-0.5 text-xs font-medium text-blue-300">
-        Estorno
+        {t('journalEntries.reversalBadge', 'Estorno')}
       </span>
     );
   }
@@ -53,11 +56,15 @@ function StatusBadge({ entry }: StatusBadgeProps) {
     Reversed: 'bg-neutral-700/60 text-neutral-300',
   };
 
+  const statusLabel = STATUS_LABEL[entry.status]
+    ? t('journalEntries.status.' + entry.status, STATUS_LABEL[entry.status])
+    : entry.status;
+
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[entry.status] ?? 'bg-neutral-700/50 text-neutral-400'}`}
     >
-      {STATUS_LABEL[entry.status] ?? entry.status}
+      {statusLabel}
     </span>
   );
 }
@@ -69,15 +76,16 @@ interface PostingsDrawerProps {
 }
 
 function PostingsDrawer({ entry }: PostingsDrawerProps) {
+  const { t } = useTranslation('accounting');
   return (
     <tr>
       <td colSpan={8} className="bg-neutral-950/60 px-6 pb-3 pt-1">
         <table className="w-full text-xs">
           <thead>
             <tr className="text-left text-neutral-500">
-              <th className="py-1 pr-4 font-medium">Conta</th>
-              <th className="py-1 pr-4 text-right font-medium">Débito</th>
-              <th className="py-1 text-right font-medium">Crédito</th>
+              <th className="py-1 pr-4 font-medium">{t('journalEntries.postings.account', 'Conta')}</th>
+              <th className="py-1 pr-4 text-right font-medium">{t('journalEntries.postings.debit', 'Débito')}</th>
+              <th className="py-1 text-right font-medium">{t('journalEntries.postings.credit', 'Crédito')}</th>
             </tr>
           </thead>
           <tbody>
@@ -111,6 +119,7 @@ interface JournalEntryRowProps {
 }
 
 function JournalEntryRow({ entry, onReverseClick }: JournalEntryRowProps) {
+  const { t } = useTranslation('accounting');
   const [expanded, setExpanded] = useState(false);
 
   const totalDebitCents = entry.postings.reduce((s, p) => s + p.debitCents, 0);
@@ -152,11 +161,13 @@ function JournalEntryRow({ entry, onReverseClick }: JournalEntryRowProps) {
           <button
             disabled={!canReverse}
             onClick={() => onReverseClick(entry.id)}
-            title={canReverse ? 'Estornar este lançamento' : 'Lançamento já estornado'}
+            title={canReverse
+              ? t('journalEntries.reverseAction.enabledTitle', 'Estornar este lançamento')
+              : t('journalEntries.reverseAction.disabledTitle', 'Lançamento já estornado')}
             className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-300 transition-colors hover:border-red-700 hover:bg-red-900/30 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-neutral-700 disabled:hover:bg-neutral-800 disabled:hover:text-neutral-300"
           >
             <FiRotateCcw size={12} />
-            Estornar
+            {t('journalEntries.reverseAction.label', 'Estornar')}
           </button>
         </td>
       </tr>
@@ -182,6 +193,7 @@ interface JournalEntriesPanelProps {
  * Supports reversal (estorno) with a confirmation modal.
  */
 export function JournalEntriesPanel({ unitId, onReversalComplete, onNavigateToPeriods }: JournalEntriesPanelProps) {
+  const { t } = useTranslation('accounting');
   const [entries, setEntries] = useState<JournalEntryWithFullPostings[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -199,12 +211,12 @@ export function JournalEntriesPanel({ unitId, onReversalComplete, onNavigateToPe
       const result = await accountingService.listEntries({ unitId });
       setEntries(result.entries);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao carregar lançamentos.';
+      const msg = err instanceof Error ? err.message : t('journalEntries.error.load', 'Erro ao carregar lançamentos.');
       setError(msg);
     } finally {
       setLoading(false);
     }
-  }, [unitId]);
+  }, [unitId, t]);
 
   useEffect(() => {
     void fetchEntries();
@@ -226,7 +238,7 @@ export function JournalEntriesPanel({ unitId, onReversalComplete, onNavigateToPe
       await fetchEntries();
       onReversalComplete?.();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao estornar lançamento.';
+      const msg = err instanceof Error ? err.message : t('journalEntries.error.reverse', 'Erro ao estornar lançamento.');
       // Detect ACCOUNTING_PERIOD_NOT_OPEN to show inline guidance
       if (msg.includes('ACCOUNTING_PERIOD_NOT_OPEN') || msg.includes('período') && msg.includes('fechado')) {
         setPeriodError(true);
@@ -249,13 +261,13 @@ export function JournalEntriesPanel({ unitId, onReversalComplete, onNavigateToPe
 
       {/* Loading */}
       {loading && (
-        <div className="py-16 text-center text-neutral-400">Carregando lançamentos…</div>
+        <div className="py-16 text-center text-neutral-400">{t('journalEntries.loading', 'Carregando lançamentos…')}</div>
       )}
 
       {/* Empty */}
       {!loading && entries.length === 0 && !error && (
         <div className="py-16 text-center text-neutral-500">
-          Nenhum lançamento postado nesta unidade ainda.
+          {t('journalEntries.empty', 'Nenhum lançamento postado nesta unidade ainda.')}
         </div>
       )}
 
@@ -265,14 +277,14 @@ export function JournalEntriesPanel({ unitId, onReversalComplete, onNavigateToPe
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-neutral-800 text-left text-neutral-400">
-                <th className="w-8 px-3 py-3" aria-label="Expandir" />
-                <th className="px-4 py-3 font-medium">Nº</th>
-                <th className="px-4 py-3 font-medium">Data</th>
-                <th className="px-4 py-3 font-medium">Descrição</th>
-                <th className="px-4 py-3 text-right font-medium">Débitos</th>
-                <th className="px-4 py-3 text-right font-medium">Créditos</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Ações</th>
+                <th className="w-8 px-3 py-3" aria-label={t('journalEntries.col.expand', 'Expandir')} />
+                <th className="px-4 py-3 font-medium">{t('journalEntries.col.number', 'Nº')}</th>
+                <th className="px-4 py-3 font-medium">{t('journalEntries.col.date', 'Data')}</th>
+                <th className="px-4 py-3 font-medium">{t('journalEntries.col.description', 'Descrição')}</th>
+                <th className="px-4 py-3 text-right font-medium">{t('journalEntries.col.debits', 'Débitos')}</th>
+                <th className="px-4 py-3 text-right font-medium">{t('journalEntries.col.credits', 'Créditos')}</th>
+                <th className="px-4 py-3 font-medium">{t('journalEntries.col.status', 'Status')}</th>
+                <th className="px-4 py-3 font-medium">{t('journalEntries.col.actions', 'Ações')}</th>
               </tr>
             </thead>
             <tbody>
@@ -294,7 +306,7 @@ export function JournalEntriesPanel({ unitId, onReversalComplete, onNavigateToPe
         onClose={() => {
           if (!isReversing) { setConfirmReverseId(null); setPeriodError(false); setError(null); }
         }}
-        title="Confirmar estorno"
+        title={t('journalEntries.confirmModal.title', 'Confirmar estorno')}
         themeColor="bg-red-600"
         maxWidth="max-w-lg"
         footer={
@@ -304,7 +316,7 @@ export function JournalEntriesPanel({ unitId, onReversalComplete, onNavigateToPe
               disabled={isReversing}
               className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-300 transition-colors hover:bg-neutral-700 disabled:opacity-50"
             >
-              Cancelar
+              {t('journalEntries.confirmModal.cancel', 'Cancelar')}
             </button>
             <button
               onClick={() => void handleConfirmReverse()}
@@ -314,12 +326,12 @@ export function JournalEntriesPanel({ unitId, onReversalComplete, onNavigateToPe
               {isReversing ? (
                 <>
                   <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  Estornando…
+                  {t('journalEntries.confirmModal.reversing', 'Estornando…')}
                 </>
               ) : (
                 <>
                   <FiRotateCcw size={14} />
-                  Confirmar estorno
+                  {t('journalEntries.confirmModal.confirm', 'Confirmar estorno')}
                 </>
               )}
             </button>
@@ -329,7 +341,7 @@ export function JournalEntriesPanel({ unitId, onReversalComplete, onNavigateToPe
         <div className="px-6 py-5 text-sm text-neutral-300 space-y-4">
           {confirmEntry && (
             <p>
-              Estornar lançamento de{' '}
+              {t('journalEntries.confirmModal.reverseEntryOf', 'Estornar lançamento de')}{' '}
               <span className="font-semibold text-neutral-100">
                 {formatDate(confirmEntry.date)}
               </span>{' '}
@@ -342,7 +354,7 @@ export function JournalEntriesPanel({ unitId, onReversalComplete, onNavigateToPe
           )}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
-              Data do estorno
+              {t('journalEntries.confirmModal.reversalDateLabel', 'Data do estorno')}
             </label>
             <input
               type="date"
@@ -352,18 +364,17 @@ export function JournalEntriesPanel({ unitId, onReversalComplete, onNavigateToPe
             />
           </div>
           <p className="text-neutral-400">
-            Um novo lançamento oposto será criado automaticamente na data acima. Esta ação não pode ser
-            desfeita.
+            {t('journalEntries.confirmModal.warning', 'Um novo lançamento oposto será criado automaticamente na data acima. Esta ação não pode ser desfeita.')}
           </p>
           {periodError && onNavigateToPeriods && (
             <div className="rounded-xl border border-amber-900/50 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
-              O período para a data selecionada está fechado.{' '}
+              {t('journalEntries.confirmModal.periodClosed', 'O período para a data selecionada está fechado.')}{' '}
               <button
                 type="button"
                 onClick={() => { setConfirmReverseId(null); setPeriodError(false); setError(null); onNavigateToPeriods(); }}
                 className="underline hover:text-amber-200"
               >
-                Ver Períodos
+                {t('journalEntries.confirmModal.viewPeriods', 'Ver Períodos')}
               </button>
             </div>
           )}
