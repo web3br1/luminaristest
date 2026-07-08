@@ -75,13 +75,49 @@ export function calcPercent(value: number, total: number): number {
 }
 
 /**
- * Format a date string to Brazilian locale (dd/mm/yyyy)
+ * Canonical numeric + date-only-safe date formatter → `dd/mm/aaaa` (pt-BR).
+ *
+ * This is the single symbol that owns BOTH properties that were previously
+ * split across the codebase's date formatters:
+ *  - **numeric shape** (`08/07/2026`) — which `formatDate(value, locale,
+ *    { dateOnly: true })` cannot give (it emits long-form `08 de jul. de 2026`);
+ *  - **date-only-safety** — which the old `formatDateBR` lacked (it did a bare
+ *    `new Date(value)`, so a date-only ISO like `"2026-07-08"` was parsed as UTC
+ *    midnight and rendered one day earlier in UTC-3).
+ *
+ * Parsing rules:
+ *  - date-only ISO (`/^\d{4}-\d{2}-\d{2}$/`) → `new Date(value + 'T00:00:00')`
+ *    (local midnight — NEVER shifts a day in UTC-3);
+ *  - any other string → `new Date(value)` (keeps the correct UTC→local
+ *    conversion for real datetimes);
+ *  - `Date` → used as-is;
+ *  - `null`/`undefined`/empty → `'—'`;
+ *  - unparseable → the raw string if a string was passed, else `'—'`.
+ */
+export function formatDateNumericBR(value?: string | Date | null): string {
+    if (!value) return '—';
+    let d: Date;
+    if (value instanceof Date) {
+        d = value;
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        d = new Date(value + 'T00:00:00'); // local midnight — never shifts in UTC-3
+    } else {
+        d = new Date(value); // real datetime → correct UTC→local conversion
+    }
+    if (isNaN(d.getTime())) return typeof value === 'string' ? value : '—';
+    return d.toLocaleDateString('pt-BR');
+}
+
+/**
+ * Format a date string to Brazilian locale (dd/mm/yyyy).
+ *
+ * Delegates to the canonical {@link formatDateNumericBR}. The datetime path is
+ * byte-identical to the previous implementation; the only change is that
+ * date-only callers (`"2026-07-08"`) now render the correct day instead of
+ * shifting back one in UTC-3.
  */
 export function formatDateBR(date?: string | Date | null): string {
-    if (!date) return '—';
-    const d = typeof date === 'string' ? new Date(date) : date;
-    if (isNaN(d.getTime())) return '—';
-    return d.toLocaleDateString('pt-BR');
+    return formatDateNumericBR(date);
 }
 
 // ============================================
