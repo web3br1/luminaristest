@@ -66,6 +66,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Vitest NUNCA rodava no CI (job só fazia lint:gate + build) → os guards de
+      # date-only off-by-one (PRs #50/#52) não executavam. E o CI roda em UTC, onde
+      # o bug de UTC-shift fica MASCARADO. Pinar TZ=America/Sao_Paulo (UTC-3) SÓ neste
+      # passo faz os guards morderem sem alterar o comportamento de dev local.
+      - name: Run tests (vitest)
+        run: npm test
+        env:
+          TZ: America/Sao_Paulo
+
   # Gate de governança de skills. `skill-audit run --all` é determinístico (estático: validate +
   # governance-check + sync-metadata + coverage + eval-estrutural + controls + self-check) — sem
   # model-in-loop, roda em < 1s. Barra drift: regra sem gate, gate órfão, eval-score divergente do
