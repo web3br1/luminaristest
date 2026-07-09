@@ -16,8 +16,10 @@ import type { InTable, SpreadsheetFormat } from './spreadsheet';
  *     not the calendar date the bank posted.
  *   - TRNAMT (decimal) -> signed integer cents by STRING arithmetic on the parts
  *     (never `Number(decimal) * 100` — float drift, ACC-014/T4).
- *   - NAME/MEMO -> description; FITID -> externalRef (the bank's dedup key, NOT
- *     import idempotency — that stays sha256(file), T7/D1).
+ *   - NAME/MEMO -> description, falling back to TRNTYPE (+CHECKNUM/REFNUM) when the bank
+ *     sends no free-text label, so a structured-only transaction is never dropped.
+ *   - FITID -> externalRef (the bank's dedup key, NOT import idempotency — that stays
+ *     sha256(file), T7/D1).
  *
  * This parser does NOT validate (no isValidDateOnly / MAX_CENTS import): anything it
  * cannot convert exactly is emitted as its RAW token so `parseLines` rejects the whole
@@ -38,6 +40,22 @@ const OFX_HEADERS = ['date', 'amountCents', 'description', 'externalRef'] as con
 function tag(block: string, name: string): string {
   const m = new RegExp(`<${name}>([^<\\r\\n]*)`, 'i').exec(block);
   return m ? m[1].trim() : '';
+}
+
+/**
+ * Build the line description. NAME/MEMO (the human free-text labels) win; when the bank
+ * emits neither, fall back to the always-present structured fields (TRNTYPE is required by
+ * the OFX spec; CHECKNUM/REFNUM enrich it) so a financially-valid transaction is NEVER
+ * dropped by parseLines' non-empty-description rule — description is a matching aid, not a
+ * ledger invariant. A genuinely malformed STMTTRN (no TRNTYPE either) still yields '' and
+ * is rejected all-or-nothing, which is the honest signal for a broken file.
+ */
+function ofxDescription(block: string): string {
+  const rich = [tag(block, 'NAME'), tag(block, 'MEMO')].filter(Boolean).join(' — ');
+  if (rich) return rich;
+  const type = tag(block, 'TRNTYPE');
+  const ref = tag(block, 'CHECKNUM') || tag(block, 'REFNUM');
+  return [type, ref].filter(Boolean).join(' ');
 }
 
 /** DTPOSTED -> YYYY-MM-DD by literal slice of the first 8 digits (no Date parse → no UTC shift). */
@@ -98,11 +116,10 @@ export function parseOfx(buffer: Buffer): InTable {
   let m: RegExpExecArray | null;
   while ((m = blockRe.exec(text)) !== null) {
     const block = m[1];
-    const description = [tag(block, 'NAME'), tag(block, 'MEMO')].filter(Boolean).join(' — ');
     rows.push([
       ofxDateToDateOnly(tag(block, 'DTPOSTED')),
       ofxAmountToCents(tag(block, 'TRNAMT')),
-      description,
+      ofxDescription(block),
       tag(block, 'FITID'),
     ]);
   }

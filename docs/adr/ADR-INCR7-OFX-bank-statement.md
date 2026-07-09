@@ -55,11 +55,11 @@ O import de extrato bancário (BE-INCR-7) aceita hoje **apenas CSV/XLSX** (`snif
 
 **Por quê:** a data do extrato é a data local que o banco escreveu. Rede extra: a janela D6 ±3d absorve qualquer ambiguidade de 1 dia. **Aceito:** offset ignorado deliberadamente.
 
-### O5 — description = `[NAME, MEMO].filter(Boolean).join(' — ')`
+### O5 — description = NAME/MEMO com **fallback estrutural** (nunca derruba transação válida)
 
-**Decisão:** junta `<NAME>` e `<MEMO>` (ambos quando presentes; qualquer um sozinho; vazio quando nenhum → `parseLines` rejeita `description vazia`).
+**Decisão:** description = `[NAME, MEMO].filter(Boolean).join(' — ')` quando há texto livre; **quando o banco não manda NAME nem MEMO**, cai para `TRNTYPE` (+ `CHECKNUM`/`REFNUM` quando presentes) — ex.: `"DEBIT"`, `"CHECK 1234"`. `TRNTYPE` é elemento **obrigatório** do OFX, então uma transação bem-formada **sempre** tem description não-vazia. Só um STMTTRN genuinamente malformado (sem NAME/MEMO **e** sem TRNTYPE) gera `''` → `parseLines` rejeita o arquivo (sinal honesto de arquivo quebrado).
 
-**Por quê:** description é auxílio de exibição/auditoria, **não** invariante de ledger — a versão mais rica ajuda o conferente humano.
+**Por quê:** description é auxílio de conferência/auditoria, **não** invariante de ledger. Descartar uma transação financeiramente válida (tem valor, data, FITID, tipo) só porque o banco não mandou rótulo em texto livre estaria errado — vários bancos emitem só campos estruturados. O fallback vive no **parser** (normalização é função dele); o portão `parseLines` continua **estrito e inalterado** (relaxar "description não-vazia" lá deixaria passar description vazia no CSV, onde é erro do usuário). **[Revisado — corrige a nota original "vazio → rejeita" após OBS-1 do review independente.]**
 
 ---
 

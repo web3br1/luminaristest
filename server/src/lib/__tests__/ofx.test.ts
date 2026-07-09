@@ -30,9 +30,18 @@ function ofxFile(txns: string, opts: { accounts?: number } = {}): Buffer {
   );
 }
 
-const TXN = (o: { amt: string; dt?: string; fitid?: string; name?: string; memo?: string }): string =>
-  `<STMTTRN><TRNTYPE>OTHER<DTPOSTED>${o.dt ?? '20260615120000[-3:BRT]'}` +
+const TXN = (o: {
+  amt: string;
+  dt?: string;
+  fitid?: string;
+  name?: string;
+  memo?: string;
+  trntype?: string;
+  checknum?: string;
+}): string =>
+  `<STMTTRN><TRNTYPE>${o.trntype ?? 'OTHER'}<DTPOSTED>${o.dt ?? '20260615120000[-3:BRT]'}` +
   `<TRNAMT>${o.amt}` +
+  (o.checknum !== undefined ? `<CHECKNUM>${o.checknum}` : '') +
   (o.fitid !== undefined ? `<FITID>${o.fitid}` : '') +
   (o.name !== undefined ? `<NAME>${o.name}` : '') +
   (o.memo !== undefined ? `<MEMO>${o.memo}` : '') +
@@ -101,7 +110,25 @@ describe('parseOfx — normalization to InTable', () => {
     expect(parseOfx(ofxFile(TXN({ amt: '1.00', name: 'N', memo: 'M' }))).rows[0][2]).toBe('N — M');
     expect(parseOfx(ofxFile(TXN({ amt: '1.00', name: 'N' }))).rows[0][2]).toBe('N');
     expect(parseOfx(ofxFile(TXN({ amt: '1.00', memo: 'M' }))).rows[0][2]).toBe('M');
-    expect(parseOfx(ofxFile(TXN({ amt: '1.00' }))).rows[0][2]).toBe('');
+  });
+
+  it('falls back to TRNTYPE (+CHECKNUM/REFNUM) when the bank sends no NAME/MEMO', () => {
+    // Structured-only transactions must NOT be dropped by the non-empty-description rule.
+    expect(parseOfx(ofxFile(TXN({ amt: '-50.00', trntype: 'DEBIT' }))).rows[0][2]).toBe('DEBIT');
+    expect(parseOfx(ofxFile(TXN({ amt: '-50.00', trntype: 'CHECK', checknum: '1234' }))).rows[0][2]).toBe('CHECK 1234');
+    // NAME/MEMO still win over the fallback when present.
+    expect(parseOfx(ofxFile(TXN({ amt: '-50.00', trntype: 'DEBIT', memo: 'Pix enviado' }))).rows[0][2]).toBe('Pix enviado');
+  });
+
+  it('yields an empty description only for a malformed txn (no NAME/MEMO AND no TRNTYPE)', () => {
+    // Raw STMTTRN with neither a label nor a type → '' → parseLines rejects the file (honest signal).
+    const broken = Buffer.from(
+      `OFXHEADER:100\n\n<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><BANKACCTFROM><ACCTID>1</BANKACCTFROM>` +
+        `<BANKTRANLIST><STMTTRN><DTPOSTED>20260615<TRNAMT>1.00<FITID>x</STMTTRN>` +
+        `</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>`,
+      'utf8',
+    );
+    expect(parseOfx(broken).rows[0][2]).toBe('');
   });
 
   it('maps FITID to externalRef, empty when absent', () => {
@@ -177,6 +204,15 @@ describe('ReconciliationService.importStatement — OFX format', () => {
     expect(lines.map((l) => l.amountCents)).toEqual([150000, -8990]);
     expect(lines[0].date.toISOString().slice(0, 10)).toBe('2026-06-15');
     expect(lines.map((l) => l.externalRef)).toEqual(['A1', 'A2']);
+  });
+
+  it('imports a structured-only OFX (no NAME/MEMO) — not dropped, description from TRNTYPE', async () => {
+    const { svc, repo } = buildService();
+    const buf = ofxFile(TXN({ amt: '-50.00', trntype: 'DEBIT', fitid: 'S1' }));
+    const res = await svc.importStatement(scope, dto as never, { buffer: buf, format: 'ofx' });
+    expect(res.lineCount).toBe(1);
+    const lines = (repo.createLines as jest.Mock).mock.calls[0][0] as Array<{ description: string }>;
+    expect(lines[0].description).toBe('DEBIT');
   });
 
   it('rejects the WHOLE import when any OFX line is invalid (all-or-nothing, nothing written)', async () => {
