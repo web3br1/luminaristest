@@ -151,8 +151,18 @@ script é mais barato e mais confiável que re-derivar os passos. Complementos:
 **degradam** com scaffolding passo-a-passo — dê objetivo + restrições e deixe-os escolher os
 passos; modelos um degrau abaixo **sub-alcançam** capacidades que exigem decisão (memória,
 subagentes, busca) — escreva o *gatilho* na própria descrição de cada tool/skill ("chame isto
-quando…"), não só o que ela faz. Corolários: (a) ao trocar o modelo do projeto, re-teste a dose de
-prescrição **antes** de reescrever prompts; (b) conceda autonomia nas micro-decisões (escolha
+quando…"), não só o que ela faz.
+
+A dosagem se aplica a **uma só das duas espécies de prescrição**:
+
+| Espécie | O que é | Dosagem por modelo |
+|---|---|---|
+| **Contrato** | o quê / never / invariante (limites de arquitetura, gates binários, fronteiras de segurança) | **Nunca entra na dose** — restrição explícita não degrada modelo nenhum; a doc oficial manda nunca simplificar o pedido explícito |
+| **Scaffolding** | como / passo-a-passo (steps numerados, templates de procedimento) | É isto que se dosa: manter para o degrau-abaixo, A/B removendo para o topo |
+
+Corolários: (a) ao trocar o modelo do projeto, re-teste a dose de
+prescrição **antes** de reescrever prompts — e o A/B só toca scaffolding, nunca contrato;
+(b) conceda autonomia nas micro-decisões (escolha
 razoável + nota, pergunta só para escopo/destrutivo) — corta a taxa de bloqueio por pergunta sem
 aumentar over-reach.
 
