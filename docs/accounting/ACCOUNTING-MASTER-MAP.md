@@ -8,7 +8,7 @@
 > **Regra de uso (arquiteto/orquestrador):** nenhuma skill de geração roteia contra um nó marcado
 > 🔴/⚫ sem **ADR em disco + sinal humano**. Nós ✅ estão fechados; nós ⏳ são o incremento corrente.
 >
-> Última reconciliação: **2026-07-03** · HEAD de referência: `761b358` (INCR-6 fechado, brief INCR-7 mergeado).
+> Última reconciliação: **2026-07-09** · HEAD de referência: `71a53b0` (BE-INCR-7 backend fechado, BE-INCR-8 mergeado a `main` via PR #43, FE-INCR-7 com plano escrito e não iniciado).
 
 ---
 
@@ -86,7 +86,7 @@ Cada PR com review independente (worktree isolado) — 2 FAILs corrigidos e re-a
 Smoke-gate de deploy sobre backup do `dev.db` **real** também PASS (2026-07-03,
 `SMOKE-MIGRATION-GATE-BE-INCR7-DEPLOY.md`) — migração aplicada limpa sobre dados vivos, dev.db original
 comprovadamente intocado (md5+mtime), 408/408 testes accounting verdes, `tsc` limpo.
-**Pendente:** FE (frontend-deferred, aba própria) · sign-off humano em browser.
+**Pendente:** FE (frontend-deferred, aba própria — plano já escrito em `FE-INCR7-reconciliation-plan.md`, implementação não iniciada — nenhum `ReconciliationPanel` existe em `my-app/features/accounting/components/`) · sign-off humano em browser.
 Emendas pós-ratificação no ADR §3: sha256 liberado no soft-delete (`deleted:<id>`) · nota derivação D5
 stale-on-new-bank-account (aceito no MVP).
 
@@ -134,7 +134,7 @@ Ordenados por proximidade da fundação. **Nenhum** é "o próximo passo" antes 
 
 | Domínio | Estado | Gate para começar |
 |---|---|---|
-| **SourceDocument + JournalEntrySource** (proveniência formal) | ✅ **Implementado + review independente PASS 2026-07-06** (commit `a18886c`, branch `claude/hopeful-herschel-95a24c`; **merge a `main` + sign-off humano pendentes**) | **ADR-INCR8** (altitude **A1 seam fino**). First-class Prisma: `SourceDocument`+`JournalEntrySource` (migração additiva, 0 ALTER), `SourceProvenanceRepository`, DTO `sourceDocument?` `.strict()`, seam na tx do `postEntry` (origem+link+audit `entry.source_recorded` átomos), import desdobra `externalReference`→`externalRef` com `sourceId` **byte-idêntico** (T7 intocada), no-cascade (sem FK User, D7). Consumidor (ECD/ECF) segue diferido. Gates: tsc×2 limpo, jest 752/752, **smoke-migration-gate PASS** (dev.db real: 15→15 entries, fingerprint de idempotência byte-idêntico, tabelas novas vazias). Brief + ADR em `docs/`. |
+| **SourceDocument + JournalEntrySource** (proveniência formal) | ✅ **Implementado e mergeado em `main`** (commit `a18886c`, PR #43; review independente PASS 2026-07-06; **sign-off humano em browser pendente**) | **ADR-INCR8** (altitude **A1 seam fino**, `docs/adr/ADR-INCR8-source-document-provenance.md`). First-class Prisma: `SourceDocument`+`JournalEntrySource` (migração additiva, 0 ALTER), `SourceProvenanceRepository`, DTO `sourceDocument?` `.strict()`, seam na tx do `postEntry` (origem+link+audit `entry.source_recorded` átomos), import desdobra `externalReference`→`externalRef` com `sourceId` **byte-idêntico** (T7 intocada), no-cascade (sem FK User, D7). Consumidor (ECD/ECF) segue diferido. Gates: tsc×2 limpo, jest 752/752, **smoke-migration-gate PASS** (dev.db real: 15→15 entries, fingerprint de idempotência byte-idêntico, tabelas novas vazias). Brief `BE-INCR8-source-document-provenance-scope-brief.md` + ADR em `docs/adr/`. |
 | **OFX/CNAB/NF-e** (ingestão bancária/fiscal rica) | ⚫ Diferido | ADR próprio; depende do INCR-7 (CSV/XLSX) provado. |
 | **ECD / ECF readiness** (compliance) | ⚫ Diferido | Depende de proveniência + mapeamento referencial versionado. |
 | **Torre de aprovação** (maker-checker, SoD, `submittedById`/`approvedById`/`version`/`contentHash`) | ⚫ Diferido | Model atual só tem `Draft\|Posted\|Reconciled\|Reversed`. ADR + invariantes ACC-016/017. |
@@ -170,11 +170,11 @@ Antes de gerar "novo", reuse (Contrato §0). Confirmado por código:
 |---|---|---|---|
 | **1 — Ledger confiável** | ✅ | ~95% | (nada estrutural; "permissões/aprovação" que o grafo mistura aqui são torre nova, não gap) |
 | **2 — Operação real** | 🟡 | ~60% | aprovação, dimensões, busca/filtros ricos |
-| **3 — Integração** | 🟡 | ~35% | ~~SourceDocument formal~~ (✅ BE-INCR-8, review PASS, merge pendente); inbox, outbox (só se sair de single-process) |
+| **3 — Integração** | 🟡 | ~35% | ~~SourceDocument formal~~ (✅ BE-INCR-8, mergeado em `main`, sign-off humano pendente); inbox, outbox (só se sair de single-process) |
 | **4 — Gestão** | 🟡 | ~50% | fluxo de caixa, análise por dimensão, variação mensal |
 | **5 — Compliance** | ⚫ | ~5% | ECD/ECF readiness, mapeamento referencial, pacotes, recibos |
 
-**Posição:** fundação (Núcleo 1) completa, Núcleo 2 mais da metade; ramos de expansão à frente. Último nó fechado = **Proveniência formal (BE-INCR-8)** — review PASS, merge/sign-off pendentes. Próximos candidatos são todos ⚫ diferidos (§5); ECD/ECF ganha agora o drill-down até o documento de origem que o destrava.
+**Posição:** fundação (Núcleo 1) completa, Núcleo 2 mais da metade; ramos de expansão à frente. Último nó fechado = **Proveniência formal (BE-INCR-8)** — mergeado em `main` (PR #43), falta só sign-off humano. Nó com backend pronto e trabalho concreto em aberto = **FE-INCR-7** (conciliação bancária: backend completo, plano de frontend escrito, implementação não iniciada). Próximos candidatos além disso são todos ⚫ diferidos (§5); ECD/ECF ganha agora o drill-down até o documento de origem que o destrava.
 
 ---
 
