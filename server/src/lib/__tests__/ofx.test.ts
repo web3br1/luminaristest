@@ -116,6 +116,10 @@ describe('parseOfx — normalization to InTable', () => {
     // Structured-only transactions must NOT be dropped by the non-empty-description rule.
     expect(parseOfx(ofxFile(TXN({ amt: '-50.00', trntype: 'DEBIT' }))).rows[0][2]).toBe('DEBIT');
     expect(parseOfx(ofxFile(TXN({ amt: '-50.00', trntype: 'CHECK', checknum: '1234' }))).rows[0][2]).toBe('CHECK 1234');
+    // REFNUM enriches when there is no CHECKNUM.
+    expect(
+      parseOfx(ofxFile(`<STMTTRN><TRNTYPE>XFER<DTPOSTED>20260615<TRNAMT>-50.00<REFNUM>R9</STMTTRN>`)).rows[0][2],
+    ).toBe('XFER R9');
     // NAME/MEMO still win over the fallback when present.
     expect(parseOfx(ofxFile(TXN({ amt: '-50.00', trntype: 'DEBIT', memo: 'Pix enviado' }))).rows[0][2]).toBe('Pix enviado');
   });
