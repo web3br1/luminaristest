@@ -1,7 +1,8 @@
 import { createHash } from 'crypto';
 import type { BankStatement, BankStatementLine, Prisma } from 'generated/prisma';
 import { ForbiddenError, NotFoundError, ServiceError, ValidationError } from '../../../lib/errors';
-import { parseTable, type SpreadsheetFormat } from '../../../lib/spreadsheet';
+import { parseTable } from '../../../lib/spreadsheet';
+import { parseOfx, type StatementFormat } from '../../../lib/ofx';
 import type { IReconciliationRepository } from '../repositories/IReconciliationRepository';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
@@ -71,7 +72,7 @@ export class ReconciliationService {
   async importStatement(
     scope: AccountingScope,
     dto: ImportBankStatementDto,
-    file: { buffer: Buffer; format: SpreadsheetFormat },
+    file: { buffer: Buffer; format: StatementFormat },
   ): Promise<ImportResult> {
     if (!this.policy.canReconcile(scope)) {
       throw new ForbiddenError('Você não tem permissão para conciliar.');
@@ -92,7 +93,10 @@ export class ReconciliationService {
       return { statement: existing, created: false, lineCount: lines.length };
     }
 
-    const table = await parseTable(file.buffer, file.format);
+    // Same validation gate (parseLines) for every format — OFX just normalizes to the
+    // identical {headers, rows} shape before it. Branch only on WHICH parser to call.
+    const table =
+      file.format === 'ofx' ? parseOfx(file.buffer) : await parseTable(file.buffer, file.format);
     const parsedLines = this.parseLines(scope, table);
     if (parsedLines.length === 0) {
       throw new ValidationError('Extrato sem linhas de dados.');
