@@ -14,20 +14,22 @@ export function formatTimestamp(value: unknown): string {
 /**
  * Date only (no time), locale-formatted. Falls back to the raw value if unparseable.
  *
- * NOTE — deliberately NOT migrated to the canonical `formatDateNumericBR`
- * (dashboard/shared/utils/formatters.ts). This formatter renders in the
- * browser-default locale, not pt-BR; swapping it in would force a locale change
- * on every CRM caller, which is a behavior change outside this refactor's
- * "behavior-preserving" scope (reuse-criterion Etapa 2: don't mutate a living
- * formatter with no confirmed bug). Its only caller (LeadTasksPanel) feeds a
- * `date`-typed DynamicTable field; if that value ever arrives as midnight-UTC it
- * could shift a day in UTC-3 — a latent concern flagged separately, not fixed on
- * a hunch here since it would ride along with the unwanted locale change.
+ * Deliberately NOT delegated to the canonical `formatDateNumericBR`
+ * (dashboard/shared/utils/formatters.ts): that symbol forces `pt-BR`, whereas
+ * this formatter renders in the **browser-default locale** (no locale arg) — the
+ * long-standing behavior of every CRM caller. The only change here is the parse:
+ * a date-only ISO (`YYYY-MM-DD`, e.g. the value LeadTasksPanel feeds from an
+ * `<input type="date">`) is now parsed as LOCAL midnight (`+ 'T00:00:00'`)
+ * instead of UTC midnight, so it no longer shifts a day back in UTC-3. Datetime
+ * strings don't match the regex and keep the original `new Date(raw)` parse; the
+ * raw-string fallback for unparseable input is preserved.
  */
 export function formatDate(value: unknown): string {
   const raw = String(value ?? '');
   if (!raw) return '—';
-  const d = new Date(raw);
+  // Date-only ISO → parse as local midnight (never shifts a day in UTC-3);
+  // anything else (datetimes) keeps the correct UTC→local conversion.
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(raw + 'T00:00:00') : new Date(raw);
   if (Number.isNaN(d.getTime())) return raw;
   return d.toLocaleDateString();
 }
