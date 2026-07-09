@@ -11,6 +11,8 @@
  * from `features/dashboard/shared/hooks/useRenderTypedValue` instead.
  */
 
+import { formatDateNumericBR } from '@/features/dashboard/shared/utils/formatters';
+
 /**
  * Format a number as Brazilian Real currency.
  */
@@ -44,13 +46,15 @@ export function calcPercent(value: number, total: number): number {
 }
 
 /**
- * Format a date string to Brazilian locale.
+ * Format a date string to Brazilian locale (dd/mm/yyyy).
+ *
+ * Delegates to the canonical {@link formatDateNumericBR}. The datetime path is
+ * behavior-preserving (both emit `toLocaleDateString('pt-BR')`); the only change
+ * is that a date-only ISO like `"2026-07-08"` now renders the correct calendar
+ * day instead of shifting back one in UTC-3.
  */
 export function formatDateBR(date?: string | Date | null): string {
-    if (!date) return '—';
-    const d = typeof date === 'string' ? new Date(date) : date;
-    if (isNaN(d.getTime())) return '—';
-    return d.toLocaleDateString('pt-BR');
+    return formatDateNumericBR(date);
 }
 
 /**
