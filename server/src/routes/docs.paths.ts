@@ -2361,8 +2361,8 @@
  *
  *   /api/accounting/reconciliation/statements:
  *     post:
- *       summary: Import a bank statement (CSV/XLSX) for a bank GL account
- *       description: Parses date,amountCents,description[,externalRef] (signed integer cents). ALL-OR-NOTHING — any invalid row rejects the whole file. Re-import of the same file (sha256) is idempotent (200, nothing written). No ledger value is written.
+ *       summary: Import a bank statement (CSV/XLSX/OFX) for a bank GL account
+ *       description: Accepts CSV/XLSX (columns date,amountCents,description[,externalRef], signed integer cents) or OFX (normalized from STMTTRN: DTPOSTED→date, TRNAMT→signed cents, NAME/MEMO→description, FITID→externalRef). Format is auto-detected. ALL-OR-NOTHING — any invalid row rejects the whole file; a multi-account OFX is rejected. Re-import of the same file (sha256) is idempotent (200, nothing written). No ledger value is written.
  *       tags: [Accounting]
  *       security: [{ bearerAuth: [] }]
  *       requestBody:
@@ -2380,7 +2380,7 @@
  *                 periodEnd:           { type: string, format: date, description: YYYY-MM-DD }
  *                 openingBalanceCents: { type: integer }
  *                 closingBalanceCents: { type: integer }
- *                 file:                { type: string, format: binary, description: CSV or XLSX }
+ *                 file:                { type: string, format: binary, description: CSV, XLSX or OFX }
  *       responses:
  *         '201': { description: Statement imported (created + staged lines) }
  *         '200': { description: Same file already imported (idempotent hit) }
