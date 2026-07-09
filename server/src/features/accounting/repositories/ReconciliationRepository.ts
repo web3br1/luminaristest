@@ -6,6 +6,7 @@ import { accountingScopeWhere } from '../scope/AccountingScope';
 import type { IReconciliationRepository } from './IReconciliationRepository';
 import type {
   BankStatementLineStatus,
+  BankStatementLineWithActiveMatches,
   CandidatePosting,
   CandidatePostingQuery,
   CreateBankStatementInput,
@@ -173,6 +174,44 @@ export class ReconciliationRepository implements IReconciliationRepository {
       },
       orderBy: { lineNumber: 'asc' },
     });
+  }
+
+  public async findLinesWithActiveMatches(
+    scope: AccountingScope,
+    statementId: string,
+    status?: BankStatementLineStatus,
+    tx?: Prisma.TransactionClient,
+  ): Promise<BankStatementLineWithActiveMatches[]> {
+    const rows = await (tx ?? prisma).bankStatementLine.findMany({
+      where: {
+        ...accountingScopeWhere(scope),
+        statementId,
+        ...(status ? { status } : {}),
+      },
+      // ACTIVE matches only (unmatchedAt == null); nested rows inherit the line's
+      // userId/unitId — no scope re-open. entry summary labels the undo (D3/D7).
+      include: {
+        matches: {
+          where: { unmatchedAt: null },
+          select: {
+            id: true,
+            postingId: true,
+            matchType: true,
+            posting: { select: { entry: { select: { id: true, date: true, description: true } } } },
+          },
+        },
+      },
+      orderBy: { lineNumber: 'asc' },
+    });
+    return rows.map(({ matches, ...line }) => ({
+      ...line,
+      activeMatches: matches.map((m) => ({
+        id: m.id,
+        postingId: m.postingId,
+        matchType: m.matchType as ReconciliationMatchType,
+        entry: m.posting.entry,
+      })),
+    }));
   }
 
   public async updateLineStatus(

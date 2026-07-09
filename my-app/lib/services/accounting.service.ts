@@ -267,6 +267,24 @@ export interface BankStatementLine {
   updatedAt: string;
 }
 
+/**
+ * One ACTIVE match of a statement line, projected onto the line read so UNMATCH is
+ * actionable (D7). `id` is the matchId the unmatch endpoint needs; `entry` labels
+ * what is being undone (a line may have N active matches — D3 aggregation).
+ */
+export interface ActiveMatchSummary {
+  id: string;
+  postingId: string;
+  matchType: ReconciliationMatchType;
+  /** entry.date is an ISO string over JSON. */
+  entry: { id: string; date: string; description: string };
+}
+
+/** A statement line with its ACTIVE matches attached (returned by listStatementLines). */
+export interface BankStatementLineWithActiveMatches extends BankStatementLine {
+  activeMatches: ActiveMatchSummary[];
+}
+
 /** A candidate posting with its parent entry summary (suggestions + pending report). */
 export interface ReconciliationCandidatePosting {
   id: string;
@@ -302,7 +320,7 @@ export interface ListStatementsResult {
 
 export interface ListStatementLinesResult {
   statement: BankStatement;
-  lines: BankStatementLine[];
+  lines: BankStatementLineWithActiveMatches[];
 }
 
 /** Deterministic auto-match run summary (D6). */

@@ -406,12 +406,16 @@
     "lines": {
       "loading": "Loading lines…",
       "empty": "No lines in this statement.",
+      "unmatch": "Undo",
+      "unmatchTitle": "Undo match with {{date}} — {{desc}}",
+      "unmatchError": "Could not undo the match. The list has been refreshed.",
       "col": {
         "line": "Line",
         "date": "Date",
         "description": "Description",
         "amount": "Amount",
-        "status": "Status"
+        "status": "Status",
+        "actions": "Actions"
       },
       "status": {
         "UNMATCHED": "Unmatched",
@@ -425,6 +429,14 @@
       "confirm": "Yes, delete",
       "cancel": "Cancel",
       "deleting": "Deleting…"
+    },
+    "unmatchConfirm": {
+      "title": "Undo reconciliation?",
+      "message": "The line returns to Unmatched and the entry reverts from Reconciled to Posted. The link is preserved (audited) and can be redone.",
+      "target": "Match: {{date}} — {{desc}}",
+      "confirm": "Yes, undo",
+      "cancel": "Cancel",
+      "unmatching": "Undoing…"
     },
     "pending": {
       "loading": "Loading pending items…",

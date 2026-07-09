@@ -58,6 +58,7 @@ function buildService(over: {
     findStatementById: jest.fn(async () => ({ ...statement })),
     findLineById: jest.fn(async () => ({ ...line })),
     findLinesByStatement: jest.fn(async () => []),
+    findLinesWithActiveMatches: jest.fn(async () => []),
     updateLineStatus: jest.fn(async () => 1),
     createMatch: jest.fn(async () => ({ id: 'm-new' })),
     findMatchById: jest.fn(async () => ({ ...activeMatch })),
@@ -313,6 +314,29 @@ describe('ReconciliationService.unmatch (D7 soft + flip-back)', () => {
   it('cross-tenant match → NotFoundError', async () => {
     const { svc } = buildService({ repo: { findMatchById: jest.fn(async () => null) } });
     await expect(svc.unmatch(scope, { matchId: 'm1' })).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe('ReconciliationService.listLines (activeMatches projection for UNMATCH)', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('reads via findLinesWithActiveMatches (NOT the lean findLinesByStatement) so the matchId reaches the UI', async () => {
+    const matchedLine = {
+      ...line,
+      status: 'MATCHED',
+      activeMatches: [
+        { id: 'm1', postingId: 'p1', matchType: 'AUTO', entry: { id: 'je1', date: line.date, description: 'venda' } },
+      ],
+    };
+    const { svc, repo } = buildService({
+      repo: { findLinesWithActiveMatches: jest.fn(async () => [matchedLine]) },
+    });
+
+    const result = await svc.listLines(scope, 'st1');
+
+    expect(repo.findLinesWithActiveMatches).toHaveBeenCalledWith(scope, 'st1', undefined);
+    expect(repo.findLinesByStatement).not.toHaveBeenCalled();
+    expect(result.lines[0].activeMatches[0].id).toBe('m1');
   });
 });
 

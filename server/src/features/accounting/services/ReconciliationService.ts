@@ -656,7 +656,9 @@ export class ReconciliationService {
     }
     const statement = await this.repo.findStatementById(scope, statementId);
     if (!statement) throw new NotFoundError('Extrato não encontrado.');
-    const lines = await this.repo.findLinesByStatement(scope, statementId, status);
+    // WithActiveMatches so a MATCHED line carries the matchId the UNMATCH surface
+    // needs (D7). activeMatches is a projection — the undo gate stays in unmatch().
+    const lines = await this.repo.findLinesWithActiveMatches(scope, statementId, status);
     return { statement, lines };
   }
 
