@@ -10,10 +10,11 @@ import { LedgerPanel } from './components/LedgerPanel';
 import { BalanceSheetPanel } from './components/BalanceSheetPanel';
 import { IncomeStatementPanel } from './components/IncomeStatementPanel';
 import { ImportExportPanel } from './components/ImportExportPanel';
+import { ReconciliationPanel } from './components/ReconciliationPanel';
 import { JournalEntryModal, type AccountOption } from './components/JournalEntryModal';
 import { accountingService } from '../../lib/services/accounting.service';
 
-type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'importacao-exportacao';
+type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'importacao-exportacao' | 'conciliacao';
 
 // label = i18n fallback (current pt-BR); rendered via t(`view.tabs.<id>`, label)
 const TABS: Array<{ id: Tab; labelKey: string; label: string }> = [
@@ -25,6 +26,7 @@ const TABS: Array<{ id: Tab; labelKey: string; label: string }> = [
   { id: 'bp',             labelKey: 'view.tabs.bp',             label: 'BP' },
   { id: 'dre',            labelKey: 'view.tabs.dre',            label: 'DRE' },
   { id: 'importacao-exportacao', labelKey: 'view.tabs.importacaoExportacao', label: 'Importação/Exportação' },
+  { id: 'conciliacao',    labelKey: 'view.tabs.conciliacao',    label: 'Conciliação' },
 ];
 
 /**
@@ -190,6 +192,11 @@ export function AccountingView() {
       {/* ── Importação/Exportação tab ──────────────────────────────────────── */}
       {activeTab === 'importacao-exportacao' && unitId && (
         <ImportExportPanel unitId={unitId} onCommitSuccess={reload} />
+      )}
+
+      {/* ── Conciliação bancária tab ───────────────────────────────────────── */}
+      {activeTab === 'conciliacao' && unitId && (
+        <ReconciliationPanel unitId={unitId} onLedgerChange={reload} />
       )}
 
       {/* ── New Entry Modal ────────────────────────────────────────────────── */}
