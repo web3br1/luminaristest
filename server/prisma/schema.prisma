@@ -36,6 +36,7 @@ model User {
   accounts       Account[]        // Relation to Account (accounting)
   journalEntries JournalEntry[]   // Relation to JournalEntry (accounting)
   postings       Posting[]        // Relation to Posting (accounting)
+  referentialMappings ReferentialMapping[] // Relation to ReferentialMapping (ECD/ECF referential chart, INCR-9)
   customerPackageBalances CustomerPackageBalance[] // Relation to CustomerPackageBalance (prepaid packages)
   packageBalanceMovements PackageBalanceMovement[] // Relation to PackageBalanceMovement (prepaid packages)
 }
@@ -392,6 +393,7 @@ model Account {
   acceptsEntries Boolean   @default(true)
   postings       Posting[]
   bankStatements BankStatement[] @relation("AccountBankStatements")
+  referentialMappings ReferentialMapping[] // conta-folha → conta referencial RFB, versionado (INCR-9)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
@@ -400,6 +402,34 @@ model Account {
   @@index([userId, unitId])
   @@index([deletedAt])
   @@map("accounts")
+}
+
+// Mapeamento Plano-de-Contas → conta REFERENCIAL da RFB, VERSIONADO por ano-calendário
+// (BE-INCR-9 / ADR-INCR9). First-class Prisma — camada DESCRITIVA/compliance ao lado do plano de
+// contas; NÃO muda valor de ledger. Destrava a prontidão ECD/ECF (o leiaute referencial muda por
+// ano-calendário, daí o versionamento). Tenancy = AccountingScope (userId + unitId). SEM deletedAt:
+// mudança = update-in-place, desmapear = hard-delete, e a trilha da mudança vive no AuditEvent
+// (hash-chain) — foge do class-bug soft-delete×@@unique (P2002 no remap). O código/rótulo
+// referencial são strings denormalizadas (snapshot por versão); não há tabela-catálogo/FK no MVP —
+// a importação do leiaute oficial da RFB é diferida junto com a geração do arquivo SPED.
+model ReferentialMapping {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId          String   // business unit (scoped string, not a FK)
+  accountId       String
+  account         Account  @relation(fields: [accountId], references: [id]) // conta-folha mapeada (acceptsEntries)
+  referentialCode String   // código da conta referencial RFB (string livre — sem catálogo/FK no MVP)
+  label           String   // nome da conta referencial, snapshot denormalizado por versão
+  mappingVersion  String   // leiaute referencial por ano-calendário, string livre — ex. "2025"
+  createdById     String?  // ator (AccountingScope.actorUserId); plain string
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Uma conta tem no máximo 1 código referencial por versão; várias versões coexistem.
+  @@unique([userId, unitId, accountId, mappingVersion])
+  @@index([userId, unitId, mappingVersion])
+  @@map("referential_mappings")
 }
 
 // Journal entry header (lançamento). Groups N balanced legs (`postings`) where

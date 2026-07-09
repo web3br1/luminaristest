@@ -27,4 +27,12 @@ export class AccountingPolicy implements IAccountingPolicy {
   canReconcile(scope: AccountingScope): boolean {
     return !!scope.actorUserId;
   }
+
+  canReadReferential(scope: AccountingScope): boolean {
+    return !!scope.actorUserId;
+  }
+
+  canManageReferential(scope: AccountingScope): boolean {
+    return !!scope.actorUserId;
+  }
 }

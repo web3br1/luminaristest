@@ -41,9 +41,11 @@ export interface IAccountRepository {
 
   /**
    * Finds an active account by its id within the scope (ownerUserId + unitId). Used by
-   * deleteAccount — the unit scoping closes the cross-unit-by-id deletion gap.
+   * deleteAccount — the unit scoping closes the cross-unit-by-id deletion gap. Accepts an
+   * optional tx so a caller can re-read liveness (deletedAt/acceptsEntries) INSIDE its own
+   * transaction (BE-INCR-9 gate, ACC-011).
    */
-  findById(scope: AccountingScope, id: string): Promise<Account | null>;
+  findById(scope: AccountingScope, id: string, tx?: Prisma.TransactionClient): Promise<Account | null>;
 
   /** Lists all active accounts for the scope, ordered by code. */
   findManyByUnit(scope: AccountingScope): Promise<Account[]>;
