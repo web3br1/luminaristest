@@ -11,7 +11,19 @@ export function formatTimestamp(value: unknown): string {
   return d.toLocaleString();
 }
 
-/** Date only (no time), locale-formatted. Falls back to the raw value if unparseable. */
+/**
+ * Date only (no time), locale-formatted. Falls back to the raw value if unparseable.
+ *
+ * NOTE — deliberately NOT migrated to the canonical `formatDateNumericBR`
+ * (dashboard/shared/utils/formatters.ts). This formatter renders in the
+ * browser-default locale, not pt-BR; swapping it in would force a locale change
+ * on every CRM caller, which is a behavior change outside this refactor's
+ * "behavior-preserving" scope (reuse-criterion Etapa 2: don't mutate a living
+ * formatter with no confirmed bug). Its only caller (LeadTasksPanel) feeds a
+ * `date`-typed DynamicTable field; if that value ever arrives as midnight-UTC it
+ * could shift a day in UTC-3 — a latent concern flagged separately, not fixed on
+ * a hunch here since it would ride along with the unwanted locale change.
+ */
 export function formatDate(value: unknown): string {
   const raw = String(value ?? '');
   if (!raw) return '—';
