@@ -18,7 +18,8 @@
       "planoDeContas": "Plano de Contas",
       "bp": "BP",
       "dre": "DRE",
-      "importacaoExportacao": "Importação/Exportação"
+      "importacaoExportacao": "Importação/Exportação",
+      "conciliacao": "Conciliação"
     },
     "error": {
       "units": "Falha ao carregar as unidades.",
@@ -360,6 +361,119 @@
       "fileTooLarge": "Arquivo muito grande.",
       "asOfRequired": "Informe a data (asOf) para BP/DRE.",
       "accountRequired": "Informe o código da conta para o Razão."
+    }
+  },
+  "reconciliation": {
+    "bankAccount": "Conta bancária",
+    "loadingAccounts": "Carregando contas…",
+    "noBankAccounts": "Nenhuma conta disponível",
+    "subtabs": {
+      "statements": "Extratos",
+      "pending": "Fila pendente"
+    },
+    "import": {
+      "title": "Importar extrato",
+      "description": "Envie um CSV/XLSX (colunas: date, amountCents, description[, externalRef]). Valores em centavos sinalizados. Reimportar o mesmo arquivo é idempotente.",
+      "periodStart": "Início do período",
+      "periodEnd": "Fim do período",
+      "statementRef": "Referência (opcional)",
+      "statementRefPlaceholder": "Ex.: Extrato Jul/2026",
+      "openingBalance": "Saldo inicial (centavos)",
+      "closingBalance": "Saldo final (centavos)",
+      "selectFile": "Selecionar arquivo",
+      "uploading": "Enviando…",
+      "needAccount": "Selecione a conta-banco.",
+      "needPeriod": "Informe o início e o fim do período.",
+      "tooLarge": "Arquivo muito grande.",
+      "success": "Extrato importado: {{count}} linha(s).",
+      "idempotent": "Arquivo já importado — nada foi alterado ({{count}} linha(s))."
+    },
+    "statements": {
+      "loading": "Carregando extratos…",
+      "empty": "Nenhum extrato importado para esta unidade.",
+      "viewLines": "Ver linhas",
+      "autoMatch": "Auto-conciliar",
+      "autoMatching": "Conciliando…",
+      "delete": "Excluir",
+      "autoMatchResult": "Auto-conciliação: {{matched}} conciliada(s), {{ambiguous}} ambígua(s), {{zero}} sem candidato (de {{processed}}).",
+      "col": {
+        "period": "Período",
+        "ref": "Referência",
+        "imported": "Importado em",
+        "actions": "Ações"
+      }
+    },
+    "lines": {
+      "loading": "Carregando linhas…",
+      "empty": "Nenhuma linha neste extrato.",
+      "col": {
+        "line": "Linha",
+        "date": "Data",
+        "description": "Histórico",
+        "amount": "Valor",
+        "status": "Status"
+      },
+      "status": {
+        "UNMATCHED": "Pendente",
+        "MATCHED": "Conciliada",
+        "IGNORED": "Ignorada"
+      }
+    },
+    "deleteConfirm": {
+      "title": "Excluir extrato?",
+      "message": "Excluir este extrato e suas linhas? Bloqueado se houver vínculo ativo. Esta ação não pode ser desfeita.",
+      "confirm": "Sim, excluir",
+      "cancel": "Cancelar",
+      "deleting": "Excluindo…"
+    },
+    "pending": {
+      "loading": "Carregando pendências…",
+      "selectAccount": "Selecione uma conta-banco para ver as pendências.",
+      "refresh": "Atualizar",
+      "totals": "{{lineCount}} linha(s) · Σ {{lineTotal}} · {{postingCount}} lançamento(s)",
+      "suggestions": "Sugestões",
+      "ignore": "Ignorar",
+      "ignoring": "Ignorando…",
+      "filters": {
+        "from": "De",
+        "to": "Até"
+      },
+      "lines": {
+        "title": "Linhas do extrato sem conciliação",
+        "empty": "Nenhuma linha pendente."
+      },
+      "postings": {
+        "title": "Lançamentos do banco sem conciliação",
+        "empty": "Nenhum lançamento pendente."
+      },
+      "col": {
+        "date": "Data",
+        "description": "Histórico",
+        "amount": "Valor",
+        "entry": "Lançamento",
+        "actions": "Ações"
+      }
+    },
+    "match": {
+      "title": "Conciliar linha",
+      "inflow": "Entrada",
+      "outflow": "Saída",
+      "loading": "Buscando sugestões…",
+      "empty": "Nenhum candidato encontrado (mesmo valor exato, ±3 dias, lançamento Postado). Registre o lançamento e tente novamente, ou ignore a linha.",
+      "ambiguityHint": "Vários candidatos com o mesmo valor — escolha o correto (não há escolha automática).",
+      "confirm": "Conciliar selecionado",
+      "confirming": "Conciliando…",
+      "cancel": "Cancelar",
+      "col": {
+        "date": "Data",
+        "description": "Histórico",
+        "delta": "Δ dias",
+        "amount": "Valor"
+      }
+    },
+    "error": {
+      "load": "Erro ao carregar a conciliação.",
+      "generic": "Ocorreu um erro. Tente novamente."
     }
   }
 }

@@ -1,3 +1,4 @@
+import { getCookie } from 'cookies-next';
 import { apiClient } from '../api/api-client';
 import { notify } from '../notifications/notify';
 
@@ -220,10 +221,149 @@ export interface IncomeStatementReport {
   diagnostics: StatementDiagnostics;
 }
 
+// ── Bank reconciliation (BE-INCR-7 / FE-INCR-7) ─────────────────────────────────
+// First-class Prisma module: links imported bank-statement lines to existing
+// postings. Changes NO ledger money value — the only ledger write is the derived,
+// reversible JournalEntry.status flip Posted<->Reconciled (D5). Money is INTEGER
+// CENTS; statement line amounts are SIGNED (>0 inflow, <0 outflow).
+
+export type BankStatementLineStatus = 'UNMATCHED' | 'MATCHED' | 'IGNORED';
+export type ReconciliationMatchType = 'AUTO' | 'MANUAL';
+
+/** An imported bank statement file for one GL bank account (dates are ISO strings). */
+export interface BankStatement {
+  id: string;
+  userId: string;
+  unitId: string;
+  glAccountId: string;
+  statementRef: string | null;
+  periodStart: string;
+  periodEnd: string;
+  openingBalanceCents: number | null;
+  closingBalanceCents: number | null;
+  sha256: string;
+  attachmentId: string | null;
+  importedById: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+/** One parsed statement line (staging; immutable — status covers IGNORED). */
+export interface BankStatementLine {
+  id: string;
+  userId: string;
+  unitId: string;
+  statementId: string;
+  lineNumber: number;
+  date: string;
+  /** SIGNED integer cents: >0 inflow (statement credit), <0 outflow. */
+  amountCents: number;
+  description: string;
+  externalRef: string | null;
+  status: BankStatementLineStatus;
+  rawJson: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A candidate posting with its parent entry summary (suggestions + pending report). */
+export interface ReconciliationCandidatePosting {
+  id: string;
+  userId: string;
+  unitId: string;
+  entryId: string;
+  accountId: string;
+  debitCents: number;
+  creditCents: number;
+  createdAt: string;
+  updatedAt: string | null;
+  entry: { id: string; date: string; description: string; status: string };
+}
+
+/** One ranked match suggestion for a line (|Δdays| asc, postingId asc — D6). */
+export interface RankedSuggestion {
+  posting: ReconciliationCandidatePosting;
+  /** |entry.date - line.date| in whole days. */
+  deltaDays: number;
+}
+
+/** Result of a statement import — `created: false` = idempotent re-import (nothing written). */
+export interface ImportStatementResult {
+  statement: BankStatement;
+  created: boolean;
+  lineCount: number;
+}
+
+export interface ListStatementsResult {
+  statements: BankStatement[];
+  total: number;
+}
+
+export interface ListStatementLinesResult {
+  statement: BankStatement;
+  lines: BankStatementLine[];
+}
+
+/** Deterministic auto-match run summary (D6). */
+export interface AutoMatchSummary {
+  processed: number;
+  matched: number;
+  /** 0 candidates — stays UNMATCHED, shows in the pending report. */
+  zeroCandidates: number;
+  /** >1 candidates — D6 abstains; resolve via manual match. */
+  ambiguous: number;
+}
+
+/** Pending report (§4.5): UNMATCHED lines + bank postings with no active match, as-of. */
+export interface PendingReport {
+  account: { id: string; code: string; name: string };
+  unmatchedLines: BankStatementLine[];
+  unmatchedPostings: ReconciliationCandidatePosting[];
+  totals: { lineCount: number; lineTotalCents: number; postingCount: number };
+}
+
+/** Multipart import fields (the file itself is passed separately). Dates are YYYY-MM-DD. */
+export interface ImportStatementParams {
+  unitId: string;
+  glAccountId: string;
+  periodStart: string;
+  periodEnd: string;
+  statementRef?: string;
+  openingBalanceCents?: number;
+  closingBalanceCents?: number;
+}
+
 /** The standard server response envelope: { success, data }. */
 interface ApiEnvelope<T> {
   success: boolean;
   data: T;
+}
+
+// Multipart import bypasses apiClient (which forces application/json) — same
+// direct-fetch pattern as dataExchange.service.importFile.
+function reconBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001/api';
+}
+function reconAuthHeaders(): Record<string, string> {
+  const token = getCookie('auth_token');
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${String(token)}`;
+  return headers;
+}
+async function reconParseError(response: Response): Promise<Record<string, unknown>> {
+  let body: Record<string, unknown> = {};
+  try {
+    const text = await response.text();
+    body = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  } catch {
+    body = {};
+  }
+  if (!body.error && !body.message) {
+    body.error = `Erro ${response.status}: ${response.statusText}`;
+  }
+  body.status = response.status;
+  return body;
 }
 
 /** Build a `?a=x&b=y` query string, dropping undefined/empty values and encoding. */
@@ -369,6 +509,135 @@ export const accountingService = {
   async getIncomeStatement(unitId: string, asOf: string): Promise<IncomeStatementReport> {
     const qs = buildQuery({ unitId, asOf });
     const res = await apiClient.get<ApiEnvelope<IncomeStatementReport>>(`/accounting/income-statement${qs}`);
+    return res.data;
+  },
+
+  // ── Bank reconciliation (BE-INCR-7 / FE-INCR-7) ─────────────────────────────
+
+  /**
+   * Import a bank statement (CSV/XLSX) for a bank GL account. Multipart —
+   * bypasses apiClient (JSON-only). ALL-OR-NOTHING parse; re-import of the same
+   * file (sha256) is idempotent (`created: false`, nothing written).
+   */
+  async importBankStatement(params: ImportStatementParams, file: File): Promise<ImportStatementResult> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('unitId', params.unitId);
+    form.append('glAccountId', params.glAccountId);
+    form.append('periodStart', params.periodStart);
+    form.append('periodEnd', params.periodEnd);
+    if (params.statementRef) form.append('statementRef', params.statementRef);
+    if (params.openingBalanceCents !== undefined) {
+      form.append('openingBalanceCents', String(params.openingBalanceCents));
+    }
+    if (params.closingBalanceCents !== undefined) {
+      form.append('closingBalanceCents', String(params.closingBalanceCents));
+    }
+    const response = await fetch(`${reconBaseUrl()}/accounting/reconciliation/statements`, {
+      method: 'POST',
+      headers: reconAuthHeaders(), // no Content-Type — browser sets the multipart boundary
+      body: form,
+    });
+    if (!response.ok) throw await reconParseError(response);
+    const res = (await response.json()) as ApiEnvelope<ImportStatementResult>;
+    return res.data;
+  },
+
+  /** List imported bank statements for a unit (paginated, newest first). */
+  async listBankStatements(unitId: string, page = 1, limit = 10): Promise<ListStatementsResult> {
+    const qs = buildQuery({ unitId, page: String(page), limit: String(limit) });
+    const res = await apiClient.get<ApiEnvelope<ListStatementsResult>>(`/accounting/reconciliation/statements${qs}`);
+    return res.data;
+  },
+
+  /** List the lines of a statement (optional status filter), ordered by lineNumber asc. */
+  async listStatementLines(
+    statementId: string,
+    unitId: string,
+    status?: BankStatementLineStatus,
+  ): Promise<ListStatementLinesResult> {
+    const qs = buildQuery({ unitId, status });
+    const res = await apiClient.get<ApiEnvelope<ListStatementLinesResult>>(
+      `/accounting/reconciliation/statements/${encodeURIComponent(statementId)}/lines${qs}`,
+    );
+    return res.data;
+  },
+
+  /** Soft-delete a statement — blocked by the backend while any match is active. */
+  async deleteBankStatement(statementId: string, unitId: string): Promise<{ id: string }> {
+    const qs = buildQuery({ unitId });
+    const res = await apiClient.delete<ApiEnvelope<{ id: string }>>(
+      `/accounting/reconciliation/statements/${encodeURIComponent(statementId)}${qs}`,
+    );
+    notify('Extrato excluído.', 'success', 'Conciliação');
+    return res.data;
+  },
+
+  /** Run the deterministic auto-match over a statement's UNMATCHED lines (D6). */
+  async autoMatchStatement(statementId: string, unitId: string): Promise<AutoMatchSummary> {
+    const res = await apiClient.post<ApiEnvelope<AutoMatchSummary>>(
+      `/accounting/reconciliation/statements/${encodeURIComponent(statementId)}/auto-match`,
+      { unitId },
+    );
+    return res.data;
+  },
+
+  /** Ranked match suggestions for one UNMATCHED line (D6). */
+  async getLineSuggestions(lineId: string, unitId: string): Promise<RankedSuggestion[]> {
+    const qs = buildQuery({ unitId });
+    const res = await apiClient.get<ApiEnvelope<RankedSuggestion[]>>(
+      `/accounting/reconciliation/lines/${encodeURIComponent(lineId)}/suggestions${qs}`,
+    );
+    return res.data;
+  },
+
+  /** Mark/unmark a line as IGNORED (e.g. a fee to be posted separately via /post). */
+  async setLineIgnored(lineId: string, unitId: string, ignored: boolean): Promise<{ id: string }> {
+    const res = await apiClient.post<ApiEnvelope<{ id: string }>>(
+      `/accounting/reconciliation/lines/${encodeURIComponent(lineId)}/ignore`,
+      { unitId, ignored },
+    );
+    return res.data;
+  },
+
+  /** Manual match — link N postings to 1 statement line (D3 aggregation). */
+  async createMatch(payload: {
+    unitId: string;
+    statementLineId: string;
+    postingIds: string[];
+  }): Promise<{ matchedPostings: number }> {
+    const res = await apiClient.post<ApiEnvelope<{ matchedPostings: number }>>(
+      '/accounting/reconciliation/matches',
+      payload,
+    );
+    notify('Conciliação registrada.', 'success', 'Conciliação');
+    return res.data;
+  },
+
+  /** Soft-undo of an active match (D7) — reverts Reconciled->Posted; trail preserved. */
+  async unmatch(matchId: string, unitId: string, reason?: string): Promise<{ id: string }> {
+    const res = await apiClient.post<ApiEnvelope<{ id: string }>>(
+      `/accounting/reconciliation/matches/${encodeURIComponent(matchId)}/unmatch`,
+      reason ? { unitId, reason } : { unitId },
+    );
+    notify('Vínculo desfeito.', 'success', 'Conciliação');
+    return res.data;
+  },
+
+  /** Pending report: UNMATCHED lines + bank postings with no active match (as-of). */
+  async getPendingReport(query: {
+    unitId: string;
+    glAccountId: string;
+    from?: string;
+    to?: string;
+  }): Promise<PendingReport> {
+    const qs = buildQuery({
+      unitId: query.unitId,
+      glAccountId: query.glAccountId,
+      from: query.from,
+      to: query.to,
+    });
+    const res = await apiClient.get<ApiEnvelope<PendingReport>>(`/accounting/reconciliation/pending${qs}`);
     return res.data;
   },
 };

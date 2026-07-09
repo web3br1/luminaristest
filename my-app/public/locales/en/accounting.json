@@ -18,7 +18,8 @@
       "planoDeContas": "Chart of Accounts",
       "bp": "BS",
       "dre": "IS",
-      "importacaoExportacao": "Import/Export"
+      "importacaoExportacao": "Import/Export",
+      "conciliacao": "Reconciliation"
     },
     "error": {
       "units": "Failed to load units.",
@@ -360,6 +361,119 @@
       "fileTooLarge": "File too large.",
       "asOfRequired": "Enter the date (asOf) for BS/IS.",
       "accountRequired": "Enter the account code for the General Ledger."
+    }
+  },
+  "reconciliation": {
+    "bankAccount": "Bank account",
+    "loadingAccounts": "Loading accounts…",
+    "noBankAccounts": "No account available",
+    "subtabs": {
+      "statements": "Bank statements",
+      "pending": "Pending queue"
+    },
+    "import": {
+      "title": "Import statement",
+      "description": "Upload a CSV/XLSX (columns: date, amountCents, description[, externalRef]). Amounts in signed cents. Re-importing the same file is idempotent.",
+      "periodStart": "Period start",
+      "periodEnd": "Period end",
+      "statementRef": "Reference (optional)",
+      "statementRefPlaceholder": "e.g. Statement Jul/2026",
+      "openingBalance": "Opening balance (cents)",
+      "closingBalance": "Closing balance (cents)",
+      "selectFile": "Select file",
+      "uploading": "Uploading…",
+      "needAccount": "Select the bank account.",
+      "needPeriod": "Enter the period start and end.",
+      "tooLarge": "File too large.",
+      "success": "Statement imported: {{count}} line(s).",
+      "idempotent": "File already imported — nothing changed ({{count}} line(s))."
+    },
+    "statements": {
+      "loading": "Loading statements…",
+      "empty": "No statements imported for this unit.",
+      "viewLines": "View lines",
+      "autoMatch": "Auto-match",
+      "autoMatching": "Matching…",
+      "delete": "Delete",
+      "autoMatchResult": "Auto-match: {{matched}} matched, {{ambiguous}} ambiguous, {{zero}} with no candidate (of {{processed}}).",
+      "col": {
+        "period": "Period",
+        "ref": "Reference",
+        "imported": "Imported at",
+        "actions": "Actions"
+      }
+    },
+    "lines": {
+      "loading": "Loading lines…",
+      "empty": "No lines in this statement.",
+      "col": {
+        "line": "Line",
+        "date": "Date",
+        "description": "Description",
+        "amount": "Amount",
+        "status": "Status"
+      },
+      "status": {
+        "UNMATCHED": "Unmatched",
+        "MATCHED": "Matched",
+        "IGNORED": "Ignored"
+      }
+    },
+    "deleteConfirm": {
+      "title": "Delete statement?",
+      "message": "Delete this statement and its lines? Blocked if any match is active. This action cannot be undone.",
+      "confirm": "Yes, delete",
+      "cancel": "Cancel",
+      "deleting": "Deleting…"
+    },
+    "pending": {
+      "loading": "Loading pending items…",
+      "selectAccount": "Select a bank account to view pending items.",
+      "refresh": "Refresh",
+      "totals": "{{lineCount}} line(s) · Σ {{lineTotal}} · {{postingCount}} posting(s)",
+      "suggestions": "Suggestions",
+      "ignore": "Ignore",
+      "ignoring": "Ignoring…",
+      "filters": {
+        "from": "From",
+        "to": "To"
+      },
+      "lines": {
+        "title": "Statement lines without a match",
+        "empty": "No pending lines."
+      },
+      "postings": {
+        "title": "Bank postings without a match",
+        "empty": "No pending postings."
+      },
+      "col": {
+        "date": "Date",
+        "description": "Description",
+        "amount": "Amount",
+        "entry": "Entry",
+        "actions": "Actions"
+      }
+    },
+    "match": {
+      "title": "Match line",
+      "inflow": "Inflow",
+      "outflow": "Outflow",
+      "loading": "Fetching suggestions…",
+      "empty": "No candidate found (exact same amount, ±3 days, Posted entry). Post the entry and try again, or ignore the line.",
+      "ambiguityHint": "Several candidates with the same amount — pick the correct one (there is no automatic choice).",
+      "confirm": "Match selected",
+      "confirming": "Matching…",
+      "cancel": "Cancel",
+      "col": {
+        "date": "Date",
+        "description": "Description",
+        "delta": "Δ days",
+        "amount": "Amount"
+      }
+    },
+    "error": {
+      "load": "Failed to load reconciliation.",
+      "generic": "An error occurred. Please try again."
     }
   }
 }
