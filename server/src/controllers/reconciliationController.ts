@@ -4,7 +4,7 @@ import { handleApiError } from '../lib/apiUtils';
 import { getUserContextFromRequest } from '../lib/authUtils';
 import { resolveAccountingScope } from '../features/accounting/scope/AccountingScope';
 import { makeUploadMiddleware } from '../lib/uploadSecurity';
-import type { SpreadsheetFormat } from '../lib/spreadsheet';
+import type { StatementFormat } from '../lib/ofx';
 import {
   ImportBankStatementSchema,
   ManualMatchSchema,
@@ -17,12 +17,16 @@ import {
   AutoMatchStatementSchema,
 } from '../features/accounting/dtos/ReconciliationDto';
 
-// Statement files are CSV/XLSX only — same allowlist + cap as the data-exchange import.
+// Statement files are CSV/XLSX/OFX — same cap as the data-exchange import. OFX (SGML/XML text)
+// is usually sent as text/plain or application/octet-stream (already listed); x-ofx/ofx cover
+// browsers that label it by extension.
 const SPREADSHEET_MIME_TYPES = new Set([
   'text/csv',
   'text/plain',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/octet-stream',
+  'application/x-ofx',
+  'application/ofx',
 ]);
 const MAX_IMPORT_SIZE_BYTES = Number(process.env.MAX_IMPORT_SIZE_BYTES) || 10 * 1024 * 1024;
 
@@ -33,10 +37,17 @@ export const bankStatementUpload = makeUploadMiddleware(
   MAX_IMPORT_SIZE_BYTES,
 );
 
-/** XLSX files are ZIP-based (PK magic); everything else is treated as CSV/text. */
-function sniffFormat(buffer: Buffer, name: string): SpreadsheetFormat {
+/**
+ * Detect the statement format. Order matters: XLSX (binary PK magic) first, then OFX
+ * (must beat the CSV fallback, else an OFX reads as a headerless CSV), then CSV as default.
+ */
+function sniffFormat(buffer: Buffer, name: string): StatementFormat {
   if (buffer[0] === 0x50 && buffer[1] === 0x4b) return 'xlsx';
   if (name.toLowerCase().endsWith('.xlsx')) return 'xlsx';
+  const head = buffer.toString('utf8', 0, 512).replace(/^﻿/, '').trimStart();
+  if (/^OFXHEADER/i.test(head) || /<OFX>/i.test(head) || name.toLowerCase().endsWith('.ofx')) {
+    return 'ofx';
+  }
   return 'csv';
 }
 
