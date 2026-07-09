@@ -373,7 +373,7 @@
     },
     "import": {
       "title": "Import statement",
-      "description": "Upload a CSV/XLSX (columns: date, amountCents, description[, externalRef]). Amounts in signed cents. Re-importing the same file is idempotent.",
+      "description": "Upload a CSV, XLSX or OFX. For CSV/XLSX, columns: date, amountCents, description[, externalRef], amounts in signed cents. Re-importing the same file is idempotent.",
       "periodStart": "Period start",
       "periodEnd": "Period end",
       "statementRef": "Reference (optional)",

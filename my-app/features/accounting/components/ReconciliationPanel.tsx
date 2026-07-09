@@ -467,7 +467,7 @@ function StatementsSubView({ unitId, glAccountId, accountLabel, onLedgerChange }
         <p className="mb-4 text-sm text-neutral-500">
           {t(
             'reconciliation.import.description',
-            'Envie um CSV/XLSX (colunas: date, amountCents, description[, externalRef]). Valores em centavos sinalizados. Reimportar o mesmo arquivo é idempotente.',
+            'Envie um CSV, XLSX ou OFX. Para CSV/XLSX, colunas: date, amountCents, description[, externalRef], valores em centavos sinalizados. Reimportar o mesmo arquivo é idempotente.',
           )}
         </p>
 
@@ -509,7 +509,7 @@ function StatementsSubView({ unitId, glAccountId, accountLabel, onLedgerChange }
             />
           </label>
 
-          <input ref={fileRef} type="file" accept=".csv,.xlsx" onChange={handleFileSelected} className="hidden" />
+          <input ref={fileRef} type="file" accept=".csv,.xlsx,.ofx" onChange={handleFileSelected} className="hidden" />
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
