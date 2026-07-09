@@ -2541,5 +2541,63 @@
  *         '200': { description: 'account + unmatchedLines + unmatchedPostings + totals (integer cents)' }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/accounting/referential/mappings:
+ *     put:
+ *       summary: Set (upsert) a referential mapping of one leaf account in one version (BE-INCR-9)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, accountId, referentialCode, label, mappingVersion]
+ *               properties:
+ *                 unitId: { type: string }
+ *                 accountId: { type: string, description: leaf account id (accounts.id) }
+ *                 referentialCode: { type: string, description: RFB referential account code }
+ *                 label: { type: string, description: referential account name (denormalized snapshot) }
+ *                 mappingVersion: { type: string, description: calendar-year layout id, e.g. "2025" }
+ *       responses:
+ *         '200': { description: 'the created/updated ReferentialMapping' }
+ *         '400': { $ref: '#/components/responses/ValidationError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *     delete:
+ *       summary: Unset (hard-delete) the mapping of one account in one version (BE-INCR-9)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: accountId, required: true, schema: { type: string } }
+ *         - { in: query, name: mappingVersion, required: true, schema: { type: string } }
+ *       responses:
+ *         '200': { description: 'accountId + mappingVersion of the removed mapping' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *     get:
+ *       summary: List the referential mappings of a version (BE-INCR-9)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: version, required: true, schema: { type: string } }
+ *       responses:
+ *         '200': { description: 'array of ReferentialMapping for the version' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/accounting/referential/coverage:
+ *     get:
+ *       summary: Coverage diagnostic — active leaf accounts unmapped in a version (ECD-readiness gate, BE-INCR-9)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: version, required: true, schema: { type: string } }
+ *       responses:
+ *         '200': { description: 'mappingVersion + unmappedAccounts[] + totals + ready flag' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  */
 export {};
