@@ -373,7 +373,7 @@
     },
     "import": {
       "title": "Importar extrato",
-      "description": "Envie um CSV/XLSX (colunas: date, amountCents, description[, externalRef]). Valores em centavos sinalizados. Reimportar o mesmo arquivo é idempotente.",
+      "description": "Envie um CSV, XLSX ou OFX. Para CSV/XLSX, colunas: date, amountCents, description[, externalRef], valores em centavos sinalizados. Reimportar o mesmo arquivo é idempotente.",
       "periodStart": "Início do período",
       "periodEnd": "Fim do período",
       "statementRef": "Referência (opcional)",
