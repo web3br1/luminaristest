@@ -9,15 +9,18 @@ import {
   FiRefreshCw,
   FiEyeOff,
   FiLink,
+  FiRotateCcw,
 } from 'react-icons/fi';
 import { Modal } from '../../../components/ui/Modal';
 import { StandardPagination } from '../../dashboard/shared/components/StandardPagination';
 import {
   accountingService,
   type Account,
+  type ActiveMatchSummary,
   type BankStatement,
   type BankStatementLine,
   type BankStatementLineStatus,
+  type BankStatementLineWithActiveMatches,
   type PendingReport,
 } from '../../../lib/services/accounting.service';
 import { formatCents } from '../lib/formatCents';
@@ -69,6 +72,14 @@ interface StatementRowProps {
   onAutoMatch: (statement: BankStatement) => void;
   autoMatching: boolean;
   onDelete: (statement: BankStatement) => void;
+  /** Refetch the ledger views when an unmatch flips an entry back Reconciled→Posted (D5/W1). */
+  onLedgerChange?: () => void;
+}
+
+/** The active match a user chose to undo, plus its line (for the confirm label). */
+interface UnmatchTarget {
+  line: BankStatementLineWithActiveMatches;
+  match: ActiveMatchSummary;
 }
 
 function StatementRow({
@@ -78,11 +89,15 @@ function StatementRow({
   onAutoMatch,
   autoMatching,
   onDelete,
+  onLedgerChange,
 }: StatementRowProps) {
   const { t } = useTranslation('accounting');
   const [expanded, setExpanded] = useState(false);
-  const [lines, setLines] = useState<BankStatementLine[]>([]);
+  const [lines, setLines] = useState<BankStatementLineWithActiveMatches[]>([]);
   const [loadingLines, setLoadingLines] = useState(false);
+  const [unmatchTarget, setUnmatchTarget] = useState<UnmatchTarget | null>(null);
+  const [unmatching, setUnmatching] = useState(false);
+  const [rowError, setRowError] = useState<string | null>(null);
 
   const loadLines = useCallback(async () => {
     setLoadingLines(true);
@@ -101,6 +116,28 @@ function StatementRow({
     setExpanded(next);
     if (next) void loadLines();
   };
+
+  async function handleConfirmUnmatch() {
+    if (!unmatchTarget) return;
+    setUnmatching(true);
+    setRowError(null);
+    try {
+      await accountingService.unmatch(unmatchTarget.match.id, unitId);
+      setUnmatchTarget(null);
+      // Server is the source of truth: refetch (never mutate the row locally). The line
+      // flips MATCHED→UNMATCHED only when its LAST active match is undone (backend, D7).
+      await loadLines();
+      onLedgerChange?.(); // entry may have flipped Reconciled→Posted (D5)
+    } catch (e) {
+      // A concurrent unmatch is a benign race (as-of read, ACC-011/021) — the backend
+      // already closed the window; reconcile the UI by refetching, not by failing hard.
+      setUnmatchTarget(null);
+      await loadLines();
+      setRowError(resolveError(e, t('reconciliation.lines.unmatchError', 'Não foi possível desfazer o vínculo. A lista foi atualizada.')));
+    } finally {
+      setUnmatching(false);
+    }
+  }
 
   return (
     <>
@@ -159,7 +196,8 @@ function StatementRow({
                     <th className="py-1 pr-4 font-medium">{t('reconciliation.lines.col.date', 'Data')}</th>
                     <th className="py-1 pr-4 font-medium">{t('reconciliation.lines.col.description', 'Histórico')}</th>
                     <th className="py-1 pr-4 text-right font-medium">{t('reconciliation.lines.col.amount', 'Valor')}</th>
-                    <th className="py-1 font-medium">{t('reconciliation.lines.col.status', 'Status')}</th>
+                    <th className="py-1 pr-4 font-medium">{t('reconciliation.lines.col.status', 'Status')}</th>
+                    <th className="py-1 text-right font-medium">{t('reconciliation.lines.col.actions', 'Ações')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -173,14 +211,101 @@ function StatementRow({
                       >
                         {formatCents(line.amountCents)}
                       </td>
-                      <td className="py-1">
+                      <td className="py-1 pr-4">
                         <LineStatusBadge status={line.status} />
+                      </td>
+                      <td className="py-1">
+                        {/* One Desfazer per ACTIVE match (D3 aggregation: a line may have N). */}
+                        {line.activeMatches.length > 0 && (
+                          <div className="flex flex-col items-end gap-1">
+                            {line.activeMatches.map((m) => (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => setUnmatchTarget({ line, match: m })}
+                                title={t('reconciliation.lines.unmatchTitle', 'Desfazer vínculo com {{date}} — {{desc}}', {
+                                  date: formatDate(m.entry.date),
+                                  desc: m.entry.description,
+                                })}
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-300 transition-colors hover:border-amber-700 hover:bg-amber-900/30 hover:text-amber-300"
+                              >
+                                <FiRotateCcw size={12} />
+                                {t('reconciliation.lines.unmatch', 'Desfazer')}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
+            {rowError && (
+              <div className="mt-2 rounded-xl border border-amber-900/50 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
+                {rowError}
+              </div>
+            )}
+
+            {/* Unmatch confirmation — soft, reversible (D7). Refetch-driven, no optimistic mutation. */}
+            <Modal
+              isOpen={!!unmatchTarget}
+              onClose={() => {
+                if (!unmatching) setUnmatchTarget(null);
+              }}
+              title={t('reconciliation.unmatchConfirm.title', 'Desfazer conciliação?')}
+              themeColor="bg-amber-600"
+              maxWidth="max-w-lg"
+              footer={
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setUnmatchTarget(null)}
+                    disabled={unmatching}
+                    className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-300 transition-colors hover:bg-neutral-700 disabled:opacity-50"
+                  >
+                    {t('reconciliation.unmatchConfirm.cancel', 'Cancelar')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleConfirmUnmatch()}
+                    disabled={unmatching}
+                    className="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
+                  >
+                    {unmatching ? (
+                      <>
+                        <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        {t('reconciliation.unmatchConfirm.unmatching', 'Desfazendo…')}
+                      </>
+                    ) : (
+                      <>
+                        <FiRotateCcw size={14} />
+                        {t('reconciliation.unmatchConfirm.confirm', 'Sim, desfazer')}
+                      </>
+                    )}
+                  </button>
+                </>
+              }
+            >
+              <div className="px-6 py-5 text-sm text-neutral-300 space-y-2">
+                {unmatchTarget && (
+                  <>
+                    <p>
+                      {t(
+                        'reconciliation.unmatchConfirm.message',
+                        'A linha volta a Pendente e o lançamento retorna de Conciliado para Postado. O vínculo é preservado (auditado) e pode ser refeito.',
+                      )}
+                    </p>
+                    <p className="text-neutral-400">
+                      {t('reconciliation.unmatchConfirm.target', 'Vínculo: {{date}} — {{desc}}', {
+                        date: formatDate(unmatchTarget.match.entry.date),
+                        desc: unmatchTarget.match.entry.description,
+                      })}
+                    </p>
+                  </>
+                )}
+              </div>
+            </Modal>
           </td>
         </tr>
       )}
@@ -442,6 +567,7 @@ function StatementsSubView({ unitId, glAccountId, accountLabel, onLedgerChange }
                   onAutoMatch={handleAutoMatch}
                   autoMatching={autoMatchingId === statement.id}
                   onDelete={setDeleteTarget}
+                  onLedgerChange={onLedgerChange}
                 />
               ))}
             </tbody>

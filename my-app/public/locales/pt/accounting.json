@@ -406,12 +406,16 @@
     "lines": {
       "loading": "Carregando linhas…",
       "empty": "Nenhuma linha neste extrato.",
+      "unmatch": "Desfazer",
+      "unmatchTitle": "Desfazer vínculo com {{date}} — {{desc}}",
+      "unmatchError": "Não foi possível desfazer o vínculo. A lista foi atualizada.",
       "col": {
         "line": "Linha",
         "date": "Data",
         "description": "Histórico",
         "amount": "Valor",
-        "status": "Status"
+        "status": "Status",
+        "actions": "Ações"
       },
       "status": {
         "UNMATCHED": "Pendente",
@@ -425,6 +429,14 @@
       "confirm": "Sim, excluir",
       "cancel": "Cancelar",
       "deleting": "Excluindo…"
+    },
+    "unmatchConfirm": {
+      "title": "Desfazer conciliação?",
+      "message": "A linha volta a Pendente e o lançamento retorna de Conciliado para Postado. O vínculo é preservado (auditado) e pode ser refeito.",
+      "target": "Vínculo: {{date}} — {{desc}}",
+      "confirm": "Sim, desfazer",
+      "cancel": "Cancelar",
+      "unmatching": "Desfazendo…"
     },
     "pending": {
       "loading": "Carregando pendências…",

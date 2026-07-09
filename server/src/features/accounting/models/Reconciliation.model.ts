@@ -1,4 +1,4 @@
-import type { Posting } from 'generated/prisma';
+import type { BankStatementLine, Posting } from 'generated/prisma';
 
 /**
  * Domain types for bank reconciliation (BE-INCR-7 / ADR-INCR7).
@@ -82,3 +82,24 @@ export interface EntryPostingReconciliationState {
   accountId: string;
   hasActiveMatch: boolean;
 }
+
+/**
+ * One ACTIVE match of a statement line, projected for the UNMATCH read (D7).
+ * Carries the `matchId` the unmatch endpoint needs plus the entry summary that
+ * labels WHAT is being undone (aggregation D3: a line may have N active matches).
+ */
+export interface ActiveMatchSummary {
+  id: string;
+  postingId: string;
+  matchType: ReconciliationMatchType;
+  entry: { id: string; date: Date; description: string };
+}
+
+/**
+ * A statement line with its ACTIVE matches attached — the display read that
+ * makes UNMATCH actionable (listLines). `activeMatches` is a projection
+ * (as-of, ACC-021): the authoritative gate for the undo stays in the service.
+ */
+export type BankStatementLineWithActiveMatches = BankStatementLine & {
+  activeMatches: ActiveMatchSummary[];
+};
