@@ -31,8 +31,12 @@ import type { InTable, SpreadsheetFormat } from './spreadsheet';
  * exotic encodings).
  */
 
-/** Widened import-boundary format: the spreadsheet formats plus OFX. */
-export type StatementFormat = SpreadsheetFormat | 'ofx';
+/**
+ * Widened import-boundary format: the spreadsheet formats plus OFX plus CNAB. The union
+ * lives here (the first non-spreadsheet parser) so both the service branch and the controller
+ * sniff share ONE type; `'cnab'` is parsed by `lib/cnab.ts::parseCnab` (BE-INCR7-CNAB).
+ */
+export type StatementFormat = SpreadsheetFormat | 'ofx' | 'cnab';
 
 const OFX_HEADERS = ['date', 'amountCents', 'description', 'externalRef'] as const;
 

@@ -38,15 +38,24 @@ export const bankStatementUpload = makeUploadMiddleware(
 );
 
 /**
- * Detect the statement format. Order matters: XLSX (binary PK magic) first, then OFX
- * (must beat the CSV fallback, else an OFX reads as a headerless CSV), then CSV as default.
+ * Detect the statement format. Order matters: XLSX (binary PK magic) first, then OFX and
+ * CNAB (both must beat the CSV fallback, else they read as a headerless CSV), then CSV as
+ * default. CNAB is fixed-width positional (240 chars/line) — detected by extension (.ret/
+ * .cnab) or a 240-char first line whose position 8 is '0' (file header), so a real CSV row
+ * that happens to be 240 chars long is not misread.
  */
 function sniffFormat(buffer: Buffer, name: string): StatementFormat {
   if (buffer[0] === 0x50 && buffer[1] === 0x4b) return 'xlsx';
-  if (name.toLowerCase().endsWith('.xlsx')) return 'xlsx';
-  const head = buffer.toString('utf8', 0, 512).replace(/^﻿/, '').trimStart();
-  if (/^OFXHEADER/i.test(head) || /<OFX>/i.test(head) || name.toLowerCase().endsWith('.ofx')) {
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.xlsx')) return 'xlsx';
+  const head = buffer.toString('utf8', 0, 512).replace(/^﻿/, '');
+  const trimmedHead = head.trimStart();
+  if (/^OFXHEADER/i.test(trimmedHead) || /<OFX>/i.test(trimmedHead) || lower.endsWith('.ofx')) {
     return 'ofx';
+  }
+  const firstLine = head.split(/\r?\n/)[0] ?? '';
+  if (lower.endsWith('.ret') || lower.endsWith('.cnab') || (firstLine.length === 240 && firstLine[7] === '0')) {
+    return 'cnab';
   }
   return 'csv';
 }
