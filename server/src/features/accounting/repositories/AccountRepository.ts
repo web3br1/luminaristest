@@ -43,8 +43,12 @@ export class AccountRepository implements IAccountRepository {
     });
   }
 
-  public async findById(scope: AccountingScope, id: string): Promise<Account | null> {
-    return prisma.account.findFirst({
+  public async findById(
+    scope: AccountingScope,
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Account | null> {
+    return (tx ?? prisma).account.findFirst({
       where: { id, ...accountingScopeWhere(scope), deletedAt: null },
     });
   }

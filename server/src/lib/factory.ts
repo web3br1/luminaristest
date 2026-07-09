@@ -21,6 +21,7 @@ import { DocumentAttachmentRepository } from '../features/accounting/repositorie
 import { ReconciliationRepository } from '../features/accounting/repositories/ReconciliationRepository';
 import { DataExchangeRepository } from '../features/accounting/repositories/DataExchangeRepository';
 import { SourceProvenanceRepository } from '../features/accounting/repositories/SourceProvenanceRepository';
+import { ReferentialMappingRepository } from '../features/accounting/repositories/ReferentialMappingRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
@@ -56,6 +57,7 @@ import { PeriodService } from '../features/accounting/services/PeriodService';
 import { AuditService } from '../features/accounting/services/AuditService';
 import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
 import { ReconciliationService } from '../features/accounting/services/ReconciliationService';
+import { ReferentialMappingService } from '../features/accounting/services/ReferentialMappingService';
 import { DocumentAttachmentService } from '../features/accounting/services/DocumentAttachmentService';
 import { DataExchangeExportService } from '../features/accounting/services/DataExchangeExportService';
 import { DataExchangeImportService } from '../features/accounting/services/DataExchangeImportService';
@@ -107,6 +109,7 @@ import type { IDocumentAttachmentRepository } from '../features/accounting/repos
 import type { IReconciliationRepository } from '../features/accounting/repositories/IReconciliationRepository';
 import type { IDataExchangeRepository } from '../features/accounting/repositories/IDataExchangeRepository';
 import type { ISourceProvenanceRepository } from '../features/accounting/repositories/ISourceProvenanceRepository';
+import type { IReferentialMappingRepository } from '../features/accounting/repositories/IReferentialMappingRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
 import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
@@ -138,6 +141,7 @@ export class ApplicationFactory {
     dataExchange: IDataExchangeRepository;
     packageBalance: IPackageBalanceRepository;
     sourceProvenance: ISourceProvenanceRepository;
+    referentialMapping: IReferentialMappingRepository;
   };
 
   private readonly policies: {
@@ -175,6 +179,7 @@ export class ApplicationFactory {
     accountingSync: AccountingSyncService;
     accountingReport: AccountingReportService;
     reconciliation: ReconciliationService;
+    referentialMapping: ReferentialMappingService;
     documentAttachment: DocumentAttachmentService;
     dataExchangeExport: DataExchangeExportService;
     dataExchangeImport: DataExchangeImportService;
@@ -214,6 +219,7 @@ export class ApplicationFactory {
       dataExchange: new DataExchangeRepository(),
       packageBalance: new PackageBalanceRepository(),
       sourceProvenance: new SourceProvenanceRepository(),
+      referentialMapping: new ReferentialMappingRepository(),
     };
 
     // Policies
@@ -376,6 +382,12 @@ export class ApplicationFactory {
         this.policies.accounting,
         auditService,
       ),
+      referentialMapping: new ReferentialMappingService(
+        this.repositories.referentialMapping,
+        this.repositories.account,
+        this.policies.accounting,
+        auditService,
+      ),
       documentAttachment: new DocumentAttachmentService(
         this.repositories.documentAttachment,
         this.policies.accounting,
@@ -433,6 +445,7 @@ export class ApplicationFactory {
   public getAccountingSyncService = (): AccountingSyncService => this.services.accountingSync;
   public getAccountingReportService = (): AccountingReportService => this.services.accountingReport;
   public getReconciliationService = (): ReconciliationService => this.services.reconciliation;
+  public getReferentialMappingService = (): ReferentialMappingService => this.services.referentialMapping;
   public getDocumentAttachmentService = (): DocumentAttachmentService => this.services.documentAttachment;
   public getDataExchangeExportService = (): DataExchangeExportService => this.services.dataExchangeExport;
   public getDataExchangeImportService = (): DataExchangeImportService => this.services.dataExchangeImport;

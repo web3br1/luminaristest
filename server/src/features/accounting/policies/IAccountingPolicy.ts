@@ -21,4 +21,10 @@ export interface IAccountingPolicy {
 
   /** Can import statements and match/unmatch bank reconciliation (BE-INCR-7). */
   canReconcile(scope: AccountingScope): boolean;
+
+  /** Can read the referential chart mapping + coverage diagnostic (BE-INCR-9). */
+  canReadReferential(scope: AccountingScope): boolean;
+
+  /** Can set/unset referential mappings (BE-INCR-9). */
+  canManageReferential(scope: AccountingScope): boolean;
 }

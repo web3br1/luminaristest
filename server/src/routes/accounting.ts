@@ -46,6 +46,12 @@ import {
   listDataExchangeRows,
   commitDataExchangeImport,
 } from '../controllers/dataExchangeController';
+import {
+  setReferentialMapping,
+  unsetReferentialMapping,
+  listReferentialMappings,
+  getReferentialCoverage,
+} from '../controllers/referentialMappingController';
 
 const router = Router();
 
@@ -92,6 +98,12 @@ router.post('/reconciliation/lines/:id/ignore', setLineIgnored);
 router.post('/reconciliation/matches', createManualMatch);
 router.post('/reconciliation/matches/:id/unmatch', unmatchReconciliation);
 router.get('/reconciliation/pending', getPendingReport);
+
+// Referential chart mapping — versioned Account→RFB code + coverage diagnostic (BE-INCR-9).
+router.put('/referential/mappings', setReferentialMapping);
+router.delete('/referential/mappings', unsetReferentialMapping);
+router.get('/referential/mappings', listReferentialMappings);
+router.get('/referential/coverage', getReferentialCoverage);
 
 // Accounting period management (INCR-1).
 // NOTE: /:unitId/periods must come before /periods/:id routes to avoid param clash.

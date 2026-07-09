@@ -179,3 +179,24 @@ Entradas mais novas no topo.
 - **Evidência:** `ls -la` dos dois paths; o backup do 0-byte tinha `_prisma_migrations` vazio e aplicou TODA a cadeia; o backup do 667 KB tinha só a INCR-8 pendente.
 - **Como aplicar:** Antes de qualquer smoke-gate, `find . -name dev.db` e escolher o de MAIOR tamanho / com dados — nunca assumir que o path do datasource é o povoado.
 - **Durável?** sim (candidato reforça o decoy-path já anotado em [[accounting-incr6-data-exchange-plan]]).
+
+### 2026-07-09 · decision · Cobertura referencial é CHART-driven, nunca balance-driven (INCR-9)
+- **Contexto:** BE-INCR-9 (ADR-INCR9 D3), diagnóstico de prontidão ECD do `ReferentialMapping`.
+- **Aprendizado:** O padrão do INCR-4 (`mappingVersion`+`unmappedAccounts`) tenta o reuso óbvio de `groupByAccount` para achar contas não-mapeadas. Errado aqui: ECD (I050/I051) mapeia TODA conta-folha ativa do plano, tenha ou não movimento. Gatear a membership em "só contas com posting" faz conta-folha de saldo zero SUMIR e o gate de prontidão passar FALSO. Membership vem de `accountRepo.findManyByUnit` (o plano), filtrando `acceptsEntries`; `groupByAccount` só pode ENRIQUECER saldo, nunca decidir quem entra. ACC-021 ("só POSTED em relatório") vale p/ relatório de dinheiro (BP/DRE), não p/ completude-de-plano.
+- **Evidência:** `ReferentialMappingService.coverage`; teste unit "zero-movement active leaf IS reported unmapped; grouping NOT" (chart-driven pinado).
+- **Como aplicar:** Reusar a SHAPE de um diagnóstico ≠ reusar sua fonte de dados. Diagnóstico de completude-de-cadastro é chart-driven; diagnóstico de dinheiro é posting-driven. Nunca deixe o segundo esconder o primeiro.
+- **Durável?** sim → candidato a memória (reforça [[bp-dre-diagnostics-test-must-mix-natures]] como classe "reuse da forma ≠ reuse da fonte").
+
+### 2026-07-09 · decision · ReferentialMapping SEM deletedAt — hard-delete + trilha no AuditEvent (INCR-9)
+- **Contexto:** BE-INCR-9 (ADR-INCR9 D5), modelagem do mapeamento versionado.
+- **Aprendizado:** Um mapeamento é projeção de estado corrente, não documento com ciclo de vida. Dar-lhe `deletedAt` faria a `@@unique([userId,unitId,accountId,mappingVersion])` cobrir tombstones (SQLite sem índice parcial) → remapear-após-desmapear na mesma versão morre em P2002 (o class-bug [[unique-de-idempotencia-x-soft-delete]]). Decisão: sem soft-delete — mudança = update-in-place, desmapear = hard-delete, e a trilha (ACC-020) vive no `AuditEvent` (hash-chain), não na tabela. Elimina a armadilha na raiz e mantém o model mínimo.
+- **Evidência:** model `ReferentialMapping` sem `deletedAt`; teste integração "hard-delete then re-set: no tombstone → no P2002".
+- **Como aplicar:** Antes de pôr `deletedAt` num model com `@@unique` de negócio, pergunte se a linha é EVIDÊNCIA (precisa sobreviver) ou ESTADO regenerável. Estado regenerável + trilha no audit → hard-delete foge do soft-delete×@@unique.
+- **Durável?** sim → candidato a memória.
+
+### 2026-07-09 · gotcha · Worktree isolado não herda node_modules — junction do main + prisma generate local (INCR-9)
+- **Contexto:** BE-INCR-9 executado em git worktree separado (`.claude/worktrees/...`); `tsc`/`jest` falharam com "Cannot find module 'dotenv'/'express'/'jest'".
+- **Aprendizado:** Um worktree novo não tem `node_modules` (não é compartilhado). Reinstalar é lento; o atalho é uma junction Windows (`New-Item -ItemType Junction`) de `server/node_modules` e `my-app/node_modules` para o main. A migração foi gerada por `prisma migrate diff --from-migrations --to-schema-datamodel --script` (NÃO toca DB nenhum) + `prisma generate` local; o smoke-gate sobre `dev.db` real fica para depois do review (T12).
+- **Evidência:** junctions criadas; `tsc` server exit 0 e 441/441 jest verdes só após o link; migração aditiva validada de fato quando o teste de integração rodou `migrate deploy` num db temporário.
+- **Como aplicar:** Ao abrir worktree p/ tarefa que roda tsc/jest, primeiro junction do `node_modules` (server + my-app) e `prisma generate` local; gere migração por `migrate diff` p/ não tocar o dev.db real; smoke-gate real só após review.
+- **Durável?** sim → candidato a memória (reforça [[verify-write-context-before-writing]]: worktree isolation é a defesa, mas tem custo de setup).
