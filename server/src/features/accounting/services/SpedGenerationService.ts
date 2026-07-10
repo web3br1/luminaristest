@@ -288,6 +288,7 @@ export class SpedGenerationService {
     let resultClosing: { dtRes: string; saldos: RegI355Input[] } | undefined;
     if (closingEntry) {
       const preClose = await this.postingRepo.groupByAccount(scope, LEDGER_STATUSES, {
+        from: new Date(Date.UTC(year, 0, 1)), // janela anual — igual à DRE; corrige o 2º encerramento
         to: new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999)),
         excludeSourceTypes: [CLOSING_SOURCE_TYPE],
       });

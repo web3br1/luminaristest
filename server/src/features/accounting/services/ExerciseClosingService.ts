@@ -54,12 +54,18 @@ export class ExerciseClosingService {
       throw new ForbiddenError('Você não tem permissão para encerrar o exercício.');
     }
 
-    // Pre-closing balances (D7): all history up to 31/12, EXCLUDING any prior closing entry,
-    // so a re-close after a reopen reads the operational balance, never a half-closed one.
+    // Pre-closing result of THIS exercise: the current-year window [1 Jan .. 31 Dec], EXCLUDING
+    // the closing entry itself. Result accounts are annual — bounding from 1 Jan is what keeps a
+    // SECOND annual close correct: without it, excluding every 'closing' entry would re-inflate a
+    // prior *closed* year's operational movement into this read and over-post (I155(dez)≠0 → PVA
+    // rejeita). This is the SAME window incomeStatement/DRE uses (AccountingReportService), so
+    // I355 and J150 agree. Year 1 is unaffected (1 Jan = inception).
+    const dtIni = new Date(Date.UTC(year, 0, 1));
     const dtFin = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
     const [accounts, totals] = await Promise.all([
       this.accountRepo.findManyByUnit(scope),
       this.postingRepo.groupByAccount(scope, LEDGER_STATUSES, {
+        from: dtIni,
         to: dtFin,
         excludeSourceTypes: [CLOSING_SOURCE_TYPE],
       }),

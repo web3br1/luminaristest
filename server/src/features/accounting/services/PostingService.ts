@@ -380,6 +380,13 @@ export class PostingService {
       );
     }
 
+    // Reversing a CLOSING entry is itself part of the closing mechanism (D3/D5): the reversal
+    // inherits sourceType='closing' so it too is EXCLUDED from the DRE — otherwise its
+    // result-account legs would leak back into the operational result. Hoisted so the P2002
+    // race-close catch below looks the reversal up under the RIGHT sourceType.
+    const isClosingReversal = original.sourceType === CLOSING_SOURCE_TYPE;
+    const reversalSourceType = isClosingReversal ? CLOSING_SOURCE_TYPE : 'reversal';
+
     // ATOMIC — reversal header + swapped legs + original→Reversed + link commit together.
     let result: JournalEntryWithPostings;
     try {
@@ -393,12 +400,6 @@ export class PostingService {
           reversalFiscalYear,
           tx,
         );
-
-        // Reversing a CLOSING entry is itself part of the closing mechanism (D3/D5):
-        // the reversal inherits sourceType='closing' so it too is EXCLUDED from the DRE —
-        // otherwise its result-account legs would leak back into the operational result.
-        const isClosingReversal = original.sourceType === CLOSING_SOURCE_TYPE;
-        const reversalSourceType = isClosingReversal ? CLOSING_SOURCE_TYPE : 'reversal';
 
         const reversal = await this.journalEntryRepo.create(
           {
@@ -461,9 +462,10 @@ export class PostingService {
       });
     } catch (error) {
       // ponytail: authoritative race-close — @@unique([userId,unitId,sourceType,sourceId]) blocks
-      // a second reversal. A concurrent reverser that loses the race trips P2002; re-fetch.
+      // a second reversal. A concurrent reverser that loses the race trips P2002; re-fetch under the
+      // reversal's actual sourceType (='closing' when reversing a closing entry — N1).
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const existing = await this.journalEntryRepo.findBySource(scope, 'reversal', original.id);
+        const existing = await this.journalEntryRepo.findBySource(scope, reversalSourceType, original.id);
         if (existing) {
           const racedOriginal =
             (await this.journalEntryRepo.findById(scope, original.id)) ?? original;

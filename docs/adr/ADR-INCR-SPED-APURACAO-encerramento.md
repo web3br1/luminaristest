@@ -67,9 +67,9 @@ O serviço resolve a conta por **constante de código canônico** (`RETAINED_EAR
 **Por quê:** o PGE não exige a conta transitória **ARE** (Apuração do Resultado do Exercício) — `REGRA_VALIDACAO_SALDO_CONTA` só checa as contas de **resultado**, não a contrapartida. ARE adicionaria conta transitória + 2º lançamento sem ganho de compliance (YAGNI). **Descartado/diferido:** ARE intermediária (ADR próprio se um requisito de apresentação exigir). `2.3` sintética entra junto para a hierarquia I050/`codCtaSup` fechar.
 
 ### D5 — Idempotência `sourceId=String(year)`; **reversão LIBERA a chave**  **[ratificado por sinal humano]**
-**Decisão:** um encerramento por `(owner, unit, exercício)`: `sourceType='closing'`, `sourceId=String(year)` (ex.: `'2026'`), `date='${year}-12-31'`. Re-`closeExercise` do mesmo ano é **idempotente** (o `@@unique` faz P2002→re-fetch). **Reabrir/estornar** um encerramento (`ExerciseClosingService.reopenExercise`) (a) estorna via `reverseEntry` e (b) **renomeia o `sourceId` do encerramento estornado** para `closing:${year}:reversed:${id}`, **liberando** `closing:${year}` — então re-`closeExercise` produz um lançamento **novo e válido**.
+**Decisão:** um encerramento por `(owner, unit, exercício)`: `sourceType='closing'`, `sourceId=String(year)` (ex.: `'2026'`), `date='${year}-12-31'`. Re-`closeExercise` do mesmo ano é **idempotente** (o `@@unique` faz P2002→re-fetch). **Reabrir = estornar** o encerramento pela rota genérica **`POST /accounting/reverse` já existente** (NÃO há `reopenExercise`/rota nova — reuso, ponytail): o `reverseEntry` é **closing-aware** — quando o original é `sourceType='closing'`, (a) o estorno **herda `sourceType='closing'`** (fica fora da DRea também — D3) e (b) o `sourceId` do encerramento estornado é **renomeado** para `closing:${year}:reversed:${id}`, **liberando** `closing:${year}` — então re-`closeExercise` produz um lançamento **novo e válido**.
 
-**Por quê:** fecha a **classe-de-bug idempotência×soft-delete/reversão** (memórias `unique-de-idempotencia-x-soft-delete` + `idempotency-class-fix-discipline`) — o padrão "rename-on-free" é o já decidido no projeto. É comando **interno** (não evento externo), então chavear por exercício dentro do escopo não fere ACC-013. **Descartado:** (b') versão embutida no `sourceId` (`v2`) — complica a idempotência do caso normal; (c) diferir — deixaria a armadilha viva, contra a memória. **Gate obrigatório:** teste **cross-path** `estorna → re-encerra → lançamento NOVO` (não same-path).
+**Por quê:** fecha a **classe-de-bug idempotência×soft-delete/reversão** (memórias `unique-de-idempotencia-x-soft-delete` + `idempotency-class-fix-discipline`) — o padrão "rename-on-free" é o já decidido no projeto. Colocar a lógica no `reverseEntry` (não numa `reopenExercise` dedicada) é **mais robusto**: cobre também o usuário que estorna o encerramento pela rota genérica. É comando **interno** (não evento externo), então chavear por exercício dentro do escopo não fere ACC-013. **Descartado:** (b') versão embutida no `sourceId` (`v2`) — complica a idempotência do caso normal; (c) diferir — deixaria a armadilha viva, contra a memória. **Gate obrigatório:** teste **cross-path** `estorna → re-encerra → lançamento NOVO` (não same-path).
 
 ### D6 — Encerramento é **comando próprio**, roda com dezembro **OPEN**, **antes** do hard-close
 **Decisão:** `closeExercise` é rota/serviço próprio (ACC-016: estado por comandos), **desacoplado** do `PeriodService` (que é só transição de status e não posta). Como `postEntry` exige o mês-alvo OPEN (`assertPeriodOpenTx`), a sequência é: operacionais postados → **`closeExercise`** (dez OPEN) → `hardClosePeriod`.
@@ -82,7 +82,7 @@ O serviço resolve a conta por **constante de código canônico** (`RETAINED_EAR
 **Por quê:** a mesma leitura filtrada que a DRE usa separa pré de pós sem contradição — `REGRA_VALIDACAO_CONTA_RESULTADO` (I155 dez = 0) e `REGRA_VALIDACAO_SALDO_CONTA` (Σ partidas 'E' == VL_CTA I355, D/C invertido) caem **por construção**. **Descartado:** recomputar saldos pré no serializer — fabricação proibida.
 
 ### D8 — Escopo do incremento (o que entra / o que não)
-**Entra (write):** `ExerciseClosingService` (`closeExercise(year)`, `reopenExercise(year)`) + DTO `.strict()` + controller + rota 3-toques + factory; conta de PL no fixture; leitura de exclusão-closing no `IPostingRepository`/report.
+**Entra (write):** `ExerciseClosingService` (`closeExercise(year)`) + DTO `.strict()` + controller + rota 3-toques (`POST /closing/exercise`) + factory; conta de PL no fixture; `reverseEntry` closing-aware (reabertura reusa `/reverse`); leitura de exclusão-closing no `IPostingRepository`/report.
 **Entra (read/export):** builders `buildI350`/`buildI355` em `lib/sped.ts`; `IND_LCTO` derivado; `SpedGenerationService` emite I350/I355 e usa a DRE closing-aware para J150; J100 reconcilia automaticamente pós-encerramento.
 **Fora (diferido — ADR próprio):** ARE intermediária (D4); guard automático de ordem período×encerramento (D6); assinatura/transmissão (J930 PKCS#7 / Receitanet); ECF; retificação; multi-período/fração de mês; `I351` (não existe no Leiaute 9) e demais registros já diferidos na ADR-SPED-ECD §4.
 
@@ -96,10 +96,10 @@ Rota nova `/api/accounting/closing/*` (3-toques, OpenAPI JSDoc). Policy **reusa*
 
 | Método | Rota | Policy | Efeito |
 |---|---|---|---|
-| `POST` | `/closing/exercise` | `canPost` | valida DTO (`year`) → `ExerciseClosingService.closeExercise` → posta 1 encerramento multi-leg (`sourceType='closing'`, `sourceId=year`, dt=31/12) via `postEntry` → retorna o lançamento. Idempotente por ano. `422` se não há contas de resultado com saldo; erro de gate se dezembro não-OPEN. |
-| `POST` | `/closing/exercise/reopen` | `canPost` | `reopenExercise(year)`: estorna o encerramento + libera a chave (D5). Idempotente. |
+| `POST` | `/closing/exercise` | `canPost` | valida DTO (`unitId`,`year`) → `ExerciseClosingService.closeExercise` → posta 1 encerramento multi-leg (`sourceType='closing'`, `sourceId=year`, dt=31/12) via `postEntry` → retorna o lançamento. Idempotente por ano. `400` se não há contas de resultado com saldo; erro de gate se dezembro não-OPEN. |
+| `POST` | *(reusa)* `/reverse` | `canPost` | reabrir = estornar o encerramento pela rota genérica existente (`reverseEntry` closing-aware libera a chave, D5). **Nenhuma rota nova.** |
 
-DTO `CloseExerciseRequestDto` (Zod `.strict()`): `year` (int, faixa sã) — ou `unitId` já vem do escopo. Sem campos de identificação (não é o DTO do SPED).
+DTO `CloseExerciseRequestDto` (Zod `.strict()`): `unitId` (eixo de tenancy) + `year` (int, faixa sã). Sem campos de identificação (não é o DTO do SPED).
 
 ---
 
@@ -114,7 +114,7 @@ DTO `CloseExerciseRequestDto` (Zod `.strict()`): `year` (int, faixa sã) — ou 
   5. **A=P nos DOIS estados:** pré (netResultLine≠0, PL sem resultado) e pós (PL carrega, netResultLine=0) — `balanced===true` em ambos.
   6. **DRE exclui encerramento:** `incomeStatement` de ano encerrado mostra o resultado operacional (não zero); ano **sem** encerramento inalterado (regressão).
   7. **Idempotência:** re-`closeExercise` do mesmo ano → **mesmo** lançamento (sem duplicar).
-  8. 🔴 **Reversão libera a chave (cross-path):** `closeExercise` → `reopenExercise` → `closeExercise` → lançamento **NOVO** válido (não retorna o estornado).
+  8. 🔴 **Reversão libera a chave (cross-path):** `closeExercise` → `reverseEntry`(encerramento) → `closeExercise` → lançamento **NOVO** válido (não retorna o estornado).
   9. **Gate de período:** encerrar com dezembro HARD_CLOSED → falha com erro do gate (honesto).
   10. **Coverage-gate D5 (integração ECD):** `2.3.1` analítica sem mapeamento referencial ⇒ geração da ECD falha com `unmappedAccounts` (a conta nova entra no gate).
   11. **Seed-backfill aditivo:** `ensureChartOfAccounts` num tenant sem `2.3.1` cria-a **sem** tocar contas existentes; idempotente na 2ª chamada.
