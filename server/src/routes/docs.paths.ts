@@ -2237,6 +2237,70 @@
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *         '403': { $ref: '#/components/responses/ForbiddenError' }
  *
+ *   /api/accounting/sped/ecd/generate:
+ *     post:
+ *       summary: Generate the SPED Contábil (ECD) .txt file for a year
+ *       description: >-
+ *         Composes the ECD (Livro Diário Geral, tipo G) for the given year from the ledger
+ *         (chart, referential mapping, monthly balances, journal, BP/DRE) and persists a
+ *         plain-text (ISO-8859-1) artifact as an EXPORT job. Download via
+ *         /data-exchange/jobs/{jobId}/download. Blocks with 400 + unmappedAccounts if any
+ *         leaf account is unmapped in the referential version (coverage gate).
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, mappingVersion, year, declarant, book, signers]
+ *               properties:
+ *                 unitId:         { type: string }
+ *                 mappingVersion: { type: string }
+ *                 year:           { type: integer, example: 2026 }
+ *                 declarant:
+ *                   type: object
+ *                   required: [nome, cnpj, uf, codMun, indNire, indGrandePorte]
+ *                   properties:
+ *                     nome:   { type: string }
+ *                     cnpj:   { type: string, description: '14 digits' }
+ *                     uf:     { type: string }
+ *                     codMun: { type: string, description: 'IBGE 7 digits' }
+ *                     indNire:        { type: string, enum: ['0', '1'] }
+ *                     indGrandePorte: { type: string, enum: ['0', '1'] }
+ *                 book:
+ *                   type: object
+ *                   required: [numOrd, natLivr, dtExSocial]
+ *                   properties:
+ *                     numOrd:     { type: string }
+ *                     natLivr:    { type: string }
+ *                     dtExSocial: { type: string, description: 'YYYY-MM-DD' }
+ *                 signers:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     required: [identNom, identCpfCnpj, identQualif, codAssin, indRespLegal]
+ *                     properties:
+ *                       identNom:      { type: string }
+ *                       identCpfCnpj:  { type: string }
+ *                       identQualif:   { type: string }
+ *                       codAssin:      { type: string, description: '3 digits; 900 = Contador' }
+ *                       indRespLegal:  { type: string, enum: [S, N] }
+ *       responses:
+ *         '201':
+ *           description: ECD export job created
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:    { $ref: '#/components/schemas/DataExchangeJob' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '403': { $ref: '#/components/responses/ForbiddenError' }
+ *
  *   /api/accounting/data-exchange/jobs/{jobId}:
  *     get:
  *       summary: Get a data-exchange job summary
@@ -2362,7 +2426,7 @@
  *   /api/accounting/reconciliation/statements:
  *     post:
  *       summary: Import a bank statement (CSV/XLSX/OFX) for a bank GL account
- *       description: Accepts CSV/XLSX (columns date,amountCents,description[,externalRef], signed integer cents) or OFX (normalized from STMTTRN: DTPOSTED→date, TRNAMT→signed cents, NAME/MEMO→description, FITID→externalRef). Format is auto-detected. ALL-OR-NOTHING — any invalid row rejects the whole file; a multi-account OFX is rejected. Re-import of the same file (sha256) is idempotent (200, nothing written). No ledger value is written.
+ *       description: 'Accepts CSV/XLSX (columns date,amountCents,description[,externalRef], signed integer cents) or OFX (normalized from STMTTRN - DTPOSTED→date, TRNAMT→signed cents, NAME/MEMO→description, FITID→externalRef). Format is auto-detected. ALL-OR-NOTHING — any invalid row rejects the whole file; a multi-account OFX is rejected. Re-import of the same file (sha256) is idempotent (200, nothing written). No ledger value is written.'
  *       tags: [Accounting]
  *       security: [{ bearerAuth: [] }]
  *       requestBody:

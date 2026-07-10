@@ -116,4 +116,25 @@ export class JournalEntryRepository implements IJournalEntryRepository {
     ]);
     return { entries: entries as JournalEntryWithFullPostings[], total };
   }
+
+  public async findManyForExport(
+    scope: AccountingScope,
+    statuses: string[],
+    window: { from: Date; to: Date },
+  ): Promise<JournalEntryWithFullPostings[]> {
+    const entries = await prisma.journalEntry.findMany({
+      where: {
+        ...accountingScopeWhere(scope),
+        status: { in: statuses },
+        date: { gte: window.from, lte: window.to },
+      },
+      orderBy: [{ date: 'asc' }, { entryNumber: 'asc' }],
+      include: {
+        postings: {
+          include: { account: { select: { code: true, name: true } } },
+        },
+      },
+    });
+    return entries as JournalEntryWithFullPostings[];
+  }
 }

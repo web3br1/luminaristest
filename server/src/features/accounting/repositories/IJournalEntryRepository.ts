@@ -78,4 +78,17 @@ export interface IJournalEntryRepository {
     skip: number,
     take: number,
   ): Promise<{ entries: JournalEntryWithFullPostings[]; total: number }>;
+
+  /**
+   * Lists ALL entries (no pagination) in a date window whose status is in `statuses`,
+   * with postings + account code/name, ordered deterministically by (date, entryNumber)
+   * ASC. Backs the SPED ECD Diário (I200/I250, ADR-INCR-SPED-ECD D9): the read
+   * "entries+legs by window, LEDGER_STATUSES" that no by-account report exposed.
+   * Read-only.
+   */
+  findManyForExport(
+    scope: AccountingScope,
+    statuses: string[],
+    window: { from: Date; to: Date },
+  ): Promise<JournalEntryWithFullPostings[]>;
 }
