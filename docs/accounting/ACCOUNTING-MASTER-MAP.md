@@ -55,7 +55,7 @@ flowchart TD
     X["✅ Data Exchange INCR-6<br/>import/export CSV/XLSX · staging"]:::done
     FE["✅ Frontend FE-INCR-1<br/>7 abas contábeis"]:::done
     BR["✅ Bridges pós-commit<br/>salon (C) · AccountingSync"]:::done
-    T["✅ Conciliação Bancária<br/>BE-INCR-7 · backend completo · FE deferido"]:::done
+    T["✅ Conciliação Bancária<br/>BE-INCR-7 · backend + FE (aba) mergeados"]:::done
 
     A --> B --> D
     A --> C --> D
@@ -86,7 +86,9 @@ Cada PR com review independente (worktree isolado) — 2 FAILs corrigidos e re-a
 Smoke-gate de deploy sobre backup do `dev.db` **real** também PASS (2026-07-03,
 `SMOKE-MIGRATION-GATE-BE-INCR7-DEPLOY.md`) — migração aplicada limpa sobre dados vivos, dev.db original
 comprovadamente intocado (md5+mtime), 408/408 testes accounting verdes, `tsc` limpo.
-**Pendente:** FE (frontend-deferred, aba própria) · sign-off humano em browser.
+**FE ✅ mergeado em `main`** (aba `conciliacao` no `AccountingView.tsx` → `ReconciliationPanel` +
+`ReconciliationMatchModal`; stack FE-INCR-7 #57 + unmatch read-shape #56, 2026-07-09 — verificado no git
+2026-07-10: componentes existem e a aba está wired). **Pendente:** só sign-off humano em browser.
 Emendas pós-ratificação no ADR §3: sha256 liberado no soft-delete (`deleted:<id>`) · nota derivação D5
 stale-on-new-bank-account (aceito no MVP).
 
