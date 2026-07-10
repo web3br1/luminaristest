@@ -1,6 +1,7 @@
 import { ForbiddenError, ValidationError } from '../../../lib/errors';
 import { MAX_CENTS } from '../models/money';
 import { CLOSING_SOURCE_TYPE, closingSourceId } from '../models/closing';
+import { LEDGER_STATUSES } from '../models/ledgerStatus';
 import { RETAINED_EARNINGS_CODE } from '../fixtures/ChartOfAccountsFixture';
 import type { AccountingScope } from '../scope/AccountingScope';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
@@ -9,13 +10,6 @@ import type { IPostingRepository } from '../repositories/IPostingRepository';
 import type { JournalEntryWithPostings } from '../repositories/IJournalEntryRepository';
 import type { PostingService } from './PostingService';
 import type { PostEntryInput } from '../dtos/PostingDto';
-
-/**
- * Statuses that make up the escrituração (everything except Draft). Kept local per the
- * existing module pattern (AccountingReportService/SpedGenerationService each hold their
- * own copy). Higiene item: consolidate the three into one shared const.
- */
-const LEDGER_STATUSES = ['Posted', 'Reconciled', 'Reversed'];
 
 /**
  * ExerciseClosingService — year-end result closing (encerramento/apuração do resultado),
