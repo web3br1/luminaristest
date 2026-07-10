@@ -4,6 +4,7 @@ import type { IPostingRepository } from '../repositories/IPostingRepository';
 import type { IJournalEntryRepository } from '../repositories/IJournalEntryRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { AccountingScope } from '../scope/AccountingScope';
+import { LEDGER_STATUSES } from '../models/ledgerStatus';
 import {
   STATEMENT_MAPPING_VERSION,
   findMappingRule,
@@ -141,9 +142,6 @@ export interface IncomeStatementReport {
  * a reconciled entry vanish from BP/DRE/razão/balancete.
  */
 export class AccountingReportService {
-  /** Statuses that contribute to the ledger: everything except Draft. */
-  private static readonly LEDGER_STATUSES = ['Posted', 'Reconciled', 'Reversed'];
-
   constructor(
     private readonly accountRepo: IAccountRepository,
     private readonly postingRepo: IPostingRepository,
@@ -164,7 +162,7 @@ export class AccountingReportService {
   ): Promise<TrialBalanceRow[]> {
     const totals = await this.postingRepo.groupByAccount(
       scope,
-      AccountingReportService.LEDGER_STATUSES,
+      LEDGER_STATUSES,
       from || to ? { from, to } : undefined,
     );
     const accounts = await this.accountRepo.findManyByUnit(scope);
@@ -366,7 +364,7 @@ export class AccountingReportService {
       let entry = entryCache.get(p.entryId);
       if (!entry) {
         const head = await this.journalEntryRepo.findById(scope, p.entryId);
-        if (!head || !AccountingReportService.LEDGER_STATUSES.includes(head.status)) continue;
+        if (!head || !LEDGER_STATUSES.includes(head.status)) continue;
         entry = { date: head.date, description: head.description, status: head.status };
         entryCache.set(p.entryId, entry);
       }
