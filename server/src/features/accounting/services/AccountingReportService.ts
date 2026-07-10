@@ -5,6 +5,7 @@ import type { IJournalEntryRepository } from '../repositories/IJournalEntryRepos
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { LEDGER_STATUSES } from '../models/ledgerStatus';
+import { CLOSING_SOURCE_TYPE } from '../models/closing';
 import {
   STATEMENT_MAPPING_VERSION,
   findMappingRule,
@@ -159,11 +160,13 @@ export class AccountingReportService {
     scope: AccountingScope,
     from?: Date,
     to?: Date,
+    excludeSourceTypes?: string[],
   ): Promise<TrialBalanceRow[]> {
+    const hasExclusion = !!excludeSourceTypes && excludeSourceTypes.length > 0;
     const totals = await this.postingRepo.groupByAccount(
       scope,
       LEDGER_STATUSES,
-      from || to ? { from, to } : undefined,
+      from || to || hasExclusion ? { from, to, excludeSourceTypes } : undefined,
     );
     const accounts = await this.accountRepo.findManyByUnit(scope);
     const accountById = new Map(accounts.map((a) => [a.id, a]));
@@ -402,8 +405,12 @@ export class AccountingReportService {
 
   /**
    * Balanço Patrimonial — snapshot posição `as_of` (toda a história de postagens até
-   * `asOf` inclusive). DRE window = 1 Jan do ano de `asOf` até `asOf` (year_to_date);
-   * a linha Resultado do Exercício usa a MESMA janela da DRE exibida (ADR-INCR4 Q2/Q7).
+   * `asOf` inclusive). `netResultLine` = resultado AINDA-NÃO-encerrado: janela DRE YTD
+   * closing-INCLUSIVE (BE-INCR-SPED-APURACAO D3), então após o encerramento ela auto-zera
+   * (o resultado migra para o PL via a conta postada) e `balanced = A === L + PL + 0`
+   * continua exato. Difere de `incomeStatement.netResult` (operacional, closing-EXCLUSIVE)
+   * a partir do encerramento — divergência contábil correta: o BP mostra o resultado dentro
+   * do PL, a DRE reporta a performance do ano.
    */
   async balanceSheet(scope: AccountingScope, asOf: Date): Promise<BalanceSheetReport> {
     if (!this.policy.canRead(scope)) {
@@ -474,8 +481,13 @@ export class AccountingReportService {
     const dreFromDate = new Date(Date.UTC(asOf.getUTCFullYear(), 0, 1));
     const dreFromIso = dreFromDate.toISOString().slice(0, 10);
 
+    // DRE = performance operacional do exercício ⇒ EXCLUI o lançamento de encerramento
+    // (BE-INCR-SPED-APURACAO D3): sem isso, um encerramento em 31/12 zera cada conta de
+    // resultado na janela e a DRE se auto-cancela. priorRows fica closing-INCLUSIVE de
+    // propósito: um exercício anterior encerrado tem resultado 0 (não gera o warning de
+    // "resultado anterior não encerrado").
     const [dreRows, priorRows] = await Promise.all([
-      this.getAccountBalances(scope, dreFromDate, asOf),
+      this.getAccountBalances(scope, dreFromDate, asOf, [CLOSING_SOURCE_TYPE]),
       this.getAccountBalances(
         scope,
         undefined,

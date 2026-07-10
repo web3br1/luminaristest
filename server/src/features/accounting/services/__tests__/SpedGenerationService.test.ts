@@ -51,6 +51,7 @@ function makeDto(over: Partial<SpedEcdRequestDto> = {}): SpedEcdRequestDto {
 interface Mocks {
   ready?: boolean;
   canRead?: boolean;
+  closed?: boolean;
 }
 
 function buildService(m: Mocks = {}) {
@@ -61,29 +62,53 @@ function buildService(m: Mocks = {}) {
     findManyByUnit: jest.fn(async () => [GRUPO, CAIXA, RECEITA]),
   } as never;
 
-  const groupByAccount = jest.fn(async (_s: unknown, _st: string[], opts?: { from?: Date; to?: Date }) => {
-    // Opening (only `to`, no `from`) => zero opening. A movement in January only.
-    if (opts?.from && opts.from.getUTCMonth() === 0) {
-      return [
-        { accountId: 'caixa', debitCents: 50000, creditCents: 0 },
-        { accountId: 'rec', debitCents: 0, creditCents: 50000 },
-      ];
-    }
-    return [];
-  });
+  const closed = m.closed ?? false;
+
+  const groupByAccount = jest.fn(
+    async (_s: unknown, _st: string[], opts?: { from?: Date; to?: Date; excludeSourceTypes?: string[] }) => {
+      // Pre-closing result read (BE-INCR-SPED-APURACAO): to=31/12, excludeSourceTypes=['closing'],
+      // no `from`. Returns the operational revenue balance (credor 500,00) for I355.
+      if (opts?.excludeSourceTypes?.includes('closing')) {
+        return [{ accountId: 'rec', debitCents: 0, creditCents: 50000 }];
+      }
+      // Opening (only `to`, no `from`) => zero opening. A movement in January only.
+      if (opts?.from && opts.from.getUTCMonth() === 0) {
+        return [
+          { accountId: 'caixa', debitCents: 50000, creditCents: 0 },
+          { accountId: 'rec', debitCents: 0, creditCents: 50000 },
+        ];
+      }
+      return [];
+    },
+  );
   const postingRepo = { groupByAccount } as never;
 
   const findManyForExport = jest.fn(async () => [
     {
       id: 'e1', entryNumber: 1, date: new Date('2026-01-15T00:00:00Z'), description: 'Venda',
-      status: 'Posted',
+      status: 'Posted', sourceType: 'manual',
       postings: [
         { debitCents: 50000, creditCents: 0, account: { code: '1.1', name: 'Caixa' } },
         { debitCents: 0, creditCents: 50000, account: { code: '3.1', name: 'Receita' } },
       ],
     },
+    // When closed, the diary also carries the encerramento entry (sourceType='closing').
+    ...(closed
+      ? [
+          {
+            id: 'enc', entryNumber: 2, date: new Date('2026-12-31T00:00:00Z'),
+            description: 'Encerramento do exercício 2026', status: 'Posted', sourceType: 'closing',
+            postings: [
+              { debitCents: 50000, creditCents: 0, account: { code: '3.1', name: 'Receita' } },
+              { debitCents: 0, creditCents: 50000, account: { code: '2.3.1', name: 'Lucros Acumulados' } },
+            ],
+          },
+        ]
+      : []),
   ]);
-  const journalEntryRepo = { findManyForExport } as never;
+  // findBySource(closing, year): non-null iff the exercise is closed → drives I350/I355 emission.
+  const findBySource = jest.fn(async () => (closed ? { id: 'enc', sourceType: 'closing', sourceId: '2026' } : null));
+  const journalEntryRepo = { findManyForExport, findBySource } as never;
 
   const referential = {
     coverage: jest.fn(async () => ({
@@ -153,6 +178,29 @@ describe('SpedGenerationService.generate', () => {
   it('rejects with ForbiddenError when policy denies read (tenancy)', async () => {
     const { service } = buildService({ canRead: false });
     await expect(service.generate(scope, makeDto())).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('a CLOSED exercise emits I350 + I355 and marks the closing entry I200 with IND_LCTO=E (BE-INCR-SPED-APURACAO)', async () => {
+    const { service } = buildService({ closed: true });
+    await service.generate(scope, makeDto());
+    const lines = producedLines();
+
+    // I350 with DT_RES = 31/12; I355 with the pre-closing revenue balance (credor 500,00).
+    expect(lines).toContain('|I350|31122026|');
+    expect(lines.find((l) => l.startsWith('|I355|3.1|'))).toBe('|I355|3.1||500,00|C|');
+
+    // The closing entry's I200 carries IND_LCTO='E'; the operational one stays 'N'.
+    const i200 = lines.filter((l) => l.startsWith('|I200|'));
+    expect(i200.some((l) => l.split('|')[5] === 'E')).toBe(true);
+    expect(i200.some((l) => l.split('|')[5] === 'N')).toBe(true);
+  });
+
+  it('an UNCLOSED exercise emits neither I350 nor I355', async () => {
+    const { service } = buildService();
+    await service.generate(scope, makeDto());
+    const lines = producedLines();
+    expect(lines.some((l) => l.startsWith('|I350|'))).toBe(false);
+    expect(lines.some((l) => l.startsWith('|I355|'))).toBe(false);
   });
 
   it('reads the ledger with LEDGER_STATUSES (Posted/Reconciled/Reversed) — never Draft (D6)', async () => {

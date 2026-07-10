@@ -90,6 +90,7 @@ function buildService(over: {
     findBySource: jest.fn(async () => null),
     setStatus: jest.fn(async () => ({ id: 'entry-1', status: 'Reversed' })),
     setReversedBy: jest.fn(async () => ({ id: 'entry-1' })),
+    setSourceId: jest.fn(async () => {}),
     ...over.journalEntryRepo,
   };
 
@@ -399,6 +400,64 @@ describe('PostingService', () => {
       // the returned reversal is built as { ...reversal, postings } — same id, hydrated legs
       expect(rev.id).toBe('rev-1');
       expect(orig.status).toBe('Reversed');
+    });
+
+    it('reversing a CLOSING entry: reversal inherits sourceType=closing AND the original key is freed (D5)', async () => {
+      // A closing entry keys on sourceType='closing', sourceId=String(year); its fiscalYear is 2026.
+      const closingOriginal = {
+        ...original,
+        sourceType: 'closing',
+        sourceId: '2026',
+        fiscalYear: 2026,
+      };
+      const reversal = { id: 'rev-1', sourceType: 'closing', sourceId: 'entry-1', postings: [] };
+      const findById = jest
+        .fn()
+        .mockResolvedValueOnce(closingOriginal)
+        .mockResolvedValueOnce({ ...closingOriginal, status: 'Reversed', reversedById: 'rev-1' });
+      const { svc, journalEntryRepo } = buildService({
+        journalEntryRepo: {
+          findById,
+          findBySource: jest.fn(async () => null),
+          create: jest.fn(async () => reversal),
+        },
+      });
+
+      await svc.reverseEntry(scope, {
+        unitId,
+        lancamentoId: 'entry-1',
+        reversalPostingDate: '2026-12-31',
+      });
+
+      // (a) reversal inherits sourceType='closing' so it too is excluded from the DRE.
+      expect(journalEntryRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceType: 'closing', sourceId: 'entry-1' }),
+        txHandle,
+      );
+      // (b) the original's key is freed so a fresh close(2026) can post a NEW entry.
+      expect(journalEntryRepo.setSourceId).toHaveBeenCalledWith(
+        scope,
+        'entry-1',
+        'closing:2026:reversed:entry-1',
+        txHandle,
+      );
+    });
+
+    it('reversing a NORMAL entry does not free any key and stays sourceType=reversal', async () => {
+      const reversal = { id: 'rev-2', sourceType: 'reversal', sourceId: 'entry-1', postings: [] };
+      const findById = jest
+        .fn()
+        .mockResolvedValueOnce(original)
+        .mockResolvedValueOnce({ ...original, status: 'Reversed', reversedById: 'rev-2' });
+      const { svc, journalEntryRepo } = buildService({
+        journalEntryRepo: { findById, findBySource: jest.fn(async () => null), create: jest.fn(async () => reversal) },
+      });
+      await svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1', reversalPostingDate: '2026-06-23' });
+      expect(journalEntryRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceType: 'reversal' }),
+        txHandle,
+      );
+      expect(journalEntryRepo.setSourceId).not.toHaveBeenCalled();
     });
 
     it('rejects reversing a non-Posted entry (e.g. Draft) → ValidationError, no write', async () => {

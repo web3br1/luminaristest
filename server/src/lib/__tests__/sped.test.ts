@@ -25,6 +25,8 @@ import {
   buildI150,
   buildI155,
   buildI200,
+  buildI350,
+  buildI355,
   buildI250,
   buildJ005,
   buildJ100,
@@ -215,6 +217,23 @@ describe('register builders', () => {
     );
   });
 
+  it("I200 carries IND_LCTO='E' for a closing entry (BE-INCR-SPED-APURACAO)", () => {
+    expect(
+      buildI200({ numLcto: '9', dtLcto: '2026-12-31', vlLctoCents: 60000, indLcto: 'E' }),
+    ).toBe('|I200|9|31122026|600,00|E||');
+  });
+
+  it('I350 = 2 fields, DT_RES only (pp. 155-156)', () => {
+    expect(buildI350('2026-12-31')).toBe('|I350|31122026|');
+  });
+
+  it('I355 = 5 fields, VL_CTA unsigned + IND_DC (pp. 157-158)', () => {
+    // Receita (saldo credor) → magnitude sem sinal + IND_DC=C.
+    expect(buildI355({ codCta: '3.1', saldoCents: -150000 })).toBe('|I355|3.1||1500,00|C|');
+    // Despesa (saldo devedor) → IND_DC=D.
+    expect(buildI355({ codCta: '4.1', saldoCents: 90000 })).toBe('|I355|4.1||900,00|D|');
+  });
+
   it('I250 = 9 fields, HIST filled, participante empty (pp. 147-148)', () => {
     expect(
       buildI250({ codCta: '1.1.1.01', vlCents: 130000, indDc: 'D', hist: 'Recebimento' }),
@@ -354,6 +373,28 @@ describe('buildEcdFile — assembly', () => {
     const last = lines[lines.length - 1].slice(1, -1).split('|');
     expect(last[0]).toBe('9999');
     expect(Number(last[1])).toBe(lines.length);
+  });
+
+  it('emits no I350/I355 when the exercise is not closed (resultClosing absent)', () => {
+    const regs = buildEcdFile(minimalInput()).map((l) => l.split('|')[1]);
+    expect(regs).not.toContain('I350');
+    expect(regs).not.toContain('I355');
+  });
+
+  it('emits I350 + I355 after the diary and before I990 when closed (BE-INCR-SPED-APURACAO)', () => {
+    const input = minimalInput();
+    input.resultClosing = { dtRes: '2026-12-31', saldos: [{ codCta: '3.1', saldoCents: -50000 }] };
+    const lines = buildEcdFile(input);
+    const regs = lines.map((l) => l.split('|')[1]);
+    expect(regs).toContain('I350');
+    expect(regs).toContain('I355');
+    // I350/I355 sit after the diary (I250) and before the block closer I990.
+    expect(regs.indexOf('I250')).toBeLessThan(regs.indexOf('I350'));
+    expect(regs.indexOf('I350')).toBeLessThan(regs.indexOf('I355'));
+    expect(regs.indexOf('I355')).toBeLessThan(regs.indexOf('I990'));
+    // The I350 carries DT_RES = 31/12; the I355 the pre-closing revenue balance (credor).
+    expect(lines.find((l) => l.startsWith('|I350|'))).toBe('|I350|31122026|');
+    expect(lines.find((l) => l.startsWith('|I355|'))).toBe('|I355|3.1||500,00|C|');
   });
 
   it('I030.QTD_LIN and J900.QTD_LIN both equal 9999 total (cross-register rule)', () => {

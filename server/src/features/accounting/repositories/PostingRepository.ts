@@ -40,7 +40,7 @@ export class PostingRepository implements IPostingRepository {
   public async groupByAccount(
     scope: AccountingScope,
     statuses: string[],
-    options?: { from?: Date; to?: Date },
+    options?: { from?: Date; to?: Date; excludeSourceTypes?: string[] },
   ): Promise<AccountPostingTotals[]> {
     const dateFilter =
       options?.from || options?.to
@@ -51,11 +51,15 @@ export class PostingRepository implements IPostingRepository {
             },
           }
         : {};
+    const sourceTypeFilter =
+      options?.excludeSourceTypes && options.excludeSourceTypes.length > 0
+        ? { sourceType: { notIn: options.excludeSourceTypes } }
+        : {};
     const grouped = await prisma.posting.groupBy({
       by: ['accountId'],
       where: {
         ...accountingScopeWhere(scope),
-        entry: { status: { in: statuses }, ...dateFilter },
+        entry: { status: { in: statuses }, ...dateFilter, ...sourceTypeFilter },
       },
       _sum: { debitCents: true, creditCents: true },
     });
