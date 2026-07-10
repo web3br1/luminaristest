@@ -347,7 +347,8 @@ export interface RegI200Input {
 /**
  * I200 — Lançamento contábil (6 campos MVP). Manual pp. 142-143. Ordem: REG,
  * NUM_LCTO, DT_LCTO, VL_LCTO, IND_LCTO, DT_LCTO_EXT. Campo 07 (VL_LCTO_MF) só com
- * moeda funcional. IND_LCTO='N' no MVP (sem apuração/encerramento I350/I355).
+ * moeda funcional. IND_LCTO: 'E' para lançamento de encerramento das contas de resultado
+ * (derivado de sourceType='closing'), 'N' para os demais (BE-INCR-SPED-APURACAO).
  */
 export function buildI200(i: RegI200Input): string {
   return spedLine([
@@ -387,6 +388,38 @@ export function buildI250(i: RegI250Input): string {
     i.codHistPad ?? EMPTY,
     i.hist,
     i.codPart ?? EMPTY,
+  ]);
+}
+
+/** I350 — Saldos das contas de resultado antes do encerramento, identificação da data
+ * (2 campos). REG, DT_RES. Manual pp. 155-156. DT_RES = data da apuração do resultado, tem
+ * de `== I030.DT_EX_SOCIAL` (31/12) e estar em `[0000.DT_INI, DT_FIN]`
+ * (REGRA_ENCERRAMENTO_EXERCICIO / REGRA_DATA_INTERVALO_DO_ARQUIVO). Exemplo `|I350|31032023|`. */
+export function buildI350(dtRes: string): string {
+  return spedLine(['I350', spedDate(dtRes)]);
+}
+
+export interface RegI355Input {
+  codCta: string;
+  codCcus?: string;
+  saldoCents: number; // signed (debit − credit) do saldo ANTES do encerramento
+}
+
+/**
+ * I355 — Detalhes dos saldos das contas de resultado antes do encerramento (5 campos MVP).
+ * Manual pp. 157-158. Ordem: REG, COD_CTA, COD_CCUS, VL_CTA, IND_DC. Campos 06-07 (moeda
+ * funcional) só com 0000.IDENT_MF='S' — fora do MVP. VL_CTA = magnitude sem sinal; IND_DC = D
+ * (devedor, saldo≥0) / C (credor, saldo<0). Filho do I350; só conta analítica de resultado
+ * (COD_NAT='04'). O saldo é o MESMO que a soma das partidas de encerramento (IND_LCTO='E') com
+ * D/C invertido (REGRA_VALIDACAO_SALDO_CONTA) — cai por construção.
+ */
+export function buildI355(i: RegI355Input): string {
+  return spedLine([
+    'I355',
+    i.codCta,
+    i.codCcus ?? EMPTY,
+    centsToSpedDecimal(i.saldoCents),
+    dcIndicator(i.saldoCents),
   ]);
 }
 
@@ -596,6 +629,12 @@ export interface EcdFileInput {
   accounts: EcdI050Node[]; // já ordenadas por code (determinismo)
   months: EcdMonth[]; // 12 no ano cheio (D11)
   entries: EcdEntry[]; // já ordenados por date+entryNumber (determinismo)
+  /**
+   * Saldos das contas de resultado ANTES do encerramento (I350 + I355). Presente SÓ quando o
+   * exercício está encerrado (há lançamento de encerramento) — BE-INCR-SPED-APURACAO. Ausente ⇒
+   * I350/I355 não emitidos (exercício não-encerrado; a ECD mantém o resíduo de valor do bloco J).
+   */
+  resultClosing?: { dtRes: string; saldos: RegI355Input[] };
   balanceSheet: RegJ100Line[];
   incomeStatement: RegJ150Line[];
   signers: RegJ930Signer[];
@@ -666,6 +705,12 @@ export function buildEcdFile(input: EcdFileInput): string[] {
     blockI.push(buildI200(e.entry));
     for (const leg of e.legs) blockI.push(buildI250(leg));
   }
+  // Saldos das contas de resultado antes do encerramento (I350 + I355), após o diário e antes
+  // do I990 — só quando o exercício está encerrado (BE-INCR-SPED-APURACAO).
+  if (input.resultClosing) {
+    blockI.push(buildI350(input.resultClosing.dtRes));
+    for (const s of input.resultClosing.saldos) blockI.push(buildI355(s));
+  }
   blockI.push(EMPTY); // slot do I990
   blockI[blockI.length - 1] = buildBlockClose('I990', blockI.length);
 
@@ -732,5 +777,15 @@ export function __selfCheck(): void {
     buildI155({ codCta: '1', saldoIniCents: 0, debitCents: 0, creditCents: 0, saldoFinCents: 0 }) ===
       '|I155|1||0,00|D|0,00|0,00|0,00|D|',
     'i155 zero',
+  );
+  // I350/I355 — encerramento (BE-INCR-SPED-APURACAO). Saldo credor (receita) ⇒ IND_DC=C.
+  assert(buildI350('2026-12-31') === '|I350|31122026|', 'i350');
+  assert(
+    buildI355({ codCta: '3.1', saldoCents: -150000 }) === '|I355|3.1||1500,00|C|',
+    'i355 credor',
+  );
+  assert(
+    buildI355({ codCta: '4.1', saldoCents: 90000 }) === '|I355|4.1||900,00|D|',
+    'i355 devedor',
   );
 }

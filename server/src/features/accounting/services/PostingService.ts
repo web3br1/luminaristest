@@ -3,6 +3,7 @@ import logger from '../../../lib/logger';
 import { Prisma } from 'generated/prisma';
 import type { Account } from 'generated/prisma';
 import { CANONICAL_ACCOUNTS } from '../fixtures/ChartOfAccountsFixture';
+import { CLOSING_SOURCE_TYPE, reversedClosingSourceId } from '../models/closing';
 import type { CreateAccountInput, PostEntryInput, ReverseEntryInput } from '../dtos/PostingDto';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
 import type {
@@ -393,6 +394,12 @@ export class PostingService {
           tx,
         );
 
+        // Reversing a CLOSING entry is itself part of the closing mechanism (D3/D5):
+        // the reversal inherits sourceType='closing' so it too is EXCLUDED from the DRE —
+        // otherwise its result-account legs would leak back into the operational result.
+        const isClosingReversal = original.sourceType === CLOSING_SOURCE_TYPE;
+        const reversalSourceType = isClosingReversal ? CLOSING_SOURCE_TYPE : 'reversal';
+
         const reversal = await this.journalEntryRepo.create(
           {
             userId,
@@ -400,7 +407,7 @@ export class PostingService {
             date: new Date(input.reversalPostingDate),
             description: input.reason ? `Estorno de ${original.id} — ${input.reason}` : `Estorno de ${original.id}`,
             status: 'Posted',
-            sourceType: 'reversal',
+            sourceType: reversalSourceType,
             sourceId: original.id,
             createdById: scope.actorUserId,
             postedById: scope.actorUserId,
@@ -427,6 +434,20 @@ export class PostingService {
 
         await this.journalEntryRepo.setStatus(scope, original.id, 'Reversed', tx);
         await this.journalEntryRepo.setReversedBy(scope, original.id, reversal.id, tx);
+
+        // FREE THE IDEMPOTENCY KEY (D5): a closing entry keys on sourceId=String(year); once
+        // reversed, rename it so the @@unique(...,sourceType,sourceId) is available again and a
+        // fresh closeExercise(year) produces a NEW entry instead of tripping P2002 on the
+        // reversed one. Same tx as the status flip (ACC-011/019). The renamed entry keeps
+        // sourceType='closing' → still DRE-excluded.
+        if (isClosingReversal) {
+          await this.journalEntryRepo.setSourceId(
+            scope,
+            original.id,
+            reversedClosingSourceId(original.fiscalYear, original.id),
+            tx,
+          );
+        }
 
         const reversalPostings = await this.postingRepo.findByEntryId(scope, reversal.id, tx);
         await this.auditService.append(tx, scope, {

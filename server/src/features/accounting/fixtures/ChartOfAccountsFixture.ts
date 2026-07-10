@@ -29,6 +29,12 @@ export const CANONICAL_ACCOUNTS: ReadonlyArray<CanonicalAccount> = [
   // liability (service delivered against an advance), NEVER cash. `2` is the synthetic root.
   { code: '2', name: 'Passivo', nature: 'Liability', acceptsEntries: false },
   { code: '2.1.1', name: 'Pacotes Pré-pagos', nature: 'Liability', acceptsEntries: true },
+  // Patrimônio Líquido (BE-INCR-SPED-APURACAO / D4): the closing entry (encerramento do
+  // resultado) posts the exercise's net result here. `2.3` is the synthetic PL branch under the
+  // `2` Passivo group (COD_NAT is per-account in I050, so a PL leaf under Passivo is conforme);
+  // `2.3.1` is the analytic retained-earnings leaf that receives the closing partida.
+  { code: '2.3', name: 'Patrimônio Líquido', nature: 'Equity', acceptsEntries: false },
+  { code: '2.3.1', name: 'Lucros ou Prejuízos Acumulados', nature: 'Equity', acceptsEntries: true },
   { code: '3', name: 'Receita', nature: 'Revenue', acceptsEntries: false },
   { code: '3.1', name: 'Receita de Vendas', nature: 'Revenue', acceptsEntries: true },
   // Contra-revenue (Incremento D / D2-Q5a): a return debits this Revenue-nature leaf, so
@@ -37,3 +43,10 @@ export const CANONICAL_ACCOUNTS: ReadonlyArray<CanonicalAccount> = [
   { code: '4', name: 'Despesa', nature: 'Expense', acceptsEntries: false },
   { code: '4.1', name: 'Despesas Operacionais', nature: 'Expense', acceptsEntries: true },
 ];
+
+/**
+ * Canonical retained-earnings leaf (Lucros ou Prejuízos Acumulados). The year-end closing
+ * entry (BE-INCR-SPED-APURACAO) posts the net result of the exercise against this account.
+ * Resolved by CODE (stable), never by name.
+ */
+export const RETAINED_EARNINGS_CODE = '2.3.1';

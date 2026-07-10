@@ -70,6 +70,18 @@ export interface IJournalEntryRepository {
   ): Promise<void>;
 
   /**
+   * Rewrites an entry's `sourceId` (idempotency key). Used ONLY to FREE the key of a
+   * reversed closing entry so the exercise can be closed again (BE-INCR-SPED-APURACAO
+   * D5, memory `unique-de-idempotencia-x-soft-delete`). Tenant-scoped; throws if not found.
+   */
+  setSourceId(
+    scope: AccountingScope,
+    id: string,
+    sourceId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void>;
+
+  /**
    * Lists entries for the scope paginated, with postings including account code+name.
    * Ordered by date descending.
    */

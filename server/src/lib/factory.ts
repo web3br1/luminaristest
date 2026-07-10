@@ -62,6 +62,7 @@ import { DocumentAttachmentService } from '../features/accounting/services/Docum
 import { DataExchangeExportService } from '../features/accounting/services/DataExchangeExportService';
 import { DataExchangeImportService } from '../features/accounting/services/DataExchangeImportService';
 import { SpedGenerationService } from '../features/accounting/services/SpedGenerationService';
+import { ExerciseClosingService } from '../features/accounting/services/ExerciseClosingService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
@@ -185,6 +186,7 @@ export class ApplicationFactory {
     dataExchangeExport: DataExchangeExportService;
     dataExchangeImport: DataExchangeImportService;
     sped: SpedGenerationService;
+    exerciseClosing: ExerciseClosingService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
@@ -421,6 +423,12 @@ export class ApplicationFactory {
         this.repositories.dataExchange,
         auditService,
       ),
+      exerciseClosing: new ExerciseClosingService(
+        this.repositories.account,
+        this.repositories.posting,
+        postingService,
+        this.policies.accounting,
+      ),
       packageBalance: packageBalanceService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
@@ -464,6 +472,7 @@ export class ApplicationFactory {
   public getDataExchangeExportService = (): DataExchangeExportService => this.services.dataExchangeExport;
   public getDataExchangeImportService = (): DataExchangeImportService => this.services.dataExchangeImport;
   public getSpedGenerationService = (): SpedGenerationService => this.services.sped;
+  public getExerciseClosingService = (): ExerciseClosingService => this.services.exerciseClosing;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;
