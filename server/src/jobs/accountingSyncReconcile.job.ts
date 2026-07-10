@@ -15,6 +15,7 @@ import { logger } from '../lib/logger';
 import { getFactory } from '../lib/factory';
 import { resolveAccountingScope } from '../features/accounting/scope/AccountingScope';
 import type { AccountingScope } from '../features/accounting/scope/AccountingScope';
+import { LEDGER_STATUSES } from '../features/accounting/models/ledgerStatus';
 import {
   buildOpportunityWonEvent,
   buildSalonSaleFinalizedEvent,
@@ -959,10 +960,9 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
       });
       if (!account) return 0;
       const agg = await prisma.posting.aggregate({
-        // Ledger-status class (emenda INCR4-A): 'Reconciled' is economically identical
-        // to 'Posted' — omitting it would silently shrink the liability balance once a
-        // package entry gets bank-reconciled (ADR-INCR7 D5).
-        where: { accountId: account.id, entry: { status: { in: ['Posted', 'Reconciled', 'Reversed'] } } },
+        // Same ledger-status class as the reports (see LEDGER_STATUSES JSDoc): including
+        // 'Reconciled' keeps the liability balance stable once a package entry is bank-reconciled.
+        where: { accountId: account.id, entry: { status: { in: LEDGER_STATUSES } } },
         _sum: { debitCents: true, creditCents: true },
       });
       // 2.1.1 is a liability (credit-normal): balance = Σcredit − Σdebit.

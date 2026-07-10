@@ -12,6 +12,7 @@ import type { ReferentialMappingService } from './ReferentialMappingService';
 import type { AccountingReportService } from './AccountingReportService';
 import { toJobResponse, type DataExchangeJobResponse } from './dataExchangeMappers';
 import type { SpedEcdRequestDto } from '../dtos/SpedEcdDto';
+import { LEDGER_STATUSES } from '../models/ledgerStatus';
 import {
   buildEcdFile,
   serializeEcd,
@@ -25,14 +26,6 @@ import {
   type RegJ150Line,
 } from '../../../lib/sped';
 import { CLOSING_SOURCE_TYPE, IND_LCTO_ENCERRAMENTO } from '../models/closing';
-
-/**
- * Ledger statuses that make up the escrituração: everything except Draft.
- * Mirrors AccountingReportService.LEDGER_STATUSES (private there) — a Reversed
- * entry and its reversal both appear (T5); Draft never does (D6). Kept in one
- * place per module; if the canonical list changes, change both.
- */
-const LEDGER_STATUSES = ['Posted', 'Reconciled', 'Reversed'];
 
 /** Account.nature -> I050 COD_NAT (manual p. 118 table). */
 function natureToCodNat(nature: string): string {
