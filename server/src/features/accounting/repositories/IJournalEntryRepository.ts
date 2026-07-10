@@ -70,6 +70,18 @@ export interface IJournalEntryRepository {
   ): Promise<void>;
 
   /**
+   * Rewrites an entry's `sourceId` (idempotency key). Used ONLY to FREE the key of a
+   * reversed closing entry so the exercise can be closed again (BE-INCR-SPED-APURACAO
+   * D5, memory `unique-de-idempotencia-x-soft-delete`). Tenant-scoped; throws if not found.
+   */
+  setSourceId(
+    scope: AccountingScope,
+    id: string,
+    sourceId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void>;
+
+  /**
    * Lists entries for the scope paginated, with postings including account code+name.
    * Ordered by date descending.
    */
@@ -78,4 +90,17 @@ export interface IJournalEntryRepository {
     skip: number,
     take: number,
   ): Promise<{ entries: JournalEntryWithFullPostings[]; total: number }>;
+
+  /**
+   * Lists ALL entries (no pagination) in a date window whose status is in `statuses`,
+   * with postings + account code/name, ordered deterministically by (date, entryNumber)
+   * ASC. Backs the SPED ECD Diário (I200/I250, ADR-INCR-SPED-ECD D9): the read
+   * "entries+legs by window, LEDGER_STATUSES" that no by-account report exposed.
+   * Read-only.
+   */
+  findManyForExport(
+    scope: AccountingScope,
+    statuses: string[],
+    window: { from: Date; to: Date },
+  ): Promise<JournalEntryWithFullPostings[]>;
 }

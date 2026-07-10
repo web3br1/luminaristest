@@ -28,29 +28,37 @@ const options = {
   ],
 };
 
-const specs = swaggerJSDoc(options);
+// Exported so the regression test can build the spec straight from source (catching a
+// swagger-jsdoc silent path-drop BEFORE the regenerated openapi.json is committed).
+module.exports = { options };
 
-const outDir = path.resolve(process.cwd(), 'public');
-const outFile = path.join(outDir, 'openapi.json');
+function generate() {
+  const specs = swaggerJSDoc(options);
 
-if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+  const outDir = path.resolve(process.cwd(), 'public');
+  const outFile = path.join(outDir, 'openapi.json');
 
-const json = JSON.stringify(specs, null, 2);
-fs.writeFileSync(outFile, json);
+  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-// Validate generated JSON
-JSON.parse(json);
+  const json = JSON.stringify(specs, null, 2);
+  fs.writeFileSync(outFile, json);
 
-const pathCount = Object.keys(specs.paths || {}).length;
-const methods = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'];
-const operationCount = Object.values(specs.paths || {}).reduce(
-  (n, item) => n + methods.filter((m) => item[m]).length,
-  0
-);
+  // Validate generated JSON
+  JSON.parse(json);
 
-console.log('OpenAPI spec generated at', outFile);
-console.log('  Paths:      ' + pathCount);
-console.log('  Operations: ' + operationCount);
-console.log('  JSON is valid.');
+  const pathCount = Object.keys(specs.paths || {}).length;
+  const methods = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'];
+  const operationCount = Object.values(specs.paths || {}).reduce(
+    (n, item) => n + methods.filter((m) => item[m]).length,
+    0
+  );
+
+  console.log('OpenAPI spec generated at', outFile);
+  console.log('  Paths:      ' + pathCount);
+  console.log('  Operations: ' + operationCount);
+  console.log('  JSON is valid.');
+}
+
+if (require.main === module) generate();
 
 

@@ -61,6 +61,8 @@ import { ReferentialMappingService } from '../features/accounting/services/Refer
 import { DocumentAttachmentService } from '../features/accounting/services/DocumentAttachmentService';
 import { DataExchangeExportService } from '../features/accounting/services/DataExchangeExportService';
 import { DataExchangeImportService } from '../features/accounting/services/DataExchangeImportService';
+import { SpedGenerationService } from '../features/accounting/services/SpedGenerationService';
+import { ExerciseClosingService } from '../features/accounting/services/ExerciseClosingService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
@@ -183,6 +185,8 @@ export class ApplicationFactory {
     documentAttachment: DocumentAttachmentService;
     dataExchangeExport: DataExchangeExportService;
     dataExchangeImport: DataExchangeImportService;
+    sped: SpedGenerationService;
+    exerciseClosing: ExerciseClosingService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
@@ -334,6 +338,13 @@ export class ApplicationFactory {
       this.repositories.dynamicTable
     );
 
+    const referentialMappingService = new ReferentialMappingService(
+      this.repositories.referentialMapping,
+      this.repositories.account,
+      this.policies.accounting,
+      auditService,
+    );
+
     this.services = {
       chat: new ChatService(
         embeddingOpenAIService,
@@ -382,12 +393,7 @@ export class ApplicationFactory {
         this.policies.accounting,
         auditService,
       ),
-      referentialMapping: new ReferentialMappingService(
-        this.repositories.referentialMapping,
-        this.repositories.account,
-        this.policies.accounting,
-        auditService,
-      ),
+      referentialMapping: referentialMappingService,
       documentAttachment: new DocumentAttachmentService(
         this.repositories.documentAttachment,
         this.policies.accounting,
@@ -406,6 +412,22 @@ export class ApplicationFactory {
         auditService,
         postingService,
         postingService,
+      ),
+      sped: new SpedGenerationService(
+        this.repositories.account,
+        this.repositories.posting,
+        this.repositories.journalEntry,
+        referentialMappingService,
+        accountingReportService,
+        this.policies.accounting,
+        this.repositories.dataExchange,
+        auditService,
+      ),
+      exerciseClosing: new ExerciseClosingService(
+        this.repositories.account,
+        this.repositories.posting,
+        postingService,
+        this.policies.accounting,
       ),
       packageBalance: packageBalanceService,
       presetSync: presetSyncService,
@@ -449,6 +471,8 @@ export class ApplicationFactory {
   public getDocumentAttachmentService = (): DocumentAttachmentService => this.services.documentAttachment;
   public getDataExchangeExportService = (): DataExchangeExportService => this.services.dataExchangeExport;
   public getDataExchangeImportService = (): DataExchangeImportService => this.services.dataExchangeImport;
+  public getSpedGenerationService = (): SpedGenerationService => this.services.sped;
+  public getExerciseClosingService = (): ExerciseClosingService => this.services.exerciseClosing;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;

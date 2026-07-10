@@ -52,6 +52,8 @@ import {
   listReferentialMappings,
   getReferentialCoverage,
 } from '../controllers/referentialMappingController';
+import { generateSpedEcd } from '../controllers/spedController';
+import { closeExercise } from '../controllers/closingController';
 
 const router = Router();
 
@@ -86,6 +88,13 @@ router.get('/data-exchange/jobs/:jobId', getDataExchangeJob);
 router.get('/data-exchange/jobs/:jobId/rows', listDataExchangeRows);
 router.get('/data-exchange/jobs/:jobId/download', downloadDataExchangeArtifact);
 router.post('/data-exchange/jobs/:jobId/commit', commitDataExchangeImport);
+
+// SPED Contábil (ECD) — generate the `.txt` file (download reuses the job route above).
+router.post('/sped/ecd/generate', generateSpedEcd);
+
+// Year-end result closing (encerramento/apuração do resultado, BE-INCR-SPED-APURACAO).
+// Reopening = reverse the returned entry via POST /reverse (frees the idempotency key).
+router.post('/closing/exercise', closeExercise);
 
 // Bank reconciliation — statement import, match/unmatch, pending report (BE-INCR-7).
 router.post('/reconciliation/statements', bankStatementUpload, importBankStatement);

@@ -94,6 +94,21 @@ export class JournalEntryRepository implements IJournalEntryRepository {
     }
   }
 
+  public async setSourceId(
+    scope: AccountingScope,
+    id: string,
+    sourceId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const { count } = await (tx ?? prisma).journalEntry.updateMany({
+      where: { id, ...accountingScopeWhere(scope) },
+      data: { sourceId },
+    });
+    if (count === 0) {
+      throw new NotFoundError(`Lançamento '${id}' não encontrado para renomear sourceId.`);
+    }
+  }
+
   public async findManyByUnit(
     scope: AccountingScope,
     skip: number,
@@ -115,5 +130,26 @@ export class JournalEntryRepository implements IJournalEntryRepository {
       prisma.journalEntry.count({ where }),
     ]);
     return { entries: entries as JournalEntryWithFullPostings[], total };
+  }
+
+  public async findManyForExport(
+    scope: AccountingScope,
+    statuses: string[],
+    window: { from: Date; to: Date },
+  ): Promise<JournalEntryWithFullPostings[]> {
+    const entries = await prisma.journalEntry.findMany({
+      where: {
+        ...accountingScopeWhere(scope),
+        status: { in: statuses },
+        date: { gte: window.from, lte: window.to },
+      },
+      orderBy: [{ date: 'asc' }, { entryNumber: 'asc' }],
+      include: {
+        postings: {
+          include: { account: { select: { code: true, name: true } } },
+        },
+      },
+    });
+    return entries as JournalEntryWithFullPostings[];
   }
 }

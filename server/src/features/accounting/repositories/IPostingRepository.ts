@@ -40,12 +40,15 @@ export interface IPostingRepository {
    * Sums debit/credit per account across all postings whose parent entry has one of
    * the given statuses, scoped via AccountingScope. Backs the trial balance.
    * Optional `from`/`to` filter on the entry date (inclusive bounds).
-   * Omitting both is identical to the prior behaviour (no date clause added).
+   * Optional `excludeSourceTypes` drops entries whose `sourceType` is in the list —
+   * used to compute the PRE-closing DRE (excluding `sourceType='closing'`,
+   * BE-INCR-SPED-APURACAO D3/D7). Omitting all options is identical to the prior
+   * behaviour (no extra clause added).
    */
   groupByAccount(
     scope: AccountingScope,
     statuses: string[],
-    options?: { from?: Date; to?: Date },
+    options?: { from?: Date; to?: Date; excludeSourceTypes?: string[] },
   ): Promise<AccountPostingTotals[]>;
 
   /**
