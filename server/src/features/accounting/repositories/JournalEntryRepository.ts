@@ -94,6 +94,21 @@ export class JournalEntryRepository implements IJournalEntryRepository {
     }
   }
 
+  public async setSourceId(
+    scope: AccountingScope,
+    id: string,
+    sourceId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const { count } = await (tx ?? prisma).journalEntry.updateMany({
+      where: { id, ...accountingScopeWhere(scope) },
+      data: { sourceId },
+    });
+    if (count === 0) {
+      throw new NotFoundError(`Lançamento '${id}' não encontrado para renomear sourceId.`);
+    }
+  }
+
   public async findManyByUnit(
     scope: AccountingScope,
     skip: number,

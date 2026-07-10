@@ -20,9 +20,11 @@ import {
   type EcdMonth,
   type EcdEntry,
   type RegI155Input,
+  type RegI355Input,
   type RegJ100Line,
   type RegJ150Line,
 } from '../../../lib/sped';
+import { CLOSING_SOURCE_TYPE, IND_LCTO_ENCERRAMENTO } from '../models/closing';
 
 /**
  * Ledger statuses that make up the escrituração: everything except Draft.
@@ -73,13 +75,12 @@ const TWO = (n: number) => String(n).padStart(2, '0');
  * Coverage gate (D5): a leaf account with no referential mapping in the version
  * blocks generation with a ValidationError — no partial file is produced.
  *
- * Honest residual (ADR §5): PVA-clean IMPORT is a human sign-off. Value-level
- * J100/J150 reconciliation (REGRA_SOMA_DAS_PARCELAS / BALANCO_SALDO / ATIVO_
- * PASSIVO) presupposes the deferred apuração/encerramento (I350/I355 + a
- * retained-earnings posting): with the period result unclosed, the P-side
- * totalizer includes the result (so A=P holds, matching balanceSheet.balanced)
- * but its detail children sum short by exactly that result. The STRUCTURE
- * (register order/count, field layout, REGRA_OBRIGATORIO_I052) is fully met.
+ * Value reconciliation (BE-INCR-SPED-APURACAO): for an ENCERRADO exercise the closing
+ * entry (encerramento) zeroes the result accounts into retained earnings, so I155(dez)=0,
+ * the J100 P-side gains real equity detail (REGRA_SOMA fecha) and I350/I355 are emitted.
+ * For an UNCLOSED exercise the J-block value residual remains (structure still fully met) —
+ * generate after closing (POST /accounting/closing/exercise) to file a PVA-value-clean ECD.
+ * Honest residual (ADR §5): PVA-clean IMPORT is a human sign-off (RFB desktop validator).
  */
 export class SpedGenerationService {
   constructor(
@@ -270,10 +271,36 @@ export class SpedGenerationService {
           numLcto: String(e.entryNumber),
           dtLcto: e.date.toISOString().slice(0, 10),
           vlLctoCents,
+          // IND_LCTO='E' para lançamento de encerramento das contas de resultado, derivado do
+          // sourceType (BE-INCR-SPED-APURACAO D7) — nunca hardcoded.
+          indLcto: (e.sourceType === CLOSING_SOURCE_TYPE ? IND_LCTO_ENCERRAMENTO : 'N') as 'N' | 'E',
         },
         legs,
       };
     });
+
+    // ── I350/I355 — saldos das contas de resultado ANTES do encerramento ──
+    // Emitidos SÓ quando o exercício está encerrado (há lançamento de encerramento com
+    // sourceId=ano). Os saldos vêm da leitura closing-EXCLUSIVE até 31/12 (mesmo filtro da DRE,
+    // D3/D7): magnitude sem sinal + IND_DC. Só contas de resultado analíticas com saldo ≠ 0
+    // (espelham as partidas de encerramento — REGRA_VALIDACAO_SALDO_CONTA cai por construção).
+    const closingEntry = await this.journalEntryRepo.findBySource(scope, CLOSING_SOURCE_TYPE, String(year));
+    let resultClosing: { dtRes: string; saldos: RegI355Input[] } | undefined;
+    if (closingEntry) {
+      const preClose = await this.postingRepo.groupByAccount(scope, LEDGER_STATUSES, {
+        from: new Date(Date.UTC(year, 0, 1)), // janela anual — igual à DRE; corrige o 2º encerramento
+        to: new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999)),
+        excludeSourceTypes: [CLOSING_SOURCE_TYPE],
+      });
+      const preByAccount = new Map(preClose.map((t) => [t.accountId, t.debitCents - t.creditCents]));
+      const saldos: RegI355Input[] = accounts
+        .filter((a) => a.acceptsEntries && (a.nature === 'Revenue' || a.nature === 'Expense'))
+        .map((a) => ({ code: a.code, saldo: preByAccount.get(a.id) ?? 0 }))
+        .filter((r) => r.saldo !== 0)
+        .sort((a, b) => a.code.localeCompare(b.code))
+        .map((r) => ({ codCta: r.code, saldoCents: r.saldo }));
+      resultClosing = { dtRes: dtFin, saldos };
+    }
 
     // ── J100 / J150 (via INCR-4) ──
     const asOf = new Date(`${dtFin}T00:00:00.000Z`);
@@ -322,6 +349,7 @@ export class SpedGenerationService {
       accounts: i050Nodes,
       months,
       entries,
+      resultClosing,
       balanceSheet,
       incomeStatement,
       signers: dto.signers,
