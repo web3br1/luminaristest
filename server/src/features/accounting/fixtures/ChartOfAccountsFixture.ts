@@ -36,10 +36,16 @@ export const CANONICAL_ACCOUNTS: ReadonlyArray<CanonicalAccount> = [
   { code: '2.3', name: 'Patrimônio Líquido', nature: 'Equity', acceptsEntries: false },
   { code: '2.3.1', name: 'Lucros ou Prejuízos Acumulados', nature: 'Equity', acceptsEntries: true },
   { code: '3', name: 'Receita', nature: 'Revenue', acceptsEntries: false },
-  { code: '3.1', name: 'Receita de Vendas', nature: 'Revenue', acceptsEntries: true },
+  // Revenue split by NATURE (ADR-INCR-REVENUE-SPLIT): the ECF-Presumido Bloco P applies a
+  // per-activity presumption (services 32/32 vs resale 8/12), so revenue MUST be booked to
+  // distinct leaves. `3.1` keeps its stable code (holds posted history — ACC-018 forbids
+  // reparenting it) and becomes the SERVICES leaf; `3.3` is the added resale leaf. Cutover:
+  // new sales split from here on; history stays in `3.1` (backfill zero).
+  { code: '3.1', name: 'Receita de Serviços', nature: 'Revenue', acceptsEntries: true },
   // Contra-revenue (Incremento D / D2-Q5a): a return debits this Revenue-nature leaf, so
   // net revenue (Σ crédito − débito over Revenue accounts) is REDUCED by returns.
   { code: '3.2', name: 'Devoluções de Vendas', nature: 'Revenue', acceptsEntries: true },
+  { code: '3.3', name: 'Receita de Revenda de Mercadorias', nature: 'Revenue', acceptsEntries: true },
   { code: '4', name: 'Despesa', nature: 'Expense', acceptsEntries: false },
   { code: '4.1', name: 'Despesas Operacionais', nature: 'Expense', acceptsEntries: true },
 ];

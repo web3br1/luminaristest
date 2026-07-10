@@ -44,6 +44,13 @@ export type AccountingEvent = {
    * Pré-pagos). Undefined for every other event kind — the mapper that needs it validates it.
    */
   paymentMethod?: string;
+  /**
+   * Finalized revenue only (ADR-INCR-REVENUE-SPLIT): raw per-nature line subtotals (reais), so
+   * SalonSaleFinalizedMapper can split the credit across `3.1 Receita de Serviços` and
+   * `3.3 Receita de Revenda`. Undefined for every other event kind. When absent (or both zero),
+   * the mapper falls back to a single `3.1` credit (backwards-compatible).
+   */
+  revenueByNature?: { serviceReais: number; productReais: number };
 };
 
 /** Result of a sync: the (possibly pre-existing, via idempotency) journal entry id. */
@@ -98,6 +105,9 @@ export function buildSalonSaleFinalizedEvent(fields: {
   currency: string;
   occurredAt: string;
   label: string;
+  /** Raw per-nature subtotals (reais) for the revenue split (ADR-INCR-REVENUE-SPLIT). Optional:
+   *  when omitted the mapper books a single `3.1` credit (backwards-compatible). */
+  revenueByNature?: { serviceReais: number; productReais: number };
 }): AccountingEvent {
   return {
     sourceType: 'salon.sale.finalized',
@@ -107,6 +117,7 @@ export function buildSalonSaleFinalizedEvent(fields: {
     currency: fields.currency,
     occurredAt: fields.occurredAt,
     label: fields.label,
+    revenueByNature: fields.revenueByNature,
   };
 }
 
