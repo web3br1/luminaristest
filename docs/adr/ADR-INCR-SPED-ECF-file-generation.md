@@ -1,6 +1,6 @@
 # ADR-INCR-SPED-ECF — Geração do arquivo ECF (SPED Fiscal · IRPJ/CSLL · Lucro Presumido)
 
-- **Status:** **Proposed — FASE 1 (parecer + PLAN + ADR). Aguardando aval humano.** Nó ⚫ **DIFERIDO** no master map §5. NENHUM código escrito; nenhuma skill de geração roteada. A regra de uso do master map §1 proíbe rotear contra um nó ⚫ sem **ADR em disco + sinal humano** — este ADR é a metade "ADR em disco"; a FASE 2 (impl) só destrava com o sinal humano (§8).
+- **Status:** **Proposed — FASE 1 (parecer + PLAN + ADR). Forks de decisão RESOLVIDOS por sinal humano (2026-07-10).** Nó ⚫ **DIFERIDO** no master map §5. NENHUM código escrito; nenhuma skill de geração roteada. A regra de uso do master map §1 proíbe rotear contra um nó ⚫ sem **ADR em disco + sinal humano** — este ADR é a metade "ADR em disco". **Duas ratificações humanas registradas (2026-07-10):** (1) **FORK D5 → rota (b) recover-from-ECD** (Blocos C/E entram no MVP); (2) **D4 → TaxRegime transiente** (nada persistido). **A FASE 2 (impl) NÃO tem mais bloqueador de decisão** — resta travada apenas pelos **dois bloqueadores EXTERNOS** de dado (§5.1 código RFB da `3.3`; §5.2 receita CRM como serviço) que **não** são decisão nossa.
 - **Date:** 2026-07-10
 - **Decision class:** PRISMA_FIRST_CLASS · **READ/EXPORT** (leitura do ledger + apuração fiscal derivada + um write de metadados de job). **NÃO** muda valor de ledger. Contrato §2.1, T3.
 - **Depends on (tudo em `main`):** INCR-4 (`AccountingReportService` — BP/DRE + `getAccountBalances(scope,from?,to?)` com janela e `excludeSourceTypes`), INCR-6 (`AccountingDataExchangeJob` + `storage` + download de artefato), **INCR-8 (proveniência — pré-req §5 do master map)**, **INCR-9 (`ReferentialMapping` + cobertura chart-driven)**, **BE-INCR-REVENUE-SPLIT / PR #66 (split serviço `3.1` × revenda `3.3` — a base do Bloco P)**, BE-INCR-SPED-ECD / PR #62 (precedente de serializer posicional puro + coverage-gate), BE-INCR-SPED-APURACAO / PR #63 (encerramento — relevante para a **ECD** recuperada, não para a base fiscal presumida).
@@ -69,19 +69,24 @@ Alíquotas sobre a base presumida: **IRPJ 15%** + **adicional 10%** sobre a parc
 
 **Por quê:** o Presumido apura IRPJ/CSLL **trimestralmente** por lei — a apuração anual é do Real (estimativa mensal + ajuste anual). Tratar como anual falharia a estrutura do P030 e os limites do adicional (que são **por trimestre**). **Descartado:** apuração anual única — errada para o regime.
 
-### D4 — Regime/identificação = **DTO transiente + constantes de domínio**; SEM entidade `TaxRegime`/`LegalEntity` persistida no MVP  **[REFINA O BRIEF — a proposta de "novo agregado TaxRegime"]**
+### D4 — Regime/identificação = **DTO transiente + constantes de domínio**; SEM entidade `TaxRegime`/`LegalEntity` persistida no MVP  **[RATIFICADO POR SINAL HUMANO 2026-07-10 — REFINA O BRIEF: a proposta de "novo agregado TaxRegime" foi descartada]**
 **Decisão:** a declaração de regime (`0010.FORMA_TRIB=Presumido`), a identificação do declarante (`0000`: NOME/CNPJ/UF/COD_MUN/…), os signatários e o **período de apuração** entram como **parâmetros do DTO de geração** (transientes, por geração), exatamente como a ECD D3. As regras de presunção/alíquota são constantes de domínio (D2). **NÃO** se cria model `TaxRegime` nem `LegalEntity` no MVP.
 
-**Por quê (segue o precedente ECD D3 + evita reabrir a torre rejeitada):** persistir um `TaxRegime`/cadastro de empresa colidiria com a **torre multiempresa rejeitada** (master map §4; T2 = `AccountingScope` de 2 níveis, sem `LegalEntity`) e **não adiciona invariante que o banco precise garantir** no MVP — o regime é entrada de compliance por geração, e a única coisa "de estado" (a presunção por atividade) já vive no plano de contas (`3.1`/`3.3`). **Descartado/DIFERIDO:** model `TaxRegime` persistido (regime histórico + query por ano) — é **DECISÃO ARQUITETURAL** (ADR próprio + sinal humano) se um requisito futuro exigir histórico consultável de opção-de-regime; **se o design tender a persistir cadastro de empresa/estabelecimento → PARAR** (colide §4). **[HUMANO — §8:** confirmar que TaxRegime transiente basta para o MVP, ou se há requisito de persistência já hoje.]**
+**Por quê (segue o precedente ECD D3 + evita reabrir a torre rejeitada):** persistir um `TaxRegime`/cadastro de empresa colidiria com a **torre multiempresa rejeitada** (master map §4; T2 = `AccountingScope` de 2 níveis, sem `LegalEntity`) e **não adiciona invariante que o banco precise garantir** no MVP — o regime é entrada de compliance por geração, e a única coisa "de estado" (a presunção por atividade) já vive no plano de contas (`3.1`/`3.3`). **Descartado/DIFERIDO:** model `TaxRegime` persistido (regime histórico + query por ano) — é **DECISÃO ARQUITETURAL** (ADR próprio + sinal humano) se um requisito futuro exigir histórico consultável de opção-de-regime; **se o design tender a persistir cadastro de empresa/estabelecimento → PARAR** (colide §4).
 
-### D5 — Recuperação da ECD (Blocos C/E) = **FORK QUE EXIGE SINAL HUMANO**  **[decisão NÃO tomada nesta FASE 1]**
-**Contexto (grau INFERIDO — a confirmar contra o Manual da ECF na FASE 2):** a ECF de uma PJ que mantém escrituração contábil (**ECD**) tipicamente **recupera a ECD transmitida** — Bloco **C** (Informações Recuperadas da ECD, referenciando o **recibo/hash** da ECD transmitida) e Bloco **E** (Informações Recuperadas da ECD e Cálculos Fiscais — saldos contábeis recuperados). Luminaris **mantém escrituração contábil completa** (gera ECD — BE-INCR-SPED-ECD). Isso cria um **acoplamento**: a recuperação C/E depende de uma **ECD efetivamente transmitida** (com recibo), e a transmissão da ECD é ela própria um **passo humano residual** (PVA/Receitanet — fora deste ambiente).
+> **RATIFICADO (sinal humano, 2026-07-10):** TaxRegime **transiente por geração** (DTO) confirmado como suficiente para o MVP; **nada persistido**, sem reabrir a torre §4. Se surgir requisito de histórico de regime consultável, é ADR próprio — não deste incremento.
 
-**Duas rotas (a decidir com o humano, não aqui):**
-- **(a) Standalone (menor superfície):** preencher P100/P150 e os saldos do Bloco K **direto** de `AccountingReportService` (INCR-4) + `ReferentialMapping` (INCR-9), **sem** emitir C/E de recuperação. Simples e autocontido; **risco:** o PVA-ECF pode **exigir** recuperação da ECD para PJ que a possui ⇒ arquivo rejeitado por obrigatoriedade de bloco.
-- **(b) Recover-from-ECD (fiel):** emitir Bloco C/E referenciando o **hash/recibo da ECD transmitida**, recebido como **DTO transiente** (como a identificação do declarante). Mais fiel à obrigatoriedade; **custo:** depende do artefato humano (ECD transmitida) e de transcrição campo-a-campo de C/E na FASE 2.
+### D5 — Recuperação da ECD (Blocos C/E) = **rota (b) recover-from-ECD**  **[FORK RESOLVIDO POR SINAL HUMANO 2026-07-10]**
+**Decisão (fechada):** o MVP **INCLUI os Blocos C/E**, recuperados da **ECD transmitida**. O MVP emite Bloco **C** (Informações Recuperadas da ECD — referencia a ECD transmitida) e Bloco **E** (Informações Recuperadas da ECD e Cálculos Fiscais — saldos contábeis recuperados). O **recibo/hash da ECD transmitida** é **INPUT HUMANO por geração**, entrando no **DTO transiente** (ao lado da identificação do declarante — D4), **nunca** persistido nem derivado automaticamente.
 
-**Por que não decido agora:** a obrigatoriedade C/E para Presumido-com-ECD é **interpretação legal + matriz de obrigatoriedade do leiaute** — os dois têm de ser confirmados (accountant + Manual da FASE 2). Escolher errado aqui inverte o escopo do MVP. **É a pergunta-de-sinal-humano central (§8).**
+**Contexto (grau INFERIDO — a confirmar campo-a-campo na FASE 2):** a ECF de uma PJ que mantém escrituração contábil (**ECD**) recupera a ECD transmitida. Luminaris **mantém escrituração contábil completa** (gera ECD — BE-INCR-SPED-ECD), então a rota fiel é recuperar. Há um **acoplamento consciente**: a recuperação C/E depende de uma **ECD efetivamente transmitida** (com recibo), e a transmissão da ECD é ela própria um **passo humano residual** (PVA/Receitanet — fora deste ambiente). Por isso o recibo/hash é input humano, não automação.
+
+**Consequências propagadas desta decisão (o que muda no ADR):**
+- **Conjunto de blocos do MVP passa a incluir C/E** — §4 remove C/E da lista "condicional/fora" e §D6/§6 ganham os registros C/E.
+- **DTO transiente ganha `ecdRecibo`/`ecdHash`** (e o que o leiaute do Bloco C exigir para casar a ECD recuperada) — ver §3.
+- **Superfície fiscal aumenta** ⇒ os registros C/E entram na disciplina campo-a-campo **PENDENTE-VERIFICAR** (§6, item ECF-4) — mesma lição **I052**: não fechar o layout de C/E de memória; transcrever do Manual e cruzar com as Regras de Validação.
+
+**Rota descartada:** **(a) standalone** (preencher P100/P150/K só de INCR-4, sem C/E) — mais simples, mas **arriscava rejeição do PVA** por obrigatoriedade de recuperação da ECD para PJ que a possui. O humano optou pela rota fiel.
 
 ### D6 — Bloco J/K referencial reusa `ReferentialMapping` (INCR-9) + **coverage-gate**; `3.3` sem código RFB **BLOQUEIA a geração**
 **Decisão:** o plano de contas + mapeamento referencial da ECF (J050/J051) e os saldos contábeis+referenciais (K155/K156) consomem `ReferentialMappingService.coverage(mappingVersion)` / `listMappings(version)`. **Antes de montar qualquer registro**, `coverage.ready===false` ⇒ **`ValidationError`** com `unmappedAccounts[]` — **não gera arquivo incompleto** (idêntico à ECD D5). Como **`3.3 Receita de Revenda` está NÃO-MAPEADA** no diagnóstico referencial (follow-up do PR #66 — comportamento correto do gate chart-driven do INCR-9), **a geração da ECF FALHA até `3.3` receber um código referencial RFB**. Ver §5.
@@ -118,7 +123,8 @@ Alíquotas sobre a base presumida: **IRPJ 15%** + **adicional 10%** sobre a parc
 - **Outras receitas na base presumida a 100%** (ganho de capital, receita financeira, demais receitas não-operacionais que entram na base **sem** presunção): o MVP escopa às **duas receitas de atividade** (`3.1`/`3.3`). Se o contribuinte tiver receitas não-operacionais tributáveis, é extensão própria.
 - **Assinatura digital** (PKCS#7 / ICP-Brasil) e **transmissão** (Receitanet).
 - **Retificação / substituição** da ECF.
-- **Recuperação da ECD (Blocos C/E)** — condicional ao FORK D5; se a rota (a) standalone for escolhida, C/E ficam FORA; se (b), entram na FASE 2 com transcrição campo-a-campo.
+
+> **NOTA (fork D5 resolvido):** a **Recuperação da ECD (Blocos C/E)** — antes condicional — está **DENTRO do MVP** (rota (b), §D5). Os registros C/E entram na FASE 2 com transcrição campo-a-campo (§6, ECF-4).
 
 ---
 
@@ -126,8 +132,10 @@ Alíquotas sobre a base presumida: **IRPJ 15%** + **adicional 10%** sobre a parc
 
 1. **🔴 `3.3 Receita de Revenda` sem código referencial RFB (BLOQUEADOR direto).** Follow-up registrado do PR #66: `3.3` fica não-mapeada no diagnóstico referencial (INCR-9, chart-driven — correto). O **coverage-gate (D6) FALHA a geração** enquanto `3.3` não tiver um código referencial. **Quem fecha:** um humano/contador atribui o código do plano referencial RFB à `3.3` (via a rota `PUT /referential/mappings` do INCR-9), na `mappingVersion` da ECF. **Não é trabalho de código deste incremento — é dado de compliance que só o humano provê.**
 2. **🟡 Receita não-salão contabilizada como serviço.** `CrmOpportunityWonMapper` credita **tudo em `3.1`** (só vendas de salão fazem o split 3.1/3.3). ⇒ qualquer receita de oportunidade CRM entra na base presumida como **serviço (32%)**. Se houver revenda por fora do salão, a base fica **incorreta** (presume 32% onde deveria 8%). **Não bloqueia** a geração (o arquivo sai), mas é uma **incorreção de base fiscal** silenciosa. Registrar; a extensão do split ao mapper CRM é incremento próprio.
-3. **🟡 Rota de recuperação da ECD (Blocos C/E)** — depende do FORK D5. Se rota (b), o **recibo/hash da ECD transmitida** é dado humano por geração.
+3. **🟡 Recibo/hash da ECD transmitida (Blocos C/E — rota (b) fechada, D5).** É **input humano por geração** (a transmissão da ECD é passo humano PVA/Receitanet, fora do ambiente). **Não bloqueia o design** (é um campo do DTO), mas cada geração real depende de uma ECD já transmitida com recibo. Registrar como dado operacional humano, não de código.
 4. **🟡 Código/versão do plano referencial da ECF** (D6) — pode divergir do referencial contábil da ECD; a confirmar na FASE 2 + o contador provê os códigos.
+
+> **Bloqueadores de DECISÃO: nenhum** (os dois forks foram ratificados em 2026-07-10 — D5 rota (b), D4 transiente). Os itens 3–4 são dados operacionais/humanos, não decisões pendentes; **os únicos bloqueadores EXTERNOS de dado que travam uma geração real são o item 1 (🔴 código RFB da `3.3`) e o item 2 (🟡 receita CRM como serviço)**.
 
 ---
 
@@ -138,7 +146,7 @@ Alíquotas sobre a base presumida: **IRPJ 15%** + **adicional 10%** sobre a parc
 - **ECF-1 (leiaute/versão):** fixar o Manual de Orientação da ECF do ano-calendário-alvo (ADE Cofis), baixar, extrair, isolar a **matriz de obrigatoriedade por regime** (coluna Presumido) + a seção de leiaute.
 - **ECF-2 (conjunto de registros do Bloco P):** confirmar a lista/numeração exata dos registros do Presumido (P030 períodos · P100 balanço · P130 base IRPJ · P150 DRE · P200 IRPJ · P230/P300 base CSLL · P400/P500 CSLL · P990) — **os números acima são INFERIDOS**; a matriz do Manual é a fonte.
 - **ECF-3 (Blocos 0/9/J/K/Y obrigatórios):** quais registros de 0 (0000/0010/0020/0030/0930/0990), 9 (9001/9900/9990/9999), J (J050/J051/J100/J990), K (K030/K155/K156/K355/K356/K990) e Y são obrigatórios para Presumido.
-- **ECF-4 (recuperação ECD):** obrigatoriedade real dos Blocos C/E para Presumido-com-ECD (FORK D5).
+- **ECF-4 (recuperação ECD — rota (b) fechada, D5):** transcrever campo-a-campo os registros dos Blocos **C** (Informações Recuperadas da ECD — ex.: C001/C040/C050 + o registro que casa o **recibo/hash** da ECD transmitida) e **E** (Informações Recuperadas da ECD e Cálculos Fiscais — ex.: E001/E010/E015/E020/E030 saldos recuperados), na ordem/tamanho/obrigatoriedade do Manual. **A superfície fiscal cresceu com a rota (b)** — mesma disciplina I052: não fixar o layout de C/E de memória; cruzar com as Regras de Validação. Confirmar quais campos do DTO o Bloco C exige para casar a ECD (recibo/hash/período).
 - **ECF-5 (base presumida):** confirmar percentuais por atividade e o **limite do adicional por trimestre** (R$ 60.000), regras de arredondamento da base, tratamento de deduções/retenções (IRRF na fonte a deduzir do devido).
 - **ECF-6 (encoding/terminador/formato de valor):** Latin-1 vs UTF-8, CRLF, casas decimais e sinal — **não assumir paridade com a ECD**.
 - **ECF-7 (referencial):** versão/chart referencial da ECF vs. contábil; periodicidade dos saldos K (trimestral vs anual).
@@ -153,21 +161,25 @@ Alíquotas sobre a base presumida: **IRPJ 15%** + **adicional 10%** sobre a parc
 - **Assinatura/transmissão = humano** (§4).
 
 **Riscos/vieses deste parecer (grau declarado):**
-- **[VIÉS — INFERIDO, alto risco] A lista de registros do Bloco P e dos Blocos C/E/J/K/Y é conhecimento de domínio fiscal, NÃO transcrita do leiaute oficial.** É exatamente a superfície que gerou a lição **I052** na ECD (ADR internamente inconsistente no campo-a-campo). **Mitigação:** §6 marca tudo como FASE-2-a-verificar; nenhuma decisão de campo é fechada aqui.
-- **[INFERIDO] A obrigatoriedade da recuperação C/E da ECD para Presumido** é interpretação legal minha — pode estar errada nos dois sentidos (obrigatória, ou dispensada). Por isso é FORK humano (D5), não decisão.
+- **[VIÉS — INFERIDO, alto risco] A lista de registros do Bloco P e dos Blocos C/E/J/K/Y é conhecimento de domínio fiscal, NÃO transcrita do leiaute oficial.** É exatamente a superfície que gerou a lição **I052** na ECD (ADR internamente inconsistente no campo-a-campo). **A rota (b) do D5 AUMENTA essa superfície** (C/E entram no MVP). **Mitigação:** §6 marca tudo como FASE-2-a-verificar; nenhuma decisão de campo é fechada aqui.
+- **[INFERIDO] A obrigatoriedade da recuperação C/E da ECD para Presumido** — o humano optou pela **rota fiel (recuperar, D5)**; a decisão de escopo está **fechada**. O que resta é confirmar campo-a-campo o **layout** de C/E contra o Manual (ECF-4) — fidelidade de campo é FASE 2, não decisão.
 - **[ASSUMIDO] Presumido é sempre trimestral** (D3) — verdadeiro pela regra geral; confirmar que não há caso de opção anual aplicável ao público-alvo.
 - **[ASSUMIDO] A base presumida do MVP = só `3.1`/`3.3`** — ignora outras receitas tributáveis a 100% (§4). Correto para o salão típico; **incorreto** se o contribuinte tiver ganho de capital/receita financeira relevante.
 - **[VERIFICADO, mas de escopo] O split só cobre vendas de salão** (§5.2) — a base CRM entra como serviço; não é bug deste incremento, é limite do PR #66.
 
 ---
 
-## 8. Pergunta-de-sinal-humano (destrava a FASE 2)
+## 8. Sinal humano — RESOLVIDO (2026-07-10); estado do gate da FASE 2
 
-Para promover o nó ⚫→⏳ e rotear as skills de geração, preciso do humano em **quatro** pontos (o item 1 é o bloqueador de rota; os demais são de escopo):
+**Ratificações de DECISÃO recebidas (fecham o roteamento):**
+1. ✅ **[ROTA — era o bloqueador] Recuperação da ECD (D5) → rota (b) recover-from-ECD.** O MVP inclui os Blocos C/E; o recibo/hash da ECD transmitida é input humano no DTO. Consequências propagadas em D5/§4/§5/§6/§7.
+2. ✅ **[ESCOPO] TaxRegime (D4) → transiente por geração.** Nada persistido; sem reabrir a torre §4.
 
-1. **[ROTA — bloqueador] Recuperação da ECD (D5):** o MVP da ECF-Presumido deve **(a) gerar standalone** (P100/P150/K a partir dos relatórios INCR-4, sem Blocos C/E) — mais simples, risco de o PVA exigir recuperação — **ou (b) recuperar a ECD transmitida** (Blocos C/E, recibo/hash da ECD como input humano) — mais fiel, mais superfície? *(Recomendação do parecer: confirmar a obrigatoriedade contra o Manual na FASE 2 e, se o PVA exigir, ir de (b); começar por (a) só se o Manual dispensar C/E para o caso.)*
-2. **[ESCOPO] TaxRegime (D4):** confirmar que **regime transiente por geração** (DTO) basta para o MVP — sem persistir `TaxRegime`/cadastro de empresa — ou se já há requisito de histórico de regime consultável (que seria ADR próprio, colidindo com a torre §4).
-3. **[ESCOPO] Bar de aceite:** ratificar **"importado sem erro de estrutura no PVA-ECF"** como o gate (idêntico à ECD), com o PVA-pass real sendo sign-off humano.
-4. **[DADO] Código referencial de `3.3`:** o contador provê o código do plano referencial RFB para `3.3 Receita de Revenda` (§5.1) — sem ele, a geração é bloqueada pelo coverage-gate por construção.
+**Ainda a ratificar (escopo, não bloqueia o roteamento — pode confirmar junto ao arranque da FASE 2):**
+- **[ESCOPO] Bar de aceite:** "importado sem erro de estrutura no PVA-ECF" (idêntico à ECD), PVA-pass real = sign-off humano. *(Assumido como o gate; corrigir se divergir.)*
 
-**Enquanto (1) não for respondido, a FASE 2 não roteia** — a rota muda o conjunto de blocos do MVP.
+**Bloqueadores de DECISÃO restantes: NENHUM.** Os dois forks foram fechados. A FASE 2 fica travada **apenas** pelos **dois bloqueadores EXTERNOS de dado** — que **não são decisão nossa**:
+- 🔴 **§5.1 — `3.3` sem código referencial RFB:** um **contador** tem de cadastrar o código (rota `PUT /referential/mappings` do INCR-9) na `mappingVersion` da ECF; sem isso o **coverage-gate (D6) falha a geração por construção**.
+- 🟡 **§5.2 — receita CRM não-salão contabilizada como serviço (`3.1`):** `CrmOpportunityWonMapper` credita tudo em `3.1`; se houver **revenda fora do salão**, a base presumida fica **incorreta** (presume 32% onde caberia 8%). Não impede o arquivo de sair; é incorreção de base fiscal a fechar por extensão do split (incremento próprio).
+
+> **Resumo do gate:** decisão = destravada; a FASE 2 (impl) aguarda **só** o dado externo (código RFB da `3.3`) para uma geração correta, e a extensão do split CRM para uma base fiscal fiel quando houver revenda fora do salão. O primeiro passo de código da FASE 2 (Passo A do PLAN — baixar/transcrever o Manual) **não** depende desses bloqueadores e pode iniciar assim que o roteamento for autorizado.
