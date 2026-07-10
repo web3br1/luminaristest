@@ -140,6 +140,9 @@ export interface FinalizedSale {
   occurredAt: string;
   /** True for an all-Package sale — recognizes NO revenue (Incremento G P6); skip here. */
   isAllPackage?: boolean;
+  /** Per-nature subtotals for the revenue split (ADR-INCR-REVENUE-SPLIT) — same source as the
+   *  live bridge, so a re-driven sale books identically. Omitted → mapper falls back to 3.1. */
+  revenueByNature?: { serviceReais: number; productReais: number };
 }
 
 export interface SalonReconcileDeps {
@@ -188,6 +191,7 @@ export async function reconcileSalonSales(deps: SalonReconcileDeps): Promise<Rec
         currency: sale.currency,
         occurredAt: sale.occurredAt,
         label: `Venda ${sale.saleId}`,
+        revenueByNature: sale.revenueByNature,
       });
 
       // Classify already-booked sales (idempotent hit). sync() remains the authority
@@ -783,6 +787,7 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
       row: { id: string; data: Record<string, unknown> };
       isAllPackage: boolean;
       packageId: string;
+      revenueByNature: { serviceReais: number; productReais: number };
     }> = [];
     for (const { ownerUserId, row } of found) {
       const info = await loadSalePackageInfo(ownerUserId, row.id);
@@ -791,6 +796,7 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
         row,
         isAllPackage: info.kind === 'Package',
         packageId: info.packageIds.length === 1 ? info.packageIds[0] : '',
+        revenueByNature: info.revenueByNature,
       });
     }
     return out;
@@ -828,7 +834,7 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
 
   const salon = await reconcileSalonSales({
     listFinalizedSales: async () =>
-      classifiedFinalized.map(({ ownerUserId, row, isAllPackage }) => ({
+      classifiedFinalized.map(({ ownerUserId, row, isAllPackage, revenueByNature }) => ({
         ownerUserId,
         saleId: row.id,
         unitId: typeof row.data.unitId === 'string' ? row.data.unitId : '',
@@ -836,6 +842,7 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
         currency: typeof row.data.currency === 'string' ? row.data.currency : 'BRL',
         occurredAt: typeof row.data.date === 'string' ? row.data.date : new Date().toISOString(),
         isAllPackage,
+        revenueByNature,
       })),
     hasExistingEntry,
     sync: doSync,

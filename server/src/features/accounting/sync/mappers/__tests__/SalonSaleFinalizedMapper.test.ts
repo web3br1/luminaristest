@@ -86,4 +86,80 @@ describe('SalonSaleFinalizedMapper', () => {
     expect(Number.isInteger(input.lines[1].creditCents)).toBe(true);
     expect(input.lines[0].debitCents).toBe(9999);
   });
+
+  // --- Revenue split by nature (ADR-INCR-REVENUE-SPLIT) ---
+  describe('revenue split by nature', () => {
+    /** Sum the credit legs (revenue) of a mapped entry, in cents. */
+    const sumCredits = (input: ReturnType<typeof mapper.map>) =>
+      input.lines.reduce((s, l) => s + l.creditCents, 0);
+    const creditOn = (input: ReturnType<typeof mapper.map>, code: string) =>
+      input.lines.find((l) => l.accountCode === code && l.creditCents > 0)?.creditCents ?? 0;
+
+    it('with NO breakdown falls back to a single 3.1 (Serviços) credit (backwards-compatible)', () => {
+      const input = mapper.map(event({ amount: 200 }));
+      expect(input.lines).toHaveLength(2); // debit 1.1.2 + single credit
+      expect(creditOn(input, '3.1')).toBe(20000);
+      expect(creditOn(input, '3.3')).toBe(0);
+    });
+
+    it('splits a MIXED sale into 3.1 (serviço) + 3.3 (revenda) whose sum equals the total', () => {
+      const input = mapper.map(
+        event({ amount: 200, revenueByNature: { serviceReais: 100, productReais: 100 } }),
+      );
+      const debit = input.lines.find((l) => l.debitCents > 0)!;
+      expect(debit.accountCode).toBe('1.1.2');
+      expect(debit.debitCents).toBe(20000);
+      expect(creditOn(input, '3.1')).toBe(10000);
+      expect(creditOn(input, '3.3')).toBe(10000);
+      // NO cent lost + balanced
+      expect(sumCredits(input)).toBe(20000);
+      expect(sumCredits(input)).toBe(debit.debitCents);
+    });
+
+    it('rateia a HEADER discount proportionally (item subtotals ≠ booked total)', () => {
+      // items sum to 200 (100 service / 100 product) but the sale total is 180 (R$20 header discount)
+      const input = mapper.map(
+        event({ amount: 180, revenueByNature: { serviceReais: 100, productReais: 100 } }),
+      );
+      expect(creditOn(input, '3.1')).toBe(9000); // discount split evenly
+      expect(creditOn(input, '3.3')).toBe(9000);
+      expect(sumCredits(input)).toBe(18000); // == totalCents, discount absorbed proportionally
+    });
+
+    it('absorbs the rounding residue on the product line, still summing to the total', () => {
+      // 1:2 proportion over 10001 cents does not divide evenly
+      const input = mapper.map(
+        event({ amount: 100.01, revenueByNature: { serviceReais: 1, productReais: 2 } }),
+      );
+      expect(creditOn(input, '3.1')).toBe(3334); // round(10001 * 1/3)
+      expect(creditOn(input, '3.3')).toBe(6667); // 10001 - 3334 (residue here)
+      expect(sumCredits(input)).toBe(10001);
+    });
+
+    it('routes a SERVICE-only sale to a single 3.1 credit (no zero 3.3 line)', () => {
+      const input = mapper.map(
+        event({ amount: 150, revenueByNature: { serviceReais: 150, productReais: 0 } }),
+      );
+      expect(creditOn(input, '3.1')).toBe(15000);
+      expect(input.lines.some((l) => l.accountCode === '3.3')).toBe(false);
+      expect(sumCredits(input)).toBe(15000);
+    });
+
+    it('routes a PRODUCT-only sale to a single 3.3 credit (no zero 3.1 line)', () => {
+      const input = mapper.map(
+        event({ amount: 150, revenueByNature: { serviceReais: 0, productReais: 150 } }),
+      );
+      expect(creditOn(input, '3.3')).toBe(15000);
+      expect(input.lines.some((l) => l.accountCode === '3.1')).toBe(false);
+      expect(sumCredits(input)).toBe(15000);
+    });
+
+    it('preserves the idempotency axes (sourceType, sourceId) regardless of the split', () => {
+      const input = mapper.map(
+        event({ sourceId: 'sale-Z', revenueByNature: { serviceReais: 10, productReais: 90 } }),
+      );
+      expect(input.sourceType).toBe('salon.sale.finalized');
+      expect(input.sourceId).toBe('sale-Z');
+    });
+  });
 });
