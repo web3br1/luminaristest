@@ -55,6 +55,11 @@ import {
   copyReferentialMappingVersion,
   getReferentialSkeleton,
 } from '../controllers/referentialMappingController';
+import {
+  referentialCatalogUpload,
+  importReferentialCatalog,
+  listReferentialCatalog,
+} from '../controllers/referentialCatalogController';
 import { generateSpedEcd } from '../controllers/spedController';
 import { closeExercise } from '../controllers/closingController';
 
@@ -120,6 +125,9 @@ router.delete('/referential/mappings', unsetReferentialMapping);
 router.get('/referential/mappings', listReferentialMappings);
 router.get('/referential/coverage', getReferentialCoverage);
 router.get('/referential/skeleton', getReferentialSkeleton);
+// Referential CATALOG (RFB official layout) — import + lookup (BE-INCR-9B Track B).
+router.post('/referential/catalog/import', referentialCatalogUpload, importReferentialCatalog);
+router.get('/referential/catalog', listReferentialCatalog);
 
 // Accounting period management (INCR-1).
 // NOTE: /:unitId/periods must come before /periods/:id routes to avoid param clash.

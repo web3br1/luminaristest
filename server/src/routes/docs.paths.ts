@@ -2776,5 +2776,47 @@
  *       responses:
  *         '200': { description: 'unitId + mappingVersion + items[] (unmapped leaf accounts to author)' }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/accounting/referential/catalog/import:
+ *     post:
+ *       summary: Import the official RFB referential CATALOG for a layout version (BE-INCR-9B Track B)
+ *       description: >-
+ *         Uploads a CSV/XLSX (multipart field `file`) of the official referential layout and upserts
+ *         it into the GLOBAL catalog, idempotent per layoutVersion. All-or-nothing; invents no code
+ *         (isAnalytic is read from the file, D1/I052). Enables analytic-only destination validation.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           multipart/form-data:
+ *             schema:
+ *               type: object
+ *               required: [unitId, layoutVersion, file]
+ *               properties:
+ *                 unitId: { type: string, description: auth scope only (catalog is global) }
+ *                 layoutVersion: { type: string, description: RFB layout/year id, e.g. "2025" }
+ *                 file: { type: string, format: binary, description: CSV/XLSX catalog file }
+ *       responses:
+ *         '201': { description: 'layoutVersion + totalRows + imported + analyticCount + syntheticCount' }
+ *         '400': { description: 'invalid header/rows or empty catalog' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/accounting/referential/catalog:
+ *     get:
+ *       summary: Lookup/picker over a version's referential catalog (BE-INCR-9B Track B)
+ *       description: >-
+ *         Lists a layout version's referential accounts for the code picker; filter by substring
+ *         (q) and restrict to analytic (leaf) destinations (analyticOnly).
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: version, required: true, schema: { type: string } }
+ *         - { in: query, name: q, required: false, schema: { type: string } }
+ *         - { in: query, name: analyticOnly, required: false, schema: { type: boolean } }
+ *       responses:
+ *         '200': { description: 'referential accounts of the version (code, name, isAnalytic, parentCode)' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  */
 export {};

@@ -432,6 +432,30 @@ model ReferentialMapping {
   @@map("referential_mappings")
 }
 
+// Catálogo do plano de contas REFERENCIAL oficial da RFB (BE-INCR-9B / ADR-INCR9B, Track B).
+// Dado EXTERNO GLOBAL versionado por leiaute — NÃO tem tenancy (userId/unitId): o leiaute é o
+// mesmo para todos os tenants (D4). Sem relação a User → naturalmente isento do onDelete:Cascade.
+// Semeado por IMPORTAÇÃO do arquivo oficial (D4), nunca inventado nem self-seed per-scope (D1/I052).
+// Serve de LOOKUP e VALIDAÇÃO de pertinência do lado de DESTINO do de-para (D3 — só conta analítica
+// da versão é destino válido); o de-para em si (ReferentialMapping, INCR-9) continua gravando
+// referentialCode/label string, SEM FK dura a esta tabela (D9). SEM deletedAt: re-import = upsert-in-
+// place pela @@unique (idempotente), foge do class-bug soft-delete×@@unique. As colunas EXATAS do
+// arquivo oficial (posicional/encoding) = FASE 2, campo-a-campo; o import consome uma tabela de
+// colunas-nomeadas via lib/spreadsheet.parseTable (reuso INCR-6), desacoplado do formato físico.
+model ReferentialAccount {
+  id            String   @id @default(cuid())
+  layoutVersion String   // leiaute/ano-calendário do plano referencial RFB (casa com mappingVersion — D7)
+  code          String   // código da conta referencial RFB
+  name          String   // nome oficial da conta referencial
+  isAnalytic    Boolean  // true = folha (só analítica é destino válido do de-para — D3); vem da COLUNA do arquivo (9B-4), nunca inferido
+  parentCode    String?  // árvore do referencial, se o arquivo trouxer (só picker/validação — D10)
+  createdAt     DateTime @default(now())
+
+  @@unique([layoutVersion, code]) // idempotência do import + lookup por (versão, código)
+  @@index([layoutVersion, isAnalytic])
+  @@map("referential_accounts")
+}
+
 // Journal entry header (lançamento). Groups N balanced legs (`postings`) where
 // Σdebit = Σcredit (enforced in the posting service). Posted entries are immutable —
 // corrections are made via a reversing entry (estorno). `reversedById` links an

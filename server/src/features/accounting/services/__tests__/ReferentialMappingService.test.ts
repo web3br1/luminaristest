@@ -44,6 +44,7 @@ function buildService(over: {
   accountRepo?: Record<string, unknown>;
   policy?: Record<string, unknown>;
   audit?: Record<string, unknown>;
+  catalogRepo?: Record<string, unknown>;
 } = {}) {
   const repo = {
     upsert: jest.fn(async () => ({ id: 'map-1' })),
@@ -64,13 +65,24 @@ function buildService(over: {
     ...over.policy,
   };
   const audit = { append: jest.fn(async () => undefined), ...over.audit };
+  // Default catalog repo = EMPTY catalog: countByVersion 0 + findByVersionAndCode null → destination
+  // validation is a no-op (INCR-9 free-string). Track B tests override these to load a catalog.
+  const catalogRepo = {
+    findByVersionAndCode: jest.fn(async () => null),
+    countByVersion: jest.fn(async () => 0),
+    findManyByVersion: jest.fn(async () => []),
+    upsert: jest.fn(async () => ({ id: 'cat-1' })),
+    runTransaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(TX)),
+    ...over.catalogRepo,
+  };
   const svc = new ReferentialMappingService(
     repo as never,
     accountRepo as never,
     policy as never,
     audit as never,
+    catalogRepo as never,
   );
-  return { svc, repo, accountRepo, policy, audit };
+  return { svc, repo, accountRepo, policy, audit, catalogRepo };
 }
 
 const setDto = {
@@ -136,9 +148,96 @@ describe('ReferentialMappingService.setMapping', () => {
   });
 
   it('structural: the service injects no posting/journalEntry repo — cannot write ledger money', () => {
-    // ReferentialMappingService(repo, accountRepo, policy, audit) — 4 deps, none is a
-    // posting/journal-entry repo. The "zero ledger write" invariant is structural, not runtime.
-    expect(ReferentialMappingService.length).toBe(4);
+    // ReferentialMappingService(repo, accountRepo, policy, audit, catalogRepo) — 5 deps, none is a
+    // posting/journal-entry repo (catalogRepo is a read-only global reference lookup). The "zero
+    // ledger write" invariant is structural, not runtime.
+    expect(ReferentialMappingService.length).toBe(5);
+  });
+});
+
+describe('ReferentialMappingService destination validation (Track B, D3/D9)', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const analytic = { code: '1.01.01.00', name: 'Caixa (RFB oficial)', isAnalytic: true };
+  const synthetic = { code: '1.01', name: 'Ativo Circulante (RFB)', isAnalytic: false };
+
+  it('catalog present + analytic code: label snapshotted from the catalog name (override client label)', async () => {
+    const { svc, repo, catalogRepo } = buildService({
+      catalogRepo: {
+        findByVersionAndCode: jest.fn(async () => analytic),
+        countByVersion: jest.fn(async () => 12),
+      },
+    });
+    await svc.setMapping(scope, setDto); // client sent label 'Caixa (referencial)'
+    // lookup ran with the tx handle (ACC-012 consistency).
+    expect(catalogRepo.findByVersionAndCode).toHaveBeenCalledWith('2025', '1.01.01.00', TX);
+    // stored label is the AUTHORITATIVE catalog name, not the client-sent label (D9).
+    expect(repo.upsert).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({ referentialCode: '1.01.01.00', label: 'Caixa (RFB oficial)' }),
+      TX,
+    );
+  });
+
+  it('catalog present + SYNTHETIC code → ValidationError (no upsert, no audit)', async () => {
+    const { svc, repo, audit } = buildService({
+      catalogRepo: { findByVersionAndCode: jest.fn(async () => synthetic) },
+    });
+    await expect(
+      svc.setMapping(scope, { ...setDto, referentialCode: '1.01' }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.upsert).not.toHaveBeenCalled();
+    expect(audit.append).not.toHaveBeenCalled();
+  });
+
+  it('catalog present (loaded) + code ABSENT → ValidationError (rejects a non-existent RFB code)', async () => {
+    const { svc, repo } = buildService({
+      catalogRepo: {
+        findByVersionAndCode: jest.fn(async () => null),
+        countByVersion: jest.fn(async () => 12), // catalog IS loaded for the version
+      },
+    });
+    await expect(svc.setMapping(scope, setDto)).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.upsert).not.toHaveBeenCalled();
+  });
+
+  it('catalog NOT loaded for the version (0 rows) → free-string, keeps client label (INCR-9 preserved)', async () => {
+    const { svc, repo, catalogRepo } = buildService({
+      catalogRepo: {
+        findByVersionAndCode: jest.fn(async () => null),
+        countByVersion: jest.fn(async () => 0), // no catalog imported
+      },
+    });
+    await svc.setMapping(scope, setDto);
+    expect(catalogRepo.countByVersion).toHaveBeenCalledWith('2025', TX);
+    // label falls back to the client-supplied value; no rejection.
+    expect(repo.upsert).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({ referentialCode: '1.01.01.00', label: 'Caixa (referencial)' }),
+      TX,
+    );
+  });
+
+  it('copyVersion re-validates + re-snapshots against the TO-version catalog (D9)', async () => {
+    const source = [
+      { id: 'm1', accountId: 'acc-a', referentialCode: '1.01.01.00', label: 'A-2025', mappingVersion: '2025' },
+    ];
+    const { svc, repo, catalogRepo } = buildService({
+      repo: { findManyByVersion: jest.fn(async () => source) },
+      catalogRepo: {
+        findByVersionAndCode: jest.fn(async () => analytic),
+        countByVersion: jest.fn(async () => 12),
+      },
+    });
+    await svc.copyVersion(scope, { unitId: 'unit-1', fromVersion: '2025', toVersion: '2026' });
+    // the destination is re-checked against the TO version's catalog…
+    expect(catalogRepo.findByVersionAndCode).toHaveBeenCalledWith('2026', '1.01.01.00', TX);
+    // …and the label re-snapshotted from that catalog, not copied literally.
+    expect(repo.upsert).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({ mappingVersion: '2026', label: 'Caixa (RFB oficial)' }),
+      TX,
+    );
   });
 });
 
