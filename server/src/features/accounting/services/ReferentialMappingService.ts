@@ -1,6 +1,7 @@
 import type { ReferentialMapping, Prisma } from 'generated/prisma';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
 import type { IReferentialMappingRepository } from '../repositories/IReferentialMappingRepository';
+import type { IReferentialAccountRepository } from '../repositories/IReferentialAccountRepository';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { AccountingScope } from '../scope/AccountingScope';
@@ -69,6 +70,9 @@ export class ReferentialMappingService {
     private readonly accountRepo: IAccountRepository,
     private readonly policy: IAccountingPolicy,
     private readonly audit: AuditService,
+    // BE-INCR-9B Track B: the RFB referential CATALOG, for destination validation (D3) + label
+    // snapshot (D9). GLOBAL/no-tenancy read only; changes no ledger value.
+    private readonly catalogRepo: IReferentialAccountRepository,
   ) {}
 
   /**
@@ -122,11 +126,13 @@ export class ReferentialMappingService {
 
   /**
    * Copy every mapping of `fromVersion` into `toVersion` in ONE tx ("year
-   * inheritance", fork D6). The `label` is re-snapshotted LITERALLY (fork D9 — the
-   * official catalog join is Track B, out of scope). Reuses the per-item set gate via
-   * `applySet`, so a source account that has since been soft-deleted or turned into a
-   * grouping account aborts the whole copy (all-or-nothing). The @@unique includes
-   * mappingVersion, so an existing target row is upserted-in-place, never P2002.
+   * inheritance", fork D6). The source `label` is passed through, but `applySet` re-resolves it
+   * against the TO-version catalog (D9): if that version's catalog is loaded, the destination code
+   * is re-validated (analytic + exists) and the label re-snapshotted from the catalog; if not
+   * loaded, the source label is copied literally (INCR-9 behavior). Reuses the per-item set gate
+   * via `applySet`, so a source account since soft-deleted / turned into a grouping account — or a
+   * code no longer valid in the to-version catalog — aborts the whole copy (all-or-nothing). The
+   * @@unique includes mappingVersion, so an existing target row is upserted-in-place, never P2002.
    */
   async copyVersion(
     scope: AccountingScope,
@@ -182,12 +188,24 @@ export class ReferentialMappingService {
       );
     }
 
+    // Destination gate (BE-INCR-9B Track B, D3/D9): validate the RFB code against the CATALOG of
+    // this layout version and snapshot the authoritative label. CONDITIONAL on catalog presence —
+    // an unimported version keeps the INCR-9 free-string behavior (nothing to validate against;
+    // I052 — never invent the layout). The label is snapshotted from the catalog when available,
+    // else the caller's label (still a per-version denormalized snapshot).
+    const catalogLabel = await this.resolveDestinationLabel(
+      tx,
+      item.mappingVersion,
+      item.referentialCode,
+    );
+    const label = catalogLabel ?? item.label;
+
     const mapping = await this.repo.upsert(
       scope,
       {
         accountId: item.accountId,
         referentialCode: item.referentialCode,
-        label: item.label,
+        label,
         mappingVersion: item.mappingVersion,
         createdById: scope.actorUserId,
       },
@@ -207,6 +225,43 @@ export class ReferentialMappingService {
     });
 
     return mapping;
+  }
+
+  /**
+   * Destination validation + label snapshot (BE-INCR-9B Track B, D3/D9). CONDITIONAL on catalog
+   * presence for the layout version (default D7: layoutVersion == mappingVersion):
+   *  - catalog HAS this code → it MUST be analytic (a leaf of the referential plan) — a synthetic
+   *    destination is rejected (RFB rule: you never map to a grouping referential account). Returns
+   *    the catalog's official name to snapshot as the label (authoritative — D9).
+   *  - catalog LOADED but code absent → the code is not a real RFB account for this version → reject.
+   *  - catalog NOT loaded for this version (0 rows) → return null: fall back to the INCR-9 free-string
+   *    destination (nothing to validate against; I052 — never invent which codes are analytic).
+   * Reads use the same tx handle as the account gate (ACC-012 consistency). The catalog is global
+   * reference data — this read changes no ledger value.
+   */
+  private async resolveDestinationLabel(
+    tx: Prisma.TransactionClient,
+    mappingVersion: string,
+    referentialCode: string,
+  ): Promise<string | null> {
+    const account = await this.catalogRepo.findByVersionAndCode(mappingVersion, referentialCode, tx);
+    if (account) {
+      if (!account.isAnalytic) {
+        throw new ValidationError(
+          `A conta referencial "${referentialCode}" é sintética na versão "${mappingVersion}"; ` +
+            'só contas referenciais analíticas (folha) são destino válido do de-para.',
+        );
+      }
+      return account.name; // snapshot the authoritative catalog label (D9).
+    }
+    // Code not in the catalog: reject only if a catalog for this version WAS imported.
+    const catalogLoaded = (await this.catalogRepo.countByVersion(mappingVersion, tx)) > 0;
+    if (catalogLoaded) {
+      throw new ValidationError(
+        `A conta referencial "${referentialCode}" não existe no catálogo da versão "${mappingVersion}".`,
+      );
+    }
+    return null; // no catalog for this version → INCR-9 free-string behavior.
   }
 
   /**
