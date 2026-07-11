@@ -1,6 +1,6 @@
 # ADR-INCR9B — Seed/assistência do de-para referencial + importador do catálogo oficial RFB
 
-- **Status:** **Proposed — FASE 1 (parecer + PLAN + ADR). NENHUM código escrito; nenhuma skill de geração roteada.** Follow-up natural do INCR-9 (destrava o item **diferido em D6** — "import do leiaute oficial diferido com o SPED"). A regra de uso do master map §1 proíbe rotear contra um nó diferido sem **ADR em disco + sinal humano** — este ADR é a metade "ADR em disco"; os **forks de escopo (§8) aguardam sinal humano**.
+- **Status:** **Proposed — FASE 1 (parecer + PLAN + ADR). Forks RESOLVIDOS por sinal humano (2026-07-10) — SEM bloqueador de decisão.** NENHUM código escrito; nenhuma skill de geração roteada. Follow-up natural do INCR-9 (destrava o item **diferido em D6** — "import do leiaute oficial diferido com o SPED"). A regra de uso do master map §1 proíbe rotear contra um nó diferido sem **ADR em disco + sinal humano** — **ambas as metades agora existem** (ADR em disco + as duas ratificações de §8). **Duas ratificações humanas registradas (2026-07-10):** (1) **ESCOPO = A+B completo** (Track A autoria assistida + Track B catálogo oficial RFB com migração + validação analytic-only de destino); (2) **AUTORIA = humano preenche** (o produto NÃO faz auto-de-para; o valor de cada código RFB, inclusive o da `3.3`, vem do contador/leiaute oficial). A FASE 2 (impl) fica travada **apenas** por (a) os **valores dos códigos RFB** = dado humano do contador e (b) o **pré-req operacional de ambiente** (`npm ci` + `prisma generate` sadio no worktree — só Track B) — nenhum é decisão nossa.
 - **Date:** 2026-07-10
 - **Decision class:** PRISMA_FIRST_CLASS (camada de compliance/de-para; nunca DynamicTable — Contrato §2.1, T3). **NÃO** muda valor de ledger — é descritiva, ao lado do plano de contas (igual INCR-9).
 - **Depends on (tudo em `main`):** **INCR-9** (`ReferentialMapping` + `ReferentialMappingService.setMapping/coverage/listMappings` + gate in-tx ACC-011 + audit ACC-019 — este ADR **estende**, não recria), INCR-4 (padrão `mappingVersion`+diagnóstico), INCR-2 (`AuditService.append`), INCR-6 (máquina de import de arquivo — `parseTable`/job/artefato, reusável para o catálogo). Consumidores diretos do desbloqueio: **ADR-INCR-SPED-ECD** (coverage-gate D5) e **ADR-INCR-SPED-ECF** (coverage-gate D6 — o `3.3` sem código RFB é o bloqueador §5.1 nomeado lá).
@@ -40,19 +40,23 @@
 
 ## 3. As decisões
 
-### D1 — O gate `coverage.ready` **NUNCA** é destravado por código; semear código-placeholder é PROIBIDO  **[guarda-corpo-mãe — REFINA O BRIEF]**
-**Decisão:** nenhum passo do INCR-9B grava um `ReferentialMapping` com código **inventado, placeholder ou heurístico**. O código entrega **assistência** (esqueleto + catálogo + validação); o **valor** de cada código RFB é **input humano/contador**. `coverage.ready` só vira `true` quando um humano preencheu códigos **reais** — exatamente como hoje, mas ergonômico.
+### D1 — O gate `coverage.ready` **NUNCA** é destravado por código; semear código-placeholder é PROIBIDO  **[guarda-corpo-mãe — RATIFICADO POR SINAL HUMANO 2026-07-10]**
+**Decisão:** nenhum passo do INCR-9B grava um `ReferentialMapping` com código **inventado, placeholder ou heurístico**. O código entrega **assistência** (esqueleto + catálogo + validação + sugestão); o **valor** de cada código RFB é **input humano/contador**. `coverage.ready` só vira `true` quando um humano preencheu códigos **reais** — exatamente como hoje, mas ergonômico.
+
+> **RATIFICADO (sinal humano, 2026-07-10):** o produto **NÃO faz auto-de-para**. Assiste (esqueleto/lote/catálogo/sugestão), mas o valor de cada código RFB — **inclusive o da `3.3`** — vem do **contador/leiaute oficial**. Fronteira humano×código fechada; §8 sem bloqueador de decisão.
 
 **Por quê:** o `coverage` é binário e **não valida o conteúdo** do código (INCR-9 D6). Um placeholder produziria `ready===true` **falso** → ECD/ECF gerariam com lixo fiscal. É a mesma classe da lição **I052** (não fixar conteúdo de compliance de memória). **Descartado:** "semear o de-para para destravar" — viola o fail-closed que é o propósito do gate; seria um bug fiscal silencioso, não uma feature.
 
 > **Corolário operacional:** o desbloqueio **já é possível HOJE** sem o INCR-9B — um contador faz ~12 `PUT /referential/mappings` (rota do INCR-9) com os códigos reais. **O INCR-9B não é pré-requisito para destravar; é a ferramenta que torna esse ato rápido, em lote e à prova de código-inválido.** Isso reprecifica o fork de escopo (§8).
 
-### D2 — Escopo em **DUAS tracks**; a divisão A/B é **sinal humano** (§8)  **[FORK]**
-**Decisão (proposta, a ratificar):** o trabalho parte em duas tracks compostáveis:
-- **Track A — Autoria assistida (zero-migração):** estende `ReferentialMappingService` com **(a)** `setMappingsBatch` (de-para em lote numa tx), **(b)** `copyMappingsFromVersion(fromVersion, toVersion)` ("herança de ano anterior" da indústria), **(c)** exposição do **esqueleto** = `coverage().unmappedAccounts` como payload de autoria (já existe; só rota/serialização). **Reusa** `ReferentialMapping` — **sem** model novo, **sem** migração. Destrava o **workflow** do contador; o código RFB continua string livre (D6 do INCR-9 intocado).
-- **Track B — Catálogo oficial RFB (migração + import):** novo model **`ReferentialAccount`** (catálogo do leiaute referencial, Prisma first-class) + importador do **arquivo oficial** RFB; habilita **validação de pertinência do destino** (D3), **auto-fill do `label`** (D9) e o **lookup/picker**. É o item **diferido em D6 do INCR-9**.
+### D2 — Escopo = **A+B completo, ENCENADO** (A primeiro, B depois)  **[FORK RESOLVIDO POR SINAL HUMANO 2026-07-10]**
+**Decisão (fechada):** o INCR-9B entrega **as duas tracks**, mergeadas em **PRs encenados** (A antes, B depois, isolando a migração+parsing num PR próprio):
+- **Track A — Autoria assistida (zero-migração):** estende `ReferentialMappingService` com **(a)** `setMappingsBatch` (de-para em lote numa tx), **(b)** `copyMappingsFromVersion(fromVersion, toVersion)` ("herança de ano anterior" da indústria), **(c)** exposição do **esqueleto** = `coverage().unmappedAccounts` como payload de autoria (já existe; só rota/serialização). **Reusa** `ReferentialMapping` — **sem** model novo, **sem** migração. Destrava o **workflow** do contador.
+- **Track B — Catálogo oficial RFB (migração + import):** novo model **`ReferentialAccount`** (catálogo do leiaute referencial, Prisma first-class) + importador do **arquivo oficial** RFB; habilita a **validação analytic-only do destino** (D3 — **o 3º entregável do pedido, agora DENTRO do escopo**), **auto-fill do `label`** (D9) e o **lookup/picker**. É o item **diferido em D6 do INCR-9**.
 
-**Por quê:** A é o subconjunto ergonômico barato; B é o que adiciona o **invariante de domínio** que o pedido nomeia ("validação analítica-only nos DOIS lados") — e B **é o único** jeito de validar o destino sem **hardcodar** quais códigos RFB são folha (o que seria a armadilha I052). Recomendação (§8): **B é necessário para o terceiro entregável do pedido**; encená-las (A primeiro, B depois) dá vitória rápida sem migração e isola o risco alto (migração + parsing de arquivo externo) num PR próprio. **Descartado:** um único incremento monolítico A+B — infla o blast radius do PR e mistura zero-migração com migração+parsing.
+**Por quê:** A é o subconjunto ergonômico barato; B adiciona o **invariante de domínio** que o pedido nomeia ("validação analítica-only nos DOIS lados") — e B **é o único** jeito de validar o destino sem **hardcodar** quais códigos RFB são folha (a armadilha I052). O humano ratificou **A+B**: o 3º entregável (analytic-only-destino) fica **coberto** pela Track B. Encenar (A→B) dá vitória rápida sem migração e isola o risco alto (migração + parsing de arquivo externo) num PR próprio. **Descartado:** (a) só a Track A — deixaria o destino sem validação (não cumpre o pedido); (b) um único PR monolítico A+B — inflaria o blast radius e misturaria zero-migração com migração+parsing.
+
+> **RATIFICADO (sinal humano, 2026-07-10):** ESCOPO = **A+B completo**, encenado (A primeiro; B depois, isolando migração+parsing). A validação analytic-only de destino entra via Track B.
 
 ### D3 — Analytic-only nos **DOIS** lados; o lado de **destino** só é validável com o catálogo (Track B)  **[REFINA O BRIEF]**
 **Decisão:** (i) **lado interno** — só `acceptsEntries=true` mapeia: **já validado** no INCR-9 (`setMapping` rejeita conta sintética, ACC-011 in-tx). Reusado sem mudança. (ii) **lado de destino** — o `referentialCode` tem de apontar para uma conta referencial **analítica** do catálogo oficial. Isso **exige** o catálogo (Track B): a validação é "existe um `ReferentialAccount` com esse `code` na `layoutVersion` **e** ele é analítico". **Sem** Track B, o destino permanece string livre não-validada (estado INCR-9 D6) — a validação analytic-only-destino **não é entregável na Track A**.
@@ -178,23 +182,20 @@ model ReferentialAccount {
 
 ---
 
-## 8. Sinal humano — FORKS A RATIFICAR (destravam a FASE 2)
+## 8. Sinal humano — RESOLVIDO (2026-07-10); estado do gate da FASE 2
 
-**Bloqueadores de DECISÃO (só o humano decide — não roteável sem isto):**
+**Ratificações de DECISÃO recebidas (fecham o roteamento):**
+1. ✅ **[ESCOPO — era o fork principal] A+B completo, encenado.** Track A (autoria assistida, zero-migração) **+** Track B (catálogo oficial RFB importado, model `ReferentialAccount` com migração + validação analytic-only de destino). PRs encenados: A primeiro, B depois isolando migração+parsing. Consequência propagada: o **3º entregável do pedido (validação analytic-only de destino, D3) fica DENTRO do escopo** via Track B. (D2)
+2. ✅ **[AUTORIA] Humano preenche; o produto NÃO faz auto-de-para.** O código assiste (esqueleto/lote/catálogo/sugestão); o valor de cada código RFB — **inclusive o da `3.3`** — vem do contador/leiaute oficial. Guarda-corpo D1 ratificado.
 
-1. **🔵 [ESCOPO — o fork principal] UM incremento ou DOIS?**
-   - **Track A só** (autoria em lote + esqueleto + cópia-de-ano; **zero-migração**): destrava o **workflow** do contador rápido; o código RFB fica string livre não-validada; **não** entrega a "validação analytic-only nos DOIS lados" do pedido.
-   - **Track A + Track B** (catálogo oficial + validação de pertinência; **com migração + parsing de arquivo externo**): entrega o pedido inteiro, incluindo a validação de destino; é o padrão de todo ERP-BR; risco/esforço maiores (migração + FASE 2 de transcrição do leiaute).
-   - **Recomendação:** **A+B, encenados** — A primeiro (PR curto, zero-migração, vitória ergonômica), B depois (PR com migração+import, isolado). **B é necessário** para o 3º entregável (analytic-only-destino, D3); A sozinho **não** o cobre. **Mas** se o único objetivo agora é *destravar ECD/ECF*, nem A é estritamente necessário (D1 corolário: 12 `PUT` do INCR-9 já bastam) — então a escolha é sobre **quanta ergonomia/segurança de autoria** se quer construir, não sobre "conseguir gerar".
-
-2. **🔵 [ESCOPO] De onde vêm os VALORES dos códigos RFB — confirmado como HUMANO?** O ADR **não** inventa códigos (D1/D10). O esqueleto entrega as contas + a coluna vazia; o **contador** preenche do leiaute oficial (via lote/picker). Ratificar que essa fronteira é aceita (o produto **não** promete auto-de-para).
-
-3. **🔵 [DADO — trava geração real, não a FASE 2] Código referencial da `3.3`** (e das demais folhas): é o bloqueador §5.1 do ADR-INCR-SPED-ECF. Continua **input humano/contador**; o INCR-9B só torna o preenchimento ergonômico/validado.
-
-**Forks menores (podem ser confirmados no arranque da FASE 2):**
-- **[D7] `mappingVersion` de partida** (`"2025"`? `"2026"`? `"ECF-2026"`?) e se **ECD/ECF partilham** o referencial (§6 9B-3).
+**Forks menores (escopo, não bloqueiam o roteamento — confirmar no arranque da FASE 2):**
+- **[D7] `mappingVersion` de partida** (`"2025"` / `"2026"` / `"ECF-2026"`?) e se **ECD/ECF partilham** o referencial (§6 9B-3).
 - **[D8] Atomicidade do lote:** all-or-nothing (recomendado) vs best-effort-com-relatório.
 
-> **Pergunta-de-sinal-humano exata para destravar a FASE 2 (impl):**
-> **"Track A só (zero-migração, autoria em lote) ou A+B (com o catálogo oficial RFB + validação analytic-only de destino, com migração)? E confirma que o VALOR de cada código RFB — inclusive o da 3.3 — é preenchido por contador (o produto não faz auto-de-para)?"**
-> Ratificado isso, o **Passo 0 da FASE 2** (baixar/transcrever o leiaute referencial oficial — §6) pode iniciar; ele **não** depende do valor dos códigos, só do arquivo oficial.
+**Bloqueadores de DECISÃO restantes: NENHUM.** Os dois forks foram fechados. A FASE 2 (impl) fica travada **apenas** por dois itens que **não são decisão nossa**:
+- 🔴 **[DADO — humano] Valores dos códigos RFB** (inclusive o da `3.3`, o bloqueador §5.1 do ADR-INCR-SPED-ECF): um **contador** os provê do leiaute oficial (via lote/picker do 9B, ou pelos `PUT` do INCR-9). O código do 9B **não** os fornece (D1/D10). Sem eles, `coverage.ready` fica `false` **por construção** — comportamento correto.
+- 🟡 **[AMBIENTE — operacional, só Track B] `npm ci` + `prisma generate` sadio no worktree** antes de migrar/validar: o client Prisma local está **stale (pré-INCR-9)** e `prisma generate` está **quebrado** (mismatch de versão em `node_modules`) — memória `worktree-deps-stale-prisma-client`. Não afeta a Track A (zero-migração) nem o planejamento; trava só a migração/validação local da Track B.
+
+> **Honestidade de escopo (reforçada):** o coverage-gate **já é destravável HOJE** — um contador faz ~12 `PUT /referential/mappings` (rota do INCR-9) com os códigos reais e `coverage.ready` vira `true` sem uma linha do 9B. **O INCR-9B é ergonomia + segurança do ato humano (esqueleto chart-driven, lote atômico, cópia-de-ano, catálogo com validação analytic-only), NÃO um pré-requisito de geração.** O valor da entrega é tornar o de-para rápido, à prova de código-inválido e alinhado ao padrão ERP-BR — não "conseguir gerar", que o INCR-9 já habilita.
+>
+> **Arranque da FASE 2:** o **Passo B0** (baixar/transcrever o leiaute referencial oficial — §6) pode iniciar assim que a impl for autorizada; **não** depende dos valores dos códigos (só do arquivo oficial) nem do pré-req de ambiente. A Track A inteira pode ir sem tocar em nenhum dos dois bloqueadores.

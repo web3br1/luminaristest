@@ -1,6 +1,6 @@
 # BE-INCR-9B — PLAN + parecer de domínio (seed/assistência do de-para referencial + catálogo oficial RFB)
 
-- **Status:** **FASE 1 — PLAN + parecer + ADR. NÃO implementar. NÃO rotear ao implementer.** Aguarda sinal humano nos forks (§Forks).
+- **Status:** **FASE 1 — PLAN + parecer + ADR. Forks RESOLVIDOS por sinal humano (2026-07-10): ESCOPO = A+B completo (encenado); AUTORIA = humano preenche (sem auto-de-para). NÃO implementar ainda — sem bloqueador de decisão; a FASE 2 aguarda só (a) valores dos códigos RFB = dado humano do contador e (b) pré-req de ambiente `npm ci`+`prisma generate` (só Track B).**
 - **Date:** 2026-07-10
 - **ADR:** `docs/adr/ADR-INCR9B-referential-catalog-seed.md` (decisões D1–D10, forks §8, PENDENTE-VERIFICAR §6).
 - **Objetivo:** entregar a **assistência** ao de-para plano-interno→código-RFB (esqueleto de autoria + de-para em lote + cópia-de-ano + catálogo oficial + validação analytic-only de destino), destravando com **segurança** o coverage-gate que hoje trava ECD/ECF pela `3.3` (e demais folhas) sem código RFB. **Follow-up do item diferido em D6 do INCR-9.**
@@ -53,7 +53,9 @@
 **Risco:** Track A = **Medium** (extensão de service/rota, zero-migração). Track B = **High** (novo model + migração + parsing de arquivo externo).
 **Branch recomendada:** `feature/be-incr9b-referential-*` (uma por track se encenar A→B).
 
-### Passos — Track A (autoria assistida, ZERO-migração) — só rodar após ratificar §Forks-1
+> **Escopo ratificado (2026-07-10): A+B completo, encenado — A primeiro, B depois.** Ambas as tracks fazem parte do incremento; a decisão de escopo está fechada (ADR §8).
+
+### Passos — Track A (autoria assistida, ZERO-migração) — 1º PR
 
 | # | Skill | Argumentos | Arquivos esperados | Motivo |
 |---|---|---|---|---|
@@ -64,7 +66,7 @@
 | A5 | backend-route-generator | `referential` (3-toques + OpenAPI) | edita `routes/*.ts` + registro | `GET /skeleton`, `PUT /mappings/batch`, `POST /mappings/copy` |
 | A6 | backend-test-suite-generator | `service ReferentialMapping` | `services/__tests__/ReferentialMappingService.test.ts` (novos casos) | Gates de domínio D1/D5/D6/D8 acima |
 
-### Passos — Track B (catálogo oficial RFB, MIGRAÇÃO) — só rodar após ratificar §Forks-1 = A+B
+### Passos — Track B (catálogo oficial RFB, MIGRAÇÃO) — 2º PR (isola migração+parsing)
 
 | # | Skill | Argumentos | Arquivos esperados | Motivo |
 |---|---|---|---|---|
@@ -108,11 +110,15 @@
 
 ---
 
-## Forks a ratificar (sinal humano) — resumo
+## Forks — RESOLVIDOS por sinal humano (2026-07-10)
 
-1. **[ESCOPO principal] Track A só (zero-migração) ou A+B (com catálogo oficial + validação analytic-only de destino, com migração)?** Recomendação: **A+B encenados**; B é necessário para a validação de destino; A sozinho não a cobre; nenhum é estritamente necessário só para *gerar* (12 `PUT` do INCR-9 já bastam com os códigos humanos).
-2. **[ESCOPO] Confirmar que o VALOR de cada código RFB (inclusive `3.3`) é preenchido por contador** — o produto **não** faz auto-de-para (ADR D1/D10).
-3. **[menor] `mappingVersion` de partida + ECD/ECF partilham referencial?** (ADR D7 / §6 9B-3) — pode confirmar no arranque da FASE 2.
-4. **[menor] Atomicidade do lote:** all-or-nothing (recomendado) vs best-effort (ADR D8).
+1. ✅ **[ESCOPO principal] A+B completo, encenado** (A primeiro, B depois isolando migração+parsing). A validação analytic-only de destino (3º entregável) entra via Track B. (ADR D2/§8)
+2. ✅ **[AUTORIA] Humano preenche o VALOR de cada código RFB (inclusive `3.3`); o produto NÃO faz auto-de-para.** Guarda-corpo D1 ratificado. (ADR D1/D10/§8)
 
-> **Pergunta exata para destravar a FASE 2:** *"Track A só ou A+B (catálogo RFB + validação analytic-only, com migração)? E confirma que o valor de cada código RFB — inclusive a 3.3 — é preenchido por contador (sem auto-de-para)?"* O Passo B0 (transcrever o leiaute oficial) não depende do valor dos códigos e pode iniciar assim que o roteamento for autorizado.
+**Menores — confirmar no arranque da FASE 2 (não bloqueiam roteamento):**
+- **[D7] `mappingVersion` de partida + ECD/ECF partilham referencial?** (§6 9B-3).
+- **[D8] Atomicidade do lote:** all-or-nothing (recomendado) vs best-effort.
+
+> **Bloqueadores de DECISÃO restantes: NENHUM.** A FASE 2 (impl) fica travada só por (a) **valores dos códigos RFB = dado humano do contador** (sem eles `coverage.ready` fica `false` por construção — correto) e (b) **pré-req de ambiente** `npm ci` + `prisma generate` sadio no worktree (só Track B; memória `worktree-deps-stale-prisma-client`). O Passo B0 (transcrever o leiaute oficial) não depende de nenhum dos dois e pode iniciar assim que a impl for autorizada.
+>
+> **Honestidade de escopo:** o gate **já é destravável hoje** com ~12 `PUT` do INCR-9 + os códigos do contador; o INCR-9B é **ergonomia + segurança** do ato humano (esqueleto chart-driven, lote atômico, cópia-de-ano, catálogo validado), **não pré-requisito de geração**.
