@@ -6514,6 +6514,143 @@
         }
       }
     },
+    "/api/accounting/referential/mappings/batch": {
+      "post": {
+        "summary": "Batch set (upsert) many leaf-account mappings in one version, atomically (BE-INCR-9B)",
+        "description": "All-or-nothing (D8) — every item is upserted in a single transaction with the per-item account-liveness + leaf gate re-checked in-tx; one bad item rolls the whole batch back. Duplicate accountId within the batch is rejected.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "unitId",
+                  "mappingVersion",
+                  "items"
+                ],
+                "properties": {
+                  "unitId": {
+                    "type": "string"
+                  },
+                  "mappingVersion": {
+                    "type": "string",
+                    "description": "calendar-year layout id",
+                    "e.g. \"2025\"": null
+                  },
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "accountId",
+                        "referentialCode",
+                        "label"
+                      ],
+                      "properties": {
+                        "accountId": {
+                          "type": "string",
+                          "description": "leaf account id (accounts.id)"
+                        },
+                        "referentialCode": {
+                          "type": "string",
+                          "description": "RFB referential code (human-supplied)"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "referential account name (denormalized snapshot)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "array of upserted ReferentialMapping"
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/accounting/referential/mappings/copy": {
+      "post": {
+        "summary": "Copy every mapping of one version into another (year inheritance, BE-INCR-9B)",
+        "description": "Copies each mapping of fromVersion into toVersion in one transaction (D6), re-snapshotting the label literally (D9). Existing target rows are upserted in place (never P2002). Reuses the per-item set gate, so it is all-or-nothing.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "unitId",
+                  "fromVersion",
+                  "toVersion"
+                ],
+                "properties": {
+                  "unitId": {
+                    "type": "string"
+                  },
+                  "fromVersion": {
+                    "type": "string",
+                    "description": "source mappingVersion",
+                    "e.g. \"2025\"": null
+                  },
+                  "toVersion": {
+                    "type": "string",
+                    "description": "destination mappingVersion",
+                    "e.g. \"2026\"": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "array of upserted ReferentialMapping in the destination version"
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
     "/api/accounting/referential/coverage": {
       "get": {
         "summary": "Coverage diagnostic — active leaf accounts unmapped in a version (ECD-readiness gate, BE-INCR-9)",
@@ -6546,6 +6683,46 @@
         "responses": {
           "200": {
             "description": "mappingVersion + unmappedAccounts[] + totals + ready flag"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/accounting/referential/skeleton": {
+      "get": {
+        "summary": "Authoring skeleton — unmapped leaf accounts of a version as a batch template (BE-INCR-9B)",
+        "description": "Chart-driven (D5) — reuses coverage().unmappedAccounts, shaped as a fill-in-the-blanks template for batch authoring. Never invents an RFB code.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "unitId + mappingVersion + items[] (unmapped leaf accounts to author)"
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
