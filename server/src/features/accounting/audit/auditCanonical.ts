@@ -35,10 +35,9 @@ const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   // BE-INCR-9 / 9B — versioned Account→RFB referential mapping authoring. Only the
   // mapping identity (accountId + referentialCode + mappingVersion); the denormalized
   // `label` snapshot and any other provenance/PII is dropped. batch/copy per-item audit
-  // reuses `referential.mapping.set`; the batch/copy keys are the same identity shape.
+  // reuses `referential.mapping.set` (one honest per-item trail), so no distinct
+  // `.batch`/`.copy` event exists — the allowlist maps only events actually emitted.
   'referential.mapping.set':   ['accountId', 'referentialCode', 'mappingVersion'],
-  'referential.mapping.batch': ['accountId', 'referentialCode', 'mappingVersion'],
-  'referential.mapping.copy':  ['accountId', 'referentialCode', 'mappingVersion'],
   'referential.mapping.unset': ['accountId', 'referentialCode', 'mappingVersion'],
 };
 
