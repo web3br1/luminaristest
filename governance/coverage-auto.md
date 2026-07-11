@@ -208,12 +208,14 @@ generated-by: skill-audit coverage
 | `ORCH-005` | luminaris-orchestrator | eval:./evals/evals.json#edge-1 | ✅ |
 | `ORCH-006` | luminaris-orchestrator | eval:./evals/evals.json#happy-accounting-1 | ✅ |
 | `ORCH-007` | luminaris-orchestrator | eval:./evals/evals.json#happy-accounting-1 | ✅ |
+| `ORCH-008` | luminaris-orchestrator | eval:./evals/evals.json#happy-parallel-1 | ✅ |
 | `REV-001` | luminaris-reviewer | eval:./evals/evals.json#happy-1 | ✅ |
 | `REV-002` | luminaris-reviewer | eval:./evals/evals.json#happy-1 | ✅ |
 | `REV-003` | luminaris-reviewer | eval:./evals/evals.json#regression-1 | ✅ |
 | `REV-004` | luminaris-reviewer | eval:./evals/evals.json#edge-1 | ✅ |
 | `REV-005` | luminaris-reviewer | eval:./evals/evals.json#happy-1 | ✅ |
 | `REV-006` | luminaris-reviewer | eval:./evals/evals.json#happy-2 | ✅ |
+| `REV-007` | luminaris-reviewer | eval:./evals/evals.json#happy-3 | ✅ |
 | `SDATA-001` | structured-data-generator | eval:./evals/evals.json#happy-1 | ✅ |
 | `SDATA-002` | structured-data-generator | eval:./evals/evals.json#happy-1 | eval:./evals/evals.json#edge-1 | ✅ |
 | `SDATA-003` | structured-data-generator | eval:./evals/evals.json#happy-1 | eval:./evals/evals.json#regression-1 | ✅ |

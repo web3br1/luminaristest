@@ -36,6 +36,12 @@ rules:
     gates:
       - type: eval
         target: ./evals/evals.json#happy-2
+  # Adicionada na v1.1.0 (choke point PAR-001 em slice de Fase A — cita _PARALLELIZATION-CONTRACT.md).
+  # Eval estrutural em happy-3; execução comportamental model-in-loop (BLOCKED no CI).
+  REV-007:
+    gates:
+      - type: eval
+        target: ./evals/evals.json#happy-3
 ---
 
 # Governança — `luminaris-reviewer`
@@ -55,6 +61,11 @@ Agente **revisor** — papel: verificar de forma independente e reportar evidên
 - `REV-004` — defeito encontrado ⇒ devolve ao implementador com `arquivo:linha` + correção sugerida; não conserta em silêncio.
 - `REV-005` — fronteira §2.1 (serviço Prisma first-class no motor DynamicTable) e veredicto de ilha (shape+posse) são FAIL-direto.
 - `REV-006` — não aprova sem rodar o gate de wiring (`skill-audit.mjs wiring`) — registro central tsc-cego (rota/KPI/preset/i18n); `exit≠0` = FAIL.
+- `REV-007` — **só em contexto de slice de Fase A** (lote paralelo, `_PARALLELIZATION-CONTRACT.md` PAR-003): o diff não pode tocar choke point PAR-001 (routes/index.ts, factory.ts, schema.prisma, seed.ts, openapi.json) — pertence à Fase B; interseção = FAIL. N/A em feature regular (3-toques normal). Gate: `happy-3`.
 
 Status `validated`: avaliado em 2026-06-25 (score 1.00 — ver `REPORT.md`). `governance-eval-score`/
 `governance-last-evaluated` no frontmatter são **projeção** do `REPORT.md` (SG-011); materializados na promoção (SG-048).
+Regras pós-baseline (`REV-006`, e `REV-007` na v1.1.0) têm eval **estrutural** wired e gate coerente; a
+cobertura **comportamental** foi **fechada em 2026-07-11** (corrida incremental fora do CI: `happy-3` PASS 5/5;
+`happy-2` assertions PASS com nota — o prompt é hipotético e o revisor corretamente BLOQUEOU; ver `REPORT.md`).
+Sem PASS comportamental forjado.
