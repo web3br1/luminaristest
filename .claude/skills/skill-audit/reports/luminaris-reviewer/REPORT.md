@@ -31,3 +31,22 @@ Nenhuma de-brittle necessária — o revisor usa `REPROVADO`/`BLOCKED` (nunca a 
 
 ## Skipped / blocked
 Nenhum.
+
+## Corrida comportamental incremental — 2026-07-11 (regras pós-baseline)
+Model-in-loop fora do CI: subagente atuou COMO o revisor em contexto limpo, produziu a entrada de
+relatório por case-id; assertions checadas contra o artefato. Score mantém 1.00 (corrida real). O
+baseline 2026-06-25 (topo) segue a corrida de referência.
+
+| Regra | Versão | Eval | Resultado 2026-07-11 | Evidência comportamental |
+|---|---|---|---|---|
+| REV-007 | v1.1.0 | `happy-3` | PASS 5/5 | detectou o toque em `routes/index.ts` num slice de Fase A via `git diff --name-only`, REPROVADO, devolveu a linha de registro à Fase B |
+| REV-006 | (pós-baseline) | `happy-2` (reformulada 2026-07-11) | PASS 5/5 determinístico | rodou o gate de wiring, ancorou o veredicto no exit code real, BLOQUEOU sem forjar FAIL (REV-006 + REV-003) |
+
+**Eval `happy-2` reformulada (2026-07-11) — de-brittle self-contained.** A versão anterior afirmava como fato
+uma rota órfã (`server/src/routes/payroll.ts`) ausente da árvore → o revisor corretamente BLOQUEAVA, mas o intent
+(rodar o gate + agir no exit code real, sem forjar) só passava por acidente do texto. Como um `payroll.ts` órfão
+permanente quebraria o próprio `wiring`/`run --all`, criar fixture está fora; a eval foi **reformulada** para
+tratar a premissa como **afirmação a verificar** (não fato): o revisor roda o gate contra a árvore, ancora no
+exit code real e devolve BLOCKED (gate verde ⇒ afirmação não reproduz) OU FAIL (se o gate acusar órfão). Agora é
+**determinística na árvore real** e testa fielmente REV-006 (rodar o gate) + REV-003 (evidência, não forjar).
+Confirmada por corrida comportamental: PASS 5/5.
