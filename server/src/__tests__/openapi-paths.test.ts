@@ -16,7 +16,8 @@ const { options } = require('../../scripts/generate-openapi');
 /* eslint-enable @typescript-eslint/no-var-requires */
 
 // Current path count on this branch. Raise deliberately when adding routes.
-const BASELINE = 98;
+// +3 (BE-INCR-9B): referential mappings/batch, mappings/copy, skeleton.
+const BASELINE = 101;
 
 describe('OpenAPI @openapi path coverage', () => {
   it('exposes at least BASELINE paths (guards the swagger-jsdoc `: ` drop bug)', () => {
