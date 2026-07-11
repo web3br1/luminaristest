@@ -1,4 +1,4 @@
-import type { ReferentialMapping } from 'generated/prisma';
+import type { ReferentialMapping, Prisma } from 'generated/prisma';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
 import type { IReferentialMappingRepository } from '../repositories/IReferentialMappingRepository';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
@@ -8,6 +8,8 @@ import type { AuditService } from './AuditService';
 import type {
   SetReferentialMappingDto,
   UnsetReferentialMappingDto,
+  BatchSetReferentialMappingDto,
+  CopyReferentialMappingDto,
 } from '../dtos/ReferentialMappingDto';
 
 /** One leaf account missing a referential mapping in the queried version. */
@@ -16,6 +18,18 @@ export interface UnmappedReferentialAccount {
   code: string;
   name: string;
   nature: string;
+}
+
+/**
+ * Chart-driven authoring skeleton (BE-INCR-9B Track A, fork D5): the unmapped leaf
+ * set of a version re-exposed as a fill-in-the-blanks batch template. Pure reuse of
+ * `coverage().unmappedAccounts` — no independent chart re-query, no invented RFB codes.
+ */
+export interface ReferentialAuthoringSkeleton {
+  unitId: string;
+  mappingVersion: string;
+  /** Active leaf accounts still needing a referentialCode/label authored in this version. */
+  items: UnmappedReferentialAccount[];
 }
 
 /**
@@ -71,46 +85,128 @@ export class ReferentialMappingService {
       throw new ForbiddenError('Você não tem permissão para gerenciar o plano referencial.');
     }
 
+    return this.repo.runTransaction((tx) => this.applySet(tx, scope, dto));
+  }
+
+  /**
+   * Batch (upsert) many leaf-account mappings in ONE version, atomically (fork D8):
+   * every item runs in a SINGLE runTransaction, so one bad item rolls the whole batch
+   * back. Per item the account-liveness + leaf gate is re-checked INSIDE the tx
+   * (ACC-011) and the audit appended in the same tx (ACC-019), via the shared
+   * `applySet` — the exact per-item set gate. Duplicate accountId is rejected upstream
+   * by the DTO refine (no ambiguous last-wins).
+   */
+  async batchSet(
+    scope: AccountingScope,
+    dto: BatchSetReferentialMappingDto,
+  ): Promise<ReferentialMapping[]> {
+    if (!this.policy.canManageReferential(scope)) {
+      throw new ForbiddenError('Você não tem permissão para gerenciar o plano referencial.');
+    }
+
     return this.repo.runTransaction(async (tx) => {
-      // Gate (ACC-011): re-read the account INSIDE the tx — deletedAt/acceptsEntries are
-      // mutable; a concurrent softDelete must not interleave under a stale preflight.
-      const account = await this.accountRepo.findById(scope, dto.accountId, tx);
-      if (!account) {
-        // Cross-tenant/id inexistente/soft-deleted = NotFound (anti-enumeração).
-        throw new NotFoundError('Conta contábil não encontrada.');
-      }
-      if (!account.acceptsEntries) {
-        throw new ValidationError(
-          'Só contas-folha (acceptsEntries) recebem mapeamento referencial.',
+      const results: ReferentialMapping[] = [];
+      for (const item of dto.items) {
+        results.push(
+          await this.applySet(tx, scope, {
+            accountId: item.accountId,
+            referentialCode: item.referentialCode,
+            label: item.label,
+            mappingVersion: dto.mappingVersion,
+          }),
         );
       }
-
-      const mapping = await this.repo.upsert(
-        scope,
-        {
-          accountId: dto.accountId,
-          referentialCode: dto.referentialCode,
-          label: dto.label,
-          mappingVersion: dto.mappingVersion,
-          createdById: scope.actorUserId,
-        },
-        tx,
-      );
-
-      await this.audit.append(tx, scope, {
-        actorUserId: scope.actorUserId,
-        eventType: 'referential.mapping.set',
-        targetType: 'ReferentialMapping',
-        targetId: mapping.id,
-        payload: {
-          accountId: dto.accountId,
-          referentialCode: dto.referentialCode,
-          mappingVersion: dto.mappingVersion,
-        },
-      });
-
-      return mapping;
+      return results;
     });
+  }
+
+  /**
+   * Copy every mapping of `fromVersion` into `toVersion` in ONE tx ("year
+   * inheritance", fork D6). The `label` is re-snapshotted LITERALLY (fork D9 — the
+   * official catalog join is Track B, out of scope). Reuses the per-item set gate via
+   * `applySet`, so a source account that has since been soft-deleted or turned into a
+   * grouping account aborts the whole copy (all-or-nothing). The @@unique includes
+   * mappingVersion, so an existing target row is upserted-in-place, never P2002.
+   */
+  async copyVersion(
+    scope: AccountingScope,
+    dto: CopyReferentialMappingDto,
+  ): Promise<ReferentialMapping[]> {
+    if (!this.policy.canManageReferential(scope)) {
+      throw new ForbiddenError('Você não tem permissão para gerenciar o plano referencial.');
+    }
+
+    return this.repo.runTransaction(async (tx) => {
+      const source = await this.repo.findManyByVersion(scope, dto.fromVersion, tx);
+      if (source.length === 0) {
+        throw new NotFoundError(
+          `Nenhum mapeamento referencial na versão de origem "${dto.fromVersion}".`,
+        );
+      }
+      const results: ReferentialMapping[] = [];
+      for (const src of source) {
+        results.push(
+          await this.applySet(tx, scope, {
+            accountId: src.accountId,
+            referentialCode: src.referentialCode,
+            label: src.label, // re-snapshot literally (D9)
+            mappingVersion: dto.toVersion,
+          }),
+        );
+      }
+      return results;
+    });
+  }
+
+  /**
+   * The per-item set gate + write + in-tx audit, shared by setMapping / batchSet /
+   * copyVersion. MUST run inside a caller-owned tx: the account is re-read with the tx
+   * handle (ACC-011), the mapping upserted with the tx handle, and the audit appended
+   * with the same handle (ACC-019) — every write receives `tx` so the atomicity is real.
+   */
+  private async applySet(
+    tx: Prisma.TransactionClient,
+    scope: AccountingScope,
+    item: { accountId: string; referentialCode: string; label: string; mappingVersion: string },
+  ): Promise<ReferentialMapping> {
+    // Gate (ACC-011): re-read the account INSIDE the tx — deletedAt/acceptsEntries are
+    // mutable; a concurrent softDelete must not interleave under a stale preflight.
+    const account = await this.accountRepo.findById(scope, item.accountId, tx);
+    if (!account) {
+      // Cross-tenant/id inexistente/soft-deleted = NotFound (anti-enumeração).
+      throw new NotFoundError('Conta contábil não encontrada.');
+    }
+    if (!account.acceptsEntries) {
+      throw new ValidationError(
+        'Só contas-folha (acceptsEntries) recebem mapeamento referencial.',
+      );
+    }
+
+    const mapping = await this.repo.upsert(
+      scope,
+      {
+        accountId: item.accountId,
+        referentialCode: item.referentialCode,
+        label: item.label,
+        mappingVersion: item.mappingVersion,
+        createdById: scope.actorUserId,
+      },
+      tx,
+    );
+
+    await this.audit.append(tx, scope, {
+      actorUserId: scope.actorUserId,
+      eventType: 'referential.mapping.set',
+      targetType: 'ReferentialMapping',
+      targetId: mapping.id,
+      payload: {
+        accountId: item.accountId,
+        referentialCode: item.referentialCode,
+        mappingVersion: item.mappingVersion,
+      },
+    });
+
+    return mapping;
   }
 
   /**
@@ -188,6 +284,24 @@ export class ReferentialMappingService {
         unmappedCount: unmappedAccounts.length,
       },
       ready: unmappedAccounts.length === 0,
+    };
+  }
+
+  /**
+   * Authoring skeleton (fork D5): the unmapped leaf accounts of a version, shaped as a
+   * fill-in-the-blanks template for batch authoring. Pure reuse of
+   * `coverage().unmappedAccounts` — it inherits coverage's read gate and CHART-driven
+   * universe, and NEVER invents an RFB code (D1/D10: codes are human-supplied input).
+   */
+  async authoringSkeleton(
+    scope: AccountingScope,
+    version: string,
+  ): Promise<ReferentialAuthoringSkeleton> {
+    const report = await this.coverage(scope, version);
+    return {
+      unitId: report.unitId,
+      mappingVersion: report.mappingVersion,
+      items: report.unmappedAccounts,
     };
   }
 }
