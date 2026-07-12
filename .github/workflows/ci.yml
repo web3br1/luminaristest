@@ -40,6 +40,24 @@ jobs:
       - name: Run tests
         run: npm test
 
+      # Tripwire p/ TECH-DEBT-TEST-001. `npm test` usa `--forceExit`: quando um recurso async
+      # (subprocesso do query-engine do Prisma nos testes de integração SQLite) demora a fechar
+      # e corre com a janela de saída do worker do Jest, o exit vira 1 mesmo com 900/900 verdes
+      # (flake de ambiente, não do diff — provado localmente: 0 handles sob --detectOpenHandles).
+      # forceExit poderia MASCARAR um teste que de fato vaze handle → este passo re-roda a suíte
+      # com o detector e FALHA se o Jest reportar qualquer open handle. Base limpa = verde.
+      - name: Assert no leaked handles (forceExit tripwire)
+        shell: bash
+        run: |
+          set -uo pipefail
+          out=$(npm run test:leaks 2>&1) || { echo "$out"; exit 1; }
+          if echo "$out" | grep -q "Jest has detected the following"; then
+            echo "::error::Open handle vazado — algum teste não fecha um recurso async (TECH-DEBT-TEST-001)."
+            echo "$out" | grep -A15 "Jest has detected the following"
+            exit 1
+          fi
+          echo "OK: nenhum handle vazado."
+
   frontend:
     name: Frontend – build
     runs-on: ubuntu-latest
