@@ -8,6 +8,7 @@ import {
   getIncomeStatement,
   getCashFlow,
   getPeriodComparison,
+  getDailyJournal,
   listAccounts,
   listEntries,
   createAccount,
@@ -78,6 +79,7 @@ router.get('/balance-sheet', getBalanceSheet);
 router.get('/income-statement', getIncomeStatement);
 router.get('/reports/cash-flow', getCashFlow);
 router.get('/reports/period-comparison', getPeriodComparison);
+router.get('/reports/daily-journal', getDailyJournal);
 
 // Chart of accounts management.
 router.get('/accounts', listAccounts);

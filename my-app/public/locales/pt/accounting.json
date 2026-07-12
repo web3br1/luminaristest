@@ -554,5 +554,33 @@
       "label": "{{current}} vs {{previous}}"
     },
     "noBaseline": "—"
+  },
+  "dailyJournal": {
+    "title": "Livro Diário",
+    "controls": {
+      "from": "De",
+      "to": "Até",
+      "generate": "Gerar Livro Diário",
+      "calculating": "Calculando…"
+    },
+    "error": {
+      "load": "Erro ao carregar o Livro Diário."
+    },
+    "empty": "Selecione o intervalo e clique em \"Gerar Livro Diário\" para visualizar os lançamentos.",
+    "entry": {
+      "number": "Lançamento nº {{number}}",
+      "date": "Data",
+      "description": "Histórico"
+    },
+    "columns": {
+      "account": "Conta",
+      "debit": "Débito",
+      "credit": "Crédito"
+    },
+    "balanced": "Balanceado",
+    "unbalanced": "Desbalanceado",
+    "range": {
+      "label": "{{from}} a {{to}}"
+    }
   }
 }
