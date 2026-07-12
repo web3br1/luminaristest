@@ -286,6 +286,125 @@
         }
       }
     },
+    "/api/accounting/reports/cash-flow": {
+      "get": {
+        "summary": "DFC — Demonstração do Fluxo de Caixa (método indireto), year_to_date",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "YYYY-MM-DD — inclusive upper bound; window is 1 Jan of that year → asOf"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cash-flow statement report"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/api/accounting/reports/period-comparison": {
+      "get": {
+        "summary": "Balancete comparativo / variação mensal — two as-of snapshots + delta",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOfCurrent",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "YYYY-MM-DD — current period as-of date"
+          },
+          {
+            "in": "query",
+            "name": "asOfPrevious",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "YYYY-MM-DD — comparison period as-of date"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Comparative trial balance report"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/api/accounting/reports/daily-journal": {
+      "get": {
+        "summary": "Livro Diário — chronological journal entries over a date range (read-only)",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "YYYY-MM-DD — inclusive lower bound"
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "YYYY-MM-DD — inclusive upper bound"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daily journal report"
+          },
+          "400": {
+            "description": "Validation error (includes from > to)"
+          }
+        }
+      }
+    },
     "/api/accounting/{unitId}/periods": {
       "get": {
         "summary": "List accounting periods for a fiscal year",
