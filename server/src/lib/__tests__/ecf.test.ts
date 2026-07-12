@@ -129,16 +129,16 @@ describe('ecf file assembler', () => {
     expect(lines[lines.length - 1].startsWith('|9999|')).toBe(true);
     const regs = lines.map((l) => l.split('|')[1]);
     // canonical order of block openers
-    const openers = regs.filter((r) => /^(0001|C001|E001|J001|K001|L001|M001|N001|P001|Q001|T001|U001|V001|W001|X001|Y001|9001)$/.test(r));
+    const openers = regs.filter((r) => /^(0001|C001|E001|J001|K001|L001|M001|N001|P001|Q001|S001|T001|U001|V001|W001|X001|Y001|9001)$/.test(r));
     expect(openers).toEqual([
       '0001', 'C001', 'E001', 'J001', 'K001', 'L001', 'M001', 'N001',
-      'P001', 'Q001', 'T001', 'U001', 'V001', 'W001', 'X001', 'Y001', '9001',
+      'P001', 'Q001', 'S001', 'T001', 'U001', 'V001', 'W001', 'X001', 'Y001', '9001',
     ]);
   });
 
   it('recovered/irrelevant blocks are empty markers (IND_DAD=1, close qty 2)', () => {
     const lines = buildEcfFile(sampleInput());
-    for (const b of ['C', 'E', 'J', 'K', 'L', 'M', 'N', 'Q', 'T', 'U', 'V', 'W', 'X', 'Y']) {
+    for (const b of ['C', 'E', 'J', 'K', 'L', 'M', 'N', 'Q', 'S', 'T', 'U', 'V', 'W', 'X', 'Y']) {
       expect(lines).toContain(`|${b}001|1|`);
       expect(lines).toContain(`|${b}990|2|`);
     }

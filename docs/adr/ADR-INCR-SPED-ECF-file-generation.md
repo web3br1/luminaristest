@@ -81,10 +81,10 @@ verificável (mapa atividade→linha, gate de exaustividade, contadores, determi
 limpo, testes verdes). Sem defeito confirmado. Restam **só** questões de aceitação estrutural que **apenas
 o PVA-ECF resolve** (validador desktop RFB, fora do ambiente) — ordenadas por prioridade:
 
-1. **Bloco S (TEF/SAF).** Emitimos exatamente a "Relação de Blocos" (Manual p. 41, autoridade de ordem)
-   **menos S**; S é condicional de FORMA_TRIB=10 e ausente da Relação. Sinal conflitante: S001 na Tabela de
-   Obrigatoriedade (p. 43+) tem Saída='O'. **Confirmar no PVA;** incluir `S001/S990` é uma linha em
-   `EMPTY_BLOCKS_TAIL` se exigido.
+1. **Bloco S (TEF/SAF).** **Emitimos `S001/S990` vazios** (posição entre Q e T) — S001 tem Saída='O' na
+   Tabela de Obrigatoriedade (p. 43+), embora a "Relação de Blocos" (p. 41) o omita (bloco condicional de
+   FORMA_TRIB=10). Diante do sinal conflitante, optamos pela inclusão (regra "todos os blocos obrigatórios").
+   **Confirmar no PVA;** se rejeitar S p/ não-SAF, removê-lo é uma linha em `EMPTY_BLOCKS_TAIL`.
 2. **P300/P500 sem linhas de dedução.** Emitimos P200/P400 (receita bruta) e deixamos o PVA computar
    P300/P500. As linhas `E` de dedução de P300/P500 (IRRF retido, isenção/redução, CSLL retida) **não** são
    recuperáveis da ECD e **não** são emitidas — o MVP não representa crédito de retenção na fonte. Omitir só

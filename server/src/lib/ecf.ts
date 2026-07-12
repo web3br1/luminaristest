@@ -67,10 +67,10 @@ const EMPTY = '';
 
 export type BlockOpenReg =
   | '0001' | 'C001' | 'E001' | 'J001' | 'K001' | 'L001' | 'M001' | 'N001'
-  | 'P001' | 'Q001' | 'T001' | 'U001' | 'V001' | 'W001' | 'X001' | 'Y001' | '9001';
+  | 'P001' | 'Q001' | 'S001' | 'T001' | 'U001' | 'V001' | 'W001' | 'X001' | 'Y001' | '9001';
 export type BlockCloseReg =
   | '0990' | 'C990' | 'E990' | 'J990' | 'K990' | 'L990' | 'M990' | 'N990'
-  | 'P990' | 'Q990' | 'T990' | 'U990' | 'V990' | 'W990' | 'X990' | 'Y990' | '9990';
+  | 'P990' | 'Q990' | 'S990' | 'T990' | 'U990' | 'V990' | 'W990' | 'X990' | 'Y990' | '9990';
 
 /** Abertura de bloco: REG + IND_DAD ('0' com dados / '1' sem dados). */
 export function buildBlockOpen(reg: BlockOpenReg, hasData: boolean): string {
@@ -327,17 +327,16 @@ export interface EcfFileInput {
  * Ordem canônica dos blocos (Manual p. 40-41). Blocos sem dados entram como
  * marcadores vazios (abertura IND_DAD='1' + encerramento). Blocos C/E/J/K/P100/
  * P150 são recuperados/calculados pelo PVA da ECD (0010.TIP_ESC_PRE='C'). Os
- * blocos de outros regimes (L/M/N Real, Q Livro Caixa, T Arbitrado, U Imunes,
- * V DEREX, W País-a-País, X Econômicas) entram vazios pela regra "todos os
- * blocos obrigatórios" (p. 41).
+ * blocos de outros regimes (L/M/N Real, Q Livro Caixa, S TEF/SAF, T Arbitrado,
+ * U Imunes, V DEREX, W País-a-País, X Econômicas) entram vazios pela regra
+ * "todos os blocos obrigatórios" (p. 41).
  *
- * Bloco S (TEF/SAF) fica FORA — o conjunto emitido é EXATAMENTE a "Relação de
- * Blocos" da p. 41 (que o Manual declara ser a ordem de apresentação) menos S; S
- * é bloco condicional de FORMA_TRIB=10 (Sociedade Anônima de Futebol),
- * introduzido no leiaute 12 e AUSENTE da Relação de Blocos. Sinal conflitante:
- * S001 aparece na Tabela de Obrigatoriedade (p. 43+) com Saída='O'. Os dois
- * sinais só se resolvem no PVA ⇒ **S é o item nº 1 do sign-off humano** (ADR
- * §Fechamento); incluir S001/S990 é uma linha em EMPTY_BLOCKS_TAIL se o PVA exigir.
+ * Bloco S (TEF/SAF): a Tabela de Obrigatoriedade (p. 43+) marca S001 com
+ * Saída='O', embora a "Relação de Blocos" (p. 41) o omita (bloco condicional de
+ * FORMA_TRIB=10, introduzido no leiaute 12). Diante do sinal conflitante e por
+ * segurança da regra "todos os blocos obrigatórios", **emitimos S001/S990
+ * vazios** (posição entre Q e T). Confirmar no PVA-ECF (sign-off humano); se o
+ * PVA rejeitar S p/ não-SAF, removê-lo é uma linha em EMPTY_BLOCKS_TAIL.
  */
 const EMPTY_BLOCKS: Array<{ open: BlockOpenReg; close: BlockCloseReg }> = [
   { open: 'C001', close: 'C990' },
@@ -350,6 +349,7 @@ const EMPTY_BLOCKS: Array<{ open: BlockOpenReg; close: BlockCloseReg }> = [
 ];
 const EMPTY_BLOCKS_TAIL: Array<{ open: BlockOpenReg; close: BlockCloseReg }> = [
   { open: 'Q001', close: 'Q990' },
+  { open: 'S001', close: 'S990' },
   { open: 'T001', close: 'T990' },
   { open: 'U001', close: 'U990' },
   { open: 'V001', close: 'V990' },
