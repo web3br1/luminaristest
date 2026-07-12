@@ -329,10 +329,15 @@ export interface EcfFileInput {
  * P150 são recuperados/calculados pelo PVA da ECD (0010.TIP_ESC_PRE='C'). Os
  * blocos de outros regimes (L/M/N Real, Q Livro Caixa, T Arbitrado, U Imunes,
  * V DEREX, W País-a-País, X Econômicas) entram vazios pela regra "todos os
- * blocos obrigatórios" (p. 41). Bloco S (TEF/SAF, FORMA_TRIB=10) fica FORA.
+ * blocos obrigatórios" (p. 41).
  *
- * NB: o conjunto exato de marcadores vazios é o item nº 1 do sign-off humano no
- * PVA-ECF (ADR §Fechamento) — ajustar um marcador é uma linha.
+ * Bloco S (TEF/SAF) fica FORA — o conjunto emitido é EXATAMENTE a "Relação de
+ * Blocos" da p. 41 (que o Manual declara ser a ordem de apresentação) menos S; S
+ * é bloco condicional de FORMA_TRIB=10 (Sociedade Anônima de Futebol),
+ * introduzido no leiaute 12 e AUSENTE da Relação de Blocos. Sinal conflitante:
+ * S001 aparece na Tabela de Obrigatoriedade (p. 43+) com Saída='O'. Os dois
+ * sinais só se resolvem no PVA ⇒ **S é o item nº 1 do sign-off humano** (ADR
+ * §Fechamento); incluir S001/S990 é uma linha em EMPTY_BLOCKS_TAIL se o PVA exigir.
  */
 const EMPTY_BLOCKS: Array<{ open: BlockOpenReg; close: BlockCloseReg }> = [
   { open: 'C001', close: 'C990' },

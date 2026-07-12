@@ -74,6 +74,25 @@
    lista** (guard da lição **FAIL-1 do PR#66**: nunca dropar em silêncio = subtributação). Parecer completo:
    `luminaris-accounting-architect` (2026-07-12) em `docs/accounting/BE-INCR-SPED-ECF-layout-transcription.md §7`.
 
+### Fechamento FASE 2 — residuais de sign-off humano no PVA-ECF (review independente PASS 2026-07-12)
+
+Review independente (agente separado, re-checou o commit `6192799` do zero) **PASS** em toda a superfície
+verificável (mapa atividade→linha, gate de exaustividade, contadores, determinismo, camadas, reuso; tsc
+limpo, testes verdes). Sem defeito confirmado. Restam **só** questões de aceitação estrutural que **apenas
+o PVA-ECF resolve** (validador desktop RFB, fora do ambiente) — ordenadas por prioridade:
+
+1. **Bloco S (TEF/SAF).** Emitimos exatamente a "Relação de Blocos" (Manual p. 41, autoridade de ordem)
+   **menos S**; S é condicional de FORMA_TRIB=10 e ausente da Relação. Sinal conflitante: S001 na Tabela de
+   Obrigatoriedade (p. 43+) tem Saída='O'. **Confirmar no PVA;** incluir `S001/S990` é uma linha em
+   `EMPTY_BLOCKS_TAIL` se exigido.
+2. **P300/P500 sem linhas de dedução.** Emitimos P200/P400 (receita bruta) e deixamos o PVA computar
+   P300/P500. As linhas `E` de dedução de P300/P500 (IRRF retido, isenção/redução, CSLL retida) **não** são
+   recuperáveis da ECD e **não** são emitidas — o MVP não representa crédito de retenção na fonte. Omitir só
+   **aumenta** o tributo (conservador, nunca subtributa); um salão B2C típico não tem retenção. **Extensão
+   própria** quando houver retenção relevante.
+3. **`0000.COD_VER='0012'`** (o exemplo do Manual mostra `'0011'`, artefato de exemplo não-atualizado).
+   Confirmar no PVA.
+
 ---
 
 ## 1. Contexto
