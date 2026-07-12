@@ -5419,6 +5419,186 @@
         }
       }
     },
+    "/api/accounting/sped/ecf/generate": {
+      "post": {
+        "summary": "Generate the SPED Fiscal (ECF) .txt file for a year (Lucro Presumido)",
+        "description": "Composes the ECF for the given calendar year (Lucro Presumido) and persists a plain-text (ISO-8859-1) artifact as an EXPORT job. Luminaris supplies the gross revenue segregated by activity per quarter (3.1 services to P200/P400 32 percent, 3.3 resale to P200 8 percent / P400 12 percent); the PVA-ECF computes the tax. Recovered blocks (C, E, J, K) are emitted as empty markers. Download via /data-exchange/jobs/{jobId}/download. Blocks with 400 + unmappedRevenueAccounts when a Revenue account with movement is not one of 3.1 / 3.3 (revenue exhaustiveness gate).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "unitId",
+                  "year",
+                  "declarant",
+                  "signers"
+                ],
+                "properties": {
+                  "unitId": {
+                    "type": "string"
+                  },
+                  "year": {
+                    "type": "integer",
+                    "example": 2025
+                  },
+                  "declarant": {
+                    "type": "object",
+                    "required": [
+                      "cnpj",
+                      "nome",
+                      "codNat",
+                      "cnaeFiscal",
+                      "endereco",
+                      "bairro",
+                      "uf",
+                      "codMun",
+                      "cep",
+                      "email"
+                    ],
+                    "properties": {
+                      "cnpj": {
+                        "type": "string",
+                        "description": "14 digits"
+                      },
+                      "nome": {
+                        "type": "string"
+                      },
+                      "codNat": {
+                        "type": "string",
+                        "description": "natureza juridica (3-4 digits)"
+                      },
+                      "cnaeFiscal": {
+                        "type": "string",
+                        "description": "7 digits"
+                      },
+                      "endereco": {
+                        "type": "string"
+                      },
+                      "num": {
+                        "type": "string"
+                      },
+                      "bairro": {
+                        "type": "string"
+                      },
+                      "uf": {
+                        "type": "string"
+                      },
+                      "codMun": {
+                        "type": "string",
+                        "description": "IBGE 7 digits"
+                      },
+                      "cep": {
+                        "type": "string",
+                        "description": "8 digits"
+                      },
+                      "email": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "fiscal": {
+                    "type": "object",
+                    "properties": {
+                      "indAliqCsll": {
+                        "type": "string",
+                        "enum": [
+                          "1",
+                          "4"
+                        ],
+                        "description": "1 = 9 percent"
+                      },
+                      "indRecReceita": {
+                        "type": "string",
+                        "enum": [
+                          "1",
+                          "2"
+                        ],
+                        "description": "2 = competencia"
+                      }
+                    }
+                  },
+                  "signers": {
+                    "type": "array",
+                    "maxItems": 2,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "identNom",
+                        "identCpfCnpj",
+                        "identQualif",
+                        "email",
+                        "fone"
+                      ],
+                      "properties": {
+                        "identNom": {
+                          "type": "string"
+                        },
+                        "identCpfCnpj": {
+                          "type": "string"
+                        },
+                        "identQualif": {
+                          "type": "string",
+                          "description": "3 digits; 900 = Contador"
+                        },
+                        "indCrc": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "fone": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "ECF export job created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DataExchangeJob"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        }
+      }
+    },
     "/api/accounting/closing/exercise": {
       "post": {
         "summary": "Close the result of a fiscal year (encerramento do exercício)",

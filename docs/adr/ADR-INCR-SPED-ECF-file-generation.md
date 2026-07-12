@@ -11,6 +11,71 @@
 
 ---
 
+## ⚠️ EMENDA FASE 2 · Passo A (2026-07-12) — correções de leiaute contra o Manual oficial
+
+> A transcrição do **Manual de Orientação do Leiaute 12 da ECF** (Anexo ao ADE Cofis nº 02/2026, jul/2026,
+> AC 2025) resolveu os PENDENTE-VERIFICAR do §6 e revelou **duas divergências VERIFICADAS** entre o leiaute
+> real e a lista **INFERIDA** desta FASE 1 — exatamente a lição **I052** que o §7 nomeou como risco. A
+> **decisão-rota humana (D5 rota (b), D4 transiente) permanece intacta**; o que se corrige é a **realização de
+> campo** que a FASE 1 inferiu. Detalhe campo-a-campo com citações de página em
+> `docs/accounting/BE-INCR-SPED-ECF-layout-transcription.md`. Sinal humano de continuidade dado em 2026-07-12
+> (corrigir ADR + implementar; Blocos J/K = marcadores vazios).
+
+1. **[CORRIGE D5 — realização de campo]** Os Blocos **C e E são "recuperados pelo sistema — NÃO importados e
+   não editados no programa"** (Manual p. 40, §1.3 pp. 12-13). Todo registro de **dado** de C/E tem
+   **Obrigatoriedade de Entrada = `N` (Não Deve Existir)** (Tabela de Obrigatoriedade p. 43). ⇒ o nosso `.txt`
+   emite **apenas** `C001+C990` e `E001+E990` (blocos vazios); o PVA preenche C/E na "Recuperar ECD". **Não
+   existe** campo `ecdRecibo`/`ecdHash` de Bloco C para preenchermos (o `0010.HASH_ECF_ANTERIOR` é da
+   recuperação da **ECF anterior do Lucro REAL**, não da ECD nem do Presumido). ⇒ **`ecdRecibo`/`ecdHash`
+   REMOVIDOS do DTO** (contra o previsto em D5/Passo D). A rota (b) sobrevive via `0010.TIP_ESC_PRE='C'`
+   (recuperação obrigatória para Presumido obrigado à ECD — o caso Luminaris).
+
+2. **[CORRIGE §2/§D2 — numeração do Bloco P]** O mapeamento inferido ("P130 base IRPJ · P300 base CSLL ·
+   P200/P500 imposto") está **trocado**. Real (Manual pp. 326-347): **P200 = base IRPJ · P300 = cálculo IRPJ ·
+   P400 = base CSLL · P500 = cálculo CSLL**; **P130 = Receitas Incentivadas** (condicional
+   `IND_REC_RECEITA=2`) e **P230 = Isenção/Redução** (condicional `IND_RED_ISEN=S`). A **matemática** de D2/D3
+   (Σreceita×presunção; IRPJ 15%+adicional 10%/60k-tri; CSLL 9%; trimestral) **permanece** — só os números de
+   registro mudam. Conjunto MVP do Bloco P: `P001·P030·P100·P150·P200·P300·P400·P500·P990` (P130/P230
+   omitidos no caso típico, sem incentivadas/isenção).
+
+3. **[REFINA D6 — Blocos J/K]** J/K têm **Entrada = `F` (facultativo)** — o PVA os constrói da ECD recuperada
+   (que já carrega o mapeamento referencial do BE-INCR-SPED-ECD). **Decisão (sinal humano 2026-07-12):**
+   emitir **marcadores vazios** `J001+J990` e `K001+K990`; **não** importar J/K por fora (evita divergência
+   K915/K935 com o recuperado; menos código). O **coverage-gate (D6) migra** de "montar J/K" para "montar
+   **P100/P150 referencial**" — que são planos de contas referenciais (Manual §1.12 p. 16). ⇒ o **bloqueador
+   §5.1 da `3.3` sem código RFB permanece** (P100/P150 são referenciais), só muda o registro onde falha.
+
+4. **[RESOLVE §6 ECF-6 — encoding]** Paridade com a ECD **CONFIRMADA** (não assumida): Latin-1 / CRLF /
+   vírgula-decimal (Manual p. 31). Primitivas de `lib/sped.ts` reusáveis byte-a-byte. **Acréscimo:** tipo
+   **`NS` (numérico sinalizado, +/−)** para campos de base/resultado do Bloco P — mas ver ponto 5: nós só
+   emitimos linhas `E` de receita bruta (≥0), então o `NS` fica nas linhas CNA que **o PVA** computa, não nas
+   nossas. Formatador `NS` fica como utilitário, uso mínimo.
+
+5. **[INVERTE D2 — o PVA computa o imposto; nós só segregamos receita bruta] — sinal humano 2026-07-12.**
+   As **Tabelas Dinâmicas oficiais** (`Tabelas_Dinamicas_ECF_Leiaute_12`, planilhas P200/P300/P400/P500,
+   grau VERIFICADO) mostram que **os coeficientes de presunção e as alíquotas são fórmulas da RFB embutidas
+   no PVA**, em linhas `TIPO=CNA/CA` (não-editáveis): P200(10)=`Σ P200(2)*0,016+P200(4)*0,08+P200(6)*0,16+
+   P200(8)*0,32+P200(9)*0,384`; P300(3)=`P300(1)*0,15`; P300(4) adicional=`(P300(1)−20000*MESES)*0,10`;
+   P500(2)=`P500(1)*0,09`. As **únicas linhas de entrada (`TIPO=E`)** são a **receita bruta segregada por
+   percentual**: serviço(3.1)→P200(8) 32% & P400(4) 32%; revenda(3.3)→P200(4) 8% & P400(2) 12%. ⇒ **ADR D2
+   invertido:** Luminaris **NÃO computa** base/IRPJ/adicional/CSLL — fornece receita bruta segregada e o PVA
+   computa (fonte única de verdade = programa da RFB; zero risco de divergência; a LC 224/25 já mudou
+   fórmulas neste leiaute — duplicá-las seria dívida fiscal). **`models/presumption.ts` NÃO é módulo de
+   constantes fiscais de cálculo** — no máximo um mapa de layout `atividade → {linha P200, linha P400}`.
+   Bloco P que emitimos: **P001 · P030 · P200(E) · P400(E) · P990** (P100/P150 recuperados/calculados pelo
+   PVA para TIP_ESC_PRE='C', Manual p. 329/336; P300/P500 computados pelo PVA; P130/P230 condicionais).
+
+6. **[SUBSTITUI D6 — gate de exaustividade da receita, não coverage referencial] — sinal humano 2026-07-12.**
+   Como o `.txt` **não** emite linha keyed por código referencial RFB (P100/P150/J/K são recuperados pelo
+   PVA da ECD), **não há coverage-gate referencial no serviço da ECF** — o `3.3` sem código RFB (§5.1) é
+   invariante da **ECD recuperada** (BE-INCR-SPED-ECD), migra para lá e **não trava a ECF**. O **gate real**
+   é **exaustividade da receita**: toda conta natureza `Revenue` com movimento no trimestre tem de mapear a
+   uma linha de presunção conhecida (3.1, 3.3); conta `Revenue` não-mapeada ⇒ **`ValidationError` com a
+   lista** (guard da lição **FAIL-1 do PR#66**: nunca dropar em silêncio = subtributação). Parecer completo:
+   `luminaris-accounting-architect` (2026-07-12) em `docs/accounting/BE-INCR-SPED-ECF-layout-transcription.md §7`.
+
+---
+
 ## 1. Contexto
 
 **O que é ECF.** A Escrituração Contábil Fiscal (SPED Fiscal-IRPJ/CSLL) é um **arquivo texto único**, organizado em **blocos → registros**, layout **pipe-delimitado** (`|CAMPO|CAMPO|...|`, um registro por linha), no mesmo estilo estrutural da ECD. É a declaração anual que apura **IRPJ e CSLL** e substituiu a DIPJ. O leiaute e a matriz de obrigatoriedade de registros **variam por regime de tributação** (Real / Presumido / Arbitrado / Imune-Isenta) e por ano-calendário — publicados no **Manual de Orientação da ECF** da RFB.
