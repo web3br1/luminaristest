@@ -3,6 +3,7 @@ import type { BankStatement, BankStatementLine, Prisma } from 'generated/prisma'
 import { ForbiddenError, NotFoundError, ServiceError, ValidationError } from '../../../lib/errors';
 import { parseTable } from '../../../lib/spreadsheet';
 import { parseOfx, type StatementFormat } from '../../../lib/ofx';
+import { parseCnab } from '../../../lib/cnab';
 import type { IReconciliationRepository } from '../repositories/IReconciliationRepository';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
@@ -93,10 +94,14 @@ export class ReconciliationService {
       return { statement: existing, created: false, lineCount: lines.length };
     }
 
-    // Same validation gate (parseLines) for every format — OFX just normalizes to the
-    // identical {headers, rows} shape before it. Branch only on WHICH parser to call.
+    // Same validation gate (parseLines) for every format — OFX and CNAB just normalize to
+    // the identical {headers, rows} shape before it. Branch only on WHICH parser to call.
     const table =
-      file.format === 'ofx' ? parseOfx(file.buffer) : await parseTable(file.buffer, file.format);
+      file.format === 'ofx'
+        ? parseOfx(file.buffer)
+        : file.format === 'cnab'
+          ? parseCnab(file.buffer)
+          : await parseTable(file.buffer, file.format);
     const parsedLines = this.parseLines(scope, table);
     if (parsedLines.length === 0) {
       throw new ValidationError('Extrato sem linhas de dados.');
