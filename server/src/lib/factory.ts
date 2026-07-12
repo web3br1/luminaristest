@@ -62,6 +62,7 @@ import { ReferentialMappingService } from '../features/accounting/services/Refer
 import { ReferentialCatalogService } from '../features/accounting/services/ReferentialCatalogService';
 import { DocumentAttachmentService } from '../features/accounting/services/DocumentAttachmentService';
 import { DataExchangeExportService } from '../features/accounting/services/DataExchangeExportService';
+import { ReceiptService } from '../features/accounting/services/ReceiptService';
 import { DataExchangeImportService } from '../features/accounting/services/DataExchangeImportService';
 import { SpedGenerationService } from '../features/accounting/services/SpedGenerationService';
 import { SpedEcfGenerationService } from '../features/accounting/services/SpedEcfGenerationService';
@@ -191,6 +192,7 @@ export class ApplicationFactory {
     documentAttachment: DocumentAttachmentService;
     dataExchangeExport: DataExchangeExportService;
     dataExchangeImport: DataExchangeImportService;
+    receipt: ReceiptService;
     sped: SpedGenerationService;
     spedEcf: SpedEcfGenerationService;
     exerciseClosing: ExerciseClosingService;
@@ -428,6 +430,11 @@ export class ApplicationFactory {
         postingService,
         postingService,
       ),
+      receipt: new ReceiptService(
+        this.repositories.journalEntry,
+        this.repositories.account,
+        this.policies.accounting,
+      ),
       sped: new SpedGenerationService(
         this.repositories.account,
         this.repositories.posting,
@@ -494,6 +501,7 @@ export class ApplicationFactory {
   public getDocumentAttachmentService = (): DocumentAttachmentService => this.services.documentAttachment;
   public getDataExchangeExportService = (): DataExchangeExportService => this.services.dataExchangeExport;
   public getDataExchangeImportService = (): DataExchangeImportService => this.services.dataExchangeImport;
+  public getReceiptService = (): ReceiptService => this.services.receipt;
   public getSpedGenerationService = (): SpedGenerationService => this.services.sped;
   public getSpedEcfGenerationService = (): SpedEcfGenerationService => this.services.spedEcf;
   public getExerciseClosingService = (): ExerciseClosingService => this.services.exerciseClosing;

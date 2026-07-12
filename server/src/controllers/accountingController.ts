@@ -18,6 +18,7 @@ import {
   BalanceSheetQuerySchema,
   IncomeStatementQuerySchema,
 } from '../features/accounting/dtos/PostingDto';
+import { ReceiptRequestSchema } from '../features/accounting/dtos/ReceiptDto';
 
 export const postEntry = async (req: Request, res: Response) => {
   try {
@@ -117,6 +118,40 @@ export const listEntries = async (req: Request, res: Response) => {
       limit: parsed.data.limit,
     });
     return res.json({ success: true, data: { entries: result.entries, total: result.total } });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+/** @openapi
+ * /api/accounting/journal-entries/{entryId}/receipt:
+ *   get:
+ *     summary: Comprovante de lançamento (PDF) for a single journal entry
+ *     parameters:
+ *       - { in: path, name: entryId, required: true, schema: { type: string } }
+ *       - { in: query, name: unitId, required: true, schema: { type: string } }
+ *     responses:
+ *       200: { description: PDF receipt (application/pdf) }
+ *       403: { description: Not authorized to read the ledger }
+ *       404: { description: Entry not found in scope }
+ */
+export const getEntryReceipt = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = ReceiptRequestSchema.safeParse({ unitId: req.query.unitId, entryId: req.params.entryId });
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const { buffer, fileName, mimeType } = await getFactory()
+      .getReceiptService()
+      .generateEntryReceipt(scope, parsed.data.entryId);
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Length', String(buffer.length));
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    return res.send(buffer);
   } catch (error) {
     return handleApiError(error, res);
   }
