@@ -18,6 +18,7 @@ import {
   BalanceSheetQuerySchema,
   IncomeStatementQuerySchema,
 } from '../features/accounting/dtos/PostingDto';
+import { CashFlowStatementQuerySchema } from '../features/accounting/dtos/cashFlowReport.dto';
 
 export const postEntry = async (req: Request, res: Response) => {
   try {
@@ -224,6 +225,34 @@ export const getIncomeStatement = async (req: Request, res: Response) => {
     const scope = resolveAccountingScope(user, parsed.data.unitId);
     const asOf = new Date(parsed.data.asOf + 'T23:59:59.999Z');
     const data = await getFactory().getAccountingReportService().incomeStatement(scope, asOf);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+/** @openapi
+ * /api/accounting/reports/cash-flow:
+ *   get:
+ *     summary: DFC — Demonstração do Fluxo de Caixa (método indireto), year_to_date
+ *     parameters:
+ *       - { in: query, name: unitId, required: true, schema: { type: string } }
+ *       - { in: query, name: asOf,   required: true, schema: { type: string, format: date }, description: "YYYY-MM-DD — inclusive upper bound; window is 1 Jan of that year → asOf" }
+ *     responses:
+ *       200: { description: Cash-flow statement report }
+ *       400: { description: Validation error }
+ */
+export const getCashFlow = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = CashFlowStatementQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const asOf = new Date(parsed.data.asOf + 'T23:59:59.999Z');
+    const data = await getFactory().getCashFlowReportService().cashFlowStatement(scope, asOf);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);

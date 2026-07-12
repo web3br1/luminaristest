@@ -487,5 +487,48 @@
       "load": "Erro ao carregar a conciliação.",
       "generic": "Ocorreu um erro. Tente novamente."
     }
+  },
+  "cashFlow": {
+    "title": "Fluxo de Caixa (DFC)",
+    "controls": {
+      "asOf": "Posição em",
+      "generate": "Gerar DFC",
+      "calculating": "Calculando…"
+    },
+    "error": {
+      "load": "Erro ao carregar o fluxo de caixa."
+    },
+    "empty": "Selecione a data e clique em \"Gerar DFC\" para visualizar a Demonstração do Fluxo de Caixa.",
+    "method": {
+      "indirect": "Método indireto"
+    },
+    "section": {
+      "operating": "Atividades operacionais",
+      "investing": "Atividades de investimento",
+      "financing": "Atividades de financiamento",
+      "total": "Total",
+      "empty": "Sem movimentação"
+    },
+    "operating": {
+      "netResult": "Resultado do período",
+      "adjustments": "Ajustes (capital de giro e não-caixa)"
+    },
+    "cash": {
+      "opening": "Caixa inicial",
+      "closing": "Caixa final"
+    },
+    "reconciliation": {
+      "title": "Reconciliação",
+      "sectionsTotal": "Geração líquida de caixa",
+      "computedClosing": "Caixa final calculado",
+      "reconciles": "Reconcilia",
+      "notReconciles": "Não reconcilia"
+    },
+    "status": {
+      "ok": "OK",
+      "warning": "Aviso",
+      "invalid": "Inválido",
+      "mappingVersion": "Versão de mapeamento: {{version}}"
+    }
   }
 }
