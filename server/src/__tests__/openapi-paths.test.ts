@@ -18,7 +18,8 @@ const { options } = require('../../scripts/generate-openapi');
 // Current path count on this branch. Raise deliberately when adding routes.
 // +3 (BE-INCR-9B Track A): referential mappings/batch, mappings/copy, skeleton.
 // +2 (BE-INCR-9B Track B): referential catalog/import, catalog.
-const BASELINE = 103;
+// +1 (BE-INCR-SPED-ECF): POST /api/accounting/sped/ecf/generate.
+const BASELINE = 105;
 
 describe('OpenAPI @openapi path coverage', () => {
   it('exposes at least BASELINE paths (guards the swagger-jsdoc `: ` drop bug)', () => {

@@ -60,7 +60,7 @@ import {
   importReferentialCatalog,
   listReferentialCatalog,
 } from '../controllers/referentialCatalogController';
-import { generateSpedEcd } from '../controllers/spedController';
+import { generateSpedEcd, generateSpedEcf } from '../controllers/spedController';
 import { closeExercise } from '../controllers/closingController';
 
 const router = Router();
@@ -99,6 +99,9 @@ router.post('/data-exchange/jobs/:jobId/commit', commitDataExchangeImport);
 
 // SPED Contábil (ECD) — generate the `.txt` file (download reuses the job route above).
 router.post('/sped/ecd/generate', generateSpedEcd);
+
+// SPED Fiscal (ECF) — Lucro Presumido; generate the `.txt` (download reuses the job route).
+router.post('/sped/ecf/generate', generateSpedEcf);
 
 // Year-end result closing (encerramento/apuração do resultado, BE-INCR-SPED-APURACAO).
 // Reopening = reverse the returned entry via POST /reverse (frees the idempotency key).
