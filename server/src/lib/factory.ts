@@ -64,6 +64,7 @@ import { DocumentAttachmentService } from '../features/accounting/services/Docum
 import { DataExchangeExportService } from '../features/accounting/services/DataExchangeExportService';
 import { DataExchangeImportService } from '../features/accounting/services/DataExchangeImportService';
 import { SpedGenerationService } from '../features/accounting/services/SpedGenerationService';
+import { SpedEcfGenerationService } from '../features/accounting/services/SpedEcfGenerationService';
 import { ExerciseClosingService } from '../features/accounting/services/ExerciseClosingService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
@@ -191,6 +192,7 @@ export class ApplicationFactory {
     dataExchangeExport: DataExchangeExportService;
     dataExchangeImport: DataExchangeImportService;
     sped: SpedGenerationService;
+    spedEcf: SpedEcfGenerationService;
     exerciseClosing: ExerciseClosingService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
@@ -436,6 +438,13 @@ export class ApplicationFactory {
         this.repositories.dataExchange,
         auditService,
       ),
+      spedEcf: new SpedEcfGenerationService(
+        this.repositories.account,
+        this.repositories.posting,
+        this.policies.accounting,
+        this.repositories.dataExchange,
+        auditService,
+      ),
       exerciseClosing: new ExerciseClosingService(
         this.repositories.account,
         this.repositories.posting,
@@ -486,6 +495,7 @@ export class ApplicationFactory {
   public getDataExchangeExportService = (): DataExchangeExportService => this.services.dataExchangeExport;
   public getDataExchangeImportService = (): DataExchangeImportService => this.services.dataExchangeImport;
   public getSpedGenerationService = (): SpedGenerationService => this.services.sped;
+  public getSpedEcfGenerationService = (): SpedEcfGenerationService => this.services.spedEcf;
   public getExerciseClosingService = (): ExerciseClosingService => this.services.exerciseClosing;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;

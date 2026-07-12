@@ -4,6 +4,7 @@ import { handleApiError } from '../lib/apiUtils';
 import { getUserContextFromRequest } from '../lib/authUtils';
 import { resolveAccountingScope } from '../features/accounting/scope/AccountingScope';
 import { SpedEcdRequestSchema } from '../features/accounting/dtos/SpedEcdDto';
+import { SpedEcfRequestSchema } from '../features/accounting/dtos/SpedEcfDto';
 
 /**
  * POST /api/accounting/sped/ecd/generate — generate the SPED ECD (.txt) for a
@@ -23,6 +24,31 @@ export const generateSpedEcd = async (req: Request, res: Response) => {
 
     const scope = resolveAccountingScope(user, parsed.data.unitId);
     const data = await getFactory().getSpedGenerationService().generate(scope, parsed.data);
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+/**
+ * POST /api/accounting/sped/ecf/generate — generate the SPED ECF (.txt) for a
+ * year (Lucro Presumido MVP). Returns the export job summary; the artifact
+ * downloads via the existing data-exchange job route. A Revenue account with
+ * movement outside {3.1, 3.3} surfaces as a 400 ValidationError with
+ * `unmappedRevenueAccounts` (D6 corrigido — gate de exaustividade da receita).
+ */
+export const generateSpedEcf = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const parsed = SpedEcfRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const data = await getFactory().getSpedEcfGenerationService().generate(scope, parsed.data);
     return res.status(201).json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
