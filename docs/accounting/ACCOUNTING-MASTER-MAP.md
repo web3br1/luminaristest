@@ -8,9 +8,9 @@
 > **Regra de uso (arquiteto/orquestrador):** nenhuma skill de geração roteia contra um nó marcado
 > 🔴/⚫ sem **ADR em disco + sinal humano**. Nós ✅ estão fechados; nós ⏳ são o incremento corrente.
 >
-> Última reconciliação: **2026-07-12** · HEAD de referência: `0b53a6f` (INCR-7 conciliação + OFX + INCR-8
-> proveniência + INCR-9/9B referencial + ECD + Apuração/Encerramento + Split de receita — TODOS mergeados em
-> `main`; ECF Fase 2 e CNAB em landing/PR aberto, ver §3).
+> Última reconciliação: **2026-07-12** · HEAD de referência: `1088e32` (INCR-7 conciliação + OFX + INCR-8
+> proveniência + INCR-9/9B referencial + ECD + Apuração/Encerramento + Split de receita + **ECF Fase 2 (PR #78)**
+> + **CNAB 240 (PR #61)** — TODOS mergeados em `main`).
 
 ---
 
@@ -63,7 +63,8 @@ flowchart TD
     RS["✅ Split de receita<br/>serviço 3.1 × revenda 3.3"]:::done
     ECD["✅ SPED ECD<br/>serializer 25 registros · gate cobertura"]:::done
     AP["✅ Apuração/Encerramento<br/>I350/I355 · PVA-value-clean"]:::done
-    ECF["⏳ SPED ECF (Presumido)<br/>Fase 2 impl · PR #78 em landing"]:::wip
+    ECF["✅ SPED ECF (Presumido)<br/>Fase 2 · PR #78 mergeada"]:::done
+    CNAB["✅ CNAB 240<br/>3º parser extrato · PR #61 mergeada"]:::done
 
     A --> B --> D
     A --> C --> D
@@ -87,6 +88,7 @@ flowchart TD
     REF --> ECF
     SD --> ECF
     ECD --> ECF
+    T --> CNAB
 ```
 
 **Núcleo 1 (ledger confiável) — fechado.** Núcleo de operação/relatório/evidência/troca de dados — fechado.
@@ -97,32 +99,30 @@ landing, §3). Resíduos herdados: **sign-off humano no browser** (INCR-6 A–J,
 
 ---
 
-## 3. Incremento corrente — CNAB (⏳ PR #61 aberto) · SPED ECF Fase 2 ✅ mergeada (PR #78)
+## 3. Incremento corrente — nenhum em voo; ECF Fase 2 (PR #78) e CNAB 240 (PR #61) FECHADOS
 
-> **Conciliação Bancária (BE-INCR-7) FECHOU.** O que era o nó corrente desta seção está **✅ mergeado em
-> `main`**: backend (PRs #32–#38), FE (stack #57 + unmatch read-shape #56), **OFX** (PR #59) e o aceite `.ofx`
-> no upload (PR #60); smoke-gate de deploy sobre `dev.db` real PASS. Detalhe/decisões D1–D7 no
-> `ADR-INCR7-bank-statement.md`; resíduo = sign-off humano no browser. Ver nó `T` em §2 e §5 (OFX ✅).
+> **Todo o trabalho que estava em landing entrou em `main`.** ECF Fase 2 e CNAB 240 foram mergeados em
+> 2026-07-12 (Fase B serial: #78 → fold do master map #79 → CI-flake #80 → #61). Não há nó ⏳ corrente — o
+> próximo incremento ainda não foi escolhido; ver §5 para os candidatos diferidos.
 
-**Estado real do trabalho em voo (verificado no git 2026-07-12, HEAD `main` `0b53a6f`):**
+**Estado real (verificado no git 2026-07-12, HEAD `main` `1088e32`):**
 
-**(a) SPED ECF (Lucro Presumido) — Fase 2 ✅ MERGEADA em `main` (PR #78, merge `70caa1c`, 2026-07-12).**
+**(a) SPED ECF (Lucro Presumido) — Fase 2 ✅ MERGEADA em `main` (PR #78, merge `70caa1c`).**
 A ADR/PLAN da ECF já estava em `main` (Fase 1 ratificada, PR #68: D5 = recover-from-ECD, D4 = `TaxRegime`
 transitório); a **geração do arquivo** (Fase 2) entrou pelo PR #78 (`lib/ecf.ts` + `SpedEcfGenerationService`
 + DTO + rota + `EXPORT_SPED_ECF` + Bloco S vazio). Segrega receita bruta 3.1/3.3 em linhas P200/P400; PVA
 computa o tributo; C/E recuperados do ECD (Passo A de transcrição derrubou 3 pontos inferidos da ADR). Gate de
-fechamento = exaustividade de receita, não referencial. Review independente = PASS (registro no processo da
-branch). Gates no merge: tsc×2 limpo, jest accounting 505/505 + `ecf.test.ts` 16/16, openapi 105 paths.
-Residual: sign-off humano no PVA.
+fechamento = exaustividade de receita, não referencial. Review independente = PASS. Gates no merge: tsc×2
+limpo, jest accounting 505/505 + `ecf.test.ts` 16/16, openapi 105 paths. Residual: sign-off humano no PVA.
 
-**(b) CNAB 240 (BE-INCR7-CNAB) — 3º parser de extrato, PR #61 OPEN, review PASS, serial ATRÁS da ECF.**
+**(b) CNAB 240 (BE-INCR7-CNAB) — 3º parser de extrato, ✅ MERGEADO em `main` (PR #61, merge `1088e32`).**
 `lib/cnab.ts`→`InTable` reusando `parseLines` (espelha OFX; direct-int cents, D/C sign, slice `DDMMAAAA`);
-também corrige um bug do swagger-jsdoc (`: ` YAML) que dropava 17 paths do openapi. Branch
-`claude/optimistic-euler-bddca1`, refrescada sobre `main` (merge, não rebase). **NÃO mergeado** — aguarda
-call humano + re-review da resolução de merge; serializado atrás da ECF (mesmo domínio de conciliação/import).
+também corrige um bug do swagger-jsdoc (`: ` YAML) que dropava 17 paths do openapi. Refrescado sobre `main`
+pós-ECF (merge, não rebase) — conflito em `docs.paths.ts`/`openapi.json` resolvido por união + regen (105
+paths, zero perdidos), **re-review independente da resolução = PASS** (R1–R5). Residual: sign-off humano no browser.
 
-**Regra de roteamento:** ambos são nós ⏳ em landing — o orquestrador NÃO deve re-planejar geração ECF nem
-ingestão CNAB como trabalho novo; o que falta é merge + sign-off, não implementação.
+**Regra de roteamento:** ECF e CNAB são nós ✅ fechados — o orquestrador NÃO deve re-planejar geração ECF nem
+ingestão CNAB como trabalho novo.
 
 ---
 
@@ -149,7 +149,7 @@ Ordenados por proximidade da fundação. **Nenhum** é "o próximo passo" antes 
 | **SourceDocument + JournalEntrySource** (proveniência formal) | ✅ **Mergeado em `main`** (BE-INCR-8, PR #43, 2026-07-08; review independente PASS; commit de feature `a18886c`) | **ADR-INCR8** (altitude **A1 seam fino**). First-class Prisma: `SourceDocument`+`JournalEntrySource` (migração additiva, 0 ALTER), `SourceProvenanceRepository`, DTO `sourceDocument?` `.strict()`, seam na tx do `postEntry` (origem+link+audit `entry.source_recorded` átomos), import desdobra `externalReference`→`externalRef` com `sourceId` **byte-idêntico** (T7 intocada), no-cascade (sem FK User, D7). Consumidor (ECD/ECF) segue diferido. Gates: tsc×2 limpo, jest 752/752, **smoke-migration-gate PASS** (dev.db real: 15→15 entries, fingerprint de idempotência byte-idêntico, tabelas novas vazias). Brief + ADR em `docs/`. |
 | **OFX** (ingestão bancária) | ✅ **Mergeado em `main`** (BE-INCR7-OFX, PR #59 `bb2f27a`, 2026-07-09; `ADR-INCR7-OFX-bank-statement.md`; review independente PASS ×2 + CI verde) | `lib/ofx.ts` normaliza `<STMTTRN>`→shape de linha; reusa `parseLines` integral; migration-free; multi-conta rejeitada; fallback de descrição para `TRNTYPE` quando falta NAME/MEMO. Supersedes ADR-INCR7 §D2 (parte OFX). Residual: sign-off humano no browser; FE aceita `.ofx` no upload (FE-OFX). |
 | **Plano de Contas Referencial versionado** (mapeamento Account→código RFB + diagnóstico de cobertura) | ✅ **Mergeado em `main`** (BE-INCR-9, PR #58, 2026-07-09; review independente PASS + smoke-gate PASS) | **ADR-INCR9** (`docs/adr/ADR-INCR9-referential-chart-mapping.md`). First-class Prisma: `ReferentialMapping` (migração aditiva, tabela nova vazia), `@@unique([userId,unitId,accountId,mappingVersion])` (versões coexistem — D2), SEM `deletedAt` (hard-delete + trilha no AuditEvent — D5), `mappingVersion` string livre (D1). Write com gate in-tx (Account ativo+folha, ACC-011) + `AuditService.append` na mesma tx; read de cobertura **chart-driven** (não balance-driven — D3), espelha a shape `mappingVersion`+`unmappedAccounts` do INCR-4. `referentialCode`/`label` denormalizados, sem catálogo/FK (D6 — import do leiaute oficial diferido com o SPED). Gates: tsc×2 limpo, 441/441 accounting jest verdes (17 novos). Geração do arquivo SPED segue diferida (⚫, ADR próprio). **Track A Fase 2 — autoria em lote (✅ mergeado em `main`, PR #71, `f24177a`, 2026-07-11; review independente PASS):** `batchSet` (upsert atômico all-or-nothing de N itens numa única `runTransaction`, gate per-item + audit in-tx via helper `applySet` compartilhado com `setMapping` — D8), `copyVersion` (herança de ano `fromVersion→toVersion`, `label` re-snapshot literal — D6/D9, reusa o gate per-item; alvo existente faz upsert, nunca P2002), `authoringSkeleton` (esqueleto chart-driven = `coverage().unmappedAccounts` re-exposto p/ autoria — D5, nunca inventa código RFB — D1/D10). Rotas: `POST /referential/mappings/batch`, `POST /referential/mappings/copy`, `GET /referential/skeleton`. Allowlist de audit estendida (set/batch/copy/unset → `{accountId,referentialCode,mappingVersion}`, `label`/PII dropados). Zero migração nova. Gates: tsc limpo, suites referential+audit+openapi verdes. **Track B — catálogo oficial RFB + validação analytic-only de destino (✅ mergeado em `main`, PR #74, `3c5a33d`, 2026-07-11; review independente PASS 577/577; smoke-migration-gate PASS / deploy-cleared, doc PR #75 `110e1229`):** model `ReferentialAccount` (catálogo GLOBAL versionado por `layoutVersion`=`mappingVersion`, SEM tenancy — D4/D7, migração aditiva `CREATE TABLE` pura), import idempotente por versão (`isAnalytic` **lido da coluna, nunca inferido** — D1/I052, zero código RFB hardcoded), e o gate **D3**: destino do de-para deve **existir no catálogo E ser folha** (catálogo ausente → free-string INCR-9 preservado). **Fork 1** decidido: catálogo **único compartilhado ECD/ECF** (sem discriminador de leiaute). **Fork 2** preparado (spec B0 `BE-INCR9B-fork2-...md` + conversor `server/scripts/rfb-referential-to-catalog.mjs`; dado externo) — a validação só fica **viva** quando o contador importar o arquivo oficial "PJ em Geral" da RFB. |
-| **CNAB/NF-e** (ingestão bancária/fiscal rica) | ⏳ **CNAB em landing** (BE-INCR7-CNAB, PR #61 **OPEN**, review PASS, serial atrás da ECF) · NF-e ⚫ diferido | CNAB 240 = 3º parser de extrato: `lib/cnab.ts`→`InTable` reusando `parseLines` (espelha OFX; direct-int cents, D/C sign, slice `DDMMAAAA`); também corrige o bug swagger-jsdoc `: ` que dropava 17 paths do openapi. Branch `claude/optimistic-euler-bddca1`, refrescada sobre `main` (merge). **NÃO em `main`** — aguarda call humano + re-review da merge-resolution. NF-e = domínio fiscal, ADR próprio. |
+| **CNAB/NF-e** (ingestão bancária/fiscal rica) | ✅ **CNAB mergeado em `main`** (BE-INCR7-CNAB, PR #61, merge `1088e32`, 2026-07-12; review independente PASS + re-review da resolução PASS) · NF-e ⚫ diferido | CNAB 240 = 3º parser de extrato: `lib/cnab.ts`→`InTable` reusando `parseLines` (espelha OFX; direct-int cents, D/C sign, slice `DDMMAAAA`); também corrigiu o bug swagger-jsdoc `: ` que dropava 17 paths do openapi. Refrescado sobre `main` pós-ECF (conflito `docs.paths.ts`/`openapi.json` resolvido por união + regen, 105 paths). Residual: sign-off humano no browser. NF-e = domínio fiscal, ADR próprio. |
 | **ECD readiness** (arquivo SPED Contábil: blocos/registros) | ✅ **Mergeado em `main`** (BE-INCR-SPED-ECD, PR #62, 2026-07-10, merge `9deb928`; review independente PASS; sign-off humano no PVA = residual) | **ADR-INCR-SPED-ECD** (`docs/adr/`). Serializer puro `lib/sped.ts` (25 registros do MVP, Leiaute 9 campo-a-campo, contadores 2-passadas) + `SpedGenerationService` (coverage-gate D5 → I050/I051/I052 + 12×I150/I155 mensal com carry-forward D11 + I200/I250 via read D9 + J100/J150 via INCR-4 → job `EXPORT_SPED_ECD` + `.txt` latin1 + audit, na tx). Reuso do INCR-6 (job/artefato/download). **D1** sem migração; **D3** identidade via DTO transiente (sem `LegalEntity`). **Emenda D12/E4:** I052 movido PARA o MVP. **Residual honesto (ADR §5):** import PVA-limpo é sign-off humano. |
 | **Apuração/encerramento do resultado** (I350/I355 + ECD PVA-value-clean) | ✅ **Mergeado em `main`** (BE-INCR-SPED-APURACAO, PR #63, merge `1465bae`, 2026-07-10; feature `1de120d`; 2ª review independente PASS; residual = sign-off humano no PVA) | **ADR-INCR-SPED-APURACAO** (`docs/adr/`). `ExerciseClosingService.closeExercise(year)` posta 1 encerramento real balanceado (via `PostingService.postEntry`) que zera as contas de resultado contra Lucros/Prejuízos Acumulados (`2.3.1`, nova no fixture — **zero migração**, `sourceType='closing'`). **D3** `incomeStatement` closing-aware no report compartilhado (DRE operacional); `balanceSheet` intocado (PL carrega o resultado, netResultLine auto-zera, A=P nos 2 estados). **D5** `reverseEntry` closing-aware libera a chave de idempotência (close→reopen→re-close = lançamento novo). SPED emite I350/I355 + `IND_LCTO='E'` derivado. Rota `POST /accounting/closing/exercise` (3-toques). Gates: tsc limpo, 857/857 jest verdes (18 novos), openapi 99 paths. |
 | **Split de receita por natureza** (serviço × revenda — pré-requisito de dado do Bloco P da ECF-Presumido) | ✅ **Mergeado em `main`** (BE-INCR-REVENUE-SPLIT, PR #66, merge `ae8ac00`, 2026-07-10; 2 reviews independentes — 1º FAIL→corrigido `f051bc6`, 2º PASS + caça-à-classe limpa; CI verde) | **ADR-INCR-REVENUE-SPLIT** (`docs/adr/`). Rename-sibling no fixture: `3.1` "Receita de Vendas"→**"Receita de Serviços"** (code estável, guarda histórico postado — ACC-018 barra reparent) + nova `3.3 Receita de Revenda de Mercadorias`. `AccountingEvent.revenueByNature?` **aditivo** (blast radius mínimo; só o `SalonSaleFinalizedMapper` consome). Split proporcional no mapper (fronteira de dinheiro): desconto de header rateia proporcional, resíduo de arredondamento na conta de produto → `Σlinhas == totalCents`. Live bridge + reconcile emitem o mesmo breakdown de `loadSalePackageInfo` (venda re-dirigida idêntica). **Cutover, backfill zero** (assunção: 1ª ECF ≥2026). **FAIL-1 do 1º review:** `3.3` não estava no `StatementMappingFixture` → DRE a dropava silenciosamente (J150≠I355); corrigido (regra `dre.gross_rev_resale` + bump v2). Gates: tsc limpo, 472/472 accounting jest. **Follow-up:** `3.3` fica não-mapeada no diagnóstico referencial (INCR-9, chart-driven — correto) até receber código RFB antes de qualquer geração ECF. |
@@ -189,9 +189,9 @@ Antes de gerar "novo", reuse (Contrato §0). Confirmado por código:
 | **2 — Operação real** | 🟡 | ~60% | aprovação, dimensões, busca/filtros ricos |
 | **3 — Integração** | 🟡 | ~40% | ~~SourceDocument formal~~ (✅ BE-INCR-8, mergeado PR #43); inbox, outbox (só se sair de single-process) |
 | **4 — Gestão** | 🟡 | ~50% | fluxo de caixa, análise por dimensão, variação mensal |
-| **5 — Compliance** | 🟡 | ~70% | ~~mapeamento referencial~~ (✅ BE-INCR-9, PR #58; ~~autoria em lote Track A~~ PR #71; ~~catálogo RFB + validação analytic-only Track B~~ PR #74, smoke-gate PR #75 — Fork 2/import do arquivo oficial = dado externo); ~~geração do arquivo ECD~~ (✅ BE-INCR-SPED-ECD, PR #62, merge `9deb928`); ~~apuração/encerramento (I350/I355)~~ (✅ BE-INCR-SPED-APURACAO, PR #63, merge `1465bae`; residual PVA); ~~split de receita por natureza (pré-req ECF-Presumido)~~ (✅ BE-INCR-REVENUE-SPLIT, PR #66); **ECF (arquivo fiscal) ⏳ Fase 2 implementada, PR #78 em landing** (não em `main`); falta merge ECF, pacotes, recibos |
+| **5 — Compliance** | 🟡 | ~70% | ~~mapeamento referencial~~ (✅ BE-INCR-9, PR #58; ~~autoria em lote Track A~~ PR #71; ~~catálogo RFB + validação analytic-only Track B~~ PR #74, smoke-gate PR #75 — Fork 2/import do arquivo oficial = dado externo); ~~geração do arquivo ECD~~ (✅ BE-INCR-SPED-ECD, PR #62, merge `9deb928`); ~~apuração/encerramento (I350/I355)~~ (✅ BE-INCR-SPED-APURACAO, PR #63, merge `1465bae`; residual PVA); ~~split de receita por natureza (pré-req ECF-Presumido)~~ (✅ BE-INCR-REVENUE-SPLIT, PR #66); ~~ECF (arquivo fiscal) Fase 2~~ (✅ BE-INCR-SPED-ECF, PR #78, merge `70caa1c`; residual PVA); ~~CNAB 240~~ (✅ BE-INCR7-CNAB, PR #61, merge `1088e32`); falta ECF Fase 3, pacotes, recibos |
 
-**Posição:** fundação (Núcleo 1) completa, Núcleo 2 mais da metade; ramo compliance bem avançado. Geração do arquivo ECD (BE-INCR-SPED-ECD) **mergeada** (PR #62), assim como a **apuração/encerramento** (BE-INCR-SPED-APURACAO, PR #63, residual PVA) e o **split de receita por natureza** (BE-INCR-REVENUE-SPLIT, PR #66). Os três pré-requisitos de dado da ECF (proveniência, mapeamento referencial, split de receita) estão em `main`. **ECF** (geração do arquivo fiscal) saiu do diferido: **Fase 2 implementada e em landing** (PR #78, ainda fora de `main` — FOLD ⏳→✅ no merge, §3). **CNAB** idem (PR #61). Demais candidatos (NF-e, aprovação, dimensões, subrazões) seguem ⚫ diferidos (§5, ADR próprio campo-a-campo).
+**Posição:** fundação (Núcleo 1) completa, Núcleo 2 mais da metade; ramo compliance bem avançado. Geração do arquivo ECD (BE-INCR-SPED-ECD) **mergeada** (PR #62), assim como a **apuração/encerramento** (BE-INCR-SPED-APURACAO, PR #63, residual PVA) e o **split de receita por natureza** (BE-INCR-REVENUE-SPLIT, PR #66). Os três pré-requisitos de dado da ECF (proveniência, mapeamento referencial, split de receita) estão em `main`. **ECF** (geração do arquivo fiscal, Fase 2, PR #78) e **CNAB 240** (PR #61) foram **mergeados** em `main` (2026-07-12). Não há incremento ⏳ corrente. Candidatos diferidos (NF-e, aprovação, dimensões, subrazões, ECF Fase 3) seguem ⚫ (§5, ADR próprio campo-a-campo).
 
 ---
 
