@@ -46,6 +46,12 @@ rules:
     gates:
       - type: eval
         target: ./evals/evals.json#happy-accounting-1
+  # Adicionada na v1.2.0 (plano de paralelização — Phase 3.5, cita _PARALLELIZATION-CONTRACT.md).
+  # Eval estrutural em happy-parallel-1; execução comportamental model-in-loop (BLOCKED no CI).
+  ORCH-008:
+    gates:
+      - type: eval
+        target: ./evals/evals.json#happy-parallel-1
 ---
 
 # Governança — `luminaris-orchestrator`
@@ -66,9 +72,12 @@ Agente de **orquestração** — papel: decompor, rotear e rastrear. Os evals av
 - `ORCH-005` — não inventa skills (só as do SKILL_MATRIX); em ambiguidade, pergunta antes de planejar.
 - `ORCH-006` — tarefa contábil: lê `docs/accounting/ACCOUNTING-MASTER-MAP.md` primeiro; o mapa é o veredito de posição e a guarda de roteamento (§1 travadas / §4 rejeitadas → `DECISÃO ARQUITETURAL`, não roteia). Gate: `happy-accounting-1`.
 - `ORCH-007` — plano que fecha incremento contábil inclui passo de closeout que promove o nó no mapa (executado pelo implementer, não pelo orquestrador). Gate: `happy-accounting-1`.
+- `ORCH-008` — pedido com ≥2 slices: o fatiamento paralelo é decidido pelo `_PARALLELIZATION-CONTRACT.md` (Phase 3.5), não inline; o plano emite a seção **Plano de paralelização** (lote paralelo Fase A + delta serial Fase 0/B). Gate: `happy-parallel-1`.
 
-Status `validated`: a v1.1.0 adicionou `ORCH-006/007` (mapa-mestre contábil) com eval estrutural
-(`happy-accounting-1`) — no CI a execução comportamental é model-in-loop (BLOCKED) para todas as regras, então
-`validated` aqui significa **coerência estrutural + eval wired**. `governance-eval-score`/
-`governance-last-evaluated` (2026-06-25, 1.00) refletem a **última corrida comportamental real** do `REPORT.md`
-(SG-011); a cobertura comportamental de ORCH-006/007 entra na próxima corrida do harness fora do CI.
+Status `validated`: a v1.1.0 adicionou `ORCH-006/007` (mapa-mestre contábil) e a v1.2.0 adicionou `ORCH-008`
+(plano de paralelização), ambos com eval **estrutural** (`happy-accounting-1`, `happy-parallel-1`) — no CI a
+execução comportamental é model-in-loop (BLOCKED) para todas as regras, então `validated` aqui significa
+**coerência estrutural + eval wired**. `governance-eval-score`/`governance-last-evaluated` (2026-06-25, 1.00)
+refletem a corrida de referência do baseline (`REPORT.md`, SG-011). A cobertura comportamental de
+ORCH-006/007/008 foi **fechada em 2026-07-11** (corrida incremental fora do CI: `happy-accounting-1` e
+`happy-parallel-1` PASS — ver seção datada no `REPORT.md`).

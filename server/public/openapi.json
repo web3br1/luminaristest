@@ -5419,6 +5419,186 @@
         }
       }
     },
+    "/api/accounting/sped/ecf/generate": {
+      "post": {
+        "summary": "Generate the SPED Fiscal (ECF) .txt file for a year (Lucro Presumido)",
+        "description": "Composes the ECF for the given calendar year (Lucro Presumido) and persists a plain-text (ISO-8859-1) artifact as an EXPORT job. Luminaris supplies the gross revenue segregated by activity per quarter (3.1 services to P200/P400 32 percent, 3.3 resale to P200 8 percent / P400 12 percent); the PVA-ECF computes the tax. Recovered blocks (C, E, J, K) are emitted as empty markers. Download via /data-exchange/jobs/{jobId}/download. Blocks with 400 + unmappedRevenueAccounts when a Revenue account with movement is not one of 3.1 / 3.3 (revenue exhaustiveness gate).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "unitId",
+                  "year",
+                  "declarant",
+                  "signers"
+                ],
+                "properties": {
+                  "unitId": {
+                    "type": "string"
+                  },
+                  "year": {
+                    "type": "integer",
+                    "example": 2025
+                  },
+                  "declarant": {
+                    "type": "object",
+                    "required": [
+                      "cnpj",
+                      "nome",
+                      "codNat",
+                      "cnaeFiscal",
+                      "endereco",
+                      "bairro",
+                      "uf",
+                      "codMun",
+                      "cep",
+                      "email"
+                    ],
+                    "properties": {
+                      "cnpj": {
+                        "type": "string",
+                        "description": "14 digits"
+                      },
+                      "nome": {
+                        "type": "string"
+                      },
+                      "codNat": {
+                        "type": "string",
+                        "description": "natureza juridica (3-4 digits)"
+                      },
+                      "cnaeFiscal": {
+                        "type": "string",
+                        "description": "7 digits"
+                      },
+                      "endereco": {
+                        "type": "string"
+                      },
+                      "num": {
+                        "type": "string"
+                      },
+                      "bairro": {
+                        "type": "string"
+                      },
+                      "uf": {
+                        "type": "string"
+                      },
+                      "codMun": {
+                        "type": "string",
+                        "description": "IBGE 7 digits"
+                      },
+                      "cep": {
+                        "type": "string",
+                        "description": "8 digits"
+                      },
+                      "email": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "fiscal": {
+                    "type": "object",
+                    "properties": {
+                      "indAliqCsll": {
+                        "type": "string",
+                        "enum": [
+                          "1",
+                          "4"
+                        ],
+                        "description": "1 = 9 percent"
+                      },
+                      "indRecReceita": {
+                        "type": "string",
+                        "enum": [
+                          "1",
+                          "2"
+                        ],
+                        "description": "2 = competencia"
+                      }
+                    }
+                  },
+                  "signers": {
+                    "type": "array",
+                    "maxItems": 2,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "identNom",
+                        "identCpfCnpj",
+                        "identQualif",
+                        "email",
+                        "fone"
+                      ],
+                      "properties": {
+                        "identNom": {
+                          "type": "string"
+                        },
+                        "identCpfCnpj": {
+                          "type": "string"
+                        },
+                        "identQualif": {
+                          "type": "string",
+                          "description": "3 digits; 900 = Contador"
+                        },
+                        "indCrc": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "fone": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "ECF export job created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DataExchangeJob"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        }
+      }
+    },
     "/api/accounting/closing/exercise": {
       "post": {
         "summary": "Close the result of a fiscal year (encerramento do exercício)",
@@ -6515,6 +6695,143 @@
         }
       }
     },
+    "/api/accounting/referential/mappings/batch": {
+      "post": {
+        "summary": "Batch set (upsert) many leaf-account mappings in one version, atomically (BE-INCR-9B)",
+        "description": "All-or-nothing (D8) — every item is upserted in a single transaction with the per-item account-liveness + leaf gate re-checked in-tx; one bad item rolls the whole batch back. Duplicate accountId within the batch is rejected.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "unitId",
+                  "mappingVersion",
+                  "items"
+                ],
+                "properties": {
+                  "unitId": {
+                    "type": "string"
+                  },
+                  "mappingVersion": {
+                    "type": "string",
+                    "description": "calendar-year layout id",
+                    "e.g. \"2025\"": null
+                  },
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "accountId",
+                        "referentialCode",
+                        "label"
+                      ],
+                      "properties": {
+                        "accountId": {
+                          "type": "string",
+                          "description": "leaf account id (accounts.id)"
+                        },
+                        "referentialCode": {
+                          "type": "string",
+                          "description": "RFB referential code (human-supplied)"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "referential account name (denormalized snapshot)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "array of upserted ReferentialMapping"
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/accounting/referential/mappings/copy": {
+      "post": {
+        "summary": "Copy every mapping of one version into another (year inheritance, BE-INCR-9B)",
+        "description": "Copies each mapping of fromVersion into toVersion in one transaction (D6), re-snapshotting the label literally (D9). Existing target rows are upserted in place (never P2002). Reuses the per-item set gate, so it is all-or-nothing.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "unitId",
+                  "fromVersion",
+                  "toVersion"
+                ],
+                "properties": {
+                  "unitId": {
+                    "type": "string"
+                  },
+                  "fromVersion": {
+                    "type": "string",
+                    "description": "source mappingVersion",
+                    "e.g. \"2025\"": null
+                  },
+                  "toVersion": {
+                    "type": "string",
+                    "description": "destination mappingVersion",
+                    "e.g. \"2026\"": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "array of upserted ReferentialMapping in the destination version"
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
     "/api/accounting/referential/coverage": {
       "get": {
         "summary": "Coverage diagnostic — active leaf accounts unmapped in a version (ECD-readiness gate, BE-INCR-9)",
@@ -6547,6 +6864,158 @@
         "responses": {
           "200": {
             "description": "mappingVersion + unmappedAccounts[] + totals + ready flag"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/accounting/referential/skeleton": {
+      "get": {
+        "summary": "Authoring skeleton — unmapped leaf accounts of a version as a batch template (BE-INCR-9B)",
+        "description": "Chart-driven (D5) — reuses coverage().unmappedAccounts, shaped as a fill-in-the-blanks template for batch authoring. Never invents an RFB code.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "unitId + mappingVersion + items[] (unmapped leaf accounts to author)"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/accounting/referential/catalog/import": {
+      "post": {
+        "summary": "Import the official RFB referential CATALOG for a layout version (BE-INCR-9B Track B)",
+        "description": "Uploads a CSV/XLSX (multipart field `file`) of the official referential layout and upserts it into the GLOBAL catalog, idempotent per layoutVersion. All-or-nothing; invents no code (isAnalytic is read from the file, D1/I052). Enables analytic-only destination validation.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "unitId",
+                  "layoutVersion",
+                  "file"
+                ],
+                "properties": {
+                  "unitId": {
+                    "type": "string",
+                    "description": "auth scope only (catalog is global)"
+                  },
+                  "layoutVersion": {
+                    "type": "string",
+                    "description": "RFB layout/year id",
+                    "e.g. \"2025\"": null
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CSV/XLSX catalog file"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "layoutVersion + totalRows + imported + analyticCount + syntheticCount"
+          },
+          "400": {
+            "description": "invalid header/rows or empty catalog"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/accounting/referential/catalog": {
+      "get": {
+        "summary": "Lookup/picker over a version's referential catalog (BE-INCR-9B Track B)",
+        "description": "Lists a layout version's referential accounts for the code picker; filter by substring (q) and restrict to analytic (leaf) destinations (analyticOnly).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "analyticOnly",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "referential accounts of the version (code, name, isAnalytic, parentCode)"
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"

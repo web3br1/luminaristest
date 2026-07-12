@@ -51,8 +51,16 @@ import {
   unsetReferentialMapping,
   listReferentialMappings,
   getReferentialCoverage,
+  batchSetReferentialMappings,
+  copyReferentialMappingVersion,
+  getReferentialSkeleton,
 } from '../controllers/referentialMappingController';
-import { generateSpedEcd } from '../controllers/spedController';
+import {
+  referentialCatalogUpload,
+  importReferentialCatalog,
+  listReferentialCatalog,
+} from '../controllers/referentialCatalogController';
+import { generateSpedEcd, generateSpedEcf } from '../controllers/spedController';
 import { closeExercise } from '../controllers/closingController';
 
 const router = Router();
@@ -92,6 +100,9 @@ router.post('/data-exchange/jobs/:jobId/commit', commitDataExchangeImport);
 // SPED Contábil (ECD) — generate the `.txt` file (download reuses the job route above).
 router.post('/sped/ecd/generate', generateSpedEcd);
 
+// SPED Fiscal (ECF) — Lucro Presumido; generate the `.txt` (download reuses the job route).
+router.post('/sped/ecf/generate', generateSpedEcf);
+
 // Year-end result closing (encerramento/apuração do resultado, BE-INCR-SPED-APURACAO).
 // Reopening = reverse the returned entry via POST /reverse (frees the idempotency key).
 router.post('/closing/exercise', closeExercise);
@@ -109,10 +120,17 @@ router.post('/reconciliation/matches/:id/unmatch', unmatchReconciliation);
 router.get('/reconciliation/pending', getPendingReport);
 
 // Referential chart mapping — versioned Account→RFB code + coverage diagnostic (BE-INCR-9).
+// Batch/copy authoring + chart-driven skeleton (BE-INCR-9B Track A).
 router.put('/referential/mappings', setReferentialMapping);
+router.post('/referential/mappings/batch', batchSetReferentialMappings);
+router.post('/referential/mappings/copy', copyReferentialMappingVersion);
 router.delete('/referential/mappings', unsetReferentialMapping);
 router.get('/referential/mappings', listReferentialMappings);
 router.get('/referential/coverage', getReferentialCoverage);
+router.get('/referential/skeleton', getReferentialSkeleton);
+// Referential CATALOG (RFB official layout) — import + lookup (BE-INCR-9B Track B).
+router.post('/referential/catalog/import', referentialCatalogUpload, importReferentialCatalog);
+router.get('/referential/catalog', listReferentialCatalog);
 
 // Accounting period management (INCR-1).
 // NOTE: /:unitId/periods must come before /periods/:id routes to avoid param clash.

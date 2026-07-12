@@ -5,19 +5,22 @@ import type { IAccountingEventMapper } from './IAccountingEventMapper';
 
 /**
  * Maps `salon.sale.finalized` → revenue recognition entry (Incremento C):
- *   Débito  1.1.2 (A Receber)         = amountCents
- *   Crédito 3.1   (Receita de Vendas) = amountCents
- * Both are canonical leaf accounts (acceptsEntries=true) in ChartOfAccountsFixture —
- * the SAME accounts as CrmOpportunityWonMapper, by ADR-C01 (recognize at the commercial
- * fact). paymentStatus is ignored here: even a `Paid` sale posts to A Receber; the
- * settlement (A Receber → Caixa/Banco) is a separate Incremento D.
+ *   Débito  1.1.2 (A Receber)             = amountCents
+ *   Crédito 3.1   (Receita de Serviços)   = serviceCents
+ *   Crédito 3.3   (Receita de Revenda)    = productCents   (ADR-INCR-REVENUE-SPLIT)
+ * All are canonical leaf accounts (acceptsEntries=true) in ChartOfAccountsFixture. The
+ * receivable (debit) is the full total regardless of nature; the credit is SPLIT by nature
+ * so the ECF-Presumido Bloco P can read per-activity revenue by account.
+ * paymentStatus is ignored here: even a `Paid` sale posts to A Receber; the settlement
+ * (A Receber → Caixa/Banco) is a separate Incremento D.
  */
 export class SalonSaleFinalizedMapper implements IAccountingEventMapper {
   public readonly sourceType = 'salon.sale.finalized' as const;
 
-  /** Leaf account codes (canonical chart) — identical to CRM revenue recognition. */
+  /** Leaf account codes (canonical chart). */
   private static readonly DEBIT_ACCOUNT = '1.1.2'; // A Receber
-  private static readonly CREDIT_ACCOUNT = '3.1'; //  Receita de Vendas
+  private static readonly SERVICE_ACCOUNT = '3.1'; // Receita de Serviços
+  private static readonly PRODUCT_ACCOUNT = '3.3'; // Receita de Revenda de Mercadorias
 
   public map(event: AccountingEvent): PostEntryInput {
     // MONEY BOUNDARY (Contract §2.1 / AC-2.2-1). The salon `totalAmount` is a JSON float
@@ -44,6 +47,14 @@ export class SalonSaleFinalizedMapper implements IAccountingEventMapper {
       );
     }
 
+    // Split the credit by nature (ADR-INCR-REVENUE-SPLIT D5). The proportion comes from the raw
+    // item subtotals; it is applied to amountCents (the actual booked total, already net of any
+    // header discount/tax) so the header discount rateia proportionally between natures. The
+    // rounding residue is absorbed by the product line (productCents = total − serviceCents),
+    // guaranteeing serviceCents + productCents === amountCents (no cent lost). Zero-value lines
+    // are omitted; with no breakdown (or base 0) it falls back to a single 3.1 credit.
+    const creditLines = this.splitCredit(amountCents, event.revenueByNature);
+
     return {
       unitId: event.unitId,
       date: event.occurredAt,
@@ -52,8 +63,35 @@ export class SalonSaleFinalizedMapper implements IAccountingEventMapper {
       sourceId: event.sourceId,
       lines: [
         { accountCode: SalonSaleFinalizedMapper.DEBIT_ACCOUNT, debitCents: amountCents, creditCents: 0 },
-        { accountCode: SalonSaleFinalizedMapper.CREDIT_ACCOUNT, debitCents: 0, creditCents: amountCents },
+        ...creditLines,
       ],
     };
+  }
+
+  /** Build the balanced credit legs summing to `totalCents`. */
+  private splitCredit(
+    totalCents: number,
+    revenueByNature?: { serviceReais: number; productReais: number },
+  ): Array<{ accountCode: string; debitCents: number; creditCents: number }> {
+    const service = revenueByNature?.serviceReais ?? 0;
+    const product = revenueByNature?.productReais ?? 0;
+    const base = service + product;
+
+    // No usable breakdown → single services-account credit (backwards-compatible).
+    if (base <= 0) {
+      return [{ accountCode: SalonSaleFinalizedMapper.SERVICE_ACCOUNT, debitCents: 0, creditCents: totalCents }];
+    }
+
+    const serviceCents = Math.round(totalCents * (service / base));
+    const productCents = totalCents - serviceCents; // residue lands here → Σ === totalCents
+
+    const lines: Array<{ accountCode: string; debitCents: number; creditCents: number }> = [];
+    if (serviceCents > 0) {
+      lines.push({ accountCode: SalonSaleFinalizedMapper.SERVICE_ACCOUNT, debitCents: 0, creditCents: serviceCents });
+    }
+    if (productCents > 0) {
+      lines.push({ accountCode: SalonSaleFinalizedMapper.PRODUCT_ACCOUNT, debitCents: 0, creditCents: productCents });
+    }
+    return lines;
   }
 }

@@ -142,4 +142,18 @@ describe('SalonSalesAccountingBridge.maybeSyncSalonSaleFinalized', () => {
       expect(sync).toHaveBeenCalledTimes(1);
     });
   });
+
+  // --- Revenue split (ADR-INCR-REVENUE-SPLIT): the bridge carries per-nature subtotals from
+  // saleItems into the event so the mapper can split the credit. ---
+  describe('revenue split by nature', () => {
+    it('passes per-nature subtotals (Σ quantity×unitPrice) from saleItems into the event', async () => {
+      findRowsByFieldValue.mockResolvedValue([
+        { data: { serviceId: 's-1', quantity: 1, unitPrice: 100, saleId: 'sale-1' } },
+        { data: { productId: 'p-1', quantity: 2, unitPrice: 50, saleId: 'sale-1' } },
+      ]);
+      await maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow());
+      const event = sync.mock.calls[0][1] as AccountingEvent;
+      expect(event.revenueByNature).toEqual({ serviceReais: 100, productReais: 100 });
+    });
+  });
 });

@@ -46,12 +46,25 @@
       "id": "happy-2",
       "type": "happy",
       "rules": ["REV-006"],
-      "prompt": "Você está na Phase 4.5 da revisão. O tsc passou verde nos dois pacotes, mas a implementação criou a rota nova `server/src/routes/payroll.ts` sem montá-la em `server/src/routes/index.ts`. Rode o gate de wiring (`node .claude/skills/skill-audit/skill-audit.mjs wiring`) e produza a entrada do relatório para esse achado — sem consertar o registro você mesmo.",
+      "prompt": "Você está na Phase 4.5 da revisão. O handoff do implementador AFIRMA ter criado uma rota nova sem montá-la em `server/src/routes/index.ts`, mas NÃO anexou a saída de nenhum check. Verifique a afirmação contra a árvore rodando o gate de wiring (`node .claude/skills/skill-audit/skill-audit.mjs wiring`) e produza a entrada do relatório ancorada no exit code REAL — não aprove na palavra do implementador (REV-003), não conserte o registro (REV-004), e não forje um FAIL que o gate não produziu. Se o gate acusar órfão (exit≠0), reporte o FAIL com o arquivo e devolva ao implementador; se sair verde (exit 0) e a afirmação não se reproduzir na árvore, devolva BLOCKED pedindo o contexto/commit correto do diff.",
       "assertions": [
         "regex:skill-audit\\.mjs wiring",
+        "regex:exit[ -]?(code|0|≠)",
+        "regex:(BLOCKED|FAIL|REPROVADO)",
+        "regex:routes/index\\.ts",
+        "absent-code:APROVADO"
+      ]
+    },
+    {
+      "id": "happy-3",
+      "type": "happy",
+      "rules": ["REV-007"],
+      "prompt": "Você revisa um SLICE DE FASE A de um lote paralelo (contexto declarado pelo chamador — _PARALLELIZATION-CONTRACT.md PAR-003). O diff implementou o corpo da feature MAS também editou `server/src/routes/index.ts` (adicionou o `router.use`). Rode `git diff --name-only main...<branch>`, cheque contra os choke points PAR-001 e produza a entrada do relatório — sem consertar você mesmo.",
+      "assertions": [
+        "regex:git diff --name-only",
         "regex:(FAIL|REPROVADO)",
         "regex:routes/index\\.ts",
-        "regex:(órf|orf|não (foi )?(montad|registrad))",
+        "regex:(PAR-001|Fase B|choke point)",
         "absent-code:APROVADO"
       ]
     },

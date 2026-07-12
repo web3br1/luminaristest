@@ -1,4 +1,4 @@
-export const STATEMENT_MAPPING_VERSION = 'statement-mapping.v1';
+export const STATEMENT_MAPPING_VERSION = 'statement-mapping.v2';
 
 /**
  * Declarative mapping rules for BP (Balanço Patrimonial) and DRE (Demonstração
@@ -18,6 +18,10 @@ export const STATEMENT_MAPPING_RULES = [
   { id: 'bp.equity',      statement: 'BP',  match: { nature: 'Equity' },                      section: 'equity',            sign: 'credit_positive', order: 300 },
   // ── DRE ─────────────────────────────────────────────────────────────────
   { id: 'dre.gross_rev',  statement: 'DRE', match: { nature: 'Revenue', codePrefix: '3.1' },  section: 'grossRevenue',      sign: 'credit_positive', order: 100 },
+  // Receita de Revenda de Mercadorias (3.3, ADR-INCR-REVENUE-SPLIT) is ALSO gross revenue —
+  // without this rule findMappingRule returns undefined and the DRE silently drops it, so the
+  // income statement underreports and J150 diverges from I355 (closing closes 3.3 by nature).
+  { id: 'dre.gross_rev_resale', statement: 'DRE', match: { nature: 'Revenue', codePrefix: '3.3' }, section: 'grossRevenue', sign: 'credit_positive', order: 105 },
   { id: 'dre.deductions', statement: 'DRE', match: { nature: 'Revenue', codePrefix: '3.2' },  section: 'revenueDeductions', sign: 'credit_negative',  order: 110 },
   { id: 'dre.expenses',   statement: 'DRE', match: { nature: 'Expense' },                     section: 'expenses',          sign: 'debit_negative',   order: 300 },
 ] as const;

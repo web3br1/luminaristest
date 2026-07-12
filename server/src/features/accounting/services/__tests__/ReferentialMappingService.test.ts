@@ -44,6 +44,7 @@ function buildService(over: {
   accountRepo?: Record<string, unknown>;
   policy?: Record<string, unknown>;
   audit?: Record<string, unknown>;
+  catalogRepo?: Record<string, unknown>;
 } = {}) {
   const repo = {
     upsert: jest.fn(async () => ({ id: 'map-1' })),
@@ -64,13 +65,24 @@ function buildService(over: {
     ...over.policy,
   };
   const audit = { append: jest.fn(async () => undefined), ...over.audit };
+  // Default catalog repo = EMPTY catalog: countByVersion 0 + findByVersionAndCode null → destination
+  // validation is a no-op (INCR-9 free-string). Track B tests override these to load a catalog.
+  const catalogRepo = {
+    findByVersionAndCode: jest.fn(async () => null),
+    countByVersion: jest.fn(async () => 0),
+    findManyByVersion: jest.fn(async () => []),
+    upsert: jest.fn(async () => ({ id: 'cat-1' })),
+    runTransaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(TX)),
+    ...over.catalogRepo,
+  };
   const svc = new ReferentialMappingService(
     repo as never,
     accountRepo as never,
     policy as never,
     audit as never,
+    catalogRepo as never,
   );
-  return { svc, repo, accountRepo, policy, audit };
+  return { svc, repo, accountRepo, policy, audit, catalogRepo };
 }
 
 const setDto = {
@@ -136,9 +148,96 @@ describe('ReferentialMappingService.setMapping', () => {
   });
 
   it('structural: the service injects no posting/journalEntry repo — cannot write ledger money', () => {
-    // ReferentialMappingService(repo, accountRepo, policy, audit) — 4 deps, none is a
-    // posting/journal-entry repo. The "zero ledger write" invariant is structural, not runtime.
-    expect(ReferentialMappingService.length).toBe(4);
+    // ReferentialMappingService(repo, accountRepo, policy, audit, catalogRepo) — 5 deps, none is a
+    // posting/journal-entry repo (catalogRepo is a read-only global reference lookup). The "zero
+    // ledger write" invariant is structural, not runtime.
+    expect(ReferentialMappingService.length).toBe(5);
+  });
+});
+
+describe('ReferentialMappingService destination validation (Track B, D3/D9)', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const analytic = { code: '1.01.01.00', name: 'Caixa (RFB oficial)', isAnalytic: true };
+  const synthetic = { code: '1.01', name: 'Ativo Circulante (RFB)', isAnalytic: false };
+
+  it('catalog present + analytic code: label snapshotted from the catalog name (override client label)', async () => {
+    const { svc, repo, catalogRepo } = buildService({
+      catalogRepo: {
+        findByVersionAndCode: jest.fn(async () => analytic),
+        countByVersion: jest.fn(async () => 12),
+      },
+    });
+    await svc.setMapping(scope, setDto); // client sent label 'Caixa (referencial)'
+    // lookup ran with the tx handle (ACC-012 consistency).
+    expect(catalogRepo.findByVersionAndCode).toHaveBeenCalledWith('2025', '1.01.01.00', TX);
+    // stored label is the AUTHORITATIVE catalog name, not the client-sent label (D9).
+    expect(repo.upsert).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({ referentialCode: '1.01.01.00', label: 'Caixa (RFB oficial)' }),
+      TX,
+    );
+  });
+
+  it('catalog present + SYNTHETIC code → ValidationError (no upsert, no audit)', async () => {
+    const { svc, repo, audit } = buildService({
+      catalogRepo: { findByVersionAndCode: jest.fn(async () => synthetic) },
+    });
+    await expect(
+      svc.setMapping(scope, { ...setDto, referentialCode: '1.01' }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.upsert).not.toHaveBeenCalled();
+    expect(audit.append).not.toHaveBeenCalled();
+  });
+
+  it('catalog present (loaded) + code ABSENT → ValidationError (rejects a non-existent RFB code)', async () => {
+    const { svc, repo } = buildService({
+      catalogRepo: {
+        findByVersionAndCode: jest.fn(async () => null),
+        countByVersion: jest.fn(async () => 12), // catalog IS loaded for the version
+      },
+    });
+    await expect(svc.setMapping(scope, setDto)).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.upsert).not.toHaveBeenCalled();
+  });
+
+  it('catalog NOT loaded for the version (0 rows) → free-string, keeps client label (INCR-9 preserved)', async () => {
+    const { svc, repo, catalogRepo } = buildService({
+      catalogRepo: {
+        findByVersionAndCode: jest.fn(async () => null),
+        countByVersion: jest.fn(async () => 0), // no catalog imported
+      },
+    });
+    await svc.setMapping(scope, setDto);
+    expect(catalogRepo.countByVersion).toHaveBeenCalledWith('2025', TX);
+    // label falls back to the client-supplied value; no rejection.
+    expect(repo.upsert).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({ referentialCode: '1.01.01.00', label: 'Caixa (referencial)' }),
+      TX,
+    );
+  });
+
+  it('copyVersion re-validates + re-snapshots against the TO-version catalog (D9)', async () => {
+    const source = [
+      { id: 'm1', accountId: 'acc-a', referentialCode: '1.01.01.00', label: 'A-2025', mappingVersion: '2025' },
+    ];
+    const { svc, repo, catalogRepo } = buildService({
+      repo: { findManyByVersion: jest.fn(async () => source) },
+      catalogRepo: {
+        findByVersionAndCode: jest.fn(async () => analytic),
+        countByVersion: jest.fn(async () => 12),
+      },
+    });
+    await svc.copyVersion(scope, { unitId: 'unit-1', fromVersion: '2025', toVersion: '2026' });
+    // the destination is re-checked against the TO version's catalog…
+    expect(catalogRepo.findByVersionAndCode).toHaveBeenCalledWith('2026', '1.01.01.00', TX);
+    // …and the label re-snapshotted from that catalog, not copied literally.
+    expect(repo.upsert).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({ mappingVersion: '2026', label: 'Caixa (RFB oficial)' }),
+      TX,
+    );
   });
 });
 
@@ -165,6 +264,155 @@ describe('ReferentialMappingService.unsetMapping', () => {
     ).rejects.toBeInstanceOf(NotFoundError);
     expect(repo.deleteByAccountVersion).not.toHaveBeenCalled();
     expect(audit.append).not.toHaveBeenCalled();
+  });
+});
+
+describe('ReferentialMappingService.batchSet (atomic all-or-nothing, D8)', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const batchDto = {
+    unitId: 'unit-1',
+    mappingVersion: '2025',
+    items: [
+      { accountId: 'acc-a', referentialCode: '1.01', label: 'A' },
+      { accountId: 'acc-b', referentialCode: '1.02', label: 'B' },
+    ],
+  };
+
+  it('policy-first: denies without canManageReferential (no tx, no write)', async () => {
+    const { svc, repo, audit } = buildService({ policy: { canManageReferential: () => false } });
+    await expect(svc.batchSet(scope, batchDto)).rejects.toBeInstanceOf(ForbiddenError);
+    expect(repo.runTransaction).not.toHaveBeenCalled();
+    expect(repo.upsert).not.toHaveBeenCalled();
+    expect(audit.append).not.toHaveBeenCalled();
+  });
+
+  it('happy path: every item upserts + audits inside ONE shared tx (tx propagated to every write)', async () => {
+    const { svc, repo, accountRepo, audit } = buildService();
+    const out = await svc.batchSet(scope, batchDto);
+    expect(out).toHaveLength(2);
+    expect(repo.runTransaction).toHaveBeenCalledTimes(1);
+    // each item re-checked in-tx (ACC-011) and upserted with the SAME tx handle.
+    expect(accountRepo.findById).toHaveBeenNthCalledWith(1, scope, 'acc-a', TX);
+    expect(accountRepo.findById).toHaveBeenNthCalledWith(2, scope, 'acc-b', TX);
+    expect(repo.upsert).toHaveBeenCalledTimes(2);
+    expect(repo.upsert).toHaveBeenNthCalledWith(
+      1,
+      scope,
+      expect.objectContaining({ accountId: 'acc-a', referentialCode: '1.01', mappingVersion: '2025', createdById: 'u1' }),
+      TX,
+    );
+    expect(audit.append).toHaveBeenCalledTimes(2);
+    expect(audit.append).toHaveBeenCalledWith(
+      TX,
+      scope,
+      expect.objectContaining({ eventType: 'referential.mapping.set', targetType: 'ReferentialMapping' }),
+    );
+  });
+
+  it('one bad item (grouping account) rolls the WHOLE batch back (ValidationError propagates out of the tx)', async () => {
+    // acc-a is a leaf, acc-b is a grouping account → the 2nd item must abort the tx.
+    const findById = jest.fn(async (_s: unknown, id: string, _tx: unknown) =>
+      id === 'acc-b' ? grouping('acc-b', '1.02') : leaf(id, '1.01'),
+    );
+    const { svc, repo } = buildService({ accountRepo: { findById } });
+    await expect(svc.batchSet(scope, batchDto)).rejects.toBeInstanceOf(ValidationError);
+    // runTransaction rejects → Prisma rolls back; the good item's upsert never commits.
+    // Only the first (good) item reached upsert before the second threw.
+    expect(repo.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('one absent/soft-deleted item aborts the batch (NotFound propagates)', async () => {
+    const findById = jest.fn(async (_s: unknown, id: string, _tx: unknown) =>
+      id === 'acc-b' ? null : leaf(id, '1.01'),
+    );
+    const { svc } = buildService({ accountRepo: { findById } });
+    await expect(svc.batchSet(scope, batchDto)).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe('ReferentialMappingService.copyVersion (year inheritance, D6/D9)', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const copyDto = { unitId: 'unit-1', fromVersion: '2025', toVersion: '2026' };
+
+  it('happy path: copies each source mapping into toVersion, re-snapshotting label literally', async () => {
+    const source = [
+      { id: 'm1', accountId: 'acc-a', referentialCode: '1.01', label: 'A-2025', mappingVersion: '2025' },
+      { id: 'm2', accountId: 'acc-b', referentialCode: '1.02', label: 'B-2025', mappingVersion: '2025' },
+    ];
+    const { svc, repo, audit } = buildService({
+      repo: { findManyByVersion: jest.fn(async () => source) },
+    });
+    const out = await svc.copyVersion(scope, copyDto);
+    expect(out).toHaveLength(2);
+    expect(repo.runTransaction).toHaveBeenCalledTimes(1);
+    // source read inside the tx.
+    expect(repo.findManyByVersion).toHaveBeenCalledWith(scope, '2025', TX);
+    // each upsert targets toVersion with the label copied literally (D9).
+    expect(repo.upsert).toHaveBeenNthCalledWith(
+      1,
+      scope,
+      expect.objectContaining({ accountId: 'acc-a', referentialCode: '1.01', label: 'A-2025', mappingVersion: '2026' }),
+      TX,
+    );
+    expect(repo.upsert).toHaveBeenNthCalledWith(
+      2,
+      scope,
+      expect.objectContaining({ accountId: 'acc-b', label: 'B-2025', mappingVersion: '2026' }),
+      TX,
+    );
+    expect(audit.append).toHaveBeenCalledTimes(2);
+  });
+
+  it('empty source version → NotFound (nothing to copy, no write)', async () => {
+    const { svc, repo } = buildService({ repo: { findManyByVersion: jest.fn(async () => []) } });
+    await expect(svc.copyVersion(scope, copyDto)).rejects.toBeInstanceOf(NotFoundError);
+    expect(repo.upsert).not.toHaveBeenCalled();
+  });
+
+  it('idempotent re-copy: an existing target row is upserted in place (repo.upsert, never a create/P2002)', async () => {
+    // The service always calls repo.upsert — the @@unique(mappingVersion) makes a
+    // pre-existing (acc-a, 2026) row an update, not a duplicate-key crash.
+    const source = [{ id: 'm1', accountId: 'acc-a', referentialCode: '1.01', label: 'A', mappingVersion: '2025' }];
+    const { svc, repo } = buildService({ repo: { findManyByVersion: jest.fn(async () => source) } });
+    await svc.copyVersion(scope, copyDto);
+    await svc.copyVersion(scope, copyDto); // second run must not throw
+    expect(repo.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('policy-first: denies without canManageReferential', async () => {
+    const { svc, repo } = buildService({ policy: { canManageReferential: () => false } });
+    await expect(svc.copyVersion(scope, copyDto)).rejects.toBeInstanceOf(ForbiddenError);
+    expect(repo.runTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('ReferentialMappingService.authoringSkeleton (chart-driven, D5)', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('re-exposes coverage().unmappedAccounts as an authoring template (no independent chart re-query)', async () => {
+    const accounts = [
+      leaf('acc-cash', '1.1.1'),
+      grouping('acc-grp', '1.1'),
+      leaf('acc-rev', '3.1.1', 'Revenue'),
+    ];
+    const { svc, accountRepo, repo } = buildService({
+      accountRepo: { findManyByUnit: jest.fn(async () => accounts) },
+      repo: { findManyByVersion: jest.fn(async () => [{ accountId: 'acc-rev' }]) },
+    });
+    const skeleton = await svc.authoringSkeleton(scope, '2025');
+    // exactly one chart read (via coverage), no second findManyByUnit.
+    expect(accountRepo.findManyByUnit).toHaveBeenCalledTimes(1);
+    expect(repo.findManyByVersion).toHaveBeenCalledWith(scope, '2025');
+    expect(skeleton.unitId).toBe('unit-1');
+    expect(skeleton.mappingVersion).toBe('2025');
+    expect(skeleton.items.map((i) => i.code)).toEqual(['1.1.1']);
+  });
+
+  it('denies without canReadReferential (inherits coverage read gate)', async () => {
+    const { svc } = buildService({ policy: { canReadReferential: () => false } });
+    await expect(svc.authoringSkeleton(scope, '2025')).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
 

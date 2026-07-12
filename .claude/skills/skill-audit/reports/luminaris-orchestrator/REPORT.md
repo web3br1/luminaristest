@@ -29,3 +29,13 @@ Nenhuma de-brittle necessária — assertions positivas (presença de seção/ro
 
 ## Skipped / blocked
 Nenhum.
+
+## Corrida comportamental incremental — 2026-07-11 (regras pós-baseline)
+Model-in-loop fora do CI: subagente atuou COMO o orquestrador em contexto limpo (lendo o SKILL.md +
+contratos), produziu o PLANO por case-id; assertions checadas contra o artefato. Todas PASS — score
+mantém 1.00 (não forjado; corrida real). O baseline 2026-06-25 (topo) segue a corrida de referência.
+
+| Regra | Versão | Eval | Resultado 2026-07-11 | Evidência comportamental |
+|---|---|---|---|---|
+| ORCH-006, ORCH-007 | v1.1.0 | `happy-accounting-1` | PASS 4/4 | reconheceu o nó já ✅ no master map, **recusou re-gerar** (ORCH-006), marcou ECF como DECISÃO ARQUITETURAL, incluiu closeout ORCH-007 |
+| ORCH-008 | v1.2.0 | `happy-parallel-1` | PASS 4/4 | emitiu a seção Plano de paralelização (Fase 0 schema / Fase A ×2 worktree / Fase B registro), com disjunção provada por write-set |

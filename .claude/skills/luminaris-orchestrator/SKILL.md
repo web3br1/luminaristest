@@ -5,11 +5,12 @@ argument-hint: "[descrição da tarefa em linguagem natural]"
 allowed-tools: Read, Grep, Glob
 metadata:
   governance-skill-id: "SKL-ORCHESTRATOR"
-  governance-version: "1.1.0"
+  governance-version: "1.2.0"
   governance-status: "validated"
   governance-owner: "engineering"
   governance-last-evaluated: "2026-06-25"
   governance-eval-score: "1.00"
+  governance-note: "1.2.0 adiciona ORCH-008 (plano de paralelização, cita _PARALLELIZATION-CONTRACT.md); change-set atômico completo: gate em governance.md + eval estrutural happy-parallel-1. eval-score 1.00 é a última corrida comportamental (REPORT.md, SG-011); cobertura comportamental de ORCH-008 diferida p/ próxima corrida do harness fora do CI (como ORCH-006/007)"
 ---
 
 # Luminaris Orchestrator
@@ -138,7 +139,23 @@ Se a tarefa for ambígua em qualquer um dos seguintes pontos, **pergunte antes d
 - **Categoria:** "Qual categoria de KPI? (revenue/sales/cost/cashflow)" → diretório do processor
 - **Modo de teste:** "Testar service, repository ou processor?" → argumento do test-suite-generator
 
-Se nenhuma ambiguidade → prosseguir para Phase 4.
+Se nenhuma ambiguidade → prosseguir para Phase 3.5.
+
+## Phase 3.5 — Plano de paralelização (só quando o pedido é um LOTE)
+
+**[ORCH-008] Se o pedido contém ≥2 features/slices, o fatiamento paralelo é decidido pelo `_PARALLELIZATION-CONTRACT.md` — não inline aqui.** Carregue-o só quando essa decisão está viva (é uma camada de decisão dedicada, como o `_REUSE-CRITERION.md`):
+
+```
+.claude/skills/_PARALLELIZATION-CONTRACT.md   ← fatiamento corpo × registro, choke points, 3 fases
+```
+
+Procedimento (o contrato tem o detalhe + rule IDs):
+1. Para cada slice, estime o **write-set** via cbm (`detect_changes` / `trace_path` inbound) e **prove disjunção** (PAR-002) — confirme lendo o arquivo (CBM-001), não pare no grafo.
+2. Agrupe os slices de write-set disjunto no **lote paralelo (Fase A)**; os que caem em PAR-005 (same-domain / edita-existente / schema-vs-schema) vão **serial**.
+3. Extraia o **delta serial**: mudanças de schema (Fase 0) + linhas de registro nos choke points PAR-001 (Fase B).
+4. Emita a seção **Plano de paralelização** no plano (PAR-006).
+
+Pedido de slice único → pule para Phase 4 (não há lote a paralelizar).
 
 ## Phase 4 — Produzir o plano de execução
 
@@ -164,6 +181,13 @@ melhores conhecendo o objetivo, não só a letra do pedido]
 
 - Passo 1 deve completar antes do passo 2 (test usa tipos do service)
 - [listar outras dependências se existirem]
+
+### Plano de paralelização (só se LOTE — ver ORCH-008 / PAR-006)
+
+- **Lote paralelo (Fase A):** [por slice: feature | branch/worktree | write-set | prova de disjunção (sinal de grafo)]
+- **Delta serial (Fase 0 schema + Fase B registro):** [mudanças de schema.prisma numa migração; depois as linhas de registro nos choke points PAR-001, na ordem]
+- **Serializados e por quê:** [slices que caíram em PAR-005 — same-domain / edita-existente]
+- [Omitir esta seção inteira se o pedido for slice único]
 
 ### Checks de validação ao final
 

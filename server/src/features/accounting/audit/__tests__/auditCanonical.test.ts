@@ -92,6 +92,40 @@ describe('canonicalizeAuditPayload', () => {
     expect(parsed.fromStatus).toBe('OPEN');
     expect(parsed.reason).toBe('Fim do mês');
   });
+
+  // BE-INCR-9 / 9B — referential mapping events must be allowlisted so the in-tx audit
+  // (ACC-019) of set/batch/copy/unset survives canonicalization instead of throwing
+  // "unknown eventType" and rolling back the write. Keys mirror the service payloads.
+  it('keeps only allowlisted keys for referential.mapping.set (batch/copy reuse this event)', () => {
+    const result = canonicalizeAuditPayload('referential.mapping.set', {
+      accountId: 'acc-cash',
+      referentialCode: '1.01.01',
+      mappingVersion: '2025',
+      // non-allowlisted provenance/PII must be dropped
+      label: 'Caixa (referencial)',
+      secret: 'drop-me',
+    });
+    const parsed = JSON.parse(result);
+    expect(parsed).toEqual({
+      accountId: 'acc-cash',
+      referentialCode: '1.01.01',
+      mappingVersion: '2025',
+    });
+  });
+
+  it('keeps only allowlisted keys for referential.mapping.unset', () => {
+    const result = canonicalizeAuditPayload('referential.mapping.unset', {
+      accountId: 'acc-cash',
+      referentialCode: '1.01.01',
+      mappingVersion: '2025',
+    });
+    const parsed = JSON.parse(result);
+    expect(parsed).toEqual({
+      accountId: 'acc-cash',
+      referentialCode: '1.01.01',
+      mappingVersion: '2025',
+    });
+  });
 });
 
 describe('buildAuditCanonicalTuple + hashAuditCanonical', () => {

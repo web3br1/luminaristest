@@ -66,6 +66,18 @@
       ]
     },
     {
+      "id": "happy-parallel-1",
+      "type": "happy",
+      "rules": ["ORCH-008"],
+      "prompt": "Monte o PLANO DE EXECUÇÃO para um LOTE com 2 features novas de domínios diferentes (ex.: 'appointments' e 'inventory'), ambas do zero. Decida o fatiamento paralelo pelo _PARALLELIZATION-CONTRACT.md: prove a disjunção dos write-sets, agrupe o lote paralelo (Fase A, 1 worktree/slice) e extraia o delta serial (Fase 0 schema + Fase B registro nos choke points). Emita a seção Plano de paralelização.",
+      "assertions": [
+        "regex:(Plano de paraleliza|_PARALLELIZATION-CONTRACT|PAR-)",
+        "regex:(Lote paralelo|Fase A)",
+        "regex:(Delta serial|Fase 0|Fase B)",
+        "regex:(disjun|write-set|choke point)"
+      ]
+    },
+    {
       "id": "regression-1",
       "type": "regression",
       "rules": ["ORCH-003"],
