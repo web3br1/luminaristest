@@ -18,7 +18,7 @@
 | [INCR-4](ADR-INCR4-bp-dre.md) | Demonstrações BP + DRE | Accepted w/ amendments (ratif.) | 2026-06-27 | READ_ONLY_REPORT |
 | [INCR-7](ADR-INCR7-bank-reconciliation.md) | Conciliação Bancária (7 decisões) | Accepted w/ amendments (ratif. por delegação) — backend implementado (PRs #32–#37+) | 2026-07-03 | PRISMA_FIRST_CLASS |
 | [INCR-8](ADR-INCR8-source-document-provenance.md) | Proveniência Formal (SourceDocument + JournalEntrySource) | Accepted — altitude A1 (seam fino) ratif.; impl. não iniciada (PRE-ADR fechado) | 2026-07-03 | PRISMA_FIRST_CLASS |
-| [SPED-ECF](ADR-INCR-SPED-ECF-file-generation.md) | Geração do arquivo ECF (SPED Fiscal · IRPJ/CSLL · Lucro Presumido) | **Proposed — FASE 1; forks ratificados 2026-07-10 (D5→recover-from-ECD, D4→transiente); FASE 2 travada só por 2 bloqueadores externos de dado (§5)** | 2026-07-10 | PRISMA_FIRST_CLASS (READ/EXPORT) |
+| [SPED-ECF](ADR-INCR-SPED-ECF-file-generation.md) | Geração do arquivo ECF (SPED Fiscal · IRPJ/CSLL · Lucro Presumido) | **FASE 2 implementada (commit `6192799`, não mergeada); Emenda FASE 2 corrigiu 3 pontos inferidos (C/E recuperados pelo PVA, numeração Bloco P, PVA computa o imposto — só segregamos receita bruta)** | 2026-07-12 | PRISMA_FIRST_CLASS (READ/EXPORT) |
 
 ## Bridges de integração (venda DynamicTable → ledger Prisma)
 
