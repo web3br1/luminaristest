@@ -530,5 +530,29 @@
       "invalid": "Invalid",
       "mappingVersion": "Mapping version: {{version}}"
     }
+  },
+  "periodComparison": {
+    "title": "Comparative Trial Balance",
+    "controls": {
+      "current": "Current period",
+      "previous": "Comparison period",
+      "generate": "Generate comparison",
+      "calculating": "Calculating…"
+    },
+    "error": {
+      "load": "Failed to load comparative trial balance."
+    },
+    "empty": "Select both dates and click \"Generate comparison\" to view the variation.",
+    "columns": {
+      "account": "Account",
+      "current": "Current",
+      "previous": "Previous",
+      "deltaAbs": "Change",
+      "deltaPct": "Change %"
+    },
+    "range": {
+      "label": "{{current}} vs {{previous}}"
+    },
+    "noBaseline": "—"
   }
 }

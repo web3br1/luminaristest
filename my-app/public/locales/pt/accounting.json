@@ -530,5 +530,29 @@
       "invalid": "Inválido",
       "mappingVersion": "Versão de mapeamento: {{version}}"
     }
+  },
+  "periodComparison": {
+    "title": "Balancete Comparativo",
+    "controls": {
+      "current": "Período atual",
+      "previous": "Período de comparação",
+      "generate": "Gerar comparativo",
+      "calculating": "Calculando…"
+    },
+    "error": {
+      "load": "Erro ao carregar o balancete comparativo."
+    },
+    "empty": "Selecione as duas datas e clique em \"Gerar comparativo\" para visualizar a variação.",
+    "columns": {
+      "account": "Conta",
+      "current": "Atual",
+      "previous": "Anterior",
+      "deltaAbs": "Variação",
+      "deltaPct": "Variação %"
+    },
+    "range": {
+      "label": "{{current}} vs {{previous}}"
+    },
+    "noBaseline": "—"
   }
 }

@@ -19,6 +19,7 @@ import {
   IncomeStatementQuerySchema,
 } from '../features/accounting/dtos/PostingDto';
 import { CashFlowStatementQuerySchema } from '../features/accounting/dtos/cashFlowReport.dto';
+import { PeriodComparisonSchema } from '../features/accounting/dtos/periodComparison.dto';
 
 export const postEntry = async (req: Request, res: Response) => {
   try {
@@ -253,6 +254,44 @@ export const getCashFlow = async (req: Request, res: Response) => {
     const scope = resolveAccountingScope(user, parsed.data.unitId);
     const asOf = new Date(parsed.data.asOf + 'T23:59:59.999Z');
     const data = await getFactory().getCashFlowReportService().cashFlowStatement(scope, asOf);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+/** @openapi
+ * /api/accounting/reports/period-comparison:
+ *   get:
+ *     summary: Balancete comparativo / variação mensal — two as-of snapshots + delta
+ *     parameters:
+ *       - { in: query, name: unitId,       required: true, schema: { type: string } }
+ *       - { in: query, name: asOfCurrent,  required: true, schema: { type: string, format: date }, description: "YYYY-MM-DD — current period as-of date" }
+ *       - { in: query, name: asOfPrevious, required: true, schema: { type: string, format: date }, description: "YYYY-MM-DD — comparison period as-of date" }
+ *     responses:
+ *       200: { description: Comparative trial balance report }
+ *       400: { description: Validation error }
+ */
+export const getPeriodComparison = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    // unitId is scope, not part of the (strict) date DTO — read it separately.
+    const unitId = req.query.unitId;
+    if (typeof unitId !== 'string' || unitId.length === 0) {
+      throw new ValidationError('unitId é obrigatório.');
+    }
+    const parsed = PeriodComparisonSchema.safeParse({
+      asOfCurrent: req.query.asOfCurrent,
+      asOfPrevious: req.query.asOfPrevious,
+    });
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, unitId);
+    const data = await getFactory()
+      .getPeriodComparisonReportService()
+      .comparativeTrialBalance(scope, parsed.data.asOfCurrent, parsed.data.asOfPrevious);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
