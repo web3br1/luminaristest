@@ -18,6 +18,9 @@
       "planoDeContas": "Plano de Contas",
       "bp": "BP",
       "dre": "DRE",
+      "dfc": "DFC",
+      "comparativo": "Comparativo",
+      "diario": "Livro Diário",
       "importacaoExportacao": "Importação/Exportação",
       "conciliacao": "Conciliação",
       "compliance": "Compliance"
