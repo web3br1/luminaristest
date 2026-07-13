@@ -18,6 +18,9 @@
       "planoDeContas": "Chart of Accounts",
       "bp": "BS",
       "dre": "IS",
+      "dfc": "Cash Flow",
+      "comparativo": "Comparative",
+      "diario": "Daily Journal",
       "importacaoExportacao": "Import/Export",
       "conciliacao": "Reconciliation",
       "compliance": "Compliance"
