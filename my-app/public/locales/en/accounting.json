@@ -19,11 +19,49 @@
       "bp": "BS",
       "dre": "IS",
       "importacaoExportacao": "Import/Export",
-      "conciliacao": "Reconciliation"
+      "conciliacao": "Reconciliation",
+      "compliance": "Compliance"
     },
     "error": {
       "units": "Failed to load units.",
       "report": "Failed to load trial balance."
+    }
+  },
+  "compliance": {
+    "error": {
+      "generic": "Something went wrong. Please try again.",
+      "versionRequired": "Enter a mapping version.",
+      "loadFirst": "Load a source version first.",
+      "copyTarget": "Enter a different target version."
+    },
+    "mapping": {
+      "title": "Referential Mapping (RFB)",
+      "description": "Map each leaf account to its RFB referential chart code. Every account needs a code before the ECD file can be generated.",
+      "versionLabel": "Version",
+      "load": "Load coverage",
+      "loading": "Loading…",
+      "ready": "Ready to generate ECD/ECF",
+      "notReady": "{{count}} account(s) unmapped",
+      "allMapped": "Every leaf account is mapped in this version.",
+      "save": "Save mappings ({{count}})",
+      "saving": "Saving…",
+      "stats": {
+        "leaf": "Leaf:",
+        "mapped": "Mapped:",
+        "unmapped": "Pending:"
+      },
+      "table": {
+        "account": "Account",
+        "code": "RFB code",
+        "label": "Label"
+      }
+    },
+    "copy": {
+      "title": "Copy version",
+      "description": "Clone the loaded version's mapping ({{from}}) into a new version — handy at fiscal-year rollover.",
+      "toLabel": "New version",
+      "submit": "Copy",
+      "copying": "Copying…"
     }
   },
   "trialBalance": {
