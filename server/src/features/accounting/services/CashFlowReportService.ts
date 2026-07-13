@@ -46,10 +46,25 @@ export function isCashAccount(code: string): boolean {
  * investing; equity and financing liabilities are financing. Unknown nature
  * ('?' — an orphan/removed account) defaults to operating and is flagged in
  * diagnostics so the identity below still assigns EVERY account to a section.
+ *
+ * DIVIDENDOS / DISTRIBUIÇÃO DE LUCROS (CPC 03 / IAS 7 — Financiamento). The chart's
+ * ONLY Equity posting leaf is 2.3.1 "Lucros ou Prejuízos Acumulados"
+ * (ChartOfAccountsFixture; RETAINED_EARNINGS_CODE). Equity → 'financing' is correct
+ * because the two movements that hit 2.3.1 are already kept apart:
+ *   • APROPRIAÇÃO do resultado (resultado → lucros acumulados) posts via the closing
+ *     entry (sourceType='closing'), which cashFlowStatement EXCLUDES from the windowed
+ *     sections — so it is never re-counted against the DRE netResult that seeds
+ *     Operating (no double count);
+ *   • DISTRIBUIÇÃO (pagamento de dividendos) debits 2.3.1 against cash → a Financing
+ *     outflow. Correct section.
+ * ponytail: no dividendos-a-pagar leaf exists yet, so no code branch for it. If one is
+ * added as a CURRENT liability (2.1.x), it would default to Operating here — wrong: its
+ * settlement is a Financing outflow. Route it then by adding its prefix to
+ * FINANCING_LIABILITY_CODE_PREFIXES (or a dedicated dividends-payable prefix), not now.
  */
 export function classifyCashFlowSection(nature: string, code: string): CashFlowSectionId {
   if (nature === 'Revenue' || nature === 'Expense') return 'operating';
-  if (nature === 'Equity') return 'financing';
+  if (nature === 'Equity') return 'financing'; // capital + distribuição de lucros (apropriação é excluída antes)
   if (nature === 'Asset') {
     return matchesPrefix(code, INVESTING_ASSET_CODE_PREFIXES) ? 'investing' : 'operating';
   }
