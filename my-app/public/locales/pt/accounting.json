@@ -19,11 +19,49 @@
       "bp": "BP",
       "dre": "DRE",
       "importacaoExportacao": "Importação/Exportação",
-      "conciliacao": "Conciliação"
+      "conciliacao": "Conciliação",
+      "compliance": "Compliance"
     },
     "error": {
       "units": "Falha ao carregar as unidades.",
       "report": "Falha ao carregar o balancete."
+    }
+  },
+  "compliance": {
+    "error": {
+      "generic": "Ocorreu um erro. Tente novamente.",
+      "versionRequired": "Informe uma versão de mapeamento.",
+      "loadFirst": "Carregue uma versão de origem primeiro.",
+      "copyTarget": "Informe uma versão de destino diferente."
+    },
+    "mapping": {
+      "title": "Mapeamento Referencial (RFB)",
+      "description": "Associe cada conta analítica ao código do plano referencial da Receita. Todas as contas precisam de código antes de gerar a ECD.",
+      "versionLabel": "Versão",
+      "load": "Carregar cobertura",
+      "loading": "Carregando…",
+      "ready": "Pronto para gerar ECD/ECF",
+      "notReady": "{{count}} conta(s) sem mapeamento",
+      "allMapped": "Todas as contas analíticas estão mapeadas nesta versão.",
+      "save": "Salvar mapeamentos ({{count}})",
+      "saving": "Salvando…",
+      "stats": {
+        "leaf": "Analíticas:",
+        "mapped": "Mapeadas:",
+        "unmapped": "Pendentes:"
+      },
+      "table": {
+        "account": "Conta",
+        "code": "Código RFB",
+        "label": "Rótulo"
+      }
+    },
+    "copy": {
+      "title": "Copiar versão",
+      "description": "Clone o mapeamento da versão carregada ({{from}}) para uma nova versão — útil na virada de exercício.",
+      "toLabel": "Nova versão",
+      "submit": "Copiar",
+      "copying": "Copiando…"
     }
   },
   "trialBalance": {
