@@ -220,6 +220,40 @@
     }
   ],
   "paths": {
+    "/api/accounting/journal-entries/{entryId}/receipt": {
+      "get": {
+        "summary": "Comprovante de lançamento (PDF) for a single journal entry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entryId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF receipt (application/pdf)"
+          },
+          "403": {
+            "description": "Not authorized to read the ledger"
+          },
+          "404": {
+            "description": "Entry not found in scope"
+          }
+        }
+      }
+    },
     "/api/accounting/balance-sheet": {
       "get": {
         "summary": "Balanço Patrimonial — snapshot as_of a given date",
