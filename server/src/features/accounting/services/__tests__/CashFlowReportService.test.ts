@@ -165,14 +165,14 @@ describe('CashFlowReportService.cashFlowStatement — section classification', (
       { id: 'imob', code: '1.2.1', name: 'Imobilizado', nature: 'Asset' }, // investing (non-current)
       { id: 'forn', code: '2.1.1', name: 'Fornecedores', nature: 'Liability' }, // operating (current)
       { id: 'emp', code: '2.2.1', name: 'Empréstimos', nature: 'Liability' }, // financing
-      { id: 'cap', code: '2.3.1', name: 'Capital', nature: 'Equity' }, // financing
+      { id: 'plr', code: '2.3.1', name: 'Lucros ou Prejuízos Acumulados', nature: 'Equity' }, // financing (única folha PL do plano)
     ];
     const windowed: Total[] = [
       { accountId: 'arec', debitCents: 5000, creditCents: 0 }, // bal +5000 → operating −5000
       { accountId: 'imob', debitCents: 30000, creditCents: 0 }, // bal +30000 → investing −30000
       { accountId: 'forn', debitCents: 0, creditCents: 3000 }, // bal −3000 → operating +3000
       { accountId: 'emp', debitCents: 0, creditCents: 20000 }, // bal −20000 → financing +20000
-      { accountId: 'cap', debitCents: 0, creditCents: 40000 }, // bal −40000 → financing +40000
+      { accountId: 'plr', debitCents: 0, creditCents: 40000 }, // bal −40000 → financing +40000
     ];
     const { svc } = buildService({
       accounts,
