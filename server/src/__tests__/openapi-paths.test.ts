@@ -20,7 +20,8 @@ const { options } = require('../../scripts/generate-openapi');
 // +2 (BE-INCR-9B Track B): referential catalog/import, catalog.
 // +1 (BE-INCR-SPED-ECF): POST /api/accounting/sped/ecf/generate.
 // +3 (report reports): GET /api/accounting/reports/{cash-flow,period-comparison,daily-journal}.
-const BASELINE = 108;
+// +1 (Recibos Fase B): GET /api/accounting/journal-entries/{entryId}/receipt.
+const BASELINE = 109;
 
 describe('OpenAPI @openapi path coverage', () => {
   it('exposes at least BASELINE paths (guards the swagger-jsdoc `: ` drop bug)', () => {
