@@ -12,6 +12,7 @@ import { IncomeStatementPanel } from './components/IncomeStatementPanel';
 import { ImportExportPanel } from './components/ImportExportPanel';
 import { ReconciliationPanel } from './components/ReconciliationPanel';
 import { CompliancePanel } from './components/CompliancePanel';
+import { SpedGenerationPanel } from './components/SpedGenerationPanel';
 import { JournalEntryModal, type AccountOption } from './components/JournalEntryModal';
 import { accountingService } from '../../lib/services/accounting.service';
 
@@ -201,9 +202,12 @@ export function AccountingView() {
         <ReconciliationPanel unitId={unitId} onLedgerChange={reload} />
       )}
 
-      {/* ── Compliance (mapeamento referencial RFB) tab ────────────────────── */}
+      {/* ── Compliance (mapeamento referencial RFB + geração SPED) tab ─────── */}
       {activeTab === 'compliance' && unitId && (
-        <CompliancePanel unitId={unitId} />
+        <div className="space-y-8">
+          <CompliancePanel unitId={unitId} />
+          <SpedGenerationPanel unitId={unitId} />
+        </div>
       )}
 
       {/* ── New Entry Modal ────────────────────────────────────────────────── */}
