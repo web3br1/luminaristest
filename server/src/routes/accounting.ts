@@ -11,6 +11,7 @@ import {
   getDailyJournal,
   listAccounts,
   listEntries,
+  getEntryReceipt,
   createAccount,
   deleteAccount,
   listPeriods,
@@ -88,6 +89,7 @@ router.delete('/accounts/:id', deleteAccount);
 
 // Journal entry listing.
 router.get('/entries', listEntries);
+router.get('/journal-entries/:entryId/receipt', getEntryReceipt);
 
 // Documentary evidence / attachments on journal entries (BE-INCR-5).
 router.post('/attachments', documentAttachmentUpload, createDocumentAttachment);
