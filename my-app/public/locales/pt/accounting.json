@@ -487,5 +487,100 @@
       "load": "Erro ao carregar a conciliação.",
       "generic": "Ocorreu um erro. Tente novamente."
     }
+  },
+  "cashFlow": {
+    "title": "Fluxo de Caixa (DFC)",
+    "controls": {
+      "asOf": "Posição em",
+      "generate": "Gerar DFC",
+      "calculating": "Calculando…"
+    },
+    "error": {
+      "load": "Erro ao carregar o fluxo de caixa."
+    },
+    "empty": "Selecione a data e clique em \"Gerar DFC\" para visualizar a Demonstração do Fluxo de Caixa.",
+    "method": {
+      "indirect": "Método indireto"
+    },
+    "section": {
+      "operating": "Atividades operacionais",
+      "investing": "Atividades de investimento",
+      "financing": "Atividades de financiamento",
+      "total": "Total",
+      "empty": "Sem movimentação"
+    },
+    "operating": {
+      "netResult": "Resultado do período",
+      "adjustments": "Ajustes (capital de giro e não-caixa)"
+    },
+    "cash": {
+      "opening": "Caixa inicial",
+      "closing": "Caixa final"
+    },
+    "reconciliation": {
+      "title": "Reconciliação",
+      "sectionsTotal": "Geração líquida de caixa",
+      "computedClosing": "Caixa final calculado",
+      "reconciles": "Reconcilia",
+      "notReconciles": "Não reconcilia"
+    },
+    "status": {
+      "ok": "OK",
+      "warning": "Aviso",
+      "invalid": "Inválido",
+      "mappingVersion": "Versão de mapeamento: {{version}}"
+    }
+  },
+  "periodComparison": {
+    "title": "Balancete Comparativo",
+    "controls": {
+      "current": "Período atual",
+      "previous": "Período de comparação",
+      "generate": "Gerar comparativo",
+      "calculating": "Calculando…"
+    },
+    "error": {
+      "load": "Erro ao carregar o balancete comparativo."
+    },
+    "empty": "Selecione as duas datas e clique em \"Gerar comparativo\" para visualizar a variação.",
+    "columns": {
+      "account": "Conta",
+      "current": "Atual",
+      "previous": "Anterior",
+      "deltaAbs": "Variação",
+      "deltaPct": "Variação %"
+    },
+    "range": {
+      "label": "{{current}} vs {{previous}}"
+    },
+    "noBaseline": "—"
+  },
+  "dailyJournal": {
+    "title": "Livro Diário",
+    "controls": {
+      "from": "De",
+      "to": "Até",
+      "generate": "Gerar Livro Diário",
+      "calculating": "Calculando…"
+    },
+    "error": {
+      "load": "Erro ao carregar o Livro Diário."
+    },
+    "empty": "Selecione o intervalo e clique em \"Gerar Livro Diário\" para visualizar os lançamentos.",
+    "entry": {
+      "number": "Lançamento nº {{number}}",
+      "date": "Data",
+      "description": "Histórico"
+    },
+    "columns": {
+      "account": "Conta",
+      "debit": "Débito",
+      "credit": "Crédito"
+    },
+    "balanced": "Balanceado",
+    "unbalanced": "Desbalanceado",
+    "range": {
+      "label": "{{from}} a {{to}}"
+    }
   }
 }
