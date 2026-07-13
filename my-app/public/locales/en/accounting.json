@@ -64,6 +64,73 @@
       "copying": "Copying…"
     }
   },
+  "sped": {
+    "generating": "Generating…",
+    "ecd": {
+      "title": "Generate SPED ECD",
+      "description": "Digital Accounting Bookkeeping. Requires a complete referential mapping (the \"Ready\" badge above).",
+      "book": "Book (term)",
+      "submit": "Generate & download ECD"
+    },
+    "ecf": {
+      "title": "Generate SPED ECF",
+      "description": "Fiscal Accounting Bookkeeping (Lucro Presumido). The PVA recovers the ECD blocks.",
+      "submit": "Generate & download ECF"
+    },
+    "field": {
+      "year": "Year",
+      "version": "Mapping version",
+      "cnpj": "Tax ID (CNPJ)",
+      "nome": "Company name",
+      "uf": "State",
+      "codMun": "City code (IBGE)",
+      "indNire": "Has NIRE",
+      "indGrandePorte": "Large company",
+      "numOrd": "Order no.",
+      "natLivr": "Book nature",
+      "dtExSocial": "Fiscal year end",
+      "codNat": "Legal nature",
+      "cnae": "CNAE code",
+      "endereco": "Address",
+      "bairro": "District",
+      "cep": "Postal code",
+      "email": "Email",
+      "csll": "CSLL rate",
+      "identNom": "Name",
+      "cpfCnpj": "Tax ID",
+      "qualifDesc": "Qualification",
+      "codAssin": "Code (900=accountant)",
+      "qualifCode": "Qualif. (900=accountant)",
+      "indCrc": "CRC",
+      "fone": "Phone"
+    },
+    "opt": {
+      "no": "No",
+      "yes": "Yes"
+    },
+    "signers": {
+      "title": "Signers (J930)",
+      "titleEcf": "Signers (0930, max 2)",
+      "add": "Add",
+      "remove": "Remove",
+      "resp": "Legal rep.",
+      "notResp": "Not legal rep."
+    },
+    "error": {
+      "generic": "Something went wrong. Check the fields and try again.",
+      "signersInvalid": "Invalid signers.",
+      "year": "Enter a valid year.",
+      "yearEcf": "Enter a valid year (≥ 2015).",
+      "versionRequired": "Enter the referential mapping version.",
+      "signersRequired": "Add at least one signer.",
+      "signersIncomplete": "Fill in name, tax ID and the other fields for each signer.",
+      "ecdRespLegal": "There must be exactly one legal-representative signer.",
+      "ecdContador": "The ECD requires an accountant signer (code 900) and a non-accountant.",
+      "ecfSignerCount": "The ECF accepts 1 or 2 signers.",
+      "ecfContador": "The ECF requires an accountant signer (qualification 900) and a non-accountant.",
+      "ecfContadorCrc": "The accountant signer (900) requires an 11-digit CPF and a CRC."
+    }
+  },
   "trialBalance": {
     "loading": "Loading trial balance…",
     "selectUnit": "Select a unit.",

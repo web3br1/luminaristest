@@ -64,6 +64,73 @@
       "copying": "Copiando…"
     }
   },
+  "sped": {
+    "generating": "Gerando…",
+    "ecd": {
+      "title": "Gerar SPED ECD",
+      "description": "Escrituração Contábil Digital. Exige o mapeamento referencial completo (badge \"Pronto\" acima).",
+      "book": "Livro (termo)",
+      "submit": "Gerar e baixar ECD"
+    },
+    "ecf": {
+      "title": "Gerar SPED ECF",
+      "description": "Escrituração Contábil Fiscal (Lucro Presumido). O PVA recupera os blocos da ECD ativa.",
+      "submit": "Gerar e baixar ECF"
+    },
+    "field": {
+      "year": "Ano",
+      "version": "Versão mapeamento",
+      "cnpj": "CNPJ",
+      "nome": "Nome empresarial",
+      "uf": "UF",
+      "codMun": "Cód. município (IBGE)",
+      "indNire": "Possui NIRE",
+      "indGrandePorte": "Grande porte",
+      "numOrd": "Nº de ordem",
+      "natLivr": "Natureza do livro",
+      "dtExSocial": "Encerr. exercício",
+      "codNat": "Nat. jurídica",
+      "cnae": "CNAE-Fiscal",
+      "endereco": "Endereço",
+      "bairro": "Bairro",
+      "cep": "CEP",
+      "email": "E-mail",
+      "csll": "Alíquota CSLL",
+      "identNom": "Nome",
+      "cpfCnpj": "CPF/CNPJ",
+      "qualifDesc": "Qualificação",
+      "codAssin": "Cód. (900=contador)",
+      "qualifCode": "Qualif. (900=contador)",
+      "indCrc": "CRC",
+      "fone": "Fone"
+    },
+    "opt": {
+      "no": "Não",
+      "yes": "Sim"
+    },
+    "signers": {
+      "title": "Signatários (J930)",
+      "titleEcf": "Signatários (0930, máx 2)",
+      "add": "Adicionar",
+      "remove": "Remover",
+      "resp": "Resp. legal",
+      "notResp": "Não resp. legal"
+    },
+    "error": {
+      "generic": "Ocorreu um erro. Verifique os campos e tente novamente.",
+      "signersInvalid": "Signatários inválidos.",
+      "year": "Informe um ano válido.",
+      "yearEcf": "Informe um ano válido (≥ 2015).",
+      "versionRequired": "Informe a versão do mapeamento referencial.",
+      "signersRequired": "Informe ao menos um signatário.",
+      "signersIncomplete": "Preencha nome, documento e demais campos de cada signatário.",
+      "ecdRespLegal": "Deve haver exatamente um signatário responsável legal.",
+      "ecdContador": "A ECD exige um signatário contador (código 900) e um não-contador.",
+      "ecfSignerCount": "A ECF aceita 1 ou 2 signatários.",
+      "ecfContador": "A ECF exige um signatário contador (qualificação 900) e um não-contador.",
+      "ecfContadorCrc": "O signatário contador (900) exige CPF de 11 dígitos e CRC."
+    }
+  },
   "trialBalance": {
     "loading": "Carregando balancete…",
     "selectUnit": "Selecione uma unidade.",
