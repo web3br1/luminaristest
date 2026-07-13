@@ -193,6 +193,50 @@ describe('CashFlowReportService.cashFlowStatement — section classification', (
     expect(opCodes).toEqual(['1.1.2:-5000', '2.1.1:3000']);
     expect(report.operating.totalCents).toBe('-2000'); // −5000 + 3000
   });
+
+  it('dividend distribution: debit to retained earnings (2.3.1) is a Financing outflow, appropriation of result NOT double-counted', async () => {
+    // Chart's only Equity posting leaf is 2.3.1 "Lucros ou Prejuízos Acumulados" (RETAINED_EARNINGS_CODE).
+    // Two movements hit it — kept apart on purpose:
+    //   • APROPRIAÇÃO do resultado (R$200 lucro → 2.3.1) posts via the CLOSING entry, which the
+    //     windowed query EXCLUDES → it is NOT in `windowed` below, so it never re-counts the DRE result.
+    //   • DISTRIBUIÇÃO: pay R$50 dividend → Debit 2.3.1 / Credit Banco. THIS is what reaches the sections.
+    const accounts = [
+      { id: 'banco', code: '1.1.1', name: 'Banco', nature: 'Asset' },
+      { id: 'plr', code: '2.3.1', name: 'Lucros ou Prejuízos Acumulados', nature: 'Equity' },
+    ];
+    const windowed: Total[] = [
+      { accountId: 'banco', debitCents: 0, creditCents: 5000 }, // dividend paid → cash −5000
+      { accountId: 'plr', debitCents: 5000, creditCents: 0 }, // distribution only (appropriation excluded)
+    ];
+    const opening: Total[] = [{ accountId: 'banco', debitCents: 5000, creditCents: 0 }]; // opening cash 5000
+    const closing: Total[] = [{ accountId: 'banco', debitCents: 5000, creditCents: 5000 }]; // closing cash 0
+
+    const gba = makeGroupByAccount(windowed, opening, closing);
+    const { svc } = buildService({
+      accounts,
+      groupByAccount: gba,
+      netResultCents: '20000', // the R$200 result that WAS appropriated to 2.3.1 via the closing entry
+    });
+    const report = await svc.cashFlowStatement(scope, asOf);
+
+    // Distribution shows in FINANCING as an outflow — exactly once, NOT netted with the +20000 appropriation.
+    expect(report.financing.accounts).toEqual([
+      { accountId: 'plr', code: '2.3.1', name: 'Lucros ou Prejuízos Acumulados', nature: 'Equity', amountCents: '-5000' },
+    ]);
+    expect(report.financing.totalCents).toBe('-5000');
+    // Appropriation is not double-counted: 2.3.1 carries −5000 (the distribution), never +15000 (20000−5000).
+    expect(report.operating.accounts).toEqual([]); // no windowed operating movement
+    expect(report.operating.netResultCents).toBe('20000'); // DRE result preserved (seeds Operating only)
+    // The closing entry is filtered upstream — that is WHY the appropriation never reaches Financing.
+    const windowedCall = gba.mock.calls.find((c) => (c[2] as GroupOpts)?.from);
+    expect((windowedCall![2] as GroupOpts).excludeSourceTypes).toEqual(['closing']);
+    // Value invariant intact (exact int): opening 5000 + (−5000) === closing 0.
+    expect(report.reconciliation.sectionsTotalCents).toBe('-5000');
+    expect(report.reconciliation.computedClosingCents).toBe('0');
+    expect(report.closingCashCents).toBe('0');
+    expect(report.reconciliation.reconciles).toBe(true);
+    expect(report.reportStatus).toBe('OK');
+  });
 });
 
 describe('CashFlowReportService.cashFlowStatement — empty period & signs', () => {
