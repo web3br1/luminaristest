@@ -336,6 +336,20 @@ export class AccountingReportService {
   }
 
   /**
+   * Per-account balances as-of a date (INTEGER CENTS): the whole history of postings up
+   * to `asOf` inclusive, identical window to `balanceSheet`'s patrimonial snapshot. Thin
+   * policy-gated wrapper over the shared aggregation so composed read-only reports (e.g.
+   * the comparative trial balance / PeriodComparisonReportService) reuse the exact same
+   * balance math instead of re-deriving it. Rows are sorted by account `code`.
+   */
+  async balancesAsOf(scope: AccountingScope, asOf: Date): Promise<TrialBalanceRow[]> {
+    if (!this.policy.canRead(scope)) {
+      throw new ForbiddenError('Você não tem permissão para ler o balancete.');
+    }
+    return this.getAccountBalances(scope, undefined, asOf);
+  }
+
+  /**
    * Ledger of a single account (by code) for the scope: each leg with a running balance.
    * Includes Posted + Reversed legs (excludes only Draft) so reversals net to zero.
    */

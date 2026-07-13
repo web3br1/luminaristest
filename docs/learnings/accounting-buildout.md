@@ -5,6 +5,20 @@ Entradas mais novas no topo.
 
 ---
 
+### 2026-07-12 · gotcha · Worktree principal com generated/prisma stale reprova tsc do BASE, não da feature
+- **Contexto:** Integração serial Fase B dos 3 relatórios (DFC/comparativo/Livro Diário). Após `git merge --ff-only origin/main` na worktree principal (`C:/Users/smurf/Downloads/Luminaris`), `npx tsc --noEmit` acusou ~8 erros TS2305/TS2339 sobre `ReferentialAccount` — que NÃO vinham de nenhuma das branches de feature, mas do cliente Prisma gerado desatualizado (INCR-9B adicionou o model `ReferentialAccount` ao schema, mas `server/generated/prisma` na worktree principal foi gerado antes disso).
+- **Aprendizado:** um tsc vermelho logo após sincronizar `main` pode ser dívida do BASE (cliente Prisma stale), não da mudança que você acabou de integrar. Diferente do gotcha de worktree fresca (sem `node_modules`), aqui a worktree principal TEM node_modules, mas o `generated/prisma` ficou para trás de uma migração já mergeada.
+- **Evidência:** `server/src/features/accounting/repositories/ReferentialAccountRepository.ts:2` (`Module '"generated/prisma"' has no exported member 'ReferentialAccount'`); `npx prisma generate` regenerou os tipos e o tsc ficou limpo (o erro ENOENT em `runtime/index-browser.js` no fim do generate não afeta os tipos que o tsc consome).
+- **Como aplicar:** antes de culpar uma branch por um tsc vermelho pós-merge, rode `npx prisma generate` se o erro for sobre um model/campo que já está no `schema.prisma`. Só depois de client fresco o tsc vira gate confiável da feature.
+- **Durável?** não (relacionado a [[worktree-deps-stale-prisma-client]], que cobre a worktree fresca)
+
+### 2026-07-12 · gotcha · DTO `.strict()` sem unitId obriga o handler a ler unitId à parte
+- **Contexto:** Registro do relatório comparativo (`report-period-comparison`) no controller. `PeriodComparisonSchema` é `.strict()` e só declara `asOfCurrent`/`asOfPrevious` — não inclui `unitId`.
+- **Aprendizado:** passar `req.query` inteiro (que traz `unitId`) para um schema `.strict()` que não declara `unitId` faz o parse FALHAR com 400 por "unrecognized key". Quando o escopo (unitId) mora fora do DTO de datas, o handler tem de extrair `unitId` separadamente e montar `{ asOfCurrent, asOfPrevious }` para o schema.
+- **Evidência:** `server/src/features/accounting/dtos/periodComparison.dto.ts:36` (`.strict()` só com as duas datas); handler `getPeriodComparison` em `server/src/controllers/accountingController.ts` lê `req.query.unitId` à parte (mesmo padrão de `getAccountLedger` com `accountCode`).
+- **Como aplicar:** ao registrar um handler para um DTO `.strict()` que omite `unitId`, ler `unitId` de `req.query` separadamente e só então `safeParse` o subconjunto declarado — nunca jogar `req.query` cru no schema strict.
+- **Durável?** não
+
 ### 2026-07-02 · pitfall · Git checkout verificado ainda perde para sessão concorrente
 - **Contexto:** FIX-FE-INCR1-M1M2 — checkout de `fix/accounting-dre-diagnostics-and-date-rendering` a partir de `main`, confirmado ativo via `git branch --show-current`. Durante a edição, outra sessão no MESMO working directory compartilhado fez seu próprio checkout (`docs/fix-fe-incr1-m1m2-execution-brief`) e commitou — HEAD mudou por baixo, sem qualquer erro.
 - **Aprendizado:** um `git branch --show-current` logo após o checkout prova o estado NAQUELE instante, não durante toda a janela de edição seguinte. Numa working directory compartilhada entre sessões, isso não fecha a race — só um `git worktree` isolado fecha, porque nenhuma outra sessão consegue trocar o HEAD dele.

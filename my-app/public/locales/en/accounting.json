@@ -487,5 +487,100 @@
       "load": "Failed to load reconciliation.",
       "generic": "An error occurred. Please try again."
     }
+  },
+  "cashFlow": {
+    "title": "Cash Flow (Statement)",
+    "controls": {
+      "asOf": "Position as of",
+      "generate": "Generate CFS",
+      "calculating": "Calculating…"
+    },
+    "error": {
+      "load": "Failed to load cash-flow statement."
+    },
+    "empty": "Select the date and click \"Generate CFS\" to view the Cash Flow Statement.",
+    "method": {
+      "indirect": "Indirect method"
+    },
+    "section": {
+      "operating": "Operating activities",
+      "investing": "Investing activities",
+      "financing": "Financing activities",
+      "total": "Total",
+      "empty": "No movement"
+    },
+    "operating": {
+      "netResult": "Net result for the period",
+      "adjustments": "Adjustments (working capital and non-cash)"
+    },
+    "cash": {
+      "opening": "Opening cash",
+      "closing": "Closing cash"
+    },
+    "reconciliation": {
+      "title": "Reconciliation",
+      "sectionsTotal": "Net cash generated",
+      "computedClosing": "Computed closing cash",
+      "reconciles": "Reconciles",
+      "notReconciles": "Does not reconcile"
+    },
+    "status": {
+      "ok": "OK",
+      "warning": "Warning",
+      "invalid": "Invalid",
+      "mappingVersion": "Mapping version: {{version}}"
+    }
+  },
+  "periodComparison": {
+    "title": "Comparative Trial Balance",
+    "controls": {
+      "current": "Current period",
+      "previous": "Comparison period",
+      "generate": "Generate comparison",
+      "calculating": "Calculating…"
+    },
+    "error": {
+      "load": "Failed to load comparative trial balance."
+    },
+    "empty": "Select both dates and click \"Generate comparison\" to view the variation.",
+    "columns": {
+      "account": "Account",
+      "current": "Current",
+      "previous": "Previous",
+      "deltaAbs": "Change",
+      "deltaPct": "Change %"
+    },
+    "range": {
+      "label": "{{current}} vs {{previous}}"
+    },
+    "noBaseline": "—"
+  },
+  "dailyJournal": {
+    "title": "General Journal",
+    "controls": {
+      "from": "From",
+      "to": "To",
+      "generate": "Generate Journal",
+      "calculating": "Calculating…"
+    },
+    "error": {
+      "load": "Failed to load the General Journal."
+    },
+    "empty": "Select the range and click \"Generate Journal\" to view the entries.",
+    "entry": {
+      "number": "Entry no. {{number}}",
+      "date": "Date",
+      "description": "Description"
+    },
+    "columns": {
+      "account": "Account",
+      "debit": "Debit",
+      "credit": "Credit"
+    },
+    "balanced": "Balanced",
+    "unbalanced": "Unbalanced",
+    "range": {
+      "label": "{{from}} to {{to}}"
+    }
   }
 }

@@ -1,0 +1,6 @@
+# Workflow/skill scripts are read verbatim by the Workflow tool's approval-dialog
+# validator, which rejects CR (0x0D) as a hidden control char. Force LF so Windows
+# core.autocrlf can't reintroduce CRLF on checkout (eol=lf beats autocrlf).
+.claude/workflows/*.js   text eol=lf
+.claude/workflows/*.mjs  text eol=lf
+.claude/skills/**/*.mjs  text eol=lf
