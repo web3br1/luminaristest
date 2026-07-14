@@ -1,13 +1,13 @@
 # ADR-INCR-AP — Contas a Pagar (AP) operacional
 
 - **Data:** 2026-07-14
-- **Status:** **Proposed — PRE-ADR. Forks de decisão ABERTOS aguardando ratificação humana (§5). NENHUM código escrito; nenhuma skill de geração roteada.** A Task 5 (implementação) só inicia após a ratificação — regra do master map §1 (nó ⚫ exige ADR em disco + sinal humano; este ADR é a metade "ADR em disco").
+- **Status:** **Accepted — RATIFICADO POR SINAL HUMANO 2026-07-14 (todos os forks F0–F6 fechados, §5). NENHUM código escrito ainda.** A Task 5 (implementação) fica DESBLOQUEADA por esta ratificação; a regra do master map §1 (nó exige ADR em disco + sinal humano) está satisfeita. **F0 → rota (a) `postEntry` direto** (recomendação do arquiteto contábil sobre a do orquestrador); F1–F6 conforme recomendado no ADR. O corpo abaixo foi ajustado para refletir F0=(a) — sem `AccountingSyncPort`/mapper/bridge para a origem AP.
 - **Autores:** par `luminaris-orchestrator` (plano, ORCH-001) + `luminaris-accounting-architect` (parecer de domínio) — mesmo formato do precedente ACC-INCR6-J-001 e do ADR-INCR-SPED-ECF (PR #68).
 - **Nó do master map:** §5 "Subrazões (AR, **AP**, …)" — ⚫ diferido com ADR próprio; este ADR o abre. Não colide com §1 (invariantes T1–T12) nem §4 (decisões rejeitadas) — verificação em §2.
 
 ## TLDR (2 linhas)
 
-AP entra como módulo **Prisma first-class** (`Payable` + `PayablePayment`, migração aditiva) reusando integralmente o espinhaço contábil provado (postEntry, período, audit, proveniência, conciliação) — **zero motor novo**; o duplo fato gerador (reconhecimento × liquidação) espelha o par AR do salon. O maior aberto **não é técnico**: são os 6 forks de §5 (o principal: transporte da integração — direto no `postEntry` × port event→mapper), cada um com recomendação + custo de reversão para a ratificação humana ser sim/não por fork.
+AP entra como módulo **Prisma first-class** (`Payable` + `PayablePayment`, migração aditiva) reusando integralmente o espinhaço contábil provado (postEntry, período, audit, proveniência, conciliação) — **zero motor novo**; o duplo fato gerador (reconhecimento × liquidação) espelha o par AR do salon. **Ratificado (2026-07-14):** o transporte AP→ledger é **chamada direta `PostingService.postEntry`** do `PayableService` (F0 rota (a), precedente `ExerciseClosingService`) — sem port/mapper/bridge; os demais forks conforme recomendado (§5).
 
 ---
 
@@ -151,52 +151,44 @@ fornecedor/NF. Nenhum código novo de conciliação.
 ## 4. Plano de implementação (Task 5 — só após ratificação)
 
 **PAR-006 — veredito: SERIAL de ponta a ponta (PAR-005).** AP é domínio único; a fatia de
-integração edita arquivos existentes do mundo accounting (fixture, allowlist, factory, e port se
-F0 rota (b)) — write-sets não disjuntos. 1 branch / 1 worktree isolado (`npm ci`, nunca junction
-do client Prisma — memória `worktree-deps-stale-prisma-client`).
+integração edita arquivos existentes do mundo accounting (fixture, allowlist, factory) — write-sets
+não disjuntos. 1 branch / 1 worktree isolado (`npm ci`, nunca junction do client Prisma — memória
+`worktree-deps-stale-prisma-client`).
 
 - **Fase 0 — schema (serial):** `Payable` + `PayablePayment` + migração aditiva única + `prisma generate` (`backend-prisma-model-generator`).
-- **Fase A — corpos (serial):** Fatia 1 core (`models/Payable.model.ts` com `PAYABLE_STATUSES` const → `dtos/PayableDto.ts` Zod `.strict()` + `@openapi` → `repositories/` tx-aware → `policies/` → `services/PayableService.ts`) via `backend-dto/repository/policy/service-generator`; Fatia 2 seam contábil (fixture `2.1.2` → integração conforme F0 ratificado → allowlist audit → passe de reconcile AP) — golden refs `SalonSaleSettledMapper.ts`/`SalonSaleSettlementBridge.ts` se rota (b), `ExerciseClosingService.ts` se rota (a); Fatia 3 borda HTTP (`controllers/payableController.ts` + `routes/payables.ts`) via `backend-controller/route-generator`; testes por fatia via `backend-test-suite-generator` (TOCTOU duplo-pagamento, idempotência cross-evento, rename-on-delete → re-lançamento sem P2002, teto MAX_CENTS, cancel→recriar→pagar, estorno de pagamento reabre e zera efeito líquido em 2.1.2).
+- **Fase A — corpos (serial):** Fatia 1 core (`models/Payable.model.ts` com `PAYABLE_STATUSES` const → `dtos/PayableDto.ts` Zod `.strict()` + `@openapi` → `repositories/` tx-aware → `policies/` → `services/PayableService.ts`) via `backend-dto/repository/policy/service-generator`; Fatia 2 integração contábil **(F0 rota (a) ratificada)**: fixture `2.1.2` → o `PayableService` chama **`PostingService.postEntry` direto** (2 sourceTypes `ap.payable`/`ap.payment`), sem `AccountingSyncPort`/mapper/bridge → allowlist audit → passe de reconcile AP (re-dirige reconhecimento/pagamento faltante) — **golden ref `ExerciseClosingService.ts`** (módulo interno que já posta direto); Fatia 3 borda HTTP (`controllers/payableController.ts` + `routes/payables.ts`) via `backend-controller/route-generator`; testes por fatia via `backend-test-suite-generator` (TOCTOU duplo-pagamento, idempotência cross-evento, rename-on-delete → re-lançamento sem P2002, teto MAX_CENTS, cancel→recriar→pagar, estorno de pagamento reabre e zera efeito líquido em 2.1.2).
 - **Fase B — registro (serial, `tsc` verde entre cada toque):** `routes/index.ts` → `middleware/auth.ts` (`protectedApiPaths` — furo tsc-cego que o wiring-gate REV-006 pega) → `factory.ts` → `docs.paths.ts` + `npm run docs:generate` + bump do `BASELINE` em `server/src/__tests__/openapi-paths.test.ts`.
 - **Gates por fatia:** tsc×2 limpo; jest da fatia + suíte accounting inteira; **review independente por fatia em worktree** (`reviewer-independence-separate-agent`); `skill-audit wiring`; openapi baseline; **smoke-migration-gate da migração AP sobre base populada por dados do app** (padrão `SMOKE-MIGRATION-GATE-INCR1-INCR2-DEPLOY.md` — "aditiva" não dispensa o gate) → `SMOKE-MIGRATION-GATE-INCR-AP.md`; merge via `loop-auto-merge-after-review`; smoke-gate/browser sign-off humanos.
 
 ---
 
-## 5. FORKS ABERTOS — ratificação humana (sim/não por fork; formato ECF)
+## 5. FORKS — RATIFICADOS POR SINAL HUMANO (2026-07-14)
 
-> **F0 é o fork principal** e refina a instrução original da tarefa ("reuso do seam
-> RegisterPaymentService + event→mapper"): a evidência confirmou que `RegisterPaymentService` é
-> orquestração DynamicTable — o reuso é de **padrão** (duplo evento, ordering, reconcile), não de
-> código. O objetivo (integração idempotente e auditável com o ledger) se cumpre pelas duas rotas;
-> o transporte é a decisão em aberto.
+> Ratificação registrada em conversa com o dono do produto: **F0 → rota (a)**; **F1–F6 conforme
+> recomendado**. O corpo do ADR (§4, TLDR, D2/D6) foi ajustado para F0=(a). Nenhum fork ficou aberto.
 
-### F0 — Transporte da integração AP→ledger
-- **(a) Chamada direta `PostingService.postEntry` do `PayableService`** (precedente `ExerciseClosingService` — módulo interno ao mundo contábil). Sem `AccountingSyncPort`, sem mapper, sem bridge; o próprio service posta pós-commit (ou na sequência da tx) com re-drive no reconcile.
-- **(b) Port event→mapper** (2 sourceTypes novos na união, builders, `ApPayableRecognizedMapper`/`ApPayablePaidMapper`, `ApPayableBridge` pós-commit) — espelho literal do Incremento C/D, incluindo campo **aditivo** `amountCents?` no `AccountingEvent` (precedente `revenueByNature?`) para não re-cruzar a fronteira float.
-- **Recomendação (arquiteto contábil): (a)** — o port existe para a costura **cross-world** DynamicTable→ledger; o Payable já nasce Prisma com cents Int; a rota (b) adiciona 3 arquivos + 1 campo de port para uniformidade sem invariante novo. **Recomendação (orquestrador): (b)** — uniformidade do seam (todo lançamento derivado de origem operacional passa pelo mesmo registry/reconcile). **Custo de reversão:** (a)→(b) = extrair mappers depois (mecânico, baixo); (b)→(a) = deletar camadas (baixo). Decisão barata de errar — mas decide a topologia do reconcile AP.
+### F0 — Transporte da integração AP→ledger  **[RATIFICADO → (a) `postEntry` direto]**
+- **(a) Chamada direta `PostingService.postEntry` do `PayableService`** ✅ **ESCOLHIDA** (precedente `ExerciseClosingService` — módulo interno ao mundo contábil). Sem `AccountingSyncPort`, sem mapper, sem bridge; o próprio service posta (na sequência da operação) com re-drive no reconcile. **Consequência:** NÃO se adiciona `amountCents?` ao `AccountingEvent`, NÃO se criam `ApPayable*Mapper`/`ApPayableBridge`, NÃO se toca a união de `sourceType` do port.
+- **(b) Port event→mapper** — descartada. Adicionaria 3 arquivos + 1 campo de port por uniformidade, sem invariante novo; o port existe para a costura **cross-world** DynamicTable→ledger e o Payable já nasce Prisma com cents Int.
+- **Razão da escolha (arquiteto sobre orquestrador):** o AP é módulo interno ao mundo contábil, não uma origem DynamicTable; postar direto é o caminho mais curto que preserva todos os invariantes (o `postEntry` já carrega período/audit/idempotência/proveniência). **Custo de reversão se um dia AP precisar do registry:** extrair mappers depois é mecânico (baixo).
 
-### F1 — Fornecedor
-- **(a)** model `Supplier` Prisma próprio; **(b)** `supplierName` string denormalizada; **(c)** ref a linha DynamicTable (string escopada, precedente `CustomerPackageBalance.customerId`, `schema.prisma:767-776`) + snapshot do nome.
-- **Recomendação: (c)** — fornecedor é cadastro operacional sem invariante financeiro próprio (o invariante vive no Payable); `Supplier` Prisma beira a torre de cadastro rejeitada (§4). **Custo de reversão:** (b)→qualquer = backfill fuzzy por string (caro); (c)→(a) = migração mecânica de ref (baixo). MVP mínimo aceitável: (b) + `supplierRef?` opcional.
+### F1 — Fornecedor  **[RATIFICADO → (c)]**
+- ✅ **(c)** ref a linha DynamicTable (string escopada, precedente `CustomerPackageBalance.customerId`, `schema.prisma:767-776`) + snapshot do nome. Descartadas: (a) `Supplier` Prisma (beira a torre de cadastro rejeitada, §4); (b) só string (dedupe fraca). **Custo de reversão:** (c)→(a) = migração mecânica de ref (baixo).
 
-### F2 — Pagamento parcial
-- **(a)** full-only sem tabela filha; **(b)** `PayablePayment` desde o dia 1 com guard `amountCents === remainingCents` (full-only), liberar parciais depois = afrouxar validação.
-- **Recomendação: (b)** (já refletida em D1). **Custo de reversão:** (a)→parcial = migração + class-sweep de chaves de idempotência (alto); (b) = remover um guard (nulo).
+### F2 — Pagamento parcial  **[RATIFICADO → (b)]**
+- ✅ **(b)** `PayablePayment` desde o dia 1 com guard `amountCents === remainingCents` (full-only no MVP); liberar parciais depois = afrouxar validação (já refletido em D1). **Custo de reversão de não tê-lo:** migração + class-sweep de chaves (alto) — por isso o modelo-filho entra agora.
 
-### F3 — Agenda/recorrência
-- **(a)** fora do MVP (só `dueDate` + relatório de aging depois); **(b)** recorrência (template + scheduler in-process, T11).
-- **Recomendação: (a)** — YAGNI; recorrência é incremento próprio. Custo de reversão: nulo (aditivo).
+### F3 — Agenda/recorrência  **[RATIFICADO → (a)]**
+- ✅ **(a)** fora do MVP (só `dueDate`; relatório de aging depois). Recorrência = incremento próprio (toca scheduler in-process, T11). Custo de reversão: nulo (aditivo).
 
-### F4 — Anexo da nota
-- **(a)** generalizar `DocumentAttachment` para target polimórfico (migração de classe — FK dura a `journal_entries`, `schema.prisma:521-523`); **(b)** anexar ao lançamento de reconhecimento + `SourceDocument.attachmentId` (slot já existe, `:719`); **(c)** `PayableAttachment` novo (ilha).
-- **Recomendação: (b)** — zero migração; limite honesto: o anexo só existe após o posting de reconhecimento. Custo de reversão: baixo ((a)/(c) continuam possíveis).
+### F4 — Anexo da nota  **[RATIFICADO → (b)]**
+- ✅ **(b)** anexar ao lançamento de reconhecimento + `SourceDocument.attachmentId` (slot já existe, `schema.prisma:719`) — zero migração. Descartadas: (a) target polimórfico (migração de classe, FK dura a `journal_entries`); (c) `PayableAttachment` (ilha). Limite honesto: o anexo só existe após o posting de reconhecimento.
 
-### F5 — Semear folhas `4.x` padrão no fixture (Aluguel, Insumos, …)
-- **Recomendação: NÃO no MVP** — cada folha semeada entra em `unmappedAccounts` do coverage ECD de **todo** tenant (D8); o usuário já cria contas via `createAccount`. Custo de reversão: nulo (aditivo depois).
+### F5 — Semear folhas `4.x` padrão no fixture  **[RATIFICADO → NÃO]**
+- ✅ **NÃO no MVP** — cada folha semeada entra em `unmappedAccounts` do coverage ECD de **todo** tenant (D8); o usuário já cria contas via `createAccount`. Custo de reversão: nulo (aditivo depois).
 
-### F6 — Semântica do cancel de payable reconhecido
-- **(a)** cancel dispara estorno automático do reconhecimento (D3, default deste ADR); **(b)** bloquear cancel após reconhecimento (exigir estorno manual).
-- **Recomendação: (a)** — comando único e auditado; a superfície best-effort do estorno pós-commit é coberta pelo passe de reconcile AP (que é escopo do MVP, não opcional — se cortado, F6 vira (b)).
+### F6 — Semântica do cancel de payable reconhecido  **[RATIFICADO → (a)]**
+- ✅ **(a)** cancel dispara estorno automático do reconhecimento (D3) — comando único e auditado. A superfície best-effort do estorno pós-commit é coberta pelo passe de reconcile AP (escopo do MVP, não opcional).
 
 ---
 
@@ -207,7 +199,7 @@ do client Prisma — memória `worktree-deps-stale-prisma-client`).
 3. **[verificado] Contas novas bloqueiam a geração ECD do tenant** até mapeamento RFB humano (D8) — dado de compliance, não bug; declarar no onboarding do AP.
 4. **Chave de negócio `supplierName+documentNumber` é fraca** (typo burla dedupe) — aceita no MVP; a idempotência **contábil** (T7) não depende dela. F1 rota (c) melhora com `supplierRef`.
 5. **[assumido] MVP despesa-only** cobre o público salão; incorreto para revenda com estoque relevante — limite explícito.
-6. **Divergência do par orquestrador×arquiteto no F0** foi preservada como fork (não resolvida por nós) — é exatamente o tipo de decisão barata-de-errar mas topológica que a ratificação humana fecha.
+6. **Divergência do par orquestrador×arquiteto no F0** foi resolvida pela ratificação humana → rota (a) `postEntry` direto. Viés residual a vigiar na impl: com rota (a) o reconcile AP é código próprio do `PayableService` (não herda o registry do `AccountingSyncService`) — o teste de re-drive de reconhecimento/pagamento faltante é obrigatório, senão uma falha pós-commit vira lançamento perdido sem a rede do reconcile genérico.
 7. Se o humano quiser AP com aprovação (maker-checker) — é a torre ⚫ própria (§5 do master map), **não** entra por este ADR.
 
 ## 7. Checklist de invariantes (ACC) que a implementação DEVE provar
@@ -222,5 +214,7 @@ do client Prisma — memória `worktree-deps-stale-prisma-client`).
 
 ---
 
-**PARADA OBRIGATÓRIA:** este ADR encerra a fase PRE-ADR. A Task 5 (implementação) **não inicia**
-até a ratificação humana dos forks F0–F6 (sim/não por fork, como no ECF PR #68).
+**RATIFICADO 2026-07-14** (F0→(a), F1–F6 conforme recomendado). A fase PRE-ADR está encerrada e a
+Task 5 (implementação da cadeia Prisma por fatia, §4) fica **DESBLOQUEADA**. Próximo gate humano
+não é mais decisão de design — é o **smoke-migration-gate da migração AP** (base populada) e o
+**browser sign-off** do FE quando este chegar (`FE-INCR-AP`, diferido).
