@@ -8,9 +8,11 @@
 > **Regra de uso (arquiteto/orquestrador):** nenhuma skill de geração roteia contra um nó marcado
 > 🔴/⚫ sem **ADR em disco + sinal humano**. Nós ✅ estão fechados; nós ⏳ são o incremento corrente.
 >
-> Última reconciliação: **2026-07-12** · HEAD de referência: `1088e32` (INCR-7 conciliação + OFX + INCR-8
-> proveniência + INCR-9/9B referencial + ECD + Apuração/Encerramento + Split de receita + **ECF Fase 2 (PR #78)**
-> + **CNAB 240 (PR #61)** — TODOS mergeados em `main`).
+> Última reconciliação: **2026-07-14** · HEAD de referência: `b245825` (tudo do fold anterior — conciliação,
+> OFX/CNAB, proveniência, referencial, ECD, Apuração, Split, ECF Fase 2 — MAIS: **Recibos PDF (PR #84)**,
+> **A1a FE referencial/aba Compliance (PR #89)**, **fix replay-safe da migração de numeração (PR #98)** +
+> **smoke-gate DEPLOY-CLEARED (PR #99)**, e **INCR-AP Contas a Pagar (PRs #101/#102 + hardening #103/#105 +
+> ADR #104)** — TODOS mergeados em `main`). Próximos planos priorizados: **§5.1**.
 
 ---
 
@@ -32,7 +34,7 @@ Estas não são "preferências": são decisões commitadas. Reabrir qualquer uma
 | T9 | **BRL-only.** Sem multi-moeda — `Posting`/`JournalEntry` não têm campo de moeda. | `AccountingScope.baseCurrencyCode:'BRL'`; grep no schema. |
 | T10 | **Integração origem→ledger = bridge pós-commit explícita** por origem (fora do motor). **Não** existe rule engine dirigido por template. | `accounting-increment-c-salon-bridge` (ADR-C01); AccountingSync. |
 | T11 | **Deploy single-process, SQLite local.** Scheduler in-process. Sem fila/outbox/DLQ. | `accounting-sync-b1-merged`. |
-| T12 | **Governança:** `PLAN → ADR → BRIEF → impl → test → review independente → PR → merge → smoke-gate → closeout → memória`. Review por **agente separado**; smoke-migration-gate antes de dados reais. **2026-07-14:** os dois gates HELD fecharam — `RISK-INCR1-DB-001` e `SMOKE-MIGRATION-GATE-001` = **PASS** sobre dev.db real + replay populado (`SMOKE-MIGRATION-GATE-INCR1-INCR2-DEPLOY.md`); deploy da `main` = no-op comprovado. Novo risco latente nomeado: `RISK-INCR3-MIGRATION-001` (backfill do entry-numbering não é replay-safe sobre dados Prisma — não bloqueia o deploy atual). | `reviewer-independence-separate-agent`; `accounting-incr1-db-risk`; `verify-write-context-before-writing`. |
+| T12 | **Governança:** `PLAN → ADR → BRIEF → impl → test → review independente → PR → merge → smoke-gate → closeout → memória`. Review por **agente separado**; smoke-migration-gate antes de dados reais. **2026-07-14:** os dois gates HELD fecharam — `RISK-INCR1-DB-001` e `SMOKE-MIGRATION-GATE-001` = **PASS** sobre dev.db real + replay populado (`SMOKE-MIGRATION-GATE-INCR1-INCR2-DEPLOY.md`); deploy da `main` = no-op comprovado. `RISK-INCR3-MIGRATION-001` **FECHADO 2026-07-14**: backfill do entry-numbering tornado replay-safe sobre dados Prisma (fix `5764491`, PR #98; 3 defeitos, refutação 5/5) + smoke-gate sobre cópia do dev.db real **DEPLOY-CLEARED** (`SMOKE-MIGRATION-GATE-INCR3-POSTFIX-DEPLOY.md`, PR #99). Não há risco latente de migração aberto. | `reviewer-independence-separate-agent`; `accounting-incr1-db-risk`; `verify-write-context-before-writing`. |
 
 ---
 
@@ -65,6 +67,8 @@ flowchart TD
     AP["✅ Apuração/Encerramento<br/>I350/I355 · PVA-value-clean"]:::done
     ECF["✅ SPED ECF (Presumido)<br/>Fase 2 · PR #78 mergeada"]:::done
     CNAB["✅ CNAB 240<br/>3º parser extrato · PR #61 mergeada"]:::done
+    APAY["✅ Contas a Pagar INCR-AP<br/>Payable+PayablePayment · postEntry direto"]:::done
+    RECI["✅ Recibos PDF<br/>comprovante de lançamento · PR #84"]:::done
 
     A --> B --> D
     A --> C --> D
@@ -89,41 +93,41 @@ flowchart TD
     SD --> ECF
     ECD --> ECF
     T --> CNAB
+    APAY --> D
+    SD --> APAY
+    D --> RECI
 ```
 
 **Núcleo 1 (ledger confiável) — fechado.** Núcleo de operação/relatório/evidência/troca de dados — fechado.
-Ramo compliance/SPED em `main`: proveniência (INCR-8), mapeamento referencial (INCR-9/9B), **ECD**,
-**apuração/encerramento**, **split de receita**, **ECF Fase 2** e **CNAB 240** — todos mergeados (§3; não
-há nó ⏳ corrente). Deploy-readiness: gates HELD de INCR-1/INCR-2 **fechados 2026-07-14**
-(`SMOKE-MIGRATION-GATE-INCR1-INCR2-DEPLOY.md`). Resíduos herdados: **sign-off humano no browser**
-(INCR-6 A–J, conciliação) e sign-off no PVA (ECD/Apuração).
+Ramo compliance/SPED em `main`: proveniência (INCR-8), mapeamento referencial (INCR-9/9B + FE A1a PR #89),
+**ECD**, **apuração/encerramento**, **split de receita**, **ECF Fase 2** e **CNAB 240** — todos mergeados.
+**INCR-AP (Contas a Pagar)** — primeira subrazão first-class — mergeado (§3; não há nó ⏳ corrente).
+Deploy-readiness: gates HELD de INCR-1/INCR-2 **fechados 2026-07-14** e `RISK-INCR3-MIGRATION-001`
+**fechado** (PR #98/#99, DEPLOY-CLEARED). Resíduos herdados consolidados na fila **§5.1 Bloco A**:
+FE-INCR-AP, sign-off humano no browser (INCR-6 A–J, conciliação, uploads, recibos) e sign-off no PVA
+(ECD/Apuração/ECF).
 
 ---
 
-## 3. Incremento corrente — nenhum em voo; ECF Fase 2 (PR #78) e CNAB 240 (PR #61) FECHADOS
+## 3. Incremento corrente — nenhum em voo; INCR-AP (Contas a Pagar) FECHADO
 
-> **Todo o trabalho que estava em landing entrou em `main`.** ECF Fase 2 e CNAB 240 foram mergeados em
-> 2026-07-12 (Fase B serial: #78 → fold do master map #79 → CI-flake #80 → #61). Não há nó ⏳ corrente — o
-> próximo incremento ainda não foi escolhido; ver §5 para os candidatos diferidos.
+> **Todo o trabalho que estava em landing entrou em `main`.** Não há nó ⏳ corrente — os próximos passos
+> estão priorizados na fila **§5.1** (Bloco A = resíduos sobre trabalho já mergeado; Bloco B = frentes
+> novas ⚫, cada uma exigindo ADR + sinal humano antes de qualquer código).
 
-**Estado real (verificado no git 2026-07-12, HEAD `main` `1088e32`):**
+**Último fechamento (verificado no git 2026-07-14, HEAD `main` `b245825`):**
 
-**(a) SPED ECF (Lucro Presumido) — Fase 2 ✅ MERGEADA em `main` (PR #78, merge `70caa1c`).**
-A ADR/PLAN da ECF já estava em `main` (Fase 1 ratificada, PR #68: D5 = recover-from-ECD, D4 = `TaxRegime`
-transitório); a **geração do arquivo** (Fase 2) entrou pelo PR #78 (`lib/ecf.ts` + `SpedEcfGenerationService`
-+ DTO + rota + `EXPORT_SPED_ECF` + Bloco S vazio). Segrega receita bruta 3.1/3.3 em linhas P200/P400; PVA
-computa o tributo; C/E recuperados do ECD (Passo A de transcrição derrubou 3 pontos inferidos da ADR). Gate de
-fechamento = exaustividade de receita, não referencial. Review independente = PASS. Gates no merge: tsc×2
-limpo, jest accounting 505/505 + `ecf.test.ts` 16/16, openapi 105 paths. Residual: sign-off humano no PVA.
+**INCR-AP — Contas a Pagar ✅ MERGEADO em `main`** (Fase 0 schema PR #101 `88e411e`; Fases A+B PR #102
+`4a6eddb`; hardening pós-merge: reconcile re-emite `payable.payment_registered` no finalize PR #103 e
+finalize PAYING→PAID como CAS atômico exactly-once nos 2 sites PR #105 `b245825`; correção de proveniência
+do ADR PR #104). Primeira subrazão first-class; posta DIRETO via `PostingService.postEntry` (F0 rota a —
+padrão canônico 2-tx CAS-before-post + reconcile re-drive para subrazões que postam direto). 2 reviews
+independentes PASS; 1010/1010 testes; smoke-migration-gate PASS (`SMOKE-MIGRATION-GATE-INCR-AP.md`).
+Residual: **FE-INCR-AP** (única tela faltante do módulo) + browser sign-off — item 1 da fila §5.1.
 
-**(b) CNAB 240 (BE-INCR7-CNAB) — 3º parser de extrato, ✅ MERGEADO em `main` (PR #61, merge `1088e32`).**
-`lib/cnab.ts`→`InTable` reusando `parseLines` (espelha OFX; direct-int cents, D/C sign, slice `DDMMAAAA`);
-também corrige um bug do swagger-jsdoc (`: ` YAML) que dropava 17 paths do openapi. Refrescado sobre `main`
-pós-ECF (merge, não rebase) — conflito em `docs.paths.ts`/`openapi.json` resolvido por união + regen (105
-paths, zero perdidos), **re-review independente da resolução = PASS** (R1–R5). Residual: sign-off humano no browser.
-
-**Regra de roteamento:** ECF e CNAB são nós ✅ fechados — o orquestrador NÃO deve re-planejar geração ECF nem
-ingestão CNAB como trabalho novo.
+**Regra de roteamento:** ECF, CNAB e AP são nós ✅ fechados — o orquestrador NÃO deve re-planejá-los como
+trabalho novo (detalhe de cada um nas linhas do §5). Antes de "iniciar" qualquer incremento, cheque
+PR-merged + `git ls-tree origin/main` (near-miss registrado: duplicata #72 construída de main stale).
 
 ---
 
@@ -157,11 +161,53 @@ Ordenados por proximidade da fundação. **Nenhum** é "o próximo passo" antes 
 | **ECF readiness** (arquivo SPED Fiscal: IRPJ/CSLL) | ✅ **Mergeado em `main`** (BE-INCR-SPED-ECF Fase 2, PR #78, merge `70caa1c`, 2026-07-12; review independente PASS; residual = sign-off humano no PVA) | **ADR-INCR-SPED-ECF** + Emenda FASE 2. Regime = **Presumido**. **Passo A (transcrição do Manual Leiaute 12 + Tabelas Dinâmicas) derrubou 3 pontos INFERIDOS da FASE 1** (ratificados por humano): (1) Blocos C/E recuperados pelo PVA — não importados (sem `ecdRecibo/ecdHash`); (2) numeração do Bloco P (P200 base IRPJ/P300 calc/P400 base CSLL/P500 calc); (3) **o PVA computa a presunção+imposto** (fórmulas da tabela dinâmica) — Luminaris **só segrega receita bruta** por atividade (3.1→P200(8)/P400(4), 3.3→P200(4)/P400(2)) nas linhas `E`. `lib/ecf.ts` (serializer puro, reusa `lib/sped`) + `SpedEcfGenerationService` (read-only+job; gate de **exaustividade da receita**, não referencial — o `3.3`-sem-RFB migra p/ a ECD) + DTO `.strict` + rota 3-toques + `kind='EXPORT_SPED_ECF'` (zero migração, D7) + Bloco S vazio (S001/S990). tsc×2 limpo, jest accounting 505/505 + `ecf.test.ts` 16/16, openapi 105 paths. Residual: import PVA-clean = sign-off humano; conjunto exato de blocos vazios a confirmar no PVA. Sem `TaxRegime` persistido (D4 transiente). Detalhe: [[accounting-sped-ecf-generation]]. |
 | **Torre de aprovação** (maker-checker, SoD, `submittedById`/`approvedById`/`version`/`contentHash`) | ⚫ Diferido | Model atual só tem `Draft\|Posted\|Reconciled\|Reversed`. ADR + invariantes ACC-016/017. |
 | **Dimensões** (centro de custo/projeto — DimensionDefinition/Value/PostingDimension) | ⚫ Diferido | Sem precedente; YAGNI até demanda real. |
-| **Contas a Pagar — AP operacional** (subrazão de despesa: `Payable`+`PayablePayment` first-class + pagamento + ledger) | ✅ **Implementado** (`docs/adr/ADR-INCR-AP-accounts-payable.md`; Task 5, 2026-07-14, branch `claude/sad-mccarthy-3fc1e6`) — Fase 0 schema + Fase A backend + Fase B wiring; **2 reviews independentes PASS** (wiring FAIL→fix→PASS: tag jsdoc-openapi em prosa poluía o `openapi.json`); 1010/1010 testes + tsc×2 limpos; **smoke-migration-gate PASS** (`SMOKE-MIGRATION-GATE-INCR-AP.md`, cópia do dev.db real). Residual: sign-off humano no browser (FE diferido `FE-INCR-AP`). | **ADR-INCR-AP**. First-class Prisma (2 tabelas aditivas; `@@unique([userId,unitId,supplierName,documentNumber])` com rename-on-delete `deleted:<id>`); fato gerador DUPLO por competência: `ap.payable` (D 4.x / C **`2.1.2 Fornecedores a Pagar`** — folha nova no fixture, zero migração) + `ap.payment` (D 2.1.2 / C conta-por-método), idempotência por **identidade de evento** (`sourceId=paymentId`, nunca key-freeing); gate in-tx (T6) + 4 eventos novos na allowlist do audit (T8) + SourceDocument INCR-8 (1º consumidor orgânico); ciclo por comandos (ACC-016), cancel = estorno (T5). **F0 ratificado → rota (a): `PayableService` chama `PostingService.postEntry` direto** (sem port/mapper/bridge; golden ref `ExerciseClosingService`). F1→(c) supplierRef DynamicTable; F2→(b) `PayablePayment` full-only; F3→(a) sem recorrência; F4→(b) anexo via SourceDocument; F5→NÃO semear 4.x; F6→(a) cancel=estorno auto. FORA: fornecedor first-class, recorrência, aprovação, estoque, FE (→ `FE-INCR-AP`). Antes de deploy: smoke-migration-gate sobre base populada. |
-| **Subrazões restantes** (AR formal, estoque, imobilizado, **folha**, **fiscal/tributos**) | ⚫ Diferido | Cada um é módulo ERP first-class próprio (AP saiu desta linha → nó ⏳ acima). Folha/fiscal = domínios pesados isolados. |
+| **Contas a Pagar — AP operacional** (subrazão de despesa: `Payable`+`PayablePayment` first-class + pagamento + ledger) | ✅ **Mergeado em `main`** (Fase 0 PR #101 `88e411e`; Fases A+B PR #102 `4a6eddb`, 2026-07-14; hardening PR #103 reconcile-re-emit + PR #105 `b245825` CAS atômico exactly-once; ADR corrigido PR #104; `docs/adr/ADR-INCR-AP-accounts-payable.md`) — **2 reviews independentes PASS** (wiring FAIL→fix→PASS: tag jsdoc-openapi em prosa poluía o `openapi.json`); 1010/1010 testes + tsc×2 limpos; **smoke-migration-gate PASS** (`SMOKE-MIGRATION-GATE-INCR-AP.md`, cópia do dev.db real). Residual: **FE-INCR-AP** + sign-off humano no browser (item 1 da fila §5.1). | **ADR-INCR-AP**. First-class Prisma (2 tabelas aditivas; `@@unique([userId,unitId,supplierName,documentNumber])` com rename-on-delete `deleted:<id>`); fato gerador DUPLO por competência: `ap.payable` (D 4.x / C **`2.1.2 Fornecedores a Pagar`** — folha nova no fixture, zero migração) + `ap.payment` (D 2.1.2 / C conta-por-método), idempotência por **identidade de evento** (`sourceId=paymentId`, nunca key-freeing); gate in-tx (T6) + 4 eventos novos na allowlist do audit (T8) + SourceDocument INCR-8 (1º consumidor orgânico); ciclo por comandos (ACC-016), cancel = estorno (T5). **F0 ratificado → rota (a): `PayableService` chama `PostingService.postEntry` direto** (sem port/mapper/bridge; golden ref `ExerciseClosingService`). F1→(c) supplierRef DynamicTable; F2→(b) `PayablePayment` full-only; F3→(a) sem recorrência; F4→(b) anexo via SourceDocument; F5→NÃO semear 4.x; F6→(a) cancel=estorno auto. FORA: fornecedor first-class, recorrência, aprovação, estoque, FE (→ `FE-INCR-AP`). Antes de deploy: smoke-migration-gate sobre base populada. |
+| **Subrazões restantes** (AR formal, estoque, imobilizado, **folha**, **fiscal/tributos**) | ⚫ Diferido | Cada um é módulo ERP first-class próprio (AP saiu desta linha → nó ✅ acima; **AR é o próximo candidato natural** — espelho direto do padrão AP, item 8 da fila §5.1). Folha/fiscal = domínios pesados isolados. |
 | **Integração inbox/outbox/DLQ** | ⚫ Diferido | Só faz sentido quando sair de single-process (T11). Bridges cobrem a escala atual. |
 | **IA/analytics** (sugestão de conta/conciliação, anomalias) | ⚫ Diferido | Sobre um ledger já confiável; IA sugere, humano contabiliza. |
 | **LGPD/RBAC granular** | ⚫ Parcial | Autorização no servidor já vale; mascaramento/retenção/papéis finos = incremento próprio. |
+
+---
+
+## 5.1 Fila de prioridade — próximos planos (reconciliada 2026-07-14, ratificada pelo humano)
+
+> Critério declarado (o mapa não pré-elege ordem — esta fila sim): **1)** fechar resíduos de trabalho já
+> pago antes de abrir frente nova, **2)** proximidade da fundação (ordem do próprio §5), **3)** valor
+> operacional visível por unidade de risco. O orquestrador roteia pelo topo da fila; itens do Bloco B
+> continuam ⚫ — **cada um exige ADR + sinal humano antes de qualquer código** (ORCH-006).
+
+### Bloco A — resíduos sobre trabalho já mergeado (fechar primeiro; custo baixo, valor imediato)
+
+| # | Item | Tipo | Por quê nesta posição |
+|---|---|---|---|
+| 1 | **`FE-INCR-AP`** — UI de Contas a Pagar | FE increment | Backend pronto + validado por API e2e; é o único módulo sem tela. Destrava o resíduo de browser sign-off do AP. Menor risco / maior valor visível. **Próximo trabalho de código.** |
+| 2 | ~~Fold de higiene do master map (ORCH-007)~~ | docs | ✅ **Feito neste fold** (2026-07-14): cabeçalho re-referenciado a `b245825`, AP/Recibos no mermaid §2, `RISK-INCR3-MIGRATION-001` marcado fechado, esta fila registrada. |
+| 3 | **Sign-off humano no PVA** — ECD, Apuração, ECF | gate humano | Único jeito de provar os 3 SPEDs "de verdade"; bloqueia declarar Núcleo 5 fechado. Depende do humano (importar no validador oficial). |
+| 4 | **Sign-offs de browser pendentes** — INCR-6 A–J, conciliação, OFX/CNAB upload, recibos, i18n, Compliance A1a | gate humano | Telas já verificadas por agente; falta só o olho humano. Pode ser uma sessão única de varredura. |
+| 5 | **Chromium smoke-launch-gate no deploy** (recibos/puppeteer) | gate de deploy | Só relevante no próximo deploy real; não bloqueia dev. |
+| 6 | **Import do arquivo oficial RFB "PJ em Geral"** (Fork 2 referencial) | dado externo | Ativa a validação analytic-only já preparada (conversor `rfb-referential-to-catalog.mjs` pronto). Espera o contador — não é trabalho de código. |
+
+### Bloco B — frentes novas ⚫ (ordem de abertura; cada uma começa por ADR + ratificação humana)
+
+| # | Item | Por quê nesta posição |
+|---|---|---|
+| 7 | **Torre de aprovação** (maker-checker, SoD) | Gap nomeado do Núcleo 2 (~60%); primeiro do §5 por proximidade da fundação; pré-requisito de operação multi-pessoa séria. Invariantes ACC-016/017. |
+| 8 | **AR formal** (Contas a Receber como subrazão first-class) | Espelho direto do AP recém-fechado — máximo reuso do padrão canônico (2-tx CAS-before-post + postEntry direto + dual fato gerador + reconcile re-drive); fecha o par do subledger. |
+| 9 | **Dimensões** (centro de custo/projeto) | Habilita a "análise por dimensão" que falta no Núcleo 4 (~70%); YAGNI até demanda real — o próprio mapa o segura. |
+| 10 | **ECF Fase 3** | Só faz sentido após o sign-off PVA da Fase 2 (item 3) provar a base. |
+| 11 | **NF-e** (ingestão fiscal) | Domínio fiscal pesado, ADR próprio campo-a-campo; alto esforço, valor condicionado a operação real emitindo NF. |
+| 12 | **Estoque / Imobilizado** (subrazões) | Módulos ERP próprios; dependem de demanda do setor-alvo. |
+| 13 | **Folha** (subrazão) | O mais pesado dos diferidos (domínio legal denso); só com demanda explícita. |
+| 14 | **LGPD/RBAC granular** | Parcial (autorização de servidor já vale); mascaramento/retenção viram incremento quando houver dado real de terceiros. |
+| 15 | **IA/analytics** (sugestão de conta/conciliação) | O mapa fixa: "sobre um ledger já confiável; IA sugere, humano contabiliza" — última camada. |
+| 16 | **Inbox/outbox/DLQ** | Condicionado a sair de single-process (T11) — hoje é não-objetivo por decisão travada. |
+
+**Riscos latentes:** ~~`RISK-INCR3-MIGRATION-001`~~ **FECHADO 2026-07-14** (fix replay-safe PR #98 +
+smoke-gate DEPLOY-CLEARED PR #99 — ver T12). Nenhum risco de migração aberto; o reflexo permanece:
+toda migração que tocar `journal_entries` re-roda o smoke-migration-gate sobre cópia do dev.db real.
+
+**Leitura em 2 linhas:** itens 1–6 fecham tudo que já foi construído (3–6 dependem do humano/dado externo,
+não de código); do 7 em diante é frente nova via ADR — o natural é 7 (aprovação) ou 8 (AR, pelo embalo do AP).
 
 ---
 
@@ -188,12 +234,12 @@ Antes de gerar "novo", reuse (Contrato §0). Confirmado por código:
 | Núcleo | Estado | % | Falta |
 |---|---|---|---|
 | **1 — Ledger confiável** | ✅ | ~95% | (nada estrutural; "permissões/aprovação" que o grafo mistura aqui são torre nova, não gap) |
-| **2 — Operação real** | 🟡 | ~60% | aprovação, dimensões, busca/filtros ricos |
+| **2 — Operação real** | 🟡 | ~65% | ~~subrazão AP~~ (✅ INCR-AP, PR #102 + hardening #103/#105); falta aprovação (item 7 da fila §5.1), AR (item 8), dimensões, busca/filtros ricos |
 | **3 — Integração** | 🟡 | ~40% | ~~SourceDocument formal~~ (✅ BE-INCR-8, mergeado PR #43); inbox, outbox (só se sair de single-process) |
 | **4 — Gestão** | 🟡 | ~70% | ~~fluxo de caixa~~ (✅ DFC método indireto, `report-dfc-cashflow`); ~~variação mensal~~ (✅ balancete comparativo, `report-period-comparison`); ~~Livro Diário~~ (✅ registro cronológico read-only, `report-daily-journal`); falta análise por dimensão |
-| **5 — Compliance** | 🟡 | ~70% | ~~mapeamento referencial~~ (✅ BE-INCR-9, PR #58; ~~autoria em lote Track A~~ PR #71; ~~catálogo RFB + validação analytic-only Track B~~ PR #74, smoke-gate PR #75 — Fork 2/import do arquivo oficial = dado externo); ~~geração do arquivo ECD~~ (✅ BE-INCR-SPED-ECD, PR #62, merge `9deb928`); ~~apuração/encerramento (I350/I355)~~ (✅ BE-INCR-SPED-APURACAO, PR #63, merge `1465bae`; residual PVA); ~~split de receita por natureza (pré-req ECF-Presumido)~~ (✅ BE-INCR-REVENUE-SPLIT, PR #66); ~~ECF (arquivo fiscal) Fase 2~~ (✅ BE-INCR-SPED-ECF, PR #78, merge `70caa1c`; residual PVA); ~~CNAB 240~~ (✅ BE-INCR7-CNAB, PR #61, merge `1088e32`); ~~recibos/comprovantes~~ (✅ BE-RECIBOS Fase A+B, PR #84; comprovante de lançamento PDF via puppeteer, no-persist; ADR-RECIBOS-pdf-generation); falta ECF Fase 3, pacotes |
+| **5 — Compliance** | 🟡 | ~70% | ~~mapeamento referencial~~ (✅ BE-INCR-9, PR #58; ~~autoria em lote Track A~~ PR #71; ~~catálogo RFB + validação analytic-only Track B~~ PR #74, smoke-gate PR #75 — Fork 2/import do arquivo oficial = dado externo); ~~geração do arquivo ECD~~ (✅ BE-INCR-SPED-ECD, PR #62, merge `9deb928`); ~~apuração/encerramento (I350/I355)~~ (✅ BE-INCR-SPED-APURACAO, PR #63, merge `1465bae`; residual PVA); ~~split de receita por natureza (pré-req ECF-Presumido)~~ (✅ BE-INCR-REVENUE-SPLIT, PR #66); ~~ECF (arquivo fiscal) Fase 2~~ (✅ BE-INCR-SPED-ECF, PR #78, merge `70caa1c`; residual PVA); ~~CNAB 240~~ (✅ BE-INCR7-CNAB, PR #61, merge `1088e32`); ~~recibos/comprovantes~~ (✅ BE-RECIBOS Fase A+B, PR #84; comprovante de lançamento PDF via puppeteer, no-persist; ADR-RECIBOS-pdf-generation); ~~FE do referencial~~ (✅ A1a aba Compliance, PR #89 `b88f628`); falta ECF Fase 3 (pós sign-off PVA), pacotes; **gate humano dominante: sign-off PVA dos 3 SPEDs** (item 3 da fila §5.1) |
 
-**Posição:** fundação (Núcleo 1) completa, Núcleo 2 mais da metade; ramo compliance bem avançado. Geração do arquivo ECD (BE-INCR-SPED-ECD) **mergeada** (PR #62), assim como a **apuração/encerramento** (BE-INCR-SPED-APURACAO, PR #63, residual PVA) e o **split de receita por natureza** (BE-INCR-REVENUE-SPLIT, PR #66). Os três pré-requisitos de dado da ECF (proveniência, mapeamento referencial, split de receita) estão em `main`. **ECF** (geração do arquivo fiscal, Fase 2, PR #78) e **CNAB 240** (PR #61) foram **mergeados** em `main` (2026-07-12). Três relatórios de gestão (Núcleo 4) — **DFC** (fluxo de caixa, método indireto), **balancete comparativo** (variação mensal) e **Livro Diário** (registro cronológico) — foram integrados em `main` em série (Fase B, 2026-07-12), read-only, first-class Prisma, zero migração. **Recibos/comprovantes** (comprovante de lançamento PDF, Fase A+B) **mergeado** em `main` (PR #84; residual = sign-off humano no browser + smoke-launch-gate do Chromium no deploy). Não há incremento ⏳ corrente. Candidatos diferidos (NF-e, aprovação, dimensões, subrazões, ECF Fase 3) seguem ⚫ (§5, ADR próprio campo-a-campo).
+**Posição:** fundação (Núcleo 1) completa, Núcleo 2 mais da metade; ramo compliance bem avançado. Geração do arquivo ECD (BE-INCR-SPED-ECD) **mergeada** (PR #62), assim como a **apuração/encerramento** (BE-INCR-SPED-APURACAO, PR #63, residual PVA) e o **split de receita por natureza** (BE-INCR-REVENUE-SPLIT, PR #66). Os três pré-requisitos de dado da ECF (proveniência, mapeamento referencial, split de receita) estão em `main`. **ECF** (geração do arquivo fiscal, Fase 2, PR #78) e **CNAB 240** (PR #61) foram **mergeados** em `main` (2026-07-12). Três relatórios de gestão (Núcleo 4) — **DFC** (fluxo de caixa, método indireto), **balancete comparativo** (variação mensal) e **Livro Diário** (registro cronológico) — foram integrados em `main` em série (Fase B, 2026-07-12), read-only, first-class Prisma, zero migração. **Recibos/comprovantes** (comprovante de lançamento PDF, Fase A+B) **mergeado** em `main` (PR #84; residual = sign-off humano no browser + smoke-launch-gate do Chromium no deploy). **INCR-AP (Contas a Pagar)** — primeira subrazão first-class, padrão canônico p/ AR — **mergeado** (PR #102 + hardening #103/#105). Não há incremento ⏳ corrente. Os próximos passos estão **priorizados na fila §5.1**: Bloco A fecha os resíduos (FE-INCR-AP é o próximo trabalho de código; PVA/browser sign-offs dependem do humano); Bloco B ordena as frentes novas ⚫ (aprovação → AR → dimensões…), cada uma via ADR + ratificação humana.
 
 ---
 
