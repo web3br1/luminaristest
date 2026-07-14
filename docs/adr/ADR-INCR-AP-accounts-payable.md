@@ -14,16 +14,32 @@
   (`SourceDocument`/`JournalEntrySource`, opcional) — todos em `main`.
 - **Roadmap:** `docs/accounting/ACCOUNTING-MASTER-MAP.md` §5 (linha "Subrazões (AR, AP, …)" — ⚫
   diferido; esta ADR promove **apenas** o ramo **AP** a ⏳ PRE-ADR).
-- **Reusa o seam de:** ADR-D01 (Settlement & Reversal — `RegisterPaymentService` + evento
-  `salon.sale.settled` → `SalonSaleSettledMapper` → `PostingService.postEntry`). **Contas a Pagar é a
-  imagem-espelho da liquidação de A Receber** (passivo em vez de ativo; saída em vez de entrada) e
-  **reusa o padrão event→mapper**, não inventa outro.
+- **Reusa o seam de:** ADR-D01 (Settlement & Reversal). O seam contábil reusável é
+  `PostingService.postEntry` + o padrão **event→mapper** (`salon.sale.settled` → `SalonSaleSettledMapper`
+  → `postEntry`). ⚠️ **(rev. A2)** `RegisterPaymentService` é o *caller* de domínio (salão,
+  `server/src/features/sales/services/RegisterPaymentService.ts`) que dispara a liquidação **pós-commit**
+  — **não** é o seam contábil e não deve ser espelhado como tal; o análogo em AP é um `PayableService` de
+  domínio, não um "RegisterPaymentService". **Contas a Pagar é a imagem-espelho da liquidação de A
+  Receber** (passivo em vez de ativo; saída em vez de entrada) e **reusa o padrão event→mapper**, não
+  inventa outro.
 - **Supersedes:** none · **Related:** ADR-C01/D01 (bridge pós-commit por origem), T3/T4/T5/T6/T7/T8
   (decisões travadas — preservadas, não reabertas).
 
 > **Nota de processo.** ADR escrito **antes de qualquer código** (ordem ideal: PLAN → ADR → BRIEF →
 > impl → review). Este documento é **docs-only**: não altera schema, código nem teste. A ratificação
 > das decisões-gate do §6 é **delegada ao humano**; as demais são recomendações de domínio, revisáveis.
+
+> **Revisão independente (2026-07-14) — patch A1–A6 aplicado.** Correções de defeitos de documento
+> apontados por revisão de código contra as invariantes já commitadas (**nenhuma invariante é violada** —
+> são erros de texto/citação): **A1** path corrigido para `server/src/features/accounting/…`;
+> **A2** `RegisterPaymentService` é *caller* de domínio (salão), não o seam contábil — o seam é
+> `postEntry` + event→mapper; **A3** `reverseEntry` **não** libera a chave de idempotência genericamente
+> (só em estorno de encerramento) — AP se apoia em `payableId` novo; **A4** §4-(7) (audit "mesma tx")
+> reconciliado com Q3 (sob Q3-a o audit de domínio vive na tx do `Payable`, não na do lançamento);
+> **A5** guard `MAX_CENTS` explicitado nos DTOs (`postEntry` não o aplica); **A6** fork barramento-vs-
+> `postEntry`-direto documentado em Q3 (a conta de débito escolhida pelo caller não cabe na união
+> fechada `AccountingEvent`). As decisões que ainda **exigem sinal humano** seguem abertas: **Q1, Q3
+> (+sub-fork A6), Q6, Q7**.
 
 ---
 
@@ -70,8 +86,10 @@ T8 (auditoria in-tx, exceção ao cascade). ACC-011/012 (gate + tx), ACC-013 (id
 ## 2. Modelo de dados proposto (Prisma)
 
 Duas entidades first-class. Valores **sempre centavo inteiro** (`Int`), teto `MAX_CENTS`
-(`accounting/models/money.ts`) — nunca float (a armadilha do JSON-float do SQLite). Tenancy =
-`AccountingScope` (`userId` = `ownerUserId`, `unitId`), plain scope strings.
+(`server/src/features/accounting/models/money.ts` — **(rev. A1)** caminho sob `features/`; `MAX_CENTS`
+é um **guard de DTO/boundary**, não é aplicado dentro de `postEntry` — ver A5/§7) — nunca float (a
+armadilha do JSON-float do SQLite). Tenancy = `AccountingScope` (`userId` = `ownerUserId`, `unitId`),
+plain scope strings.
 
 ```prisma
 // Contas a Pagar — SUBRAZÃO de fornecedores (ADR-INCR-AP). First-class Prisma com invariante de saldo
@@ -180,7 +198,7 @@ compra (Q2). O lado **crédito** do pagamento é resolvido por `paymentMethod` r
         │
         │ cancelamento (SÓ se Σpag == 0)
         ▼
-   CANCELLED  (reverseEntry do reconhecimento — libera a chave de idempotência, T5)
+   CANCELLED  (reverseEntry do reconhecimento; original → Reversed. Re-criação usa payableId novo — rev. A3, T5)
 ```
 
 **Transições e contabilização:**
@@ -211,17 +229,28 @@ re-checagem in-tx (o `@@unique` do JournalEntry sozinho não impede *over-paymen
    pré-tx do `postEntry`), nunca duplica.
 4. **Tenancy (T2):** leitura/escrita sempre por `AccountingScope` (`userId`+`unitId`); acesso cross-unit
    → `NotFoundError`. Nenhum `unitId` inferido/defaultado.
-5. **Estorno libera a chave (T5):** cancelar/estornar usa `reverseEntry` (lançamento novo, `reversedById`,
-   original imutável). Se um `Payable` cancelado puder ser recriado, o `reverseEntry` deve liberar a
-   chave `(ap.payable.recognized, payableId)` — **exatamente** o padrão de
-   `ExerciseClosingService.reverseEntry` closing-aware (`unique-de-idempotencia-x-soft-delete`,
-   `accounting-apuracao-encerramento`). **Cuidado de classe:** o `@@unique` cobre linhas soft-deletadas;
-   quem libera a chave no delete é decisão de modelagem (Q4).
+5. **Estorno (T5) — (rev. A3):** cancelar/estornar usa `reverseEntry` (lançamento novo, `reversedById`,
+   original imutável). **Correção:** `PostingService.reverseEntry` **não** libera a chave de idempotência
+   de forma genérica — o rename de `sourceId` que a liberaria é *gated* por `isClosingReversal`
+   (`original.sourceType === CLOSING_SOURCE_TYPE`), só para estornos de **encerramento**
+   (`ExerciseClosingService`). Um estorno comum deixa `(ap.payable.recognized, payableId)` **ocupada**
+   (entry original com status `Reversed`). O reconhecimento **não** depende de liberar essa chave: uma
+   nova obrigação recebe um `payableId` cuid **novo** → chave nova, sem colisão. **Cuidado de classe (só
+   relevante se Q4-b):** se o `Payable` ganhar `@@unique` por `externalRef`, o `@@unique` cobre linhas
+   soft-deletadas e quem libera *essa* chave no delete vira decisão de modelagem (Q4) — aí seria preciso
+   um branch AP-aware em `reverseEntry` (reabrir serviço estável) **ou** rename-on-delete no `Payable`
+   (`unique-de-idempotencia-x-soft-delete`).
 6. **Money boundary (T4):** conversão float→centavo isolada **uma vez** por evento, com `MAX_CENTS`
    guard e `Number.isSafeInteger`, no mapper — espelho exato de `SalonSaleSettledMapper`.
-7. **Auditoria in-tx (T8):** cada transição grava `AuditService.append` na **mesma tx** do lançamento
-   (`payable.recognized` / `payable.paid` / `payable.cancelled` / `payment.reversed`), payload em
-   allowlist (`payableId`, `paymentId`, `amountCents`, contas) — PII (nome do fornecedor) fora do audit.
+7. **Auditoria in-tx (T8) — depende de Q3 (rev. A4):** `postEntry` já grava seu próprio `entry.posted`
+   **dentro** da própria raiz (INCR-2), e um caller externo **não** consegue injetar um append de domínio
+   (`ap.payable.recognized`) nessa tx. Portanto, **sob Q3-a (duas tx)** o evento de auditoria de domínio
+   AP grava na tx do `Payable` (tx1), **não** na tx do lançamento (tx2) — "mesma tx do lançamento" só é
+   verdade sob **Q3-b (atômico)**. Reconciliar com a resposta de Q3: sob Q3-a, ler como "cada transição
+   grava `AuditService.append` na tx da **mutação do `Payable`**, e o `entry.posted` do ledger vive na tx
+   do `postEntry`". Eventos: `payable.recognized` / `payable.paid` / `payable.cancelled` /
+   `payment.reversed`; payload em allowlist (`payableId`, `paymentId`, `amountCents`, contas) — PII (nome
+   do fornecedor) fora do audit.
 8. **Fronteira §2.1:** nenhum serviço Prisma injetado em `DynamicTableService`/`RuleContext`/`RulePlugin`;
    AP é inteiramente Prisma-nativo, não toca `features/dynamicTables/**`.
 
@@ -279,6 +308,21 @@ contabilização — é visão gerencial (Q8).
      `tx-nao-propagado-ao-repo`) — blast radius e risco maiores; provavelmente **fatia própria**, não MVP.
    - **Nuance:** diferente do salão, aqui **não há** fronteira §2.1 nem `immutableAfter` — então (b) é
      tecnicamente possível de um jeito que não era lá; a pergunta é se vale o custo agora.
+   - **Sub-fork acoplado (rev. A6) — barramento vs. `postEntry` direto:** `AccountingEvent`
+     (`server/src/features/accounting/sync/AccountingSyncPort.ts`) é uma **união discriminada fechada**
+     cujas contas são derivadas **dentro** do mapper (de `paymentMethod`/`revenueByNature`). A conta de
+     débito do reconhecimento é **escolhida pelo caller** (Q2) e **não** existe campo nessa união para
+     carregá-la. Logo há duas formas, e o ADR precisa **escolher uma**:
+     - (i) **`postEntry` direto [rec]** — `PayableService` chama `PostingService.postEntry` com um
+       `PostEntryInput` montado à mão (mapper como função pura), **sem** barramento. Mais simples; não
+       registra evento novo na união. *Trade-off:* abre mão do re-drive/reconcile do bus — que AP, sendo
+       Prisma-nativa same-process, **não** precisa (não há escrita pós-commit que possa falhar
+       silenciosamente como na bridge do salão). Coerente com Q3-a ("posta via `postEntry`").
+     - (ii) **Barramento (`AccountingSyncService.sync`)** — exige **adicionar** um campo opcional
+       AP-específico (`counterAccountCode`) à união (mesmo estilo bolt-on de `paymentMethod`/
+       `revenueByNature`). *Trade-off:* ganha registry/retry/reconcile que aqui não se paga.
+     - **Coerência a fechar:** hoje §7-Fatia A1 diz "`PayableRecognizedMapper` (event→`PostEntryInput`)"
+       (soa barramento) e Q3-a diz "posta via `postEntry`" (direto) — alinhar os dois à escolha.
 
 4. **Q4 — Idempotência/dedup do `Payable` × soft-delete.**
    - (a) **[rec]** **Nenhuma** `@@unique` no `Payable` (dedup do ledger fica no `JournalEntry`, como o
@@ -347,26 +391,34 @@ registro). Cada fatia tem gate objetivo. **Nada começa antes do §6 fechar** (A
 
 **Fatia A1 — Reconhecimento (corpo, paralelizável).**
 - DTO `.strict()` `CreatePayableInput` (`supplierName`, `dueDate`, `amountCents`, `counterAccountCode`,
-  `unitId`, opcional `externalRef`/`documentDate`/`attachmentId`).
-- `PayableRecognizedMapper` (event→`PostEntryInput`, money boundary, espelho de `SalonSaleSettledMapper`).
+  `unitId`, opcional `externalRef`/`documentDate`/`attachmentId`). **`amountCents`: `Int`, `> 0`,
+  `<= MAX_CENTS` (rev. A5)** — o guard Int32 é **do DTO**: `postEntry` não o aplica (só
+  `dataExchangeValidators` e `PostingDto` o fazem hoje), então uma obrigação acima do teto falharia
+  opaca como `POST_FAILED` no commit se o DTO não barrar (repete ACC-INCR6-J / POST-CENTS).
+- `PayableRecognizedMapper` (money boundary, espelho de `SalonSaleSettledMapper`) — **como função pura
+  event→`PostEntryInput`** se o sub-fork A6 = (i) `postEntry` direto **[rec]**; só vira mapper registrado
+  no bus se = (ii) (exige campo `counterAccountCode` na união `AccountingEvent`). Ver Q3 / rev. A6.
 - `PayableService.createPayable` (cria `Payable` + posta reconhecimento; atomicidade conforme Q3),
   `PayableRepository`, `PayablePolicy`, controller + rota (3-toques), factory.
 - **Gate:** teste — reconhecimento posta `D counter / C Fornecedores` balanceado; idempotência
   `(ap.payable.recognized, payableId)`; gate de período; tenancy cross-unit → NotFound.
 
 **Fatia A2 — Pagamento parcial/total (corpo, paralelizável após A1).**
-- DTO `RegisterPayablePaymentInput` (`payableId`, `amountCents`, `paidAt`, `paymentMethod`, opc.
-  `paymentRef`); `PayablePaidMapper` (invert D01 QMAP, Q7).
-- `PayableService.registerPayment` (**padrão `RegisterPaymentService`**): gate de saldo in-tx (T6), cria
-  `PayablePayment` + posta baixa, atualiza `paidCents`/`status`.
+- DTO `RegisterPayablePaymentInput` (`payableId`, `amountCents` — `Int`, `> 0`, `<= MAX_CENTS` (rev. A5),
+  `paidAt`, `paymentMethod`, opc. `paymentRef`); `PayablePaidMapper` (invert D01 QMAP, Q7).
+- `PayableService.registerPayment` (**padrão de liquidação de D01**: `postEntry` + event→mapper;
+  `RegisterPaymentService` é só o *caller* de domínio análogo, **não** o seam — rev. A2): gate de saldo
+  in-tx (T6), cria `PayablePayment` + posta baixa, atualiza `paidCents`/`status`.
 - **Gate:** teste — baixa parcial → `PARTIALLY_PAID`; baixa que zera → `PAID`; over-payment barrado
   in-tx; duas baixas do mesmo `Payable` coexistem (`sourceId=paymentId`); idempotência por pagamento.
 
 **Fatia A3 — Cancelamento + estorno de pagamento (corpo).**
-- `PayableService.cancel` (só `paidCents==0` → `reverseEntry` do reconhecimento, libera a chave — Q4/T5).
+- `PayableService.cancel` (só `paidCents==0` → `reverseEntry` do reconhecimento; original → `Reversed`,
+  T5 — **não** conta com liberar a chave, rev. A3).
 - `PayableService.reversePayment` (`reverseEntry` da baixa, `reversedAt`, re-deriva saldo/estado).
 - **Gate:** teste — cancelar conta paga é bloqueado; estorno de pagamento reabre estado e libera saldo;
-  re-criação após cancelamento não bate P2002 (chave liberada); auditoria in-tx.
+  re-criação após cancelamento não bate P2002 (**novo `payableId` = chave nova**, não "chave liberada" —
+  rev. A3); auditoria in-tx.
 
 **Fatia B — Registro + relatório opcional (serial).**
 - Wiring final (rota no `docs.paths.ts`/openapi via `docs:generate`; skill-audit `wiring`); i18n se FE.
