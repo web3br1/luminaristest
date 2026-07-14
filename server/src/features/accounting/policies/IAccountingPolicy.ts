@@ -27,4 +27,10 @@ export interface IAccountingPolicy {
 
   /** Can set/unset referential mappings (BE-INCR-9). */
   canManageReferential(scope: AccountingScope): boolean;
+
+  /** Can create/pay/cancel Contas a Pagar (INCR-AP). */
+  canManagePayable(scope: AccountingScope): boolean;
+
+  /** Can list/read Contas a Pagar (INCR-AP). */
+  canReadPayable(scope: AccountingScope): boolean;
 }

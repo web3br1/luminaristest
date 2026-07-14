@@ -39,6 +39,11 @@ const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   // `.batch`/`.copy` event exists — the allowlist maps only events actually emitted.
   'referential.mapping.set':   ['accountId', 'referentialCode', 'mappingVersion'],
   'referential.mapping.unset': ['accountId', 'referentialCode', 'mappingVersion'],
+  // INCR-AP — Contas a Pagar. Id-only / money-as-string; NEVER the supplier name (PII-safe, D6).
+  'payable.created':            ['payableId', 'supplierRef', 'amountCents', 'dueDate', 'expenseAccountCode'],
+  'payable.cancelled':          ['payableId', 'reversalEntryId', 'reason'],
+  'payable.payment_registered': ['payableId', 'paymentId', 'amountCents', 'method', 'entryId'],
+  'payable.payment_cancelled':  ['payableId', 'paymentId', 'reversalEntryId', 'reason'],
 };
 
 /**
