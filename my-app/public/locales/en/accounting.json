@@ -14,6 +14,7 @@
       "balancete": "Trial Balance",
       "periodos": "Periods",
       "lancamentos": "Journal Entries",
+      "contasAPagar": "Accounts Payable",
       "razao": "Ledger",
       "planoDeContas": "Chart of Accounts",
       "bp": "BS",
@@ -28,6 +29,93 @@
     "error": {
       "units": "Failed to load units.",
       "report": "Failed to load trial balance."
+    }
+  },
+  "contasAPagar": {
+    "heading": "Accounts Payable",
+    "newPayable": "New Bill",
+    "loading": "Loading accounts payable…",
+    "empty": "No accounts payable recorded for this unit yet.",
+    "viewPeriods": "View Periods",
+    "status": {
+      "OPEN": "Open",
+      "PAYING": "Paying",
+      "PAID": "Paid",
+      "CANCELLED": "Cancelled"
+    },
+    "col": {
+      "expand": "Expand",
+      "supplier": "Supplier",
+      "description": "Description",
+      "dueDate": "Due date",
+      "amount": "Amount",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "action": {
+      "pay": "Pay",
+      "payTitle": "Register payment",
+      "cancel": "Cancel",
+      "cancelTitle": "Cancel the bill",
+      "undo": "Undo payment",
+      "undoTitle": "Undo the payment (reopens the bill)",
+      "paying": "Processing…"
+    },
+    "payments": {
+      "date": "Paid on",
+      "method": "Method",
+      "amount": "Amount",
+      "status": "State",
+      "active": "Active",
+      "cancelled": "Cancelled"
+    },
+    "error": {
+      "load": "Failed to load accounts payable.",
+      "action": "Could not complete the operation."
+    },
+    "createModal": {
+      "title": "New Bill",
+      "cancel": "Cancel",
+      "submit": "Save",
+      "saving": "Saving…",
+      "optional": "(optional)",
+      "noExpenseAccounts": "No analytic expense account found. Create one in the Chart of Accounts.",
+      "field": {
+        "supplier": "Supplier",
+        "supplierPlaceholder": "Supplier name…",
+        "description": "Description",
+        "descriptionPlaceholder": "e.g. rent, utilities, supplies…",
+        "document": "Document no.",
+        "documentPlaceholder": "Invoice, slip…",
+        "amount": "Amount (R$)",
+        "issueDate": "Issue date",
+        "dueDate": "Due date",
+        "expenseAccount": "Expense account (counterpart)",
+        "selectAccount": "— select the expense account —"
+      },
+      "error": {
+        "invalid": "Fill in supplier, description, dates, amount and expense account.",
+        "failed": "Failed to record the bill."
+      }
+    },
+    "actionModal": {
+      "cancel": "Back",
+      "paidAtLabel": "Payment date",
+      "reversalDateLabel": "Reversal date",
+      "methodLabel": "Payment method",
+      "reasonLabel": "Reason",
+      "payTitle": "Register payment",
+      "payConfirm": "Confirm payment",
+      "paying": "Saving…",
+      "payNote": "Will post D Suppliers / C Bank for the full balance. Partial payment is not supported.",
+      "cancelTitle": "Cancel bill",
+      "cancelConfirm": "Confirm cancellation",
+      "cancelling": "Cancelling…",
+      "cancelNote": "The recognition entry will be reversed on the date above. This action cannot be undone.",
+      "undoTitle": "Undo payment",
+      "undoConfirm": "Confirm",
+      "undoing": "Undoing…",
+      "undoNote": "The payment will be reversed and the bill will return to “Open”."
     }
   },
   "compliance": {
