@@ -14,6 +14,7 @@
       "balancete": "Balancete",
       "periodos": "Períodos",
       "lancamentos": "Lançamentos",
+      "contasAPagar": "Contas a Pagar",
       "razao": "Razão",
       "planoDeContas": "Plano de Contas",
       "bp": "BP",
@@ -28,6 +29,93 @@
     "error": {
       "units": "Falha ao carregar as unidades.",
       "report": "Falha ao carregar o balancete."
+    }
+  },
+  "contasAPagar": {
+    "heading": "Contas a Pagar",
+    "newPayable": "Nova Conta",
+    "loading": "Carregando contas a pagar…",
+    "empty": "Nenhuma conta a pagar registrada nesta unidade ainda.",
+    "viewPeriods": "Ver Períodos",
+    "status": {
+      "OPEN": "Em aberto",
+      "PAYING": "Em pagamento",
+      "PAID": "Paga",
+      "CANCELLED": "Cancelada"
+    },
+    "col": {
+      "expand": "Expandir",
+      "supplier": "Fornecedor",
+      "description": "Descrição",
+      "dueDate": "Vencimento",
+      "amount": "Valor",
+      "status": "Status",
+      "actions": "Ações"
+    },
+    "action": {
+      "pay": "Pagar",
+      "payTitle": "Registrar pagamento",
+      "cancel": "Cancelar",
+      "cancelTitle": "Cancelar a conta",
+      "undo": "Desfazer pagamento",
+      "undoTitle": "Desfazer o pagamento (reabre a conta)",
+      "paying": "Processando…"
+    },
+    "payments": {
+      "date": "Pago em",
+      "method": "Forma",
+      "amount": "Valor",
+      "status": "Situação",
+      "active": "Ativo",
+      "cancelled": "Cancelado"
+    },
+    "error": {
+      "load": "Erro ao carregar as contas a pagar.",
+      "action": "Não foi possível concluir a operação."
+    },
+    "createModal": {
+      "title": "Nova Conta a Pagar",
+      "cancel": "Cancelar",
+      "submit": "Registrar",
+      "saving": "Registrando…",
+      "optional": "(opcional)",
+      "noExpenseAccounts": "Nenhuma conta de despesa analítica encontrada. Cadastre uma no Plano de Contas.",
+      "field": {
+        "supplier": "Fornecedor",
+        "supplierPlaceholder": "Nome do fornecedor…",
+        "description": "Descrição",
+        "descriptionPlaceholder": "Ex.: aluguel, energia, insumos…",
+        "document": "Nº do documento",
+        "documentPlaceholder": "NF, boleto…",
+        "amount": "Valor (R$)",
+        "issueDate": "Emissão",
+        "dueDate": "Vencimento",
+        "expenseAccount": "Conta de despesa (contrapartida)",
+        "selectAccount": "— selecione a conta de despesa —"
+      },
+      "error": {
+        "invalid": "Preencha fornecedor, descrição, datas, valor e conta de despesa.",
+        "failed": "Erro ao registrar a conta a pagar."
+      }
+    },
+    "actionModal": {
+      "cancel": "Voltar",
+      "paidAtLabel": "Data do pagamento",
+      "reversalDateLabel": "Data da reversão",
+      "methodLabel": "Forma de pagamento",
+      "reasonLabel": "Motivo",
+      "payTitle": "Registrar pagamento",
+      "payConfirm": "Confirmar pagamento",
+      "paying": "Registrando…",
+      "payNote": "Será lançado D Fornecedores / C Banco pelo saldo integral. Pagamento parcial não é suportado.",
+      "cancelTitle": "Cancelar conta a pagar",
+      "cancelConfirm": "Confirmar cancelamento",
+      "cancelling": "Cancelando…",
+      "cancelNote": "O lançamento de reconhecimento será estornado na data acima. Esta ação não pode ser desfeita.",
+      "undoTitle": "Desfazer pagamento",
+      "undoConfirm": "Confirmar",
+      "undoing": "Desfazendo…",
+      "undoNote": "O pagamento será estornado e a conta voltará para “Em aberto”."
     }
   },
   "compliance": {
