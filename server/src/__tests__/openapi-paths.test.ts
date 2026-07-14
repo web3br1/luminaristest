@@ -21,7 +21,9 @@ const { options } = require('../../scripts/generate-openapi');
 // +1 (BE-INCR-SPED-ECF): POST /api/accounting/sped/ecf/generate.
 // +3 (report reports): GET /api/accounting/reports/{cash-flow,period-comparison,daily-journal}.
 // +1 (Recibos Fase B): GET /api/accounting/journal-entries/{entryId}/receipt.
-const BASELINE = 109;
+// +6 (INCR-AP Contas a Pagar): /api/payables (GET+POST), /reconcile, /{id}, /{id}/pay,
+//    /{id}/cancel, /{id}/payments/{paymentId}/cancel.
+const BASELINE = 115;
 
 describe('OpenAPI @openapi path coverage', () => {
   it('exposes at least BASELINE paths (guards the swagger-jsdoc `: ` drop bug)', () => {
@@ -29,5 +31,16 @@ describe('OpenAPI @openapi path coverage', () => {
     const pathCount = Object.keys(spec.paths || {}).length;
 
     expect(pathCount).toBeGreaterThanOrEqual(BASELINE);
+  });
+
+  // Companion guard: the floor test above cannot catch POLLUTION that RAISES the count. A prose
+  // comment containing the literal jsdoc-openapi tag in a globbed file (routes/ or controllers/)
+  // makes swagger-jsdoc spread the comment string char-by-char into `paths` as numeric keys
+  // "0","1",… — inflating the count while corrupting the served spec (INCR-AP Fase B incident).
+  // Every real path key starts with '/'; anything else is junk.
+  it('emits no junk (non-slash) path keys', () => {
+    const spec = swaggerJSDoc(options) as { paths?: Record<string, unknown> };
+    const junk = Object.keys(spec.paths || {}).filter((k) => !k.startsWith('/'));
+    expect(junk).toEqual([]);
   });
 });

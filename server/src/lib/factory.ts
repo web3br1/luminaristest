@@ -23,6 +23,7 @@ import { DataExchangeRepository } from '../features/accounting/repositories/Data
 import { SourceProvenanceRepository } from '../features/accounting/repositories/SourceProvenanceRepository';
 import { ReferentialMappingRepository } from '../features/accounting/repositories/ReferentialMappingRepository';
 import { ReferentialAccountRepository } from '../features/accounting/repositories/ReferentialAccountRepository';
+import { PayableRepository } from '../features/accounting/repositories/PayableRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
@@ -70,6 +71,7 @@ import { DataExchangeImportService } from '../features/accounting/services/DataE
 import { SpedGenerationService } from '../features/accounting/services/SpedGenerationService';
 import { SpedEcfGenerationService } from '../features/accounting/services/SpedEcfGenerationService';
 import { ExerciseClosingService } from '../features/accounting/services/ExerciseClosingService';
+import { PayableService } from '../features/accounting/services/PayableService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
@@ -120,6 +122,7 @@ import type { IDataExchangeRepository } from '../features/accounting/repositorie
 import type { ISourceProvenanceRepository } from '../features/accounting/repositories/ISourceProvenanceRepository';
 import type { IReferentialMappingRepository } from '../features/accounting/repositories/IReferentialMappingRepository';
 import type { IReferentialAccountRepository } from '../features/accounting/repositories/IReferentialAccountRepository';
+import type { IPayableRepository } from '../features/accounting/repositories/IPayableRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
 import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
@@ -153,6 +156,7 @@ export class ApplicationFactory {
     sourceProvenance: ISourceProvenanceRepository;
     referentialMapping: IReferentialMappingRepository;
     referentialAccount: IReferentialAccountRepository;
+    payable: IPayableRepository;
   };
 
   private readonly policies: {
@@ -202,6 +206,7 @@ export class ApplicationFactory {
     sped: SpedGenerationService;
     spedEcf: SpedEcfGenerationService;
     exerciseClosing: ExerciseClosingService;
+    payable: PayableService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
@@ -240,6 +245,7 @@ export class ApplicationFactory {
       sourceProvenance: new SourceProvenanceRepository(),
       referentialMapping: new ReferentialMappingRepository(),
       referentialAccount: new ReferentialAccountRepository(),
+      payable: new PayableRepository(),
     };
 
     // Policies
@@ -475,6 +481,13 @@ export class ApplicationFactory {
         postingService,
         this.policies.accounting,
       ),
+      payable: new PayableService(
+        this.repositories.payable,
+        this.repositories.account,
+        postingService,
+        auditService,
+        this.policies.accounting,
+      ),
       packageBalance: packageBalanceService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
@@ -525,6 +538,7 @@ export class ApplicationFactory {
   public getSpedGenerationService = (): SpedGenerationService => this.services.sped;
   public getSpedEcfGenerationService = (): SpedEcfGenerationService => this.services.spedEcf;
   public getExerciseClosingService = (): ExerciseClosingService => this.services.exerciseClosing;
+  public getPayableService = (): PayableService => this.services.payable;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;

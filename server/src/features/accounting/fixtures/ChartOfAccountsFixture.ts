@@ -29,6 +29,12 @@ export const CANONICAL_ACCOUNTS: ReadonlyArray<CanonicalAccount> = [
   // liability (service delivered against an advance), NEVER cash. `2` is the synthetic root.
   { code: '2', name: 'Passivo', nature: 'Liability', acceptsEntries: false },
   { code: '2.1.1', name: 'Pacotes Pré-pagos', nature: 'Liability', acceptsEntries: true },
+  // Contas a Pagar (INCR-AP / ADR-INCR-AP D2): the recognition of a supplier obligation credits
+  // this Liability leaf (D expenseAccount 4.x / C 2.1.2); the settlement debits it (D 2.1.2 / C
+  // conta-por-método). Sibling leaf under `2` Passivo — ACC-018 NOT triggered (nothing renamed or
+  // reparented), zero migration (ensureChartOfAccounts creates-if-missing by code; precedent
+  // `2.3.1` da APURAÇÃO). BP maps it automatically (nature-only).
+  { code: '2.1.2', name: 'Fornecedores a Pagar', nature: 'Liability', acceptsEntries: true },
   // Patrimônio Líquido (BE-INCR-SPED-APURACAO / D4): the closing entry (encerramento do
   // resultado) posts the exercise's net result here. `2.3` is the synthetic PL branch under the
   // `2` Passivo group (COD_NAT is per-account in I050, so a PL leaf under Passivo is conforme);
@@ -56,3 +62,9 @@ export const CANONICAL_ACCOUNTS: ReadonlyArray<CanonicalAccount> = [
  * Resolved by CODE (stable), never by name.
  */
 export const RETAINED_EARNINGS_CODE = '2.3.1';
+
+/**
+ * Canonical "Fornecedores a Pagar" leaf (INCR-AP). The AP recognition credits this account and
+ * the settlement debits it. Resolved by CODE (stable), never by name.
+ */
+export const FORNECEDORES_A_PAGAR_CODE = '2.1.2';

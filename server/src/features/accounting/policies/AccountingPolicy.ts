@@ -35,4 +35,12 @@ export class AccountingPolicy implements IAccountingPolicy {
   canManageReferential(scope: AccountingScope): boolean {
     return !!scope.actorUserId;
   }
+
+  canManagePayable(scope: AccountingScope): boolean {
+    return !!scope.actorUserId;
+  }
+
+  canReadPayable(scope: AccountingScope): boolean {
+    return !!scope.actorUserId;
+  }
 }
