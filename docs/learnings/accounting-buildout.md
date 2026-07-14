@@ -5,6 +5,27 @@ Entradas mais novas no topo.
 
 ---
 
+### 2026-07-14 · decision · INCR-AP Contas a Pagar — subledger first-class que posta DIRETO via postEntry
+- **Contexto:** Task 5 (INCR-AP), merged main PR #102 (`4a6eddb`). Primeiro subrazão de despesa operacional.
+- **Aprendizado:** F0 rota (a) — `PayableService` chama `PostingService.postEntry` direto (sem port/mapper/bridge; golden ref `ExerciseClosingService`). Duplo fato gerador: recognition `D 4.x / C 2.1.2` (`sourceType=ap.payable`, `sourceId=payableId`) + settlement `D 2.1.2 / C método` (`sourceType=ap.payment`, `sourceId=paymentId`, NUNCA payableId). Conta `2.1.2` nova = zero migração (seed idempotente por code).
+- **Evidência:** `server/src/features/accounting/services/PayableService.ts`; ADR `docs/adr/ADR-INCR-AP-accounts-payable.md`; smoke-gate `docs/accounting/SMOKE-MIGRATION-GATE-INCR-AP.md` (PASS cópia dev.db real).
+- **Como aplicar:** ao construir o próximo subrazão que posta direto (AR formal, folha), copie ESTE módulo, não os mappers do salon sync.
+- **Durável?** sim → [[accounting-incr-ap]]
+
+### 2026-07-14 · pattern · postEntry-direto = modelo de consistência de 2 transações (CAS-antes-do-post + reconcile)
+- **Contexto:** INCR-AP. `postEntry` abre a PRÓPRIA tx-raiz (SQLite não aninha), então a escrita da linha do módulo e a escrita do ledger são txs SEPARADAS.
+- **Aprendizado:** (a) guard de corrida = CAS atômico de status ANTES do post (`claimForPayment` OPEN→PAYING, count===1 vence), não dentro da tx do post; (b) NUNCA reverter/compensar DEPOIS de um post bem-sucedido (flag `posted` — o ledger já commitou); (c) um reconcile re-drive pela mesma `sourceId` é a rede OBRIGATÓRIA para crash-entre-txs, e TEM de ser testado — módulos rota-(a) não herdam o reconcile genérico do AccountingSync (ADR §6.2, risco nº 1).
+- **Evidência:** `PayableService.ts` (registerPayment flag `posted`, `reconcilePayables`); `PayableClaim.integration.test.ts` (10 concorrentes → 1, SQLite real).
+- **Como aplicar:** todo módulo posts-direct herda o trio CAS-antes-do-post / não-reverter-pós-post / reconcile-testado; o reviewer valida os três.
+- **Durável?** sim → [[accounting-incr-ap]]
+
+### 2026-07-14 · pitfall · Tag jsdoc-openapi literal em PROSA num arquivo do glob polui o openapi.json
+- **Contexto:** INCR-AP Fase B — pego por review INDEPENDENTE (a sequência que implementou não pegaria o próprio comentário).
+- **Aprendizado:** escrever a tag jsdoc-openapi literal numa PROSA (comentário normal) em arquivo varrido (`routes/**`, `controllers/**`) faz o swagger-jsdoc espalhar a string do comentário char-a-char em `paths` como chaves numéricas `"0".."123"`, corrompendo `public/openapi.json`. O teste-piso `pathCount >= BASELINE` NÃO pega — lixo INFLA a contagem (piso não detecta inflação).
+- **Evidência:** commit `947d040` (fix em `routes/payables.ts` + guard novo em `openapi-paths.test.ts` "emits no junk (non-slash) path keys").
+- **Como aplicar:** nunca escreva a tag literal em prosa de arquivo do glob (diga "OpenAPI doc blocks"); após `docs:generate`, cheque `Object.keys(paths).filter(k=>!k.startsWith('/'))` vazio.
+- **Durável?** sim → [[openapi-wiring-static-artifact]]
+
 ### 2026-07-14 · assumption-correction · Gate sintético via SQL cru não valida o formato que o Prisma grava
 - **Contexto:** Task 7 (smoke-migration-gate sobre dev.db real). O gate sintético `SMOKE-MIGRATION-GATE-001` (2026-06-27) tinha dado PASS em INCR-1/INCR-2 com dados inseridos via SQL; o replay com **dados reais** reprovou a migration `20260627150000_add_entry_numbering` (P3018).
 - **Aprendizado:** SQL manual grava datas TEXT; o Prisma grava `DateTime` como INTEGER ms-epoch no SQLite — `strftime('%Y', <integer>)` interpreta Julian Day → NULL → NOT NULL violation. O backfill também não é re-executável após falha (CREATE TABLE sem guard) e diverge do app em TZ (UTC × America/Sao_Paulo; cross-check 7/15 divergentes). INCR-1/INCR-2 aplicaram limpas — `RISK-INCR1-DB-001` e `SMOKE-MIGRATION-GATE-001` fecharam; nasceu `RISK-INCR3-MIGRATION-001` (latente, não bloqueia o deploy atual).
