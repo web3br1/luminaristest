@@ -32,7 +32,7 @@ Estas não são "preferências": são decisões commitadas. Reabrir qualquer uma
 | T9 | **BRL-only.** Sem multi-moeda — `Posting`/`JournalEntry` não têm campo de moeda. | `AccountingScope.baseCurrencyCode:'BRL'`; grep no schema. |
 | T10 | **Integração origem→ledger = bridge pós-commit explícita** por origem (fora do motor). **Não** existe rule engine dirigido por template. | `accounting-increment-c-salon-bridge` (ADR-C01); AccountingSync. |
 | T11 | **Deploy single-process, SQLite local.** Scheduler in-process. Sem fila/outbox/DLQ. | `accounting-sync-b1-merged`. |
-| T12 | **Governança:** `PLAN → ADR → BRIEF → impl → test → review independente → PR → merge → smoke-gate → closeout → memória`. Review por **agente separado**; smoke-migration-gate antes de dados reais. | `reviewer-independence-separate-agent`; `accounting-incr1-db-risk`; `verify-write-context-before-writing`. |
+| T12 | **Governança:** `PLAN → ADR → BRIEF → impl → test → review independente → PR → merge → smoke-gate → closeout → memória`. Review por **agente separado**; smoke-migration-gate antes de dados reais. **2026-07-14:** os dois gates HELD fecharam — `RISK-INCR1-DB-001` e `SMOKE-MIGRATION-GATE-001` = **PASS** sobre dev.db real + replay populado (`SMOKE-MIGRATION-GATE-INCR1-INCR2-DEPLOY.md`); deploy da `main` = no-op comprovado. Novo risco latente nomeado: `RISK-INCR3-MIGRATION-001` (backfill do entry-numbering não é replay-safe sobre dados Prisma — não bloqueia o deploy atual). | `reviewer-independence-separate-agent`; `accounting-incr1-db-risk`; `verify-write-context-before-writing`. |
 
 ---
 
@@ -93,9 +93,10 @@ flowchart TD
 
 **Núcleo 1 (ledger confiável) — fechado.** Núcleo de operação/relatório/evidência/troca de dados — fechado.
 Ramo compliance/SPED em `main`: proveniência (INCR-8), mapeamento referencial (INCR-9/9B), **ECD**,
-**apuração/encerramento** e **split de receita** — todos mergeados. Nó corrente = **ECF Fase 2** (⏳ em
-landing, §3). Resíduos herdados: **sign-off humano no browser** (INCR-6 A–J, conciliação) e sign-off no PVA
-(ECD/Apuração).
+**apuração/encerramento**, **split de receita**, **ECF Fase 2** e **CNAB 240** — todos mergeados (§3; não
+há nó ⏳ corrente). Deploy-readiness: gates HELD de INCR-1/INCR-2 **fechados 2026-07-14**
+(`SMOKE-MIGRATION-GATE-INCR1-INCR2-DEPLOY.md`). Resíduos herdados: **sign-off humano no browser**
+(INCR-6 A–J, conciliação) e sign-off no PVA (ECD/Apuração).
 
 ---
 
