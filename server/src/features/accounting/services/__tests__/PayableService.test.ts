@@ -284,6 +284,37 @@ describe('PayableService.reconcilePayables — re-drive safety net (D4/ADR §6.2
     expect(paidCall).toBeTruthy();
   });
 
+  it('re-emits payable.payment_registered when finalizing a crash-stranded PAYING payable', async () => {
+    const { service, payableRepo, auditService, postEntry } = build({
+      findEntryBySource: (type) => (type === AP_PAYMENT_SOURCE_TYPE ? { id: 'set-1' } : null),
+    });
+    // Settlement already posted (crash was AFTER the post, before the finalize tx) → no re-post.
+    payableRepo.findAllActivePayments.mockResolvedValueOnce([paymentRow({ id: 'paym-1', payableId: 'pay-1', entryId: null })]);
+    payableRepo.findById.mockResolvedValue(payableRow({ id: 'pay-1', status: 'PAYING' }));
+    const out = await service.reconcilePayables(scope);
+
+    expect(postEntry).not.toHaveBeenCalled(); // settlement existed
+    expect(out.finalized).toBe(1);
+    const calls = auditService.append.mock.calls as unknown as Array<[unknown, unknown, { eventType: string; payload: Record<string, unknown> }]>;
+    const evt = calls.find((c) => c[2].eventType === 'payable.payment_registered');
+    expect(evt).toBeTruthy();
+    expect(evt![2].payload).toMatchObject({ payableId: 'pay-1', paymentId: 'paym-1', entryId: 'set-1' });
+  });
+
+  it('does NOT re-emit the domain audit for an already-finalized (PAID + linked) payment', async () => {
+    const { service, payableRepo, auditService } = build({
+      findEntryBySource: (type) => (type === AP_PAYMENT_SOURCE_TYPE ? { id: 'set-1' } : null),
+    });
+    payableRepo.findAllActivePayments.mockResolvedValueOnce([paymentRow({ id: 'paym-1', payableId: 'pay-1', entryId: 'set-1' })]);
+    payableRepo.findById.mockResolvedValue(payableRow({ id: 'pay-1', status: 'PAID' }));
+    const out = await service.reconcilePayables(scope);
+
+    expect(out.finalized).toBe(0);
+    const calls = auditService.append.mock.calls as unknown as Array<[unknown, unknown, { eventType: string }]>;
+    const evt = calls.find((c) => c[2].eventType === 'payable.payment_registered');
+    expect(evt).toBeFalsy(); // no double-emit across repeated passes
+  });
+
   it('does NOT re-post when the recognition already exists (idempotent)', async () => {
     const { service, payableRepo, postEntry } = build({
       findEntryBySource: (type) => (type === AP_PAYABLE_SOURCE_TYPE ? { id: 'rec-1' } : null),

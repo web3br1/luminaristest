@@ -419,14 +419,40 @@ export class PayableService {
           );
           settlementsPosted += 1;
         }
-        // Finalize a payable stuck in PAYING (or a payment without its entryId link).
-        if (payment.entryId !== settlement.id) {
-          await this.payableRepo.updatePayment(scope, payment.id, { entryId: settlement.id });
-        }
+        // Finalize atomically — link the entry, mark PAID, and re-emit the AP-domain audit event
+        // that the crashed normal-path finalize tx never wrote. The ledger 'entry.posted' audit
+        // already exists (postEntry's own tx), so the hash-chain is intact; this restores the
+        // 'payable.payment_registered' domain trail so a reconcile-finalized payment is
+        // indistinguishable from a normally-paid one. The audit is tied to the PAYING→PAID
+        // transition, which happens exactly once per payment (normal path OR here) — so repeated
+        // reconcile passes never double-emit (once PAID, needsFinalize is false).
         const payable = await this.payableRepo.findById(scope, payment.payableId);
-        if (payable && payable.status === 'PAYING') {
-          await this.payableRepo.updatePayable(scope, payment.payableId, { status: 'PAID' });
-          finalized += 1;
+        const settlementEntryId = settlement.id;
+        const needsEntryLink = payment.entryId !== settlementEntryId;
+        const needsFinalize = payable?.status === 'PAYING';
+        if (needsEntryLink || needsFinalize) {
+          await this.payableRepo.runTransaction(async (tx) => {
+            if (needsEntryLink) {
+              await this.payableRepo.updatePayment(scope, payment.id, { entryId: settlementEntryId }, tx);
+            }
+            if (needsFinalize) {
+              await this.payableRepo.updatePayable(scope, payment.payableId, { status: 'PAID' }, tx);
+              await this.auditService.append(tx, scope, {
+                actorUserId: scope.actorUserId,
+                eventType: 'payable.payment_registered',
+                targetType: 'payable',
+                targetId: payment.payableId,
+                payload: {
+                  payableId: payment.payableId,
+                  paymentId: payment.id,
+                  amountCents: String(payment.amountCents),
+                  method: payment.method,
+                  entryId: settlementEntryId,
+                },
+              });
+              finalized += 1;
+            }
+          });
         }
       } catch (error) {
         logger.warn('AP reconcile: settlement re-drive failed', { paymentId: payment.id, error });
