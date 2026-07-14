@@ -64,6 +64,14 @@ export interface IPayableRepository {
    */
   claimForPayment(scope: AccountingScope, id: string, tx?: Prisma.TransactionClient): Promise<number>;
 
+  /**
+   * Atomically finalize a payment: `updateMany` where status='PAYING' → 'PAID'. Returns the row
+   * count (1 = this caller performed the transition, 0 = someone already finalized it). The
+   * exactly-once gate for the `payable.payment_registered` domain audit — both registerPayment and
+   * reconcile emit ONLY when this returns 1 (authoritative-gate-inside-tx). Must run inside the tx.
+   */
+  markPaidIfPaying(scope: AccountingScope, id: string, tx?: Prisma.TransactionClient): Promise<number>;
+
   updatePayable(
     scope: AccountingScope,
     id: string,

@@ -38,6 +38,7 @@ interface Opts {
   canManage?: boolean;
   canRead?: boolean;
   claimResults?: number[]; // successive claimForPayment return values
+  markResults?: number[]; // successive markPaidIfPaying (PAYING→PAID CAS) return values
   findEntryBySource?: (type: string, id: string) => unknown;
   expenseAccount?: Account | null;
 }
@@ -55,6 +56,8 @@ function build(opts: Opts = {}) {
 
   const claimResults = [...(opts.claimResults ?? [1])];
   const claimForPayment = jest.fn(async () => (claimResults.length ? claimResults.shift()! : 1));
+  const markResults = [...(opts.markResults ?? [])];
+  const markPaidIfPaying = jest.fn(async () => (markResults.length ? markResults.shift()! : 1));
 
   const createdPayments: PayablePayment[] = [];
   const payableRepo = {
@@ -64,6 +67,7 @@ function build(opts: Opts = {}) {
     findManyByUnit: jest.fn(async () => ({ payables: [], total: 0 })),
     findAllActive: jest.fn(async () => [] as Payable[]),
     claimForPayment,
+    markPaidIfPaying,
     updatePayable: jest.fn(async (_s, id: string, data: Record<string, unknown>) => payableRow({ id, ...data } as Partial<Payable>)),
     createPayment: jest.fn(async (data: Record<string, unknown>) => {
       const p = paymentRow({ id: `paym-${createdPayments.length + 1}`, ...data } as Partial<PayablePayment>);
@@ -209,6 +213,20 @@ describe('PayableService.registerPayment — settlement (D2/D3/D4)', () => {
     const reverts = payableRepo.updatePayable.mock.calls.filter((c) => (c[2] as { status?: string }).status === 'OPEN');
     expect(reverts).toHaveLength(0);
   });
+
+  it('emits payable.payment_registered exactly once on the happy path (CAS won)', async () => {
+    const { service, auditService } = build(); // markPaidIfPaying defaults to 1 (won)
+    await service.registerPayment(scope, 'pay-1', payDto as never);
+    const calls = auditService.append.mock.calls as unknown as Array<[unknown, unknown, { eventType: string }]>;
+    expect(calls.filter((c) => c[2].eventType === 'payable.payment_registered')).toHaveLength(1);
+  });
+
+  it('does NOT emit when a concurrent reconcile already finalized the payment (CAS lost, Scenario B)', async () => {
+    const { service, auditService } = build({ markResults: [0] }); // PAYING→PAID CAS matched 0 rows
+    await service.registerPayment(scope, 'pay-1', payDto as never);
+    const calls = auditService.append.mock.calls as unknown as Array<[unknown, unknown, { eventType: string }]>;
+    expect(calls.filter((c) => c[2].eventType === 'payable.payment_registered')).toHaveLength(0);
+  });
 });
 
 describe('PayableService.cancelPayable — reverse recognition (F6/ACC-018/D3)', () => {
@@ -279,9 +297,24 @@ describe('PayableService.reconcilePayables — re-drive safety net (D4/ADR §6.2
     const input = (postEntry.mock.calls[0] as unknown[])[1] as PostEntryInput;
     expect(input.sourceType).toBe(AP_PAYMENT_SOURCE_TYPE);
     expect(input.sourceId).toBe('paym-1');
-    // Finalized → payable set to PAID.
-    const paidCall = payableRepo.updatePayable.mock.calls.find((c) => (c[2] as { status?: string }).status === 'PAID');
-    expect(paidCall).toBeTruthy();
+    // Finalized → payable moved PAYING→PAID via the atomic CAS (not an unconditional update).
+    expect(payableRepo.markPaidIfPaying).toHaveBeenCalledWith(expect.anything(), 'pay-1', expect.anything());
+  });
+
+  it('does NOT emit (nor count) when the finalize CAS loses to a concurrent finalizer', async () => {
+    // Preliminary read still says PAYING, but markPaidIfPaying returns 0 → someone else already
+    // flipped PAYING→PAID and emitted. This pass must NOT double-emit (the exactly-once gate).
+    const { service, payableRepo, auditService } = build({
+      markResults: [0],
+      findEntryBySource: (type) => (type === AP_PAYMENT_SOURCE_TYPE ? { id: 'set-1' } : null),
+    });
+    payableRepo.findAllActivePayments.mockResolvedValueOnce([paymentRow({ id: 'paym-1', payableId: 'pay-1', entryId: null })]);
+    payableRepo.findById.mockResolvedValue(payableRow({ id: 'pay-1', status: 'PAYING' }));
+    const out = await service.reconcilePayables(scope);
+
+    expect(out.finalized).toBe(0);
+    const calls = auditService.append.mock.calls as unknown as Array<[unknown, unknown, { eventType: string }]>;
+    expect(calls.find((c) => c[2].eventType === 'payable.payment_registered')).toBeFalsy();
   });
 
   it('re-emits payable.payment_registered when finalizing a crash-stranded PAYING payable', async () => {
