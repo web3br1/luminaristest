@@ -27,11 +27,31 @@ CREATE TABLE "journal_entry_sequences" (
 
 -- ── Phase 2: rebuild journal_entries ──────────────────────────────────────────
 -- fiscalYear and entryNumber are computed inline in the SELECT:
---   fiscalYear  = CAST(strftime('%Y', date) AS INTEGER)  [from posting date]
+--   fiscalYear  = UTC year of the posting date (dual-format, see below)
 --   entryNumber = ROW_NUMBER() per (userId, unitId, fiscalYear)
 --                 ordered by date, createdAt, id  (ADR Q6 / Emenda 5)
 --
+-- DUAL-FORMAT date handling (RISK-INCR3-MIGRATION-001): Prisma stores DateTime
+-- on SQLite as INTEGER ms-epoch; SQL-seeded rows store TEXT. strftime() on a raw
+-- integer interprets it as a Julian Day → out of range → NULL → the NOT NULL
+-- guard aborts the migration (P3018). Each date expression therefore branches on
+-- typeof("date"): INTEGER ms-epoch goes through datetime(ms/1000,'unixepoch');
+-- everything else (TEXT ISO, REAL Julian Day) is what strftime already handles.
+-- Integer *seconds*-epoch is not covered — no writer in this codebase produces it.
+--
+-- TZ SEMANTICS — UTC, deliberately: the app derives fiscalYear with
+-- getUTCFullYear() on the date-only string (PostingService.fiscalYearFrom,
+-- ADR-INCR3 Emenda 3 — America/Sao_Paulo was tried and reverted because it
+-- disagreed with the period gate at the Jan-1 boundary). datetime(...,'unixepoch')
+-- is UTC, so backfilled rows number exactly as the current app would number them.
+--
 -- Column order matches original DDL (20260623152052) + INCR-1 columns.
+-- DROP IF EXISTS: a prior failed run leaves journal_entries_new behind (the
+-- rename only happens on success), so the retry must clear it or die on
+-- CREATE TABLE. The original journal_entries is intact in that scenario —
+-- the failure point (INSERT) precedes its DROP.
+DROP TABLE IF EXISTS "journal_entries_new";
+
 CREATE TABLE "journal_entries_new" (
     "id"           TEXT     NOT NULL PRIMARY KEY,
     "userId"       TEXT     NOT NULL,
@@ -61,10 +81,21 @@ INSERT INTO "journal_entries_new"
 SELECT
     "id", "userId", "unitId", "date", "description", "status", "sourceType", "sourceId",
     "reversedById", "createdAt", "updatedAt", "createdById", "postedById",
-    CAST(strftime('%Y', "date") AS INTEGER),
+    CAST(strftime('%Y', CASE WHEN typeof("date") = 'integer'
+                             THEN datetime("date" / 1000.0, 'unixepoch')
+                             ELSE "date" END) AS INTEGER),
     ROW_NUMBER() OVER (
-        PARTITION BY "userId", "unitId", CAST(strftime('%Y', "date") AS INTEGER)
-        ORDER BY "date", "createdAt", "id"
+        PARTITION BY "userId", "unitId",
+            CAST(strftime('%Y', CASE WHEN typeof("date") = 'integer'
+                                     THEN datetime("date" / 1000.0, 'unixepoch')
+                                     ELSE "date" END) AS INTEGER)
+        -- ORDER BY normalizes "date" to epoch ms: raw comparison in a partition
+        -- mixing INTEGER and TEXT rows would sort by storage class, not time.
+        -- (createdAt tie-break stays raw; a mixed-format partition with two rows
+        -- on the SAME date is out of scope for this backfill.)
+        ORDER BY CASE WHEN typeof("date") = 'integer' THEN "date"
+                      ELSE CAST(strftime('%s', "date") AS INTEGER) * 1000 END,
+                 "createdAt", "id"
     )
 FROM "journal_entries";
 

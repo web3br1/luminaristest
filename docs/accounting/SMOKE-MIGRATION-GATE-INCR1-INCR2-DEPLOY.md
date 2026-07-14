@@ -61,7 +61,7 @@ referential ×2).
 
 ## Achados
 
-### RISK-INCR3-MIGRATION-001 — backfill de `20260627150000_add_entry_numbering` quebra em banco populado (NOVO, latente, não bloqueia este deploy)
+### RISK-INCR3-MIGRATION-001 — backfill de `20260627150000_add_entry_numbering` quebra em banco populado — **FECHADO 2026-07-14** (ver §Resolução abaixo)
 
 1. **Crash (grau: verificado por execução).** O backfill computa
    `CAST(strftime('%Y', "date") AS INTEGER)`, mas o Prisma grava `DateTime` no SQLite como
@@ -88,6 +88,45 @@ referential ×2).
    SQL corrigido → `migrate resolve --applied`); as 6 migrations seguintes aplicaram limpas.
    Fix no repo fica como follow-up próprio (mexer em migration histórica pede review).
 
+#### Resolução (2026-07-14) — fix commitado na migration histórica + teste de replay
+
+Os 3 defeitos foram corrigidos **na própria** `20260627150000_add_entry_numbering/migration.sql`
+(editar migration já aplicada é o único caminho: uma migration corretiva posterior rodaria
+*depois* do SQL quebrado num replay — nunca chegaria a executar):
+
+1. **Crash (INTEGER ms-epoch):** toda expressão de data no backfill agora é dual-format —
+   `CASE WHEN typeof("date")='integer' THEN datetime("date"/1000.0,'unixepoch') ELSE "date" END`
+   dentro do `strftime('%Y', …)` (fiscalYear no SELECT e no PARTITION BY). O `ORDER BY` também
+   normaliza para epoch-ms: numa partição com formatos mistos, comparação crua ordenaria por
+   storage class (INTEGER < TEXT), não por tempo. Fora de escopo declarado: INTEGER
+   *segundos*-epoch (nenhum writer do codebase produz).
+2. **Retry-safety:** `DROP TABLE IF EXISTS "journal_entries_new"` antes do `CREATE TABLE`
+   (Phase 2) — espelha o padrão que a Phase 1 já usava para `journal_entry_sequences`.
+3. **TZ — decisão: UTC, deliberada.** O app deriva fiscalYear com `getUTCFullYear()`
+   (`PostingService.fiscalYearFrom`, ADR-INCR3 Emenda 3 — America/Sao_Paulo foi tentado e
+   revertido por divergir do period gate na virada de ano). O backfill usa
+   `datetime(…,'unixepoch')`, que é UTC → numera exatamente como o app atual numeraria.
+   A divergência de 1 entry no cross-check deste gate (fiscalYear=2025 real × 2026 backfill)
+   é **dado legado escrito pela versão pré-Emenda-3** do app; o backfill UTC é o correto
+   pela semântica canônica vigente.
+
+**Teste de replay (guarda de regressão da classe):**
+`server/src/features/accounting/repositories/__tests__/EntryNumberingMigration.replay.test.ts`
+— aplica as migrations reais anteriores à INCR-3, popula `journal_entries` com datas INTEGER
+ms-epoch (formato Prisma), TEXT (formato sintético) e uma partição mista, planta os leftovers
+de uma execução falhada (`journal_entries_new` + sequences stale) e executa a migration real
+via `prisma db execute`. Asserta fiscalYear (incl. fronteira 2026-01-01 UTC), entryNumber
+1..N cronológico por partição, seed de sequences e ausência de leftovers. **Poder de
+refutação verificado por execução:** o mesmo teste roda 5/5 FAIL contra o SQL original
+(restaurado de `git show HEAD:`) e 5/5 PASS com o fix; cada defeito reprova
+independentemente (só-DROP → morre no NOT NULL; só-CASE → morre no CREATE TABLE).
+
+**Efeito colateral conhecido de editar migration aplicada:** `migrate deploy` não re-verifica
+checksum de migration já finalizada (verificado neste gate) — bancos existentes não são
+afetados. `migrate dev` em máquina de desenvolvimento **pode** detectar o checksum divergente
+em `_prisma_migrations` e propor reset do dev.db local; é o custo aceito do único fix possível
+para a classe.
+
 ## Veredicto por increment
 
 | Increment / risco | Veredicto |
@@ -95,7 +134,7 @@ referential ×2).
 | **INCR-1** (períodos) — `RISK-INCR1-DB-001` | **FECHADO — PASS.** Migration aplicada limpa sobre banco populado com dados reais (Track B) + banco vivo íntegro com a migration a bordo (Track A). |
 | **INCR-2** (audit hash-chain) — `SMOKE-MIGRATION-GATE-001` (pendência "existing DB") | **FECHADO — PASS.** Migration aplicada limpa sobre banco populado (Track B) + hash-chain re-verificado 92/92 no banco vivo (Track A). |
 | Deploy-readiness sweep (main → banco vivo) | **DEPLOY-CLEARED.** `migrate deploy` é no-op comprovado; integridade, chain e A=P verdes. |
-| INCR-3 (entry numbering) | Já aplicada no banco vivo (sem re-execução possível); **novo risco latente nomeado** `RISK-INCR3-MIGRATION-001` (backfill não é replay-safe) — follow-up próprio. |
+| INCR-3 (entry numbering) | Já aplicada no banco vivo (sem re-execução possível); risco latente `RISK-INCR3-MIGRATION-001` (backfill não é replay-safe) nomeado neste gate e **FECHADO em 2026-07-14** — migration corrigida no repo + teste de replay (§Resolução). |
 
 ## Caso adversarial tentado
 
