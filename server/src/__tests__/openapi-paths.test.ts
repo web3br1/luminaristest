@@ -32,4 +32,15 @@ describe('OpenAPI @openapi path coverage', () => {
 
     expect(pathCount).toBeGreaterThanOrEqual(BASELINE);
   });
+
+  // Companion guard: the floor test above cannot catch POLLUTION that RAISES the count. A prose
+  // comment containing the literal jsdoc-openapi tag in a globbed file (routes/ or controllers/)
+  // makes swagger-jsdoc spread the comment string char-by-char into `paths` as numeric keys
+  // "0","1",… — inflating the count while corrupting the served spec (INCR-AP Fase B incident).
+  // Every real path key starts with '/'; anything else is junk.
+  it('emits no junk (non-slash) path keys', () => {
+    const spec = swaggerJSDoc(options) as { paths?: Record<string, unknown> };
+    const junk = Object.keys(spec.paths || {}).filter((k) => !k.startsWith('/'));
+    expect(junk).toEqual([]);
+  });
 });
