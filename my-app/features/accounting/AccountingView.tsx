@@ -16,16 +16,18 @@ import { SpedGenerationPanel } from './components/SpedGenerationPanel';
 import { DFCPanel } from './components/DFCPanel';
 import { PeriodComparisonPanel } from './components/PeriodComparisonPanel';
 import { DailyJournalPanel } from './components/DailyJournalPanel';
+import { AccountsPayablePanel } from './components/AccountsPayablePanel';
 import { JournalEntryModal, type AccountOption } from './components/JournalEntryModal';
 import { accountingService } from '../../lib/services/accounting.service';
 
-type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'dfc' | 'comparativo' | 'diario' | 'importacao-exportacao' | 'conciliacao' | 'compliance';
+type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'contas-a-pagar' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'dfc' | 'comparativo' | 'diario' | 'importacao-exportacao' | 'conciliacao' | 'compliance';
 
 // label = i18n fallback (current pt-BR); rendered via t(`view.tabs.<id>`, label)
 const TABS: Array<{ id: Tab; labelKey: string; label: string }> = [
   { id: 'balancete',      labelKey: 'view.tabs.balancete',      label: 'Balancete' },
   { id: 'periodos',       labelKey: 'view.tabs.periodos',       label: 'Períodos' },
   { id: 'lancamentos',    labelKey: 'view.tabs.lancamentos',    label: 'Lançamentos' },
+  { id: 'contas-a-pagar', labelKey: 'view.tabs.contasAPagar',   label: 'Contas a Pagar' },
   { id: 'razao',          labelKey: 'view.tabs.razao',          label: 'Razão' },
   { id: 'plano-de-contas',labelKey: 'view.tabs.planoDeContas',  label: 'Plano de Contas' },
   { id: 'bp',             labelKey: 'view.tabs.bp',             label: 'BP' },
@@ -176,6 +178,11 @@ export function AccountingView() {
       {/* ── Lançamentos tab ────────────────────────────────────────────────── */}
       {activeTab === 'lancamentos' && unitId && (
         <JournalEntriesPanel unitId={unitId} onReversalComplete={reload} onNavigateToPeriods={() => setActiveTab('periodos')} />
+      )}
+
+      {/* ── Contas a Pagar tab ─────────────────────────────────────────────── */}
+      {activeTab === 'contas-a-pagar' && unitId && (
+        <AccountsPayablePanel unitId={unitId} onLedgerChange={reload} onNavigateToPeriods={() => setActiveTab('periodos')} />
       )}
 
       {/* ── Razão tab ──────────────────────────────────────────────────────── */}
