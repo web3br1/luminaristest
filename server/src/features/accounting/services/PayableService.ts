@@ -218,24 +218,28 @@ export class PayableService {
       );
       posted = true;
 
-      // Finalize (tx) — link the entry, mark PAID, audit. Atomic. The ledger is already committed;
-      // if THIS tx crashes, reconcilePayables finalizes it (posted settlement + PAYING payable).
+      // Finalize (tx) — link the entry, mark PAID via the atomic PAYING→PAID CAS, emit the domain
+      // audit ONLY when THIS call performed the transition. The ledger is already committed; if
+      // this tx crashes, reconcilePayables finalizes it. The CAS closes the race with a concurrent
+      // reconcile that could finalize between the post above and this tx (else both would emit).
       await this.payableRepo.runTransaction(async (tx) => {
         await this.payableRepo.updatePayment(scope, payment!.id, { entryId: entry.id }, tx);
-        await this.payableRepo.updatePayable(scope, payableId, { status: 'PAID' }, tx);
-        await this.auditService.append(tx, scope, {
-          actorUserId: scope.actorUserId,
-          eventType: 'payable.payment_registered',
-          targetType: 'payable',
-          targetId: payableId,
-          payload: {
-            payableId,
-            paymentId: payment!.id,
-            amountCents: String(dto.amountCents),
-            method: dto.method,
-            entryId: entry.id,
-          },
-        });
+        const flipped = await this.payableRepo.markPaidIfPaying(scope, payableId, tx);
+        if (flipped === 1) {
+          await this.auditService.append(tx, scope, {
+            actorUserId: scope.actorUserId,
+            eventType: 'payable.payment_registered',
+            targetType: 'payable',
+            targetId: payableId,
+            payload: {
+              payableId,
+              paymentId: payment!.id,
+              amountCents: String(dto.amountCents),
+              method: dto.method,
+              entryId: entry.id,
+            },
+          });
+        }
       });
       return { ...payment, entryId: entry.id, status: 'ACTIVE' };
     } catch (error) {
@@ -419,14 +423,42 @@ export class PayableService {
           );
           settlementsPosted += 1;
         }
-        // Finalize a payable stuck in PAYING (or a payment without its entryId link).
-        if (payment.entryId !== settlement.id) {
-          await this.payableRepo.updatePayment(scope, payment.id, { entryId: settlement.id });
-        }
+        // Finalize atomically — link the entry, mark PAID, and re-emit the AP-domain audit event
+        // that the crashed normal-path finalize tx never wrote. The ledger 'entry.posted' audit
+        // already exists (postEntry's own tx), so the hash-chain is intact; this restores the
+        // 'payable.payment_registered' domain trail so a reconcile-finalized payment is
+        // indistinguishable from a normally-paid one. The audit is tied to the PAYING→PAID
+        // transition, which happens exactly once per payment (normal path OR here) — so repeated
+        // reconcile passes never double-emit (once PAID, needsFinalize is false).
         const payable = await this.payableRepo.findById(scope, payment.payableId);
-        if (payable && payable.status === 'PAYING') {
-          await this.payableRepo.updatePayable(scope, payment.payableId, { status: 'PAID' });
-          finalized += 1;
+        const settlementEntryId = settlement.id;
+        const needsEntryLink = payment.entryId !== settlementEntryId;
+        const maybeFinalize = payable?.status === 'PAYING'; // preliminary read — the CAS below is authoritative
+        if (needsEntryLink || maybeFinalize) {
+          await this.payableRepo.runTransaction(async (tx) => {
+            if (needsEntryLink) {
+              await this.payableRepo.updatePayment(scope, payment.id, { entryId: settlementEntryId }, tx);
+            }
+            // Atomic PAYING→PAID: emit + count ONLY when THIS pass performed the transition. Closes
+            // the double-emit under two overlapping reconcile passes (or a reconcile-vs-normal race).
+            const flipped = await this.payableRepo.markPaidIfPaying(scope, payment.payableId, tx);
+            if (flipped === 1) {
+              await this.auditService.append(tx, scope, {
+                actorUserId: scope.actorUserId,
+                eventType: 'payable.payment_registered',
+                targetType: 'payable',
+                targetId: payment.payableId,
+                payload: {
+                  payableId: payment.payableId,
+                  paymentId: payment.id,
+                  amountCents: String(payment.amountCents),
+                  method: payment.method,
+                  entryId: settlementEntryId,
+                },
+              });
+              finalized += 1;
+            }
+          });
         }
       } catch (error) {
         logger.warn('AP reconcile: settlement re-drive failed', { paymentId: payment.id, error });

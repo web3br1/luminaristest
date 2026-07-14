@@ -80,6 +80,22 @@ export class PayableRepository implements IPayableRepository {
     return result.count;
   }
 
+  public async markPaidIfPaying(
+    scope: AccountingScope,
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    // Atomic conditional transition PAYING → PAID (mirror of claimForPayment). Matches only when
+    // the row is still PAYING, so of N concurrent finalizers (a raced reconcile + the normal
+    // registerPayment, or two reconcile passes) exactly one gets count===1 and thus emits the
+    // payable.payment_registered audit exactly once.
+    const result = await (tx ?? prisma).payable.updateMany({
+      where: { id, ...accountingScopeWhere(scope), status: 'PAYING' },
+      data: { status: 'PAID' },
+    });
+    return result.count;
+  }
+
   public async updatePayable(
     scope: AccountingScope,
     id: string,

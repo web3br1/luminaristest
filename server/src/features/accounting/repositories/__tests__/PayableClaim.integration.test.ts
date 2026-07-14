@@ -27,6 +27,15 @@ async function claim(db: PrismaClient, id: string): Promise<number> {
   return r.count;
 }
 
+/** The exact conditional transition PayableRepository.markPaidIfPaying issues (finalize CAS). */
+async function markPaid(db: PrismaClient, id: string): Promise<number> {
+  const r = await db.payable.updateMany({
+    where: { id, userId: USER_ID, unitId: UNIT, status: 'PAYING' },
+    data: { status: 'PAID' },
+  });
+  return r.count;
+}
+
 describe('PayableRepository.claimForPayment — real SQLite DB (INCR-AP D4)', () => {
   let db: PrismaClient;
   let dbPath: string;
@@ -80,6 +89,16 @@ describe('PayableRepository.claimForPayment — real SQLite DB (INCR-AP D4)', ()
     await db.payable.update({ where: { id: 'pay-paid' }, data: { status: 'PAID' } });
     expect(await claim(db, 'pay-paid')).toBe(0);
   }, 30000);
+
+  it('10 concurrent finalize CAS on one PAYING payable → exactly one wins (exactly-once audit gate)', async () => {
+    await seedOpenPayable('pay-final');
+    await db.payable.update({ where: { id: 'pay-final' }, data: { status: 'PAYING' } });
+    const counts = await Promise.all(Array.from({ length: 10 }, () => markPaid(db, 'pay-final')));
+    expect(counts.filter((c) => c === 1)).toHaveLength(1); // only one emits payable.payment_registered
+    expect(counts.filter((c) => c === 0)).toHaveLength(9);
+    const row = await db.payable.findUnique({ where: { id: 'pay-final' } });
+    expect(row?.status).toBe('PAID');
+  }, 60000);
 
   it('rename-on-delete frees the business @@unique so a re-create does not trip P2002 (D3)', async () => {
     await seedOpenPayable('pay-dup'); // documentNumber = 'NF-pay-dup'
