@@ -1,5 +1,10 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// The component under test uses jsx:"preserve" + esbuild's classic runtime, so its
+// JSX compiles to bare `React.createElement` with React expected in scope. Unlike the
+// panels that `import React`, this one doesn't — expose it globally for the render.
+(globalThis as unknown as { React: typeof React }).React = React;
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { LedgerPanel } from '../LedgerPanel';
 import {

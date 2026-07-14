@@ -1,5 +1,10 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// The component under test uses jsx:"preserve" + esbuild's classic runtime, so its
+// JSX compiles to bare `React.createElement` with React expected in scope. Unlike the
+// panels that `import React`, this one doesn't — expose it globally for the render.
+(globalThis as unknown as { React: typeof React }).React = React;
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { BalanceSheetPanel } from '../BalanceSheetPanel';
 import {
@@ -34,7 +39,9 @@ describe('BalanceSheetPanel (render)', () => {
 
   it('shows the empty prompt before a report is generated', () => {
     render(<BalanceSheetPanel unitId="u1" />);
-    expect(screen.getByText(/Gerar BP/)).toBeInTheDocument();
+    // "Gerar BP" appears both on the button and inside the prompt sentence — target
+    // the button by role, and the prompt by its unique tail.
+    expect(screen.getByRole('button', { name: /Gerar BP/ })).toBeInTheDocument();
     expect(screen.getByText(/para visualizar o Balanço Patrimonial/)).toBeInTheDocument();
   });
 
