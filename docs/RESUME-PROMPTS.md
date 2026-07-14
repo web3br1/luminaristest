@@ -13,17 +13,35 @@
 
 ---
 
+## 🔄 Atualização de estado — 2026-07-14 (pós-verificação no GitHub)
+
+Ao verificar o repo **depois** de gerar este doc, descobriu-se que boa parte da agenda **já estava
+feita horas antes** (PRs de ~05:00Z do mesmo dia). Este doc foi escrito com contexto desatualizado;
+os prompts abaixo permanecem para referência histórica, mas **o estado real é o desta seção**:
+
+| Frente | Prompt/Task | Estado REAL | Evidência |
+|---|---|---|---|
+| PRs em voo (CNAB, LEDGER_STATUSES) | Prompt 1 | ✅ **FEITO** — [#61](https://github.com/web3br1/luminaristest/pull/61) e [#65](https://github.com/web3br1/luminaristest/pull/65) MERGED | GitHub |
+| Smoke-migration-gate INCR-1/INCR-2 | Prompt 4 / Task 7 | ✅ **FEITO** — [#94](https://github.com/web3br1/luminaristest/pull/94) MERGED (dev.db real, PASS, deploy-cleared); resta só sign-off humano | GitHub |
+| ADR Contas a Pagar | Prompt 2 | 📝 **RASCUNHADO** — [#95](https://github.com/web3br1/luminaristest/pull/95) OPEN (PRE-ADR, forks F0–F6) **aguardando SUA ratificação** — único gate humano vivo | GitHub |
+| ECF Fase 2 | Prompt 3 / Task 6 | ⏳ **BLOQUEADO** — segue esperando o código RFB da conta 3.3 (insumo externo) | inalterado |
+| Contas a Pagar operacional | Task 5 | ⛔ **BLOQUEADO** pela ratificação do #95 | inalterado |
+
+**Próximo passo humano real:** ratificar (ou pedir ajustes n)os forks F0–F6 do [PR #95](https://github.com/web3br1/luminaristest/pull/95). Isso desbloqueia a Task 5.
+
+---
+
 ## Snapshot do estado (2026-07-14)
 
 Itens em voo relevantes para retomada, extraídos da memória e das branches remotas:
 
 | Item | Estado | Evidência |
 |---|---|---|
-| CNAB parser (BE-INCR7) | PR **#61 OPEN**, refresh sobre main (merge, não rebase), CI+review PASS, **não mergeado** — pendente decisão humana + re-review da resolução de merge | branch `feat/…incr7…` / mem. `accounting-incr7-cnab-parser` |
-| `LEDGER_STATUSES` 4º consumer | PR **#65 OPEN** (dobra `ExerciseClosingService`); #64 já mergeado | branch `claude/ledger-statuses-fold-4th` / mem. `ledger-statuses-consolidated-and-openapi-guard` |
-| ECF Fase 2 (SPED Fiscal, Presumido) | **committed, não mergeado**; gate = *revenue-exhaustiveness* (segregar receita bruta 3.1/3.3 em P200/P400); bloqueio único = **código RFB da conta 3.3** (insumo externo) | branch `claude/ecf-readiness-phase-2` / mem. `accounting-sped-ecf-generation`, `accounting-incr-sped-ecf-adr` |
-| Smoke-migration-gate | Vários increments **DEPLOY-CLEARED**, mas INCR-1 e INCR-2 seguem **HELD** pendentes de smoke em `dev.db` populado | mem. `accounting-incr1-db-risk` (RISK-INCR1-DB-001), `accounting-incr2-audit` (SMOKE-MIGRATION-GATE-001) |
-| ADR Contas a Pagar | **não existe** ainda (`docs/adr/ADR-INCR-AP-accounts-payable.md` ausente) | — |
+| CNAB parser (BE-INCR7) | ✅ PR **#61 MERGED** | GitHub / mem. `accounting-incr7-cnab-parser` |
+| `LEDGER_STATUSES` 4º consumer | ✅ PR **#65 MERGED** (dobra `ExerciseClosingService`) | GitHub / mem. `ledger-statuses-consolidated-and-openapi-guard` |
+| ECF Fase 2 (SPED Fiscal, Presumido) | ⏳ **committed, não mergeado**; gate = *revenue-exhaustiveness* (segregar receita bruta 3.1/3.3 em P200/P400); bloqueio único = **código RFB da conta 3.3** (insumo externo) | branch `claude/ecf-readiness-phase-2` / mem. `accounting-sped-ecf-generation`, `accounting-incr-sped-ecf-adr` |
+| Smoke-migration-gate | ✅ **FEITO** — PR **#94 MERGED** (INCR-1/INCR-2 smoke em `dev.db` real PASS, deploy-cleared); resta só sign-off humano | GitHub / mem. `accounting-incr1-db-risk`, `accounting-incr2-audit` |
+| ADR Contas a Pagar | 📝 **RASCUNHADO** — PR **#95 OPEN** (`docs/adr/ADR-INCR-AP-accounts-payable.md`, PRE-ADR forks F0–F6), aguardando ratificação humana | GitHub |
 | Loop auto-merge | Após review PASS + tsc + CI green o loop **commita E mergeia**; smoke-gate/browser sign-off seguem humanos | mem. `loop-auto-merge-after-review` |
 
 ---
@@ -33,7 +51,7 @@ Itens em voo relevantes para retomada, extraídos da memória e das branches rem
 Cada prompt agora carrega o **roteamento de skills** — qual agente/skill do repo executa cada fase,
 para que a retomada não reinvente o pipeline que já existe em `.claude/skills/`.
 
-### Prompt 1 — Fechar os PRs em voo (review-PASS, CI-green, não mergeados) `RECONSTRUÍDO`
+### Prompt 1 — Fechar os PRs em voo (review-PASS, CI-green, não mergeados) `RECONSTRUÍDO` — ✅ FEITO (#61, #65 MERGED)
 
 > Contexto: main = `Luminaris`, worktree isolado. Há dois PRs abertos que já passaram por review
 > independente e CI verde mas seguem sem merge:
@@ -63,8 +81,13 @@ para que a retomada não reinvente o pipeline que já existe em `.claude/skills/
 > `loop-auto-merge-after-review`, `reviewer-independence-separate-agent`, `wiring-registry-gate`,
 > `openapi-wiring-static-artifact`.
 
-### Prompt 2 — Escrever e ratificar o ADR de Contas a Pagar `RECONSTRUÍDO`
+### Prompt 2 — Escrever e ratificar o ADR de Contas a Pagar `RECONSTRUÍDO` — 📝 ADR RASCUNHADO (#95 OPEN, aguarda ratificação)
 
+> **Estado:** a escrita do ADR já foi feita — [PR #95](https://github.com/web3br1/luminaristest/pull/95)
+> traz `docs/adr/ADR-INCR-AP-accounts-payable.md` como PRE-ADR com os forks F0–F6. Resta só a
+> **ratificação humana** dos forks. O contexto abaixo permanece como referência das decisões que o
+> ADR precisava fixar — use-o para conferir se o #95 as cobre antes de ratificar.
+>
 > Contexto: o módulo de Contas a Pagar (AP) é **Prisma first-class** — entidade com invariante
 > financeiro, NÃO DynamicTable (regra `new-modules-use-prisma-not-dynamictable`,
 > STOP block do `CLAUDE.md`). O padrão de referência é o módulo de contabilidade
@@ -128,8 +151,12 @@ para que a retomada não reinvente o pipeline que já existe em `.claude/skills/
 > *Evidência:* mem. `accounting-sped-ecf-generation`, `accounting-incr-sped-ecf-adr`,
 > `accounting-revenue-split-by-nature`, `accounting-incr9-referential-mapping`.
 
-### Prompt 4 — Smoke-migration-gate dos increments HELD `RECONSTRUÍDO`
+### Prompt 4 — Smoke-migration-gate dos increments HELD `RECONSTRUÍDO` — ✅ FEITO (#94 MERGED)
 
+> **Estado:** feito e mergeado em [PR #94](https://github.com/web3br1/luminaristest/pull/94) —
+> smoke de INCR-1/INCR-2 em `dev.db` real PASS, deploy-cleared. Resta só o sign-off humano. O
+> contexto abaixo fica como registro.
+>
 > ⚠️ *Este prompt e a **Task 7** cobrem o mesmo gate; a Task 7 é a versão completa e documentada.*
 >
 > Contexto: INCR-1 (períodos) e INCR-2 (audit hash-chain) estão mergeados na main mas seguem
@@ -158,7 +185,7 @@ para que a retomada não reinvente o pipeline que já existe em `.claude/skills/
 
 ## As 3 tasks (verbatim)
 
-### Task 5 — Implementar Contas a Pagar operacional *(depende do Prompt 2: ADR ratificado)*
+### Task 5 — Implementar Contas a Pagar operacional *(depende do Prompt 2: ADR ratificado)* — ⛔ BLOQUEADO (aguarda ratificação do #95)
 
 Só começa depois que você ratificar o ADR (`docs/adr/ADR-INCR-AP-accounts-payable.md`) e fechar as
 decisões em aberto. Aí implementa a cadeia Prisma completa por fatia (schema serial → corpos →
@@ -195,7 +222,7 @@ externo (código RFB) — confirme com o contador antes.
 > `luminaris-accounting-architect` (coverage-gate) → `luminaris-reviewer` (worktree isolado, branch
 > inteira) → merge via política `loop-auto-merge-after-review`.
 
-### Task 7 — Smoke-migration-gate + deploy-readiness sweep *(independente; destrava deploy)*
+### Task 7 — Smoke-migration-gate + deploy-readiness sweep *(independente; destrava deploy)* — ✅ FEITO (#94 MERGED)
 
 Vários increments estão marcados "DEPLOY-CLEARED" mas outros seguem **HELD pendente de
 smoke-migration-gate** (ex.: INCR-1 DB risk, INCR-2 audit). Task: rodar as migrations acumuladas
