@@ -18,6 +18,7 @@ const protectedApiPaths = [
   '/api/structured-data', // ← cobre /api/structured-data/:documentId
   '/api/crm',             // ← cobre /api/crm/pipeline/*
   '/api/accounting',      // ← cobre /api/accounting/post e /reverse
+  '/api/payables',        // ← cobre Contas a Pagar (INCR-AP): create/pay/cancel/reconcile
   '/api/sales',           // ← cobre /api/sales/cancel e /return (transições Incremento D)
   '/api/saved-views',     // ← saved table views (per-user)
 ];

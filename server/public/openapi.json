@@ -220,6 +220,378 @@
     }
   ],
   "paths": {
+    "0": {
+      "0": "b"
+    },
+    "1": {
+      "0": "l"
+    },
+    "2": {
+      "0": "o"
+    },
+    "3": {
+      "0": "c"
+    },
+    "4": {
+      "0": "k"
+    },
+    "5": {
+      "0": "s"
+    },
+    "6": {
+      "0": " "
+    },
+    "7": {
+      "0": "i"
+    },
+    "8": {
+      "0": "n"
+    },
+    "9": {
+      "0": " "
+    },
+    "10": {
+      "0": "d"
+    },
+    "11": {
+      "0": "o"
+    },
+    "12": {
+      "0": "c"
+    },
+    "13": {
+      "0": "s"
+    },
+    "14": {
+      "0": "."
+    },
+    "15": {
+      "0": "p"
+    },
+    "16": {
+      "0": "a"
+    },
+    "17": {
+      "0": "t"
+    },
+    "18": {
+      "0": "h"
+    },
+    "19": {
+      "0": "s"
+    },
+    "20": {
+      "0": "."
+    },
+    "21": {
+      "0": "t"
+    },
+    "22": {
+      "0": "s"
+    },
+    "23": {
+      "0": "."
+    },
+    "24": {
+      "0": " "
+    },
+    "25": {
+      "0": "`"
+    },
+    "26": {
+      "0": "/"
+    },
+    "27": {
+      "0": "r"
+    },
+    "28": {
+      "0": "e"
+    },
+    "29": {
+      "0": "c"
+    },
+    "30": {
+      "0": "o"
+    },
+    "31": {
+      "0": "n"
+    },
+    "32": {
+      "0": "c"
+    },
+    "33": {
+      "0": "i"
+    },
+    "34": {
+      "0": "l"
+    },
+    "35": {
+      "0": "e"
+    },
+    "36": {
+      "0": "`"
+    },
+    "37": {
+      "0": " "
+    },
+    "38": {
+      "0": "i"
+    },
+    "39": {
+      "0": "s"
+    },
+    "40": {
+      "0": " "
+    },
+    "41": {
+      "0": "d"
+    },
+    "42": {
+      "0": "e"
+    },
+    "43": {
+      "0": "c"
+    },
+    "44": {
+      "0": "l"
+    },
+    "45": {
+      "0": "a"
+    },
+    "46": {
+      "0": "r"
+    },
+    "47": {
+      "0": "e"
+    },
+    "48": {
+      "0": "d"
+    },
+    "49": {
+      "0": " "
+    },
+    "50": {
+      "0": "b"
+    },
+    "51": {
+      "0": "e"
+    },
+    "52": {
+      "0": "f"
+    },
+    "53": {
+      "0": "o"
+    },
+    "54": {
+      "0": "r"
+    },
+    "55": {
+      "0": "e"
+    },
+    "56": {
+      "0": " "
+    },
+    "57": {
+      "0": "t"
+    },
+    "58": {
+      "0": "h"
+    },
+    "59": {
+      "0": "e"
+    },
+    "60": {
+      "0": " "
+    },
+    "61": {
+      "0": "`"
+    },
+    "62": {
+      "0": "/"
+    },
+    "63": {
+      "0": ":"
+    },
+    "64": {
+      "0": "i"
+    },
+    "65": {
+      "0": "d"
+    },
+    "66": {
+      "0": "`"
+    },
+    "67": {
+      "0": " "
+    },
+    "68": {
+      "0": "r"
+    },
+    "69": {
+      "0": "o"
+    },
+    "70": {
+      "0": "u"
+    },
+    "71": {
+      "0": "t"
+    },
+    "72": {
+      "0": "e"
+    },
+    "73": {
+      "0": "s"
+    },
+    "74": {
+      "0": " "
+    },
+    "75": {
+      "0": "s"
+    },
+    "76": {
+      "0": "o"
+    },
+    "77": {
+      "0": " "
+    },
+    "78": {
+      "0": "t"
+    },
+    "79": {
+      "0": "h"
+    },
+    "80": {
+      "0": "e"
+    },
+    "81": {
+      "0": " "
+    },
+    "82": {
+      "0": "s"
+    },
+    "83": {
+      "0": "t"
+    },
+    "84": {
+      "0": "a"
+    },
+    "85": {
+      "0": "t"
+    },
+    "86": {
+      "0": "i"
+    },
+    "87": {
+      "0": "c"
+    },
+    "88": {
+      "0": " "
+    },
+    "89": {
+      "0": "s"
+    },
+    "90": {
+      "0": "e"
+    },
+    "91": {
+      "0": "g"
+    },
+    "92": {
+      "0": "m"
+    },
+    "93": {
+      "0": "e"
+    },
+    "94": {
+      "0": "n"
+    },
+    "95": {
+      "0": "t"
+    },
+    "96": {
+      "0": " "
+    },
+    "97": {
+      "0": "i"
+    },
+    "98": {
+      "0": "s"
+    },
+    "99": {
+      "0": " "
+    },
+    "100": {
+      "0": "n"
+    },
+    "101": {
+      "0": "e"
+    },
+    "102": {
+      "0": "v"
+    },
+    "103": {
+      "0": "e"
+    },
+    "104": {
+      "0": "r"
+    },
+    "105": {
+      "0": " "
+    },
+    "106": {
+      "0": "c"
+    },
+    "107": {
+      "0": "a"
+    },
+    "108": {
+      "0": "p"
+    },
+    "109": {
+      "0": "t"
+    },
+    "110": {
+      "0": "u"
+    },
+    "111": {
+      "0": "r"
+    },
+    "112": {
+      "0": "e"
+    },
+    "113": {
+      "0": "d"
+    },
+    "114": {
+      "0": " "
+    },
+    "115": {
+      "0": "a"
+    },
+    "116": {
+      "0": "s"
+    },
+    "117": {
+      "0": " "
+    },
+    "118": {
+      "0": "a"
+    },
+    "119": {
+      "0": "n"
+    },
+    "120": {
+      "0": " "
+    },
+    "121": {
+      "0": "i"
+    },
+    "122": {
+      "0": "d"
+    },
+    "123": {
+      "0": "."
+    },
     "/api/accounting/journal-entries/{entryId}/receipt": {
       "get": {
         "summary": "Comprovante de lançamento (PDF) for a single journal entry",
@@ -7172,6 +7544,336 @@
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/payables": {
+      "get": {
+        "summary": "List payables for the unit (Contas a Pagar, INCR-AP)",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OPEN",
+                "PAYING",
+                "PAID",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "paginated payables with their payments"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a payable and book its recognition entry",
+        "description": "Books the recognition (debit the chosen expense account, credit 2.1.2 Fornecedores a Pagar) dated the issueDate (competência). On a synchronous posting failure the row is compensated (soft-delete). The nota flows into the SourceDocument provenance seam.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePayableInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "the created payable"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        }
+      }
+    },
+    "/api/payables/reconcile": {
+      "post": {
+        "summary": "Re-drive missing recognitions/settlements (D4 safety net)",
+        "description": "Idempotent maintenance pass that re-posts any missing recognition or settlement entry and finalizes a payable stranded in PAYING after a crash between the ledger post and the finalize step.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "unitId"
+                ],
+                "properties": {
+                  "unitId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "counts of recognitions/settlements posted and payables finalized"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/payables/{id}": {
+      "get": {
+        "summary": "Read one payable with its payments",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the payable and its payments"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/payables/{id}/pay": {
+      "post": {
+        "summary": "Register the full payment and book the settlement",
+        "description": "Closes the double-payment race with an atomic OPEN to PAYING transition, then books the settlement (debit 2.1.2, credit the account for the method) dated the effective debit date, and moves the payable to PAID. MVP is a single full payment.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterPaymentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "the registered payment"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/payables/{id}/cancel": {
+      "post": {
+        "summary": "Cancel an open payable (reverse the recognition)",
+        "description": "Reverses the recognition entry on the reversalDate (its own period gate) and flips the payable to CANCELLED, freeing the business key. A paid payable must have its payment cancelled first.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelPayableInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the cancelled payable"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/payables/{id}/payments/{paymentId}/cancel": {
+      "post": {
+        "summary": "Cancel a payment (reverse the settlement and reopen the payable)",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "paymentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelPaymentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the cancelled payment"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
           }
         }
       }

@@ -21,7 +21,9 @@ const { options } = require('../../scripts/generate-openapi');
 // +1 (BE-INCR-SPED-ECF): POST /api/accounting/sped/ecf/generate.
 // +3 (report reports): GET /api/accounting/reports/{cash-flow,period-comparison,daily-journal}.
 // +1 (Recibos Fase B): GET /api/accounting/journal-entries/{entryId}/receipt.
-const BASELINE = 109;
+// +6 (INCR-AP Contas a Pagar): /api/payables (GET+POST), /reconcile, /{id}, /{id}/pay,
+//    /{id}/cancel, /{id}/payments/{paymentId}/cancel.
+const BASELINE = 115;
 
 describe('OpenAPI @openapi path coverage', () => {
   it('exposes at least BASELINE paths (guards the swagger-jsdoc `: ` drop bug)', () => {
