@@ -5,6 +5,13 @@ Entradas mais novas no topo.
 
 ---
 
+### 2026-07-14 · assumption-correction · Gate sintético via SQL cru não valida o formato que o Prisma grava
+- **Contexto:** Task 7 (smoke-migration-gate sobre dev.db real). O gate sintético `SMOKE-MIGRATION-GATE-001` (2026-06-27) tinha dado PASS em INCR-1/INCR-2 com dados inseridos via SQL; o replay com **dados reais** reprovou a migration `20260627150000_add_entry_numbering` (P3018).
+- **Aprendizado:** SQL manual grava datas TEXT; o Prisma grava `DateTime` como INTEGER ms-epoch no SQLite — `strftime('%Y', <integer>)` interpreta Julian Day → NULL → NOT NULL violation. O backfill também não é re-executável após falha (CREATE TABLE sem guard) e diverge do app em TZ (UTC × America/Sao_Paulo; cross-check 7/15 divergentes). INCR-1/INCR-2 aplicaram limpas — `RISK-INCR1-DB-001` e `SMOKE-MIGRATION-GATE-001` fecharam; nasceu `RISK-INCR3-MIGRATION-001` (latente, não bloqueia o deploy atual).
+- **Evidência:** `docs/accounting/SMOKE-MIGRATION-GATE-INCR1-INCR2-DEPLOY.md` (PR #94); `server/prisma/migrations/20260627150000_add_entry_numbering/migration.sql:64` (strftime sobre coluna DateTime).
+- **Como aplicar:** todo smoke-migration-gate roda em duas bases — sintética E cópia de banco populado **pelo aplicativo**; todo backfill SQL que derive valor de coluna DateTime do Prisma exige tratamento dual-format (`typeof(col)='integer'` → `datetime(col/1000.0,'unixepoch')`) + decisão explícita de fuso.
+- **Durável?** sim → [[sintetico-nao-cobre-formato-de-dado-real]]
+
 ### 2026-07-12 · gotcha · Worktree principal com generated/prisma stale reprova tsc do BASE, não da feature
 - **Contexto:** Integração serial Fase B dos 3 relatórios (DFC/comparativo/Livro Diário). Após `git merge --ff-only origin/main` na worktree principal (`C:/Users/smurf/Downloads/Luminaris`), `npx tsc --noEmit` acusou ~8 erros TS2305/TS2339 sobre `ReferentialAccount` — que NÃO vinham de nenhuma das branches de feature, mas do cliente Prisma gerado desatualizado (INCR-9B adicionou o model `ReferentialAccount` ao schema, mas `server/generated/prisma` na worktree principal foi gerado antes disso).
 - **Aprendizado:** um tsc vermelho logo após sincronizar `main` pode ser dívida do BASE (cliente Prisma stale), não da mudança que você acabou de integrar. Diferente do gotcha de worktree fresca (sem `node_modules`), aqui a worktree principal TEM node_modules, mas o `generated/prisma` ficou para trás de uma migração já mergeada.
