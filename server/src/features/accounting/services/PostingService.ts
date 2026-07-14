@@ -445,7 +445,9 @@ export class PostingService {
           await this.journalEntryRepo.setSourceId(
             scope,
             original.id,
-            reversedClosingSourceId(original.fiscalYear, original.id),
+            // original is guarded status==='Posted' above ⇒ always numbered (fiscalYear non-null,
+            // ADR-INCR-APPROVAL made the column nullable only for Draft/PendingApproval).
+            reversedClosingSourceId(original.fiscalYear!, original.id),
             tx,
           );
         }

@@ -33,6 +33,17 @@ export interface IPostingRepository {
     tx?: Prisma.TransactionClient,
   ): Promise<Posting[]>;
 
+  /**
+   * Deletes all legs of a given entry, scoped via AccountingScope. Used ONLY to replace a
+   * DRAFT entry's legs in `updateDraft` (ADR-INCR-APPROVAL) — Posted entries never delete legs
+   * (immutable, corrections via reversal). Hard delete: a draft leg has no ledger meaning yet.
+   */
+  deleteByEntryId(
+    scope: AccountingScope,
+    entryId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void>;
+
   /** Lists one account's legs scoped via AccountingScope, ordered by createdAt. */
   findByAccount(scope: AccountingScope, accountId: string): Promise<Posting[]>;
 

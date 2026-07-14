@@ -106,7 +106,9 @@ export class DailyJournalReportService {
       }
 
       return {
-        entryNumber: e.entryNumber,
+        // LEDGER_STATUSES (Posted/Reconciled/Reversed) are always numbered — a Draft/PendingApproval
+        // entry (nullable entryNumber, ADR-INCR-APPROVAL) can never reach this filtered read.
+        entryNumber: e.entryNumber ?? 0,
         date: e.date.toISOString().slice(0, 10),
         description: e.description,
         lines,

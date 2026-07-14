@@ -23,7 +23,9 @@ const { options } = require('../../scripts/generate-openapi');
 // +1 (Recibos Fase B): GET /api/accounting/journal-entries/{entryId}/receipt.
 // +6 (INCR-AP Contas a Pagar): /api/payables (GET+POST), /reconcile, /{id}, /{id}/pay,
 //    /{id}/cancel, /{id}/payments/{paymentId}/cancel.
-const BASELINE = 115;
+// +6 (ADR-INCR-APPROVAL maker-checker torre): /api/entry-approvals/pending (GET), /drafts (POST),
+//    /drafts/{id} (PUT), /drafts/{id}/submit, /{id}/approve, /{id}/reject.
+const BASELINE = 121;
 
 describe('OpenAPI @openapi path coverage', () => {
   it('exposes at least BASELINE paths (guards the swagger-jsdoc `: ` drop bug)', () => {

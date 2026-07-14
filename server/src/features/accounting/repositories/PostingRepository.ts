@@ -30,6 +30,16 @@ export class PostingRepository implements IPostingRepository {
     });
   }
 
+  public async deleteByEntryId(
+    scope: AccountingScope,
+    entryId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    await (tx ?? prisma).posting.deleteMany({
+      where: { entryId, ...accountingScopeWhere(scope) },
+    });
+  }
+
   public async findByAccount(scope: AccountingScope, accountId: string): Promise<Posting[]> {
     return prisma.posting.findMany({
       where: { ...accountingScopeWhere(scope), accountId },

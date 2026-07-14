@@ -55,6 +55,7 @@ import { KnowledgeGraphService } from '../features/chat/services/KnowledgeGraphS
 import { CrmPipelineService } from '../features/crm/services/CrmPipelineService';
 import { CrmAnalyticsService } from '../features/crm/services/CrmAnalyticsService';
 import { PostingService } from '../features/accounting/services/PostingService';
+import { EntryApprovalService } from '../features/accounting/services/EntryApprovalService';
 import { PeriodService } from '../features/accounting/services/PeriodService';
 import { AuditService } from '../features/accounting/services/AuditService';
 import { AccountingReportService } from '../features/accounting/services/AccountingReportService';
@@ -190,6 +191,7 @@ export class ApplicationFactory {
     salesCancellation: SalesCancellationService;
     registerPayment: RegisterPaymentService;
     posting: PostingService;
+    entryApproval: EntryApprovalService;
     period: PeriodService;
     accountingSync: AccountingSyncService;
     accountingReport: AccountingReportService;
@@ -331,6 +333,17 @@ export class ApplicationFactory {
       this.repositories.sourceProvenance,
     );
 
+    // Maker-checker approval tower (ADR-INCR-APPROVAL) — the controlled Draft→PendingApproval→Posted
+    // path for manual entries. Owns its own tx (CAS on version); does NOT wrap postEntry.
+    const entryApprovalService = new EntryApprovalService(
+      this.repositories.journalEntry,
+      this.repositories.posting,
+      this.repositories.account,
+      this.repositories.accountingPeriod,
+      auditService,
+      this.policies.accounting,
+    );
+
     const periodService = new PeriodService(
       this.repositories.accountingPeriod,
       this.policies.accounting,
@@ -412,6 +425,7 @@ export class ApplicationFactory {
       salesCancellation: salesCancellationService,
       registerPayment: registerPaymentService,
       posting: postingService,
+      entryApproval: entryApprovalService,
       period: periodService,
       accountingSync: accountingSyncService,
       accountingReport: accountingReportService,
@@ -522,6 +536,7 @@ export class ApplicationFactory {
   public getSalesCancellationService = (): SalesCancellationService => this.services.salesCancellation;
   public getRegisterPaymentService = (): RegisterPaymentService => this.services.registerPayment;
   public getPostingService = (): PostingService => this.services.posting;
+  public getEntryApprovalService = (): EntryApprovalService => this.services.entryApproval;
   public getPeriodService = (): PeriodService => this.services.period;
   public getAccountingSyncService = (): AccountingSyncService => this.services.accountingSync;
   public getAccountingReportService = (): AccountingReportService => this.services.accountingReport;

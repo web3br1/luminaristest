@@ -475,7 +475,7 @@ model JournalEntry {
   unitId       String // business unit (scoped string, not a FK)
   date         DateTime
   description  String
-  status       String               @default("Draft") // Draft | Posted | Reconciled | Reversed
+  status       String               @default("Draft") // Draft | PendingApproval | Posted | Reconciled | Reversed
   sourceType   String               @default("manual")
   sourceId     String?
   reversedById String?              @unique // the reversal entry that estorned this one
@@ -484,10 +484,14 @@ model JournalEntry {
   postings     Posting[]
   attachments  DocumentAttachment[] @relation("JournalEntryAttachments")
   sources      JournalEntrySource[] @relation("JournalEntrySources")
-  createdById  String? // actor who created this entry (authorship trail)
+  createdById  String? // actor who created this entry (authorship trail / maker)
+  submittedById String? // actor who submitted for approval (ADR-INCR-APPROVAL, maker trail)
+  approvedById String? // actor who approved (ADR-INCR-APPROVAL, checker trail — SoD: != createdById)
   postedById   String? // actor who posted/confirmed this entry (SoD trail)
-  fiscalYear   Int // derived from date (postingDate) in America/Sao_Paulo; assigned at post time
-  entryNumber  Int // sequential within (userId, unitId, fiscalYear); assigned at post time
+  version      Int                  @default(1) // optimistic-lock counter for the approval CAS (ACC-023)
+  contentHash  String? // frozen economic-content hash at submit (ACC-017/022); null while Draft
+  fiscalYear   Int? // born at POST/approve, inside the tx (ACC-015) — null while Draft/PendingApproval
+  entryNumber  Int? // sequential within (userId, unitId, fiscalYear); born at POST/approve — null while Draft/PendingApproval
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
 
