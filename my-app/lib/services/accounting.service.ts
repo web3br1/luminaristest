@@ -358,6 +358,82 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
+// ── Cash flow / DFC (indirect) — money is STRING cents (ADR-INCR4, like BP/DRE) ──
+export interface CashFlowLine {
+  accountId: string;
+  code: string;
+  name: string;
+  nature: string;
+  amountCents: string; // signed; positive = cash source
+}
+export interface CashFlowSection {
+  accounts: CashFlowLine[];
+  totalCents: string;
+}
+export interface CashFlowOperatingSection {
+  accounts: CashFlowLine[];
+  netResultCents: string; // DRE result (starting point)
+  adjustmentsCents: string; // totalCents − netResultCents
+  totalCents: string;
+}
+export interface CashFlowStatementReport {
+  unitId: string;
+  method: 'indirect';
+  periodSemantics: 'year_to_date';
+  fromDate: string; // YYYY-MM-DD (Jan 1)
+  toDate: string; // YYYY-MM-DD (= asOf)
+  mappingVersion: string;
+  operating: CashFlowOperatingSection;
+  investing: CashFlowSection;
+  financing: CashFlowSection;
+  openingCashCents: string;
+  closingCashCents: string;
+  reconciliation: {
+    sectionsTotalCents: string;
+    computedClosingCents: string;
+    reconciles: boolean;
+  };
+  reportStatus: 'OK' | 'WARNING' | 'INVALID';
+  warnings: string[];
+}
+
+// ── Period comparison / balancete comparativo — money is NUMBER cents ──
+export interface PeriodComparisonRow {
+  code: string;
+  name: string;
+  current: number; // as-of-current balance, cents (0 if none)
+  previous: number; // as-of-previous balance, cents
+  deltaAbs: number; // current − previous, cents
+  deltaPct: number | null; // null when previous === 0 (never Inf/NaN)
+}
+export interface PeriodComparisonReport {
+  unitId: string;
+  asOfCurrent: string;
+  asOfPrevious: string;
+  rows: PeriodComparisonRow[];
+}
+
+// ── Daily journal / Livro Diário — money is NUMBER cents ──
+export interface DailyJournalLine {
+  accountCode: string;
+  accountName: string;
+  debitCents: number;
+  creditCents: number;
+}
+export interface DailyJournalEntry {
+  entryNumber: number;
+  date: string; // YYYY-MM-DD
+  description: string;
+  lines: DailyJournalLine[];
+  balanced: boolean; // Σdebit === Σcredit
+}
+export interface DailyJournalReport {
+  unitId: string;
+  from: string;
+  to: string;
+  entries: DailyJournalEntry[]; // chronological (date ASC, entryNumber ASC)
+}
+
 // Multipart import bypasses apiClient (which forces application/json) — same
 // direct-fetch pattern as dataExchange.service.importFile.
 function reconBaseUrl(): string {
@@ -527,6 +603,31 @@ export const accountingService = {
   async getIncomeStatement(unitId: string, asOf: string): Promise<IncomeStatementReport> {
     const qs = buildQuery({ unitId, asOf });
     const res = await apiClient.get<ApiEnvelope<IncomeStatementReport>>(`/accounting/income-statement${qs}`);
+    return res.data;
+  },
+
+  /** Cash flow statement (DFC, indirect method) year-to-date as of a given date. */
+  async getCashFlow(unitId: string, asOf: string): Promise<CashFlowStatementReport> {
+    const qs = buildQuery({ unitId, asOf });
+    const res = await apiClient.get<ApiEnvelope<CashFlowStatementReport>>(`/accounting/reports/cash-flow${qs}`);
+    return res.data;
+  },
+
+  /** Comparative trial balance (balancete comparativo) between two as-of dates. */
+  async getPeriodComparison(
+    unitId: string,
+    asOfCurrent: string,
+    asOfPrevious: string,
+  ): Promise<PeriodComparisonReport> {
+    const qs = buildQuery({ unitId, asOfCurrent, asOfPrevious });
+    const res = await apiClient.get<ApiEnvelope<PeriodComparisonReport>>(`/accounting/reports/period-comparison${qs}`);
+    return res.data;
+  },
+
+  /** Daily journal (Livro Diário) — chronological entries within a date range. */
+  async getDailyJournal(unitId: string, from: string, to: string): Promise<DailyJournalReport> {
+    const qs = buildQuery({ unitId, from, to });
+    const res = await apiClient.get<ApiEnvelope<DailyJournalReport>>(`/accounting/reports/daily-journal${qs}`);
     return res.data;
   },
 

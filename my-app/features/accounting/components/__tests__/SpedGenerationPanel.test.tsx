@@ -1,6 +1,16 @@
-import { describe, it, expect } from 'vitest';
-import { validateEcdSigners, validateEcfSigners } from '../SpedGenerationPanel';
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
+import { SpedGenerationPanel, validateEcdSigners, validateEcfSigners } from '../SpedGenerationPanel';
 import type { EcdSigner, EcfSigner } from '../../../../lib/services/sped.service';
+
+// Stub the download service so mounting the panel never touches the network.
+vi.mock('../../../../lib/services/sped.service', () => ({
+  spedService: {
+    generateAndDownloadEcd: vi.fn(),
+    generateAndDownloadEcf: vi.fn(),
+  },
+}));
 
 const ecd = (o: Partial<EcdSigner> = {}): EcdSigner => ({
   identNom: 'Fulano',
@@ -78,5 +88,25 @@ describe('validateEcfSigners (0930)', () => {
   it('rejects contador with CNPJ (not 11-digit CPF)', () => {
     const signers = [ecf({ identQualif: '900', identCpfCnpj: '12345678000199', indCrc: 'SP-1' }), ecf({ identQualif: '205' })];
     expect(validateEcfSigners(signers)).toBe('ecfContadorCrc');
+  });
+});
+
+// ── Render smoke: both generation forms mount with their submit buttons ───────
+describe('SpedGenerationPanel (render)', () => {
+  beforeEach(cleanup);
+
+  it('renders the ECD and ECF sections with their submit buttons', () => {
+    render(<SpedGenerationPanel unitId="u1" />);
+    expect(screen.getByRole('heading', { name: /Gerar SPED ECD/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Gerar SPED ECF/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Gerar e baixar ECD/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Gerar e baixar ECF/ })).toBeInTheDocument();
+  });
+
+  it('starts each signer editor with exactly one signer row', () => {
+    render(<SpedGenerationPanel unitId="u1" />);
+    // Both editors seed one row each → two "Adicionar" buttons, two "Remover" controls.
+    expect(screen.getAllByRole('button', { name: /Adicionar/ })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /Remover/ })).toHaveLength(2);
   });
 });

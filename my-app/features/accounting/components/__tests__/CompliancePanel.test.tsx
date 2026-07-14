@@ -1,6 +1,19 @@
-import { describe, it, expect } from 'vitest';
-import { buildBatchItems, type MappingDraft } from '../CompliancePanel';
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
+import { CompliancePanel, buildBatchItems, type MappingDraft } from '../CompliancePanel';
 import type { UnmappedReferentialAccount } from '../../../../lib/services/referential.service';
+
+// Stub the referential service so mounting the panel never touches the network.
+// The panel fetches coverage only on an explicit "Carregar cobertura" click, so a
+// bare mount stays inert — these stubs just keep the import graph offline.
+vi.mock('../../../../lib/services/referential.service', () => ({
+  referentialService: {
+    getCoverage: vi.fn(),
+    batchSet: vi.fn(),
+    copyVersion: vi.fn(),
+  },
+}));
 
 const acc = (accountId: string, name: string): UnmappedReferentialAccount => ({
   accountId,
@@ -37,5 +50,23 @@ describe('buildBatchItems (A1a referential authoring)', () => {
 
   it('is empty when nothing was filled', () => {
     expect(buildBatchItems({}, accounts)).toEqual([]);
+  });
+});
+
+// ── Render smoke: version picker mounts, coverage table stays hidden pre-load ──
+describe('CompliancePanel (render)', () => {
+  beforeEach(cleanup);
+
+  it('renders the mapping section header and the load control', () => {
+    render(<CompliancePanel unitId="u1" />);
+    expect(screen.getByRole('heading', { name: /Mapeamento Referencial \(RFB\)/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Carregar cobertura/ })).toBeInTheDocument();
+  });
+
+  it('does not render the coverage table or copy-version section before a load', () => {
+    render(<CompliancePanel unitId="u1" />);
+    // "Copiar versão" only appears once a coverage version is loaded.
+    expect(screen.queryByRole('heading', { name: /Copiar versão/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Salvar mapeamentos/ })).not.toBeInTheDocument();
   });
 });

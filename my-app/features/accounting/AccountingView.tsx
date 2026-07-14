@@ -13,10 +13,13 @@ import { ImportExportPanel } from './components/ImportExportPanel';
 import { ReconciliationPanel } from './components/ReconciliationPanel';
 import { CompliancePanel } from './components/CompliancePanel';
 import { SpedGenerationPanel } from './components/SpedGenerationPanel';
+import { DFCPanel } from './components/DFCPanel';
+import { PeriodComparisonPanel } from './components/PeriodComparisonPanel';
+import { DailyJournalPanel } from './components/DailyJournalPanel';
 import { JournalEntryModal, type AccountOption } from './components/JournalEntryModal';
 import { accountingService } from '../../lib/services/accounting.service';
 
-type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'importacao-exportacao' | 'conciliacao' | 'compliance';
+type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'dfc' | 'comparativo' | 'diario' | 'importacao-exportacao' | 'conciliacao' | 'compliance';
 
 // label = i18n fallback (current pt-BR); rendered via t(`view.tabs.<id>`, label)
 const TABS: Array<{ id: Tab; labelKey: string; label: string }> = [
@@ -27,6 +30,9 @@ const TABS: Array<{ id: Tab; labelKey: string; label: string }> = [
   { id: 'plano-de-contas',labelKey: 'view.tabs.planoDeContas',  label: 'Plano de Contas' },
   { id: 'bp',             labelKey: 'view.tabs.bp',             label: 'BP' },
   { id: 'dre',            labelKey: 'view.tabs.dre',            label: 'DRE' },
+  { id: 'dfc',            labelKey: 'view.tabs.dfc',            label: 'DFC' },
+  { id: 'comparativo',    labelKey: 'view.tabs.comparativo',    label: 'Comparativo' },
+  { id: 'diario',         labelKey: 'view.tabs.diario',         label: 'Livro Diário' },
   { id: 'importacao-exportacao', labelKey: 'view.tabs.importacaoExportacao', label: 'Importação/Exportação' },
   { id: 'conciliacao',    labelKey: 'view.tabs.conciliacao',    label: 'Conciliação' },
   { id: 'compliance',     labelKey: 'view.tabs.compliance',     label: 'Compliance' },
@@ -190,6 +196,21 @@ export function AccountingView() {
       {/* ── DRE tab ────────────────────────────────────────────────────────── */}
       {activeTab === 'dre' && unitId && (
         <IncomeStatementPanel unitId={unitId} />
+      )}
+
+      {/* ── DFC (fluxo de caixa) tab ───────────────────────────────────────── */}
+      {activeTab === 'dfc' && unitId && (
+        <DFCPanel unitId={unitId} />
+      )}
+
+      {/* ── Balancete comparativo tab ──────────────────────────────────────── */}
+      {activeTab === 'comparativo' && unitId && (
+        <PeriodComparisonPanel unitId={unitId} />
+      )}
+
+      {/* ── Livro Diário tab ───────────────────────────────────────────────── */}
+      {activeTab === 'diario' && unitId && (
+        <DailyJournalPanel unitId={unitId} />
       )}
 
       {/* ── Importação/Exportação tab ──────────────────────────────────────── */}
