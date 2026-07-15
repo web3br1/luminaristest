@@ -8,11 +8,9 @@
 > **Regra de uso (arquiteto/orquestrador):** nenhuma skill de geração roteia contra um nó marcado
 > 🔴/⚫ sem **ADR em disco + sinal humano**. Nós ✅ estão fechados; nós ⏳ são o incremento corrente.
 >
-> Última reconciliação: **2026-07-14** · HEAD de referência: `bdd78c0` (tudo do fold anterior — conciliação,
-> OFX/CNAB, proveniência, referencial, ECD, Apuração, Split, ECF Fase 2 — MAIS: **Recibos PDF (PR #84)**,
-> **A1a FE referencial/aba Compliance (PR #89)**, **fix replay-safe da migração de numeração (PR #98)** +
-> **smoke-gate DEPLOY-CLEARED (PR #99)**, **INCR-AP Contas a Pagar (PRs #101/#102 + hardening #103/#105 +
-> ADR #104)** e **FE-INCR-AP aba Contas a Pagar (PR #106 `bdd78c0`)** — TODOS mergeados em `main`).
+> Última reconciliação: **2026-07-15** · HEAD de referência: `87ab95b` (tudo do fold anterior MAIS:
+> **INCR-AP Contas a Pagar + FE (#102/#106)**, **Torre de aprovação (#108)** + Emenda F3 SoD-off (#109),
+> **Contas a Receber INCR-AR (#111)** — o par do subledger AP+AR fechado — TODOS mergeados em `main`).
 > Próximos planos priorizados: **§5.1**.
 
 ---
@@ -69,6 +67,7 @@ flowchart TD
     ECF["✅ SPED ECF (Presumido)<br/>Fase 2 · PR #78 mergeada"]:::done
     CNAB["✅ CNAB 240<br/>3º parser extrato · PR #61 mergeada"]:::done
     APAY["✅ Contas a Pagar INCR-AP<br/>Payable+PayablePayment · postEntry direto"]:::done
+    ARECV["✅ Contas a Receber INCR-AR<br/>Receivable+ReceivableReceipt · conta dedicada 1.1.5"]:::done
     RECI["✅ Recibos PDF<br/>comprovante de lançamento · PR #84"]:::done
 
     A --> B --> D
@@ -96,6 +95,8 @@ flowchart TD
     T --> CNAB
     APAY --> D
     SD --> APAY
+    ARECV --> D
+    SD --> ARECV
     D --> RECI
 ```
 
@@ -164,7 +165,7 @@ Ordenados por proximidade da fundação. **Nenhum** é "o próximo passo" antes 
 | **Torre de aprovação** (maker-checker, SoD, `submittedById`/`approvedById`/`version`/`contentHash`) | ✅ **Mergeado em `main`** (`docs/adr/ADR-INCR-APPROVAL-maker-checker.md`, PR #108 `1f4ff78`, 2026-07-14) + **Emenda F3 re-ratificada fork-a-fork** (§9 do ADR) | **ADR-INCR-APPROVAL**. Extensão do `JournalEntry` (migração aditiva: `submittedById`/`approvedById`/`version`/`contentHash` + `fiscalYear`/`entryNumber` **nullable** — nascem no approve, ACC-015). Ciclo por comandos `EntryApprovalService` (`createDraft`/`updateDraft`/`submit`/`approve`/`reject`, ACC-016) — **não** substitui `postEntry` direto (integrações intocadas). Estado = valor `PendingApproval` na string (fora de `LEDGER_STATUSES` ⇒ BP/DRE/SPED neutros). **SoD dinâmica DESLIGADA single-user** (Emenda F3, 2026-07-14): `policy.enforcesSegregationOfDuties = ownerUserId≠actorUserId` (hoje `false` ⇒ o único operador aprova o próprio rascunho = staging usável; endurece sozinho via membership futuro) + **CAS in-tx** sobre `(status, version, contentHash)` (ACC-023) + `contentHash` cobre partidas+data+descrição (ACC-022, fecha o risco #1). 5 eventos novos na allowlist do audit (T8). Forks F1/F2/F4/F5/F6 = defaults; F3 re-ratificado (§5/§9 do ADR). Gates: tsc limpo, **595/595 accounting jest** (após a emenda), openapi 121 paths. FORA: RBAC/alçada (⚫), FE (`FE-INCR-APPROVAL`). Residual: smoke-migration-gate + browser sign-off. |
 | **Dimensões** (centro de custo/projeto — DimensionDefinition/Value/PostingDimension) | ⚫ Diferido | Sem precedente; YAGNI até demanda real. |
 | **Contas a Pagar — AP operacional** (subrazão de despesa: `Payable`+`PayablePayment` first-class + pagamento + ledger) | ✅ **Mergeado em `main`** (Fase 0 PR #101 `88e411e`; Fases A+B PR #102 `4a6eddb`, 2026-07-14; hardening PR #103 reconcile-re-emit + PR #105 `b245825` CAS atômico exactly-once; ADR corrigido PR #104; `docs/adr/ADR-INCR-AP-accounts-payable.md`) — **2 reviews independentes PASS** (wiring FAIL→fix→PASS: tag jsdoc-openapi em prosa poluía o `openapi.json`); 1010/1010 testes + tsc×2 limpos; **smoke-migration-gate PASS** (`SMOKE-MIGRATION-GATE-INCR-AP.md`, cópia do dev.db real). **FE mergeado** (aba Contas a Pagar, PR #106 `bdd78c0`, 2026-07-14). Residual: sign-off humano no browser (item 4 da fila §5.1). | **ADR-INCR-AP**. First-class Prisma (2 tabelas aditivas; `@@unique([userId,unitId,supplierName,documentNumber])` com rename-on-delete `deleted:<id>`); fato gerador DUPLO por competência: `ap.payable` (D 4.x / C **`2.1.2 Fornecedores a Pagar`** — folha nova no fixture, zero migração) + `ap.payment` (D 2.1.2 / C conta-por-método), idempotência por **identidade de evento** (`sourceId=paymentId`, nunca key-freeing); gate in-tx (T6) + 4 eventos novos na allowlist do audit (T8) + SourceDocument INCR-8 (1º consumidor orgânico); ciclo por comandos (ACC-016), cancel = estorno (T5). **F0 ratificado → rota (a): `PayableService` chama `PostingService.postEntry` direto** (sem port/mapper/bridge; golden ref `ExerciseClosingService`). F1→(c) supplierRef DynamicTable; F2→(b) `PayablePayment` full-only; F3→(a) sem recorrência; F4→(b) anexo via SourceDocument; F5→NÃO semear 4.x; F6→(a) cancel=estorno auto. FORA: fornecedor first-class, recorrência, aprovação, estoque, FE (→ `FE-INCR-AP`). Antes de deploy: smoke-migration-gate sobre base populada. |
-| **Subrazões restantes** (AR formal, estoque, imobilizado, **folha**, **fiscal/tributos**) | ⚫ Diferido | Cada um é módulo ERP first-class próprio (AP saiu desta linha → nó ✅ acima; **AR tem ADR ratificado** — [ADR-INCR-AR](../adr/ADR-INCR-AR-accounts-receivable.md), 2026-07-14, impl. não iniciada; espelho direto do padrão AP, item 8 da fila §5.1). Folha/fiscal = domínios pesados isolados. |
+| **Subrazões restantes** (estoque, imobilizado, **folha**, **fiscal/tributos**) | ⚫ Diferido | Cada um é módulo ERP first-class próprio (AP → nó ✅; **AR → ✅ mergeado** INCR-AR PR #111, [ADR-INCR-AR](../adr/ADR-INCR-AR-accounts-receivable.md); o par do subledger está fechado). Estoque/imobilizado/folha/fiscal = domínios pesados isolados, cada um seu ADR. |
 | **Integração inbox/outbox/DLQ** | ⚫ Diferido | Só faz sentido quando sair de single-process (T11). Bridges cobrem a escala atual. |
 | **IA/analytics** (sugestão de conta/conciliação, anomalias) | ⚫ Diferido | Sobre um ledger já confiável; IA sugere, humano contabiliza. |
 | **LGPD/RBAC granular** | ⚫ Parcial | Autorização no servidor já vale; mascaramento/retenção/papéis finos = incremento próprio. |
@@ -194,7 +195,7 @@ Ordenados por proximidade da fundação. **Nenhum** é "o próximo passo" antes 
 | # | Item | Por quê nesta posição |
 |---|---|---|
 | 7 | ~~**Torre de aprovação** (maker-checker, SoD)~~ | ✅ **Mergeada 2026-07-14** (ADR-INCR-APPROVAL, PR #108; `EntryApprovalService`, extensão do `JournalEntry`) + **Emenda F3 re-ratificada fork-a-fork** (SoD **desligada single-user** → staging usável; `enforcesSegregationOfDuties = owner≠actor`, endurece via membership). Fecha o gap de aprovação do Núcleo 2. ACC-016/017 (enforcement condicional) + novos ACC-022/023. Resíduo = smoke-migration-gate + browser sign-off + FE (`FE-INCR-APPROVAL`). **AR (item 8) é agora o próximo código.** |
-| 8 | **AR formal** (Contas a Receber como subrazão first-class) — **ADR RATIFICADO 2026-07-14** ([ADR-INCR-AR](../adr/ADR-INCR-AR-accounts-receivable.md)), impl. não iniciada | Espelho direto do AP — máximo reuso do padrão canônico (2-tx CAS-before-post + postEntry direto + dual fato gerador + reconcile re-drive). Ratificado fork-a-fork: **F7→(a) conta de controle dedicada `1.1.5 Clientes a Receber`** (decisão nova — o salão já usa `1.1.2`; dedicada dá tie-out subledger↔razão); F0→(a) postEntry direto; F1→(c) cliente DynamicTable ref; F2→(b) `ReceivableReceipt` full-only; F4→(b) anexo via SourceDocument; F6→(a) cancel=estorno. Fronteira: AR-formal = faturas avulsas (não vendas do salão, já contabilizadas pelo bridge). **Próxima frente de CÓDIGO** (Task de impl, golden ref literal = módulo AP). |
+| 8 | ~~**AR formal** (Contas a Receber como subrazão first-class)~~ | ✅ **Mergeado 2026-07-15** (INCR-AR, PR #111 `87ab95b`; `ReceivableService` + `Receivable`/`ReceivableReceipt`; review independente PASS A–H; 633/633 jest; **smoke-migration-gate DEPLOY-CLEARED**). Espelho invertido do AP. **F7→(a) conta de controle dedicada `1.1.5 Clientes a Receber`** (o salão usa `1.1.2`; dedicada dá tie-out subledger↔razão); F0→(a) postEntry direto; F1→(c) cliente DynamicTable ref; F2→(b) `ReceivableReceipt` full-only; F4→(b) anexo via SourceDocument; F6→(a) cancel=estorno. Fronteira: AR-formal = faturas avulsas (não vendas do salão). Resíduo = browser sign-off + FE (`FE-INCR-AR`). **Próxima frente de código = item 9 (Dimensões) ou frente diferida via ADR.** |
 | 9 | **Dimensões** (centro de custo/projeto) | Habilita a "análise por dimensão" que falta no Núcleo 4 (~70%); YAGNI até demanda real — o próprio mapa o segura. |
 | 10 | **ECF Fase 3** | Só faz sentido após o sign-off PVA da Fase 2 (item 3) provar a base. |
 | 11 | **NF-e** (ingestão fiscal) | Domínio fiscal pesado, ADR próprio campo-a-campo; alto esforço, valor condicionado a operação real emitindo NF. |
@@ -208,9 +209,9 @@ Ordenados por proximidade da fundação. **Nenhum** é "o próximo passo" antes 
 smoke-gate DEPLOY-CLEARED PR #99 — ver T12). Nenhum risco de migração aberto; o reflexo permanece:
 toda migração que tocar `journal_entries` re-roda o smoke-migration-gate sobre cópia do dev.db real.
 
-**Leitura em 2 linhas:** Bloco A sem código pendente; item 7 (aprovação) fechado (#108 + Emenda F3). **Item 8
-(AR formal) tem ADR RATIFICADO** (2026-07-14, F7=conta dedicada `1.1.5` + espelho AP) → o próximo trabalho é a
-**Task de implementação do AR** (cadeia Prisma por fatia, golden ref literal = módulo AP), não mais decisão de design.
+**Leitura em 2 linhas:** itens 7 (aprovação, #108) e **8 (AR formal, #111) fechados** — o par do subledger
+(AP+AR) está completo. Próxima frente = **item 9 (Dimensões)** ou outra diferida do Bloco B, cada uma ⚫ via
+ADR + ratificação; ou fechar os gates humanos pendentes (PVA, browser sign-offs). Bloco A permanece sem código.
 
 ---
 
@@ -237,7 +238,7 @@ Antes de gerar "novo", reuse (Contrato §0). Confirmado por código:
 | Núcleo | Estado | % | Falta |
 |---|---|---|---|
 | **1 — Ledger confiável** | ✅ | ~95% | (nada estrutural; "permissões/aprovação" que o grafo mistura aqui são torre nova, não gap) |
-| **2 — Operação real** | 🟡 | ~70% | ~~subrazão AP~~ (✅ INCR-AP, PR #102 + hardening #103/#105; FE PR #106); ~~aprovação~~ (✅ torre maker-checker/SoD, ADR-INCR-APPROVAL PR #108 — `EntryApprovalService`; Emenda F3: SoD desligada single-user = staging usável; item 7 da fila §5.1); falta AR (item 8), dimensões, busca/filtros ricos |
+| **2 — Operação real** | 🟡 | ~75% | ~~subrazão AP~~ (✅ INCR-AP, PR #102 + FE #106); ~~aprovação~~ (✅ torre maker-checker/SoD, PR #108 + Emenda F3 SoD-off single-user); ~~subrazão AR~~ (✅ INCR-AR, PR #111 `87ab95b` — `ReceivableService`, conta dedicada `1.1.5`; par do subledger fechado); falta dimensões (item 9), busca/filtros ricos |
 | **3 — Integração** | 🟡 | ~40% | ~~SourceDocument formal~~ (✅ BE-INCR-8, mergeado PR #43); inbox, outbox (só se sair de single-process) |
 | **4 — Gestão** | 🟡 | ~70% | ~~fluxo de caixa~~ (✅ DFC método indireto, `report-dfc-cashflow`); ~~variação mensal~~ (✅ balancete comparativo, `report-period-comparison`); ~~Livro Diário~~ (✅ registro cronológico read-only, `report-daily-journal`); falta análise por dimensão |
 | **5 — Compliance** | 🟡 | ~70% | ~~mapeamento referencial~~ (✅ BE-INCR-9, PR #58; ~~autoria em lote Track A~~ PR #71; ~~catálogo RFB + validação analytic-only Track B~~ PR #74, smoke-gate PR #75 — Fork 2/import do arquivo oficial = dado externo); ~~geração do arquivo ECD~~ (✅ BE-INCR-SPED-ECD, PR #62, merge `9deb928`); ~~apuração/encerramento (I350/I355)~~ (✅ BE-INCR-SPED-APURACAO, PR #63, merge `1465bae`; residual PVA); ~~split de receita por natureza (pré-req ECF-Presumido)~~ (✅ BE-INCR-REVENUE-SPLIT, PR #66); ~~ECF (arquivo fiscal) Fase 2~~ (✅ BE-INCR-SPED-ECF, PR #78, merge `70caa1c`; residual PVA); ~~CNAB 240~~ (✅ BE-INCR7-CNAB, PR #61, merge `1088e32`); ~~recibos/comprovantes~~ (✅ BE-RECIBOS Fase A+B, PR #84; comprovante de lançamento PDF via puppeteer, no-persist; ADR-RECIBOS-pdf-generation); ~~FE do referencial~~ (✅ A1a aba Compliance, PR #89 `b88f628`); falta ECF Fase 3 (pós sign-off PVA), pacotes; **gate humano dominante: sign-off PVA dos 3 SPEDs** (item 3 da fila §5.1) |
