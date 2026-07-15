@@ -44,6 +44,10 @@ const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   'payable.cancelled':          ['payableId', 'reversalEntryId', 'reason'],
   'payable.payment_registered': ['payableId', 'paymentId', 'amountCents', 'method', 'entryId'],
   'payable.payment_cancelled':  ['payableId', 'paymentId', 'reversalEntryId', 'reason'],
+  'receivable.created':            ['receivableId', 'customerRef', 'amountCents', 'dueDate', 'revenueAccountCode'],
+  'receivable.cancelled':          ['receivableId', 'reversalEntryId', 'reason'],
+  'receivable.receipt_registered': ['receivableId', 'receiptId', 'amountCents', 'method', 'entryId'],
+  'receivable.receipt_cancelled':  ['receivableId', 'receiptId', 'reversalEntryId', 'reason'],
   // ADR-INCR-APPROVAL — maker-checker torre. Ids/hashes/counts only; money-as-string; no PII.
   // The SoD pair is provable: actorUserId (the trail column) is the actor of each command,
   // and `entry.approved` carries `createdById` so creator≠approver is auditable.

@@ -40,6 +40,7 @@ model User {
   customerPackageBalances CustomerPackageBalance[] // Relation to CustomerPackageBalance (prepaid packages)
   packageBalanceMovements PackageBalanceMovement[] // Relation to PackageBalanceMovement (prepaid packages)
   payables                Payable[] // Relation to Payable (accounts payable / contas a pagar, INCR-AP)
+  receivables             Receivable[] // Relation to Receivable (accounts receivable / contas a receber, INCR-AR)
 }
 
 // Per-user saved table views (query/filters/sort) for the canonical table stack.
@@ -402,6 +403,7 @@ model Account {
   bankStatements      BankStatement[]      @relation("AccountBankStatements")
   referentialMappings ReferentialMapping[] // conta-folha → conta referencial RFB, versionado (INCR-9)
   payablesExpense     Payable[]            @relation("PayableExpenseAccount") // conta-despesa (4.x) da contrapartida do reconhecimento AP (INCR-AP)
+  receivablesRevenue  Receivable[]         @relation("ReceivableRevenueAccount") // conta-receita (3.x) da contrapartida do reconhecimento AR (INCR-AR)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   deletedAt           DateTime?
@@ -884,4 +886,70 @@ model PayablePayment {
 
   @@index([userId, unitId, payableId])
   @@map("payable_payments")
+}
+
+// Contas a Receber (INCR-AR / ADR-INCR-AR). MIRROR of Payable — the receivable subledger for
+// MANUALLY-entered customer invoices (avulsas). NOT for salon sales: the salon bridge already
+// books those to 1.1.2 A Receber (SalonSaleFinalizedMapper); a Receivable is a separate, distinct
+// record. Control account = the DEDICATED 1.1.5 Clientes a Receber (F7) so Σ open receivables
+// ties out to saldo(1.1.5) — a shared 1.1.2 would mix salon + avulsas and break the tie-out.
+// status: OPEN → RECEIVING → RECEIVED | CANCELLED (RECEIVING is the transient DB race-gate of the
+// double-receipt guard, D4; CANCELLED terminal). Business key dedupes the human record only; the
+// accounting idempotency lives in JournalEntry.@@unique([userId,unitId,sourceType,sourceId]).
+model Receivable {
+  id               String              @id @default(cuid())
+  userId           String // scope owner (AccountingScope.ownerUserId); FK User — audit trail is the AuditEvent (exception to cascade), the receivable row itself cascades
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId           String // business unit (scoped string, not a FK)
+  customerName     String // snapshot of the customer display name (F1) — never resolved from customerRef at read time
+  customerRef      String? // scoped ref to a DynamicTable customer row (F1 rota (c); precedent CustomerPackageBalance.customerId) — plain string, not a FK
+  documentNumber   String? // nº da fatura/duplicata; part of the business key (SQLite treats NULL as distinct, like sourceId)
+  description      String
+  issueDate        DateTime // date-only (competência do reconhecimento) — validated by isValidDateOnly at the DTO
+  dueDate          DateTime // date-only (vencimento; aging is a later increment — F3)
+  amountCents      Int // integer cents (Contract §2.1); MAX_CENTS guarded at the DTO (ACC-014)
+  revenueAccountId String // FK Account — contrapartida do reconhecimento, folha nature='Revenue' (gate D4, re-checked in the service)
+  revenueAccount   Account             @relation("ReceivableRevenueAccount", fields: [revenueAccountId], references: [id])
+  status           String // OPEN | RECEIVING | RECEIVED | CANCELLED (see RECEIVABLE_STATUSES)
+  createdById      String? // actor who created (AccountingScope.actorUserId); plain string
+  cancelledById    String? // actor who cancelled; plain string
+  cancelReason     String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  deletedAt        DateTime?
+  receipts         ReceivableReceipt[]
+
+  // Business key (D3): one live receivable per customer × document. rename-on-delete
+  // (documentNumber → deleted:<id>:<documentNumber>) frees the key on cancel/delete so a re-create
+  // does not trip P2002 (memória unique-de-idempotencia-x-soft-delete). NULL documentNumber is
+  // treated as distinct by SQLite, so faturaless receivables never collide.
+  @@unique([userId, unitId, customerName, documentNumber])
+  @@index([userId, unitId, status])
+  @@index([userId, unitId, dueDate])
+  @@map("receivables")
+}
+
+// One receipt of a Receivable (F2 rota (b) — child table from day one so liberating partial receipt
+// later is loosening validation, not a migration + key re-sweep). MVP guard: amountCents ===
+// remaining (single full receipt). status ACTIVE|CANCELLED (cancel = status flip + reversal of the
+// receipt entry, never a hard delete). No User FK: receivedByUserId is a plain actor string. The
+// receipt idempotency keys on THIS row's id (receiptId), NEVER receivableId (D3) — so re-receiving
+// after a reversal mints a new key instead of returning the reverted entry.
+model ReceivableReceipt {
+  id               String     @id @default(cuid())
+  userId           String // scope owner (AccountingScope.ownerUserId); plain scope key
+  unitId           String // business unit (scoped string, not a FK)
+  receivableId     String
+  receivable       Receivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  amountCents      Int // integer cents; MAX_CENTS guarded at the DTO
+  method           String // Cash | Pix | TED | Boleto — closed map to the debit account (unknown rejects, D2)
+  receivedAt       DateTime // date-only — EFFECTIVE bank-credit date (D9), NOT the click date; validated by isValidDateOnly
+  receivedByUserId String? // actor who registered the receipt; plain string
+  status           String // ACTIVE | CANCELLED
+  entryId          String? // receipt journal entry id (ar.receipt) — denormalized convenience; findEntryBySource is authoritative
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([userId, unitId, receivableId])
+  @@map("receivable_receipts")
 }
