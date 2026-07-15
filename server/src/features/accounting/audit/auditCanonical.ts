@@ -56,6 +56,13 @@ const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   'entry.submitted':      ['contentHash', 'version'],
   'entry.approved':       ['createdById', 'contentHash', 'fiscalYear', 'entryNumber'],
   'entry.rejected':       ['reason', 'version'],
+  // INCR-DIM — dimension catalog management (cost center / project). Ids + codes only; the tag itself
+  // is NOT a ledger fact (ACC-024) so there is no posting-time audit event — a tagged post is captured
+  // by its own `entry.posted`. These 4 cover only catalog lifecycle (T8: every state change auditable).
+  'dimension.definition_created':  ['definitionId', 'code', 'name'],
+  'dimension.definition_archived': ['definitionId', 'code'],
+  'dimension.value_created':       ['definitionId', 'valueId', 'code', 'name', 'parentId'],
+  'dimension.value_archived':      ['definitionId', 'valueId', 'code'],
 };
 
 /**

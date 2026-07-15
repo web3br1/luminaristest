@@ -21,6 +21,10 @@ import { isValidDateOnly } from '../models/dates';
  *         accountCode: { type: string, description: "Code of a leaf account (acceptsEntries=true)" }
  *         debitCents:  { type: integer, minimum: 0 }
  *         creditCents: { type: integer, minimum: 0 }
+ *         dimensions:
+ *           type: array
+ *           description: "Optional dimension VALUE ids tagging this leg (INCR-DIM). At most one value per axis (the axis is derived from the value; a second value of the same axis is rejected). Metadata only — does NOT affect Σdébito=Σcrédito (ACC-024)."
+ *           items: { type: string }
  *     PostEntryInput:
  *       type: object
  *       required: [date, description, lines]
@@ -54,6 +58,10 @@ export const PostEntryLineSchema = z
     // well under 2^53-1, so the Σdébito===Σcrédito integer sum keeps exact precision (Contract §2.1).
     debitCents: z.number().int().min(0).max(MAX_CENTS, { message: `debitCents excede o limite suportado (máx ${MAX_CENTS}).` }),
     creditCents: z.number().int().min(0).max(MAX_CENTS, { message: `creditCents excede o limite suportado (máx ${MAX_CENTS}).` }),
+    // INCR-DIM: optional dimension VALUE ids tagging this leg. Metadata only — never enters the
+    // balance sum (ACC-024). The axis is derived from each value in PostingService; at most one value
+    // per axis per leg (enforced pre-tx for a clear error + @@unique([postingId,definitionId]) in-tx).
+    dimensions: z.array(z.string().min(1)).optional(),
   })
   .superRefine((line, ctx) => {
     // Each leg moves exactly one side: a debit OR a credit, never both, never neither.
