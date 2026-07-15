@@ -426,7 +426,13 @@
       "name": "Name",
       "type": "Type",
       "acceptsEntries": "Accepts entries",
+      "requiresDimension": "Requires dimension",
       "actions": "Actions"
+    },
+    "requiresDimension": {
+      "on": "Required",
+      "off": "Optional",
+      "naHint": "Only applies to accounts that accept entries."
     },
     "nature": {
       "asset": "Asset",
@@ -443,7 +449,8 @@
     "error": {
       "load": "Failed to load accounts.",
       "create": "Failed to create account.",
-      "delete": "Failed to delete account."
+      "delete": "Failed to delete account.",
+      "requiresDimension": "Failed to update the dimension requirement."
     }
   },
   "journalEntries": {

@@ -130,6 +130,9 @@ export interface Account {
   name: string;
   nature: 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
   acceptsEntries: boolean;
+  /** INCR-DIM-COMPLETENESS — when true, every leg posted to this account must carry ≥1 dimension
+   *  tag (any axis). Only meaningful on leaf accounts (acceptsEntries === true). Default false. */
+  requiresDimension?: boolean;
   isDefault?: boolean;
   deletedAt?: string | null;
 }
@@ -538,6 +541,30 @@ export const accountingService = {
   }): Promise<{ account: Account }> {
     const res = await apiClient.post<ApiEnvelope<{ account: Account }>>('/accounting/accounts', data);
     notify('Conta criada com sucesso.', 'success', 'Contabilidade');
+    return res.data;
+  },
+
+  /**
+   * Toggle an account's mandatory-dimension flag (INCR-DIM-COMPLETENESS SEC-B1-4).
+   * Behind `canManage` on the backend + every flip is audited. Only meaningful on
+   * leaf accounts (acceptsEntries === true). Returns the updated account.
+   */
+  async setAccountRequiresDimension(
+    id: string,
+    unitId: string,
+    requiresDimension: boolean,
+  ): Promise<{ account: Account }> {
+    const res = await apiClient.patch<ApiEnvelope<{ account: Account }>>(
+      `/accounting/accounts/${encodeURIComponent(id)}/requires-dimension`,
+      { unitId, requiresDimension },
+    );
+    notify(
+      requiresDimension
+        ? 'Conta agora exige dimensão nos lançamentos.'
+        : 'Conta não exige mais dimensão nos lançamentos.',
+      'success',
+      'Contabilidade',
+    );
     return res.data;
   },
 
