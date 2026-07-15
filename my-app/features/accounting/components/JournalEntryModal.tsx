@@ -62,6 +62,16 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** Extract a human message from apiClient's thrown error object (it throws a plain object, not Error). */
+function resolveError(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object') {
+    const o = e as { error?: unknown; message?: unknown };
+    if (typeof o.message === 'string') return o.message;
+    if (typeof o.error === 'string') return o.error;
+  }
+  return fallback;
+}
+
 /** Parse a BRL input string ("1.234,56" or "1234.56") to integer cents. */
 function parseBrl(s: string): number {
   const normalised = s.replace(',', '.');
@@ -203,11 +213,10 @@ export function JournalEntryModal({
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : t('journalEntryModal.error.postFailed', 'Erro ao postar o lançamento. Tente novamente.');
-      setError(msg);
+      // apiClient throws a PLAIN OBJECT (not an Error) — read the backend message off it so
+      // specific rejections (e.g. a dimension leg carrying two values of the same axis) surface
+      // inline, not just the generic fallback.
+      setError(resolveError(err, t('journalEntryModal.error.postFailed', 'Erro ao postar o lançamento. Tente novamente.')));
     } finally {
       setIsSubmitting(false);
     }
