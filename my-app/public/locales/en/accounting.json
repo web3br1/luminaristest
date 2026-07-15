@@ -26,7 +26,8 @@
       "importacaoExportacao": "Import/Export",
       "conciliacao": "Reconciliation",
       "compliance": "Compliance",
-      "dimensoes": "Dimensions"
+      "dimensoes": "Dimensions",
+      "contrapartes": "Counterparties"
     },
     "error": {
       "units": "Failed to load units.",
@@ -93,12 +94,16 @@
         "issueDate": "Issue date",
         "dueDate": "Due date",
         "expenseAccount": "Expense account (counterpart)",
-        "selectAccount": "— select the expense account —"
+        "selectAccount": "— select the expense account —",
+        "counterparty": "Counterparty",
+        "noCounterparty": "— no counterparty —"
       },
       "error": {
         "invalid": "Fill in supplier, description, dates, amount and expense account.",
         "failed": "Failed to record the bill."
-      }
+      },
+      "noCounterparties": "No supplier registered.",
+      "manageCounterparties": "Register counterparties"
     },
     "actionModal": {
       "cancel": "Back",
@@ -180,12 +185,16 @@
         "issueDate": "Issue date",
         "dueDate": "Due date",
         "revenueAccount": "Revenue account (counterpart)",
-        "selectAccount": "— select the revenue account —"
+        "selectAccount": "— select the revenue account —",
+        "counterparty": "Counterparty",
+        "noCounterparty": "— no counterparty —"
       },
       "error": {
         "invalid": "Fill in customer, description, dates, amount and revenue account.",
         "failed": "Failed to record the invoice."
-      }
+      },
+      "noCounterparties": "No customer registered.",
+      "manageCounterparties": "Register counterparties"
     },
     "actionModal": {
       "cancel": "Back",
@@ -953,6 +962,66 @@
         "expense": "Expense",
         "result": "Result"
       }
+    }
+  },
+  "contrapartes": {
+    "heading": "Counterparties",
+    "new": "New Counterparty",
+    "loading": "Loading counterparties…",
+    "empty": "No counterparty registered in this unit yet.",
+    "type": {
+      "SUPPLIER": "Supplier",
+      "CUSTOMER": "Customer"
+    },
+    "status": {
+      "active": "Active",
+      "archived": "Archived"
+    },
+    "filter": {
+      "all": "All",
+      "suppliers": "Suppliers",
+      "customers": "Customers",
+      "includeArchived": "Include archived"
+    },
+    "col": {
+      "name": "Name",
+      "type": "Type",
+      "ref": "Reference",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "action": {
+      "archive": "Archive",
+      "archiveTitle": "Archive counterparty"
+    },
+    "error": {
+      "load": "Failed to load counterparties.",
+      "archive": "Could not archive the counterparty."
+    },
+    "createModal": {
+      "title": "New Counterparty",
+      "cancel": "Cancel",
+      "submit": "Register",
+      "saving": "Saving…",
+      "optional": "(optional)",
+      "field": {
+        "type": "Type",
+        "name": "Name",
+        "namePlaceholder": "Counterparty name…",
+        "ref": "Reference",
+        "refPlaceholder": "Tax ID, external code…"
+      },
+      "error": {
+        "invalid": "Enter the counterparty name.",
+        "failed": "Failed to register the counterparty."
+      }
+    },
+    "archiveModal": {
+      "title": "Archive counterparty",
+      "cancel": "Back",
+      "confirm": "Confirm archiving",
+      "archiving": "Archiving…",
+      "note": "The counterparty stops appearing when creating new accounts. Existing entries and linked accounts remain intact."
     }
   }
 }

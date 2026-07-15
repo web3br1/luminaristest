@@ -6,6 +6,7 @@ import {
   type CreateReceivablePayload,
 } from '../../../lib/services/accountsReceivable.service';
 import type { Account } from '../../../lib/services/accounting.service';
+import type { Counterparty } from '../../../lib/services/counterparties.service';
 
 export interface CreateReceivableModalProps {
   isOpen: boolean;
@@ -13,9 +14,13 @@ export interface CreateReceivableModalProps {
   unitId: string;
   /** Analytic revenue accounts (nature=Revenue, acceptsEntries) — option value is the account **id**. */
   revenueAccounts: Account[];
+  /** Active CUSTOMER counterparties of this unit — option value is the counterparty **id** (optional link). */
+  counterparties?: Counterparty[];
   onSuccess: () => void;
   /** Navigate to the Períodos tab (shown when the period is closed). */
   onNavigateToPeriods?: () => void;
+  /** Navigate to the Contrapartes tab (shown when none is registered). */
+  onNavigateToCounterparties?: () => void;
 }
 
 function today(): string {
@@ -60,11 +65,14 @@ export function CreateReceivableModal({
   onClose,
   unitId,
   revenueAccounts,
+  counterparties = [],
   onSuccess,
   onNavigateToPeriods,
+  onNavigateToCounterparties,
 }: CreateReceivableModalProps) {
   const { t } = useTranslation('accounting');
   const [customerName, setCustomerName] = useState('');
+  const [counterpartyId, setCounterpartyId] = useState('');
   const [documentNumber, setDocumentNumber] = useState('');
   const [description, setDescription] = useState('');
   const [issueDate, setIssueDate] = useState<string>(today);
@@ -90,13 +98,22 @@ export function CreateReceivableModal({
 
   const isDirty =
     customerName !== '' ||
+    counterpartyId !== '' ||
     documentNumber !== '' ||
     description !== '' ||
     amountBrl !== '' ||
     revenueAccountId !== '';
 
+  /** Selecting a counterparty prefills the customer name snapshot when it is still blank. */
+  function handleCounterpartyChange(id: string) {
+    setCounterpartyId(id);
+    const cp = counterparties.find((c) => c.id === id);
+    if (cp && customerName.trim() === '') setCustomerName(cp.name);
+  }
+
   function reset() {
     setCustomerName('');
+    setCounterpartyId('');
     setDocumentNumber('');
     setDescription('');
     setIssueDate(today());
@@ -129,6 +146,7 @@ export function CreateReceivableModal({
       dueDate,
       amountCents,
       revenueAccountId,
+      ...(counterpartyId ? { counterpartyId } : {}),
       ...(documentNumber.trim() ? { documentNumber: documentNumber.trim() } : {}),
     };
 
@@ -180,6 +198,43 @@ export function CreateReceivableModal({
     >
       <div className="space-y-5 px-6 py-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Counterparty (optional link) */}
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+              {t('contasAReceber.createModal.field.counterparty', 'Contraparte')}
+              <span className="ml-1 normal-case text-neutral-600">{t('contasAReceber.createModal.optional', '(opcional)')}</span>
+            </label>
+            <select
+              value={counterpartyId}
+              onChange={(e) => handleCounterpartyChange(e.target.value)}
+              className="rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:border-emerald-500 focus:outline-none"
+            >
+              <option value="">{t('contasAReceber.createModal.field.noCounterparty', '— sem contraparte —')}</option>
+              {counterparties.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {counterparties.length === 0 && (
+              <p className="text-xs text-neutral-500">
+                {t('contasAReceber.createModal.noCounterparties', 'Nenhum cliente cadastrado.')}
+                {onNavigateToCounterparties && (
+                  <>
+                    {' '}
+                    <button
+                      type="button"
+                      onClick={() => { reset(); onClose(); onNavigateToCounterparties(); }}
+                      className="underline hover:text-neutral-300"
+                    >
+                      {t('contasAReceber.createModal.manageCounterparties', 'Cadastrar contrapartes')}
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+
           {/* Customer */}
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400">

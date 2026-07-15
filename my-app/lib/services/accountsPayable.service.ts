@@ -45,6 +45,8 @@ export interface Payable {
   unitId: string;
   supplierName: string;
   supplierRef: string | null;
+  /** FK to a Counterparty(SUPPLIER) of this unit (INCR-COUNTERPARTY / A1); nullable. */
+  counterpartyId: string | null;
   documentNumber: string | null;
   description: string;
   issueDate: string;
@@ -86,6 +88,8 @@ export interface CreatePayablePayload {
   amountCents: number;
   /** Chart-of-accounts account **id** (analytic, nature=Expense). */
   expenseAccountId: string;
+  /** Optional FK to a Counterparty(SUPPLIER) of this unit (re-scoped on the backend). */
+  counterpartyId?: string;
   attachmentId?: string;
 }
 
