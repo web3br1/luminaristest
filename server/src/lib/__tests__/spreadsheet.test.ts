@@ -1,3 +1,4 @@
+import ExcelJS from 'exceljs';
 import { parseTable, serializeTable } from '../spreadsheet';
 
 describe('spreadsheet lib (BE-INCR-6)', () => {
@@ -72,10 +73,18 @@ describe('spreadsheet lib (BE-INCR-6)', () => {
   });
 
   it('rejects an XLSX whose grid exceeds the cell ceiling (zip-bomb guard)', async () => {
-    // Build a legit small XLSX, then assert the guard exists by checking a normal file passes
-    // (the ceiling is 2,000,000 cells; a real bomb can't be cheaply synthesized here).
+    // A single far cell inflates rowCount×columnCount past the 2,000,000 ceiling while the
+    // serialized buffer stays tiny (sparse) — exactly the zip-bomb shape, cheaply.
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Sheet1');
+    ws.getCell(2001, 1001).value = 'x'; // 2001 × 1001 = 2,003,001 cells > ceiling
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+    await expect(parseTable(buf, 'xlsx')).rejects.toThrow(/too large/i);
+  });
+
+  it('accepts a normal XLSX under the cell ceiling', async () => {
     const table = { headers: ['a', 'b'], rows: [['1', '2']] };
     const buf = await serializeTable(table, 'xlsx');
-    await expect(parseTable(buf, 'xlsx')).resolves.toBeDefined(); // under the ceiling → fine
+    await expect(parseTable(buf, 'xlsx')).resolves.toBeDefined();
   });
 });

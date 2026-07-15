@@ -218,6 +218,11 @@ describe('authMiddleware', () => {
       const req = makeReq('/api/accounting/post', 'POST', `Bearer ${token}`, {
         'x-user-id': 'attacker-victim-id',
         'x-user-role': 'ADMIN',
+        // The token flow never re-injects these two (payload has no created/updated), so
+        // if the strip were removed they would survive — this is what proves the strip,
+        // not the overwrite (id/role are overwritten regardless).
+        'x-user-created-at': '1999-01-01T00:00:00.000Z',
+        'x-user-updated-at': '1999-01-01T00:00:00.000Z',
       });
       const { res } = makeRes();
       const next: NextFunction = jest.fn();
@@ -227,6 +232,9 @@ describe('authMiddleware', () => {
       expect(next).toHaveBeenCalledTimes(1);
       expect(req.headers!['x-user-id']).toBe('real-user'); // from token, not spoof
       expect(req.headers!['x-user-role']).toBe('USER');
+      // Spoofed headers the token does NOT set must be gone (strip, not overwrite).
+      expect(req.headers!['x-user-created-at']).toBeUndefined();
+      expect(req.headers!['x-user-updated-at']).toBeUndefined();
     });
   });
 
