@@ -1,7 +1,7 @@
 # ADR-INCR-APPROVAL — Torre de aprovação (maker-checker / SoD)
 
 - **Data:** 2026-07-14
-- **Status:** **Accepted — ratificado por sinal humano ("consuma esse prompt e aplique até o fim", 2026-07-14).** Os defaults recomendados pelo par orquestrador + arquiteto-contábil foram adotados; os forks com escolha real aberta (F3/F4/F6) resolvidos na opção MVP abaixo. IMPLEMENTADO nesta branch (`claude/approval-tower-maker-checker-940fdd`).
+- **Status:** **Accepted — ratificado por sinal humano ("consuma esse prompt e aplique até o fim", 2026-07-14); MERGEADO em `main` (PR #108, `1f4ff78`).** Os defaults recomendados pelo par orquestrador + arquiteto-contábil foram adotados; os forks com escolha real aberta (F3/F4/F6) resolvidos na opção MVP abaixo. **EMENDA F3 (2026-07-14, re-ratificação fork-a-fork — ver §9):** a SoD deixou de ser *hard sempre* e passou a *hard-quando-`ownerUserId≠actorUserId`, desligada single-user* — o `approve` só barra criador/submitter quando `policy.enforcesSegregationOfDuties(scope)` (hoje `false`, pois `owner===actor` sempre). Isso torna o fluxo Draft→submit→approve **usável por um único operador** (staging) em vez de um maker-checker que o bloquearia de aprovar o próprio rascunho; endurece sozinho quando membership fizer um delegado agir.
 - **Autores:** par `luminaris-orchestrator` (plano, ORCH-001) + `luminaris-accounting-architect` (parecer de domínio, ACC-002).
 - **Nó do master map:** §5 "Torre de aprovação (maker-checker, SoD, `submittedById`/`approvedById`/`version`/`contentHash`)" — ⚫ diferido com ADR próprio; este ADR o abre. Não colide com §1 (T1–T12) nem §4 (rejeitadas) — verificação em §2. É o 1º gap nomeado do Núcleo 2 (§7, ~60%).
 
@@ -85,7 +85,7 @@ createDraft        submit            approve (checker)          reverse (T5, já
 |---|---|---|
 | **F1** status-string vs estado-separado | **(a)** novo valor `PendingApproval` na string existente | T3 mínimo; `LEDGER_STATUSES` já exclui não-Posted. Máquina-de-estado em tabela nova = over-engineering. |
 | **F2** escopo do `contentHash` | **partidas (accountId+débito+crédito) + data + descrição**; exclui derivados (número/versão/status/timestamps); anexos = Fase 2 | Cobrir as partidas é o núcleo do controle (risco #1). |
-| **F3** SoD hard vs configurável | **(a) hard** (`actor≠createdById`) | Configurável exige papéis = RBAC ⚫. Não construir config p/ valor de 1 estado. |
+| **F3** SoD hard vs configurável | **(a) hard** → **EMENDA: hard-quando-`owner≠actor`, OFF single-user** (§9) | A versão *hard sempre* tornava a torre **inutilizável single-user** (o único operador nunca poderia aprovar o próprio → rascunhos presos). Re-ratificada fork-a-fork em favor de SoD desligada enquanto `owner===actor` (staging usável), ativando sozinha via membership. Não é "configurável por papel" (isso segue RBAC ⚫); é um único gate keyed em `owner≠actor`. |
 | **F4** rejeição→Draft vs terminal | **(a) →Draft** (reeditável via `updateDraft`) | Terminal perde o fluxo de correção; contábil corrige-e-ressubmete. Audit registra a rejeição. |
 | **F5** approve+post 1 vs 2 comandos | **(a) 1 comando** — `approve` posta atomicamente (`approvedById=postedById`) | POST numera in-tx (ACC-015). Estado "aprovado aguardando janela" = YAGNI. |
 | **F6** quem aprova | **(a) qualquer usuário-do-escopo ≠ criador** | Aprovador-por-papel/alçada = RBAC ⚫ (Fase 2). |
@@ -112,3 +112,43 @@ createDraft        submit            approve (checker)          reverse (T5, já
 `contentHash` que não vincula as partidas. Se a aprovação congela só o cabeçalho, o maker altera
 débito/crédito/conta depois do checker aprovar → mudança unilateral no ledger com a assinatura do
 checker. Mitigação: ACC-022 (hash cobre partidas) + ACC-023 (CAS recomputa e compara o hash in-tx).
+
+---
+
+## 9. EMENDA F3 — re-ratificação fork-a-fork (2026-07-14): SoD desligada single-user
+
+**Contexto.** O #108 mergeou a torre com **F3=(a) SoD hard sempre** (`approve` barra `actor===createdById`
+e `actor===submittedById` incondicionalmente). Numa revisão fork-a-fork subsequente (mesmo dia, via
+AskUserQuestion, item 7 da fila §5.1), o dono do produto foi apresentado à decisão-mãe **F0**: como o
+projeto é **single-user** hoje (`ownerUserId===actorUserId` sempre, sem membership — evidência:
+`AccountingScope.ts:31-44`, `AccountingPolicy` não lê papel), um maker-checker *hard* é **inutilizável por
+um único operador** — ele nunca poderia aprovar o próprio rascunho, e os `PendingApproval` ficariam presos.
+Isso é o oposto do valor pretendido (um fluxo de **staging** rascunho→revisão→post usável agora).
+
+**Decisão ratificada (F0→a, refinando F3).** A SoD continua **codificada** mas **desligada** enquanto
+`ownerUserId===actorUserId`; ativa sozinha quando membership fizer um delegado operar os livros do dono
+(`ownerUserId!==actorUserId`). Os demais forks confirmados como estavam: F1(a) status-string, F2 hash
+econômico, F4(a) reject→Draft, F5(a) approve==post, F6(a) qualquer usuário-do-escopo. F4-de-escopo
+(quem passa pela torre) = **só manual**, os 7 callers automatizados de `postEntry` postam direto.
+
+**Implementação (mínima, na camada de autorização).**
+- Novo método `IAccountingPolicy.enforcesSegregationOfDuties(scope)` +
+  `AccountingPolicy.enforcesSegregationOfDuties = ownerUserId !== actorUserId` (hoje sempre `false`).
+- `EntryApprovalService.approveEntry` envolve as duas checagens SoD em
+  `if (this.policy.enforcesSegregationOfDuties(scope)) { … }` — o resto da máquina (CAS de `version`,
+  tamper-check do `contentHash`, gate de período in-tx, numeração no approve) é **idêntico**. Storage
+  intocado (nenhuma mudança no schema desta emenda).
+- Testes: `EntryApprovalService.test.ts` prova os dois lados — **SoD ON** (criador/submitter barrados,
+  ator distinto aprova) e **SoD OFF** (auto-aprovação single-user posta); teste direto da policy fixa
+  `owner===actor → false` e `owner≠actor → true`. 595/595 accounting jest verdes, tsc limpo.
+
+**Invariante ACC-017 atualizado:** "criador ≠ aprovador" continua o alvo, mas **enforcement condicional**
+a `enforcesSegregationOfDuties(scope)`. A garantia de imutabilidade (contentHash+version) é independente
+e permanece sempre ativa.
+
+**Por que não reverter para PendingEntry separado / SoD-off por construção (o que a 1ª ratificação
+fork-a-fork tinha proposto).** O #108 já construiu e **provou** (smoke-gate / CAS integration) o fluxo
+inteiro reusando `JournalEntry.status` + `entryNumber`/`fiscalYear` nullable — a parte cara/arriscada
+(tocar o invariante de numeração) já passou. Refazer o storage por `PendingEntry` seria retrabalho de
+código testado sem ganho visível. A reconciliação escolhida (ratificada pelo dono) foi **manter #108 e só
+afrouxar o gate SoD** — mudança pequena, honra a intenção F0=(a), preserva o storage provado.

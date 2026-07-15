@@ -49,7 +49,10 @@ interface ResolvedLine {
  *   the checker approves exactly what was submitted.
  * - ACC-023: every transition is an optimistic-lock CAS on `version` (in-tx); the approve tx also
  *   re-verifies the frozen hash against the current legs (tamper check) and re-checks the period
- *   gate inside the tx (T6/TOCTOU). Dynamic SoD (approver ≠ creator/submitter) is server-side.
+ *   gate inside the tx (T6/TOCTOU). Dynamic SoD (approver ≠ creator/submitter) is server-side, but
+ *   ENFORCED only when `policy.enforcesSegregationOfDuties(scope)` — off while ownerUserId ===
+ *   actorUserId (single-user staging), hardens when membership makes a delegate act (F3, re-ratified
+ *   fork-a-fork 2026-07-14). The staging machine is identical either way; only the gate flips.
  */
 export class EntryApprovalService {
   constructor(
@@ -214,11 +217,15 @@ export class EntryApprovalService {
       throw new ValidationError('O lançamento não está aguardando aprovação.');
     }
     // SoD (ACC-017/F3) — dynamic, server-side. Creator and submitter cannot approve their own.
-    if (entry.createdById && entry.createdById === scope.actorUserId) {
-      throw new ForbiddenError('Segregação de funções: o criador não pode aprovar o próprio lançamento.');
-    }
-    if (entry.submittedById && entry.submittedById === scope.actorUserId) {
-      throw new ForbiddenError('Segregação de funções: quem submeteu não pode aprovar.');
+    // ENFORCED only when the scope has a distinct approver available (membership); OFF while
+    // ownerUserId === actorUserId (single-user staging). Re-ratified fork-a-fork 2026-07-14.
+    if (this.policy.enforcesSegregationOfDuties(scope)) {
+      if (entry.createdById && entry.createdById === scope.actorUserId) {
+        throw new ForbiddenError('Segregação de funções: o criador não pode aprovar o próprio lançamento.');
+      }
+      if (entry.submittedById && entry.submittedById === scope.actorUserId) {
+        throw new ForbiddenError('Segregação de funções: quem submeteu não pode aprovar.');
+      }
     }
     // Preflight period gate (fast rejection); the authoritative gate is inside the tx.
     await this.assertPeriodOpen(scope, entry.date);

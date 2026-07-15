@@ -44,13 +44,21 @@ export class AccountingPolicy implements IAccountingPolicy {
     return !!scope.actorUserId;
   }
 
-  // ponytail: SoD dinâmica (approver != creator) e RBAC por papel entram quando a unidade for
-  // compartilhada / os papéis existirem (F3/F6, ⚫). Aqui só a checagem grosseira de ator.
+  // ponytail: RBAC por papel (F6, ⚫) entra quando os papéis existirem. Aqui só a checagem
+  // grosseira de ator; a SoD dinâmica vive em enforcesSegregationOfDuties (abaixo).
   canManageEntryApproval(scope: AccountingScope): boolean {
     return !!scope.actorUserId;
   }
 
   canApproveEntry(scope: AccountingScope): boolean {
     return !!scope.actorUserId;
+  }
+
+  // SoD dinâmica (ADR-INCR-APPROVAL F3, re-ratificado fork-a-fork 2026-07-14): OFF enquanto
+  // ownerUserId === actorUserId (single-user → staging usável), ativa sozinha quando um delegado
+  // opera os livros do dono (ownerUserId !== actorUserId, via membership futuro). Ver
+  // resolveAccountingScope: hoje owner === actor sempre, logo isto é no-op — sem teatro.
+  enforcesSegregationOfDuties(scope: AccountingScope): boolean {
+    return scope.ownerUserId !== scope.actorUserId;
   }
 }
