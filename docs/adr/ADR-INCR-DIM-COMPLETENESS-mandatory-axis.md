@@ -6,8 +6,11 @@
   **Isto EMENDA `ADR-INCR-DIM` F5** ("dimensão sempre opcional" → "opcional por padrão, **condicionalmente
   obrigatória** por flag de conta"): é `DECISÃO ARQUITETURAL` por sinal humano. **Não reintroduz o §4** (ver
   §3 abaixo, precisão corrigida): B1 é um **gate de validação por flag booleano por `Account`** (rejeita
-  partida sem tag), não um motor que *gera* lançamento a partir de template/condições. Implementação (Task
-  pós-ADR) NÃO iniciada; migração toca `accounts` (add flag) + gate no `postEntry` → smoke-migration-gate.
+  partida sem tag), não um motor que *gera* lançamento a partir de template/condições. **BACKEND IMPLEMENTADO
+  + REVIEW INDEP. PASS 2026-07-15** (branch `claude/incr-dim-completeness-b1` @ `f3313b6`; tsc limpo, jest
+  676/676 accounting). Gate no choke-point dos 3 escritores (postEntry+approve hard-gate in-tx; reverse copia
+  tags/isento — review confirmou NÃO-bypass, espelho net-zero). Migração = `ALTER TABLE ADD COLUMN` (evitou
+  rebuild que quebrava cascade de user.delete). **Pendente: smoke-migration-gate + merge; FE diferido.**
 - **Autores:** par `luminaris-orchestrator` + `luminaris-accounting-architect`.
 - **Nó do master map:** §7 Núcleo 4 (caveat de completude na "análise por dimensão") + §4 (roça a rejeição
   "Motor de Regras Contábeis"). Relação com `ADR-INCR-DIM` F5 explícita em §3.

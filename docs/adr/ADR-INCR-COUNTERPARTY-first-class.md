@@ -4,9 +4,10 @@
 - **Status:** **Accepted — RATIFICADO POR SINAL HUMANO FORK-A-FORK 2026-07-15 (via AskUserQuestion).**
   Decisões: **F-CP0 → (a) SIM**, aging/posição por contraparte é requisito de horizonte; **F-CP1 → A1**,
   `Counterparty` **Prisma first-class + FK**. O humano escolheu a integridade máxima **sobre** a recomendação
-  A2 do par (identidade barata) — decisão de dono registrada. **Implementação (Task pós-ADR) ainda NÃO
-  iniciada**; segue o pipeline PLAN→BRIEF→impl→review→smoke-migration-gate (migração toca `payables`/
-  `receivables`). Levantado pelo debate de personas pós-`eeb33c1`, aterrado no código (CBM-001).
+  A2 do par (identidade barata) — decisão de dono registrada. **BACKEND IMPLEMENTADO + REVIEW INDEP. PASS
+  2026-07-15** (branch `claude/incr-counterparty-a1` @ `81093dc`, off `origin/main`; tsc limpo, jest 1135/1135;
+  gates SEC-A1-1..5 verificados no review). **Pendente: smoke-migration-gate (dev.db real) + merge; FE
+  diferido; NOT NULL da FK num 2º migration.** Levantado pelo debate de personas pós-`eeb33c1` (CBM-001).
 - **Autores:** par `luminaris-orchestrator` + `luminaris-accounting-architect` (mesmo formato de
   `ADR-INCR-AP`/`ADR-INCR-AR`/`ADR-INCR-DIM`).
 - **Nó do master map:** §7 Núcleo 2 (nota de dívida "contraparte AP/AR não-first-class") + §5 "Subrazões".
