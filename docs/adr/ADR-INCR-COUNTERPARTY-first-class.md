@@ -1,9 +1,12 @@
 # PRE-ADR-INCR-COUNTERPARTY — Contraparte (Fornecedor/Cliente) first-class × ref DynamicTable
 
 - **Data:** 2026-07-15
-- **Status:** **PRE-ADR — aguardando ratificação humana fork-a-fork.** Nenhuma linha de código até o sinal.
-  Levantado pelo debate de personas (Arquiteto Contábil) sobre o estado pós-`eeb33c1`, aterrado no código
-  (CBM-001). Este documento **abre a decisão**; não a decide.
+- **Status:** **Accepted — RATIFICADO POR SINAL HUMANO FORK-A-FORK 2026-07-15 (via AskUserQuestion).**
+  Decisões: **F-CP0 → (a) SIM**, aging/posição por contraparte é requisito de horizonte; **F-CP1 → A1**,
+  `Counterparty` **Prisma first-class + FK**. O humano escolheu a integridade máxima **sobre** a recomendação
+  A2 do par (identidade barata) — decisão de dono registrada. **Implementação (Task pós-ADR) ainda NÃO
+  iniciada**; segue o pipeline PLAN→BRIEF→impl→review→smoke-migration-gate (migração toca `payables`/
+  `receivables`). Levantado pelo debate de personas pós-`eeb33c1`, aterrado no código (CBM-001).
 - **Autores:** par `luminaris-orchestrator` + `luminaris-accounting-architect` (mesmo formato de
   `ADR-INCR-AP`/`ADR-INCR-AR`/`ADR-INCR-DIM`).
 - **Nó do master map:** §7 Núcleo 2 (nota de dívida "contraparte AP/AR não-first-class") + §5 "Subrazões".
@@ -76,13 +79,19 @@ bug hoje (aging não existe) — é uma **dívida latente** que vira defeito no 
   Fecha a fragilidade #1 (rename) com ~1 coluna; **não** dá catálogo/dedupe de contraparte (dois cadastros do
   mesmo fornecedor ainda são duas chaves) nem integridade referencial.
 
-## 5. Recomendação do par (não-vinculante)
+## 5. Recomendação do par (não-vinculante) e decisão do dono
 
-**F-CP0 → (a)** se o produto pretende vender "Contas a Pagar/Receber" como subledger de verdade (aging é a
-razão de existir do módulo); senão **(b)** e YAGNI honesto. Se **(a)**: **A2 como piso** (rename-safety é a
-dívida concreta e custa uma coluna), **A1 só quando** houver demanda real de *catálogo* de contraparte
-(dedupe, dados cadastrais, seleção reutilizável) — aí a entidade first-class se paga. Evitar A1 preventivo:
-é a construção especulativa que o Cético (corretamente) alerta, enquanto A2 mata o defeito latente barato.
+**Recomendação do par:** A2 como piso, A1 só com demanda de catálogo. **Decisão do dono (ratificada): A1.**
+O humano optou por resolver a identidade de contraparte de vez com entidade first-class, aceitando o blast
+radius (migração + backfill + create paths + FE) em troca de aging íntegro por FK, catálogo/dedupe e base
+para dados cadastrais. Racional aceito: o subledger AP/AR **é** para vender "quem deve quanto"; meia-solução
+(A2) pagaria a dívida de novo quando o catálogo chegasse.
+
+**Guardas de implementação (herdadas de T-locks):** FK `counterpartyId` **nullable** na migração (não quebra
+linhas existentes) + backfill idempotente das linhas string-keyed (uma `Counterparty` por `supplierName`/
+`customerName` distinto por escopo) → depois a coluna pode virar obrigatória num 2º passo. `Counterparty`
+carrega `userId`+`unitId` (AccountingScope, T2); soft-delete + rename-on-key como AP/AR; **sem** cascade que
+apague histórico (T8). Smoke-migration-gate sobre cópia do dev.db real antes de deploy.
 
 ## 6. Fora de escopo
 

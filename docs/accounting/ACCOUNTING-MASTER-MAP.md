@@ -208,6 +208,8 @@ Ordenados por proximidade da fundação. **Nenhum** é "o próximo passo" antes 
 | 7 | ~~**Torre de aprovação** (maker-checker, SoD)~~ | ✅ **Mergeada 2026-07-14** (ADR-INCR-APPROVAL, PR #108; `EntryApprovalService`, extensão do `JournalEntry`) + **Emenda F3 re-ratificada fork-a-fork** (SoD **desligada single-user** → staging usável; `enforcesSegregationOfDuties = owner≠actor`, endurece via membership). Fecha o gap de aprovação do Núcleo 2. ACC-016/017 (enforcement condicional) + novos ACC-022/023. Resíduo = smoke-migration-gate + browser sign-off + FE (`FE-INCR-APPROVAL`). **AR (item 8) é agora o próximo código.** |
 | 8 | ~~**AR formal** (Contas a Receber como subrazão first-class)~~ | ✅ **Mergeado 2026-07-15** (INCR-AR, PR #111 `87ab95b`; `ReceivableService` + `Receivable`/`ReceivableReceipt`; review independente PASS A–H; 633/633 jest; **smoke-migration-gate DEPLOY-CLEARED**). Espelho invertido do AP. **F7→(a) conta de controle dedicada `1.1.5 Clientes a Receber`** (o salão usa `1.1.2`; dedicada dá tie-out subledger↔razão); F0→(a) postEntry direto; F1→(c) cliente DynamicTable ref; F2→(b) `ReceivableReceipt` full-only; F4→(b) anexo via SourceDocument; F6→(a) cancel=estorno. Fronteira: AR-formal = faturas avulsas (não vendas do salão). **FE-INCR-AR implementado** (aba "Contas a Receber", 15ª do painel — clone invertido do FE-INCR-AP: dropdown `nature=Revenue`, endpoint `/receive`, status `RECEIVING/RECEIVED`; review independente PASS 9/9 com linha colada + `next build` verde + i18n pt==en 614; branch `claude/fe-incr-ar`). Resíduo = browser sign-off. |
 | 9 | ~~**Dimensões** (centro de custo/projeto)~~ | ✅ **Mergeado 2026-07-15** (INCR-DIM backend PR #113 `9a73392` + **FE-INCR-DIM PR #116 `eeb33c1`**; ADR ratificado fork-a-fork + backend completo na mesma sessão; 1114/1114 jest; review indep. PASS ×2; smoke-gate DEPLOY-CLEARED). Fecha a "análise por dimensão" que faltava ao Núcleo 4. F0→CONSTRUIR (DIFERIR/YAGNI recusado pelo humano). Etiqueta ortogonal ao ledger (ACC-024); catálogo Prisma N-eixos + ponte zero-ALTER; F5→opcional (não reabre §4). **FE = aba Dimensões (16ª): catálogo + etiquetagem por partida leaf-only + relatórios balancete/DRE por dimensão** (fix `2e1a97f` surfaça o erro específico de tag não-folha via `resolveError`). Resíduo = browser sign-off. |
+| **B1** | **INCR-COUNTERPARTY (A1)** — contraparte Fornecedor/Cliente first-class + FK nas linhas AP/AR | **ADR RATIFICADO 2026-07-15** (fork-a-fork). Código de Núcleo 2, **ortogonal ao gate fiscal** ⇒ roteável em paralelo aos gates humanos. Pré-requisito do aging (F3). Skills: backend-prisma-model + service/repo/dto/route/controller + migração (FK nullable + backfill) + FE de seleção; smoke-migration-gate. |
+| **B2** | **INCR-DIM-COMPLETENESS (B1)** — etiqueta obrigatória por classe de conta (flag `requiresDimension` + gate no `postEntry`) + bucket "(Não alocado)" | **ADR RATIFICADO 2026-07-15** — EMENDA `ADR-INCR-DIM` F5; NÃO reintroduz §4 (gate de validação, não motor). Código de Núcleo 2/4, ortogonal ao gate fiscal. Skills: migração `accounts` (add flag) + gate no PostingService + report service (bucket) + FE (marcar conta); smoke-migration-gate. |
 | 10 | **ECF Fase 3** | Só faz sentido após o sign-off PVA da Fase 2 (item 3) provar a base. |
 | 11 | **NF-e** (ingestão fiscal) | Domínio fiscal pesado, ADR próprio campo-a-campo; alto esforço, valor condicionado a operação real emitindo NF. |
 | 12 | **Estoque / Imobilizado** (subrazões) | Módulos ERP próprios; dependem de demanda do setor-alvo. |
@@ -216,27 +218,31 @@ Ordenados por proximidade da fundação. **Nenhum** é "o próximo passo" antes 
 | 15 | **IA/analytics** (sugestão de conta/conciliação) | O mapa fixa: "sobre um ledger já confiável; IA sugere, humano contabiliza" — última camada. |
 | 16 | **Inbox/outbox/DLQ** | Condicionado a sair de single-process (T11) — hoje é não-objetivo por decisão travada. |
 
-**Dívidas de integridade abertas (candidatas a ADR — levantadas pelo debate de personas 2026-07-15,
-aterradas no código):** duas decisões arquiteturais que o backlog fechado deixou latentes, cada uma com
-PRE-ADR já em disco aguardando ratificação fork-a-fork:
-- **Contraparte AP/AR não-first-class** — [PRE-ADR-INCR-COUNTERPARTY](../adr/ADR-INCR-COUNTERPARTY-first-class.md).
-  Subledger chaveia o fornecedor/cliente no **nome de exibição** (string), ref DynamicTable não-FK ⇒ aging por
-  contraparte não é invariante garantido. Decidir **antes** de construir o aging (`dueDate // later increment F3`).
-- **Eixo dimensional opcional** — [PRE-ADR-INCR-DIM-COMPLETENESS](../adr/ADR-INCR-DIM-COMPLETENESS-mandatory-axis.md).
-  DRE por dimensão pode sub-reportar em silêncio; recomendação = bucket "(Não alocado)" read-time (não reabre
-  INCR-DIM F5 nem o §4). **REABRE decisão travada se for por obrigatoriedade** ⇒ `DECISÃO ARQUITETURAL`.
+**Decisões de integridade RATIFICADAS (fork-a-fork 2026-07-15) — dois novos increments de Núcleo 2:**
+levantadas pelo debate de personas, aterradas no código, ratificadas por sinal humano (ADRs em disco,
+impl. NÃO iniciada — seguem PLAN→BRIEF→impl→review→smoke-migration-gate):
+- **INCR-COUNTERPARTY** — [ADR](../adr/ADR-INCR-COUNTERPARTY-first-class.md) **F-CP1→A1**: promover
+  Fornecedor/Cliente a `Counterparty` **Prisma first-class + FK** nas linhas AP/AR (o dono escolheu integridade
+  máxima sobre a recomendação A2 do par). Fecha o aging-por-contraparte como invariante. Migração toca
+  `payables`/`receivables` (FK nullable + backfill). **Pré-requisito do aging (F3).**
+- **INCR-DIM-COMPLETENESS** — [ADR](../adr/ADR-INCR-DIM-COMPLETENESS-mandatory-axis.md) **F-DC0→B1**:
+  etiqueta **obrigatória por classe de conta** (flag `requiresDimension` por `Account` + gate no `postEntry`),
+  **incluindo** o bucket "(Não alocado)" (B0) para as contas ainda opcionais. **EMENDA `ADR-INCR-DIM` F5**
+  (opcional→condicionalmente obrigatório). **NÃO reintroduz o §4** — é gate de validação (rejeita), não motor
+  que gera lançamento. Migração toca `accounts` (add flag) + `postEntry`.
 
 **Riscos latentes:** ~~`RISK-INCR3-MIGRATION-001`~~ **FECHADO 2026-07-14** (fix replay-safe PR #98 +
 smoke-gate DEPLOY-CLEARED PR #99 — ver T12). Nenhum risco de migração aberto; o reflexo permanece:
 toda migração que tocar `journal_entries` re-roda o smoke-migration-gate sobre cópia do dev.db real.
 
-**Leitura em 2 linhas:** itens 7 (aprovação #108), **8 (AR formal #111 + FE #114)** e **9 (Dimensões #113 + FE
-#116) fechados** — o par do subledger (AP+AR) está completo e a análise por dimensão do Núcleo 4 entrou com UI.
-**Não resta código de nenhum incremento fechado; todo o Bloco A é gate humano/dado externo.** O gargalo real do
-projeto agora NÃO é falta de código — é validação humana não-executada (nenhum SPED aceito no PVA, nenhuma tela
-com sign-off humano, deploy real nunca rodado). Antes de rotear qualquer código do Bloco B, drenar o Bloco A
-(esp. sign-off PVA da ECF F2, que bloqueia o item 10). Único código roteável sem gate/ADR = N2 busca/filtros
-ricos (nó já verde). Frentes ⚫ do Bloco B seguem cada uma via ADR + ratificação humana.
+**Leitura em 2 linhas (atualizada 2026-07-15 pós-debate + ratificação):** itens 7/8/9 fechados (par AP+AR +
+Dimensões com UI). **Direção ratificada pelo dono = 3 tracks em paralelo:** (T1) **drenar os gates humanos**
+do Bloco A (sign-off PVA de um ECD primeiro — de-risca ECD+ECF+Apuração juntos; + browser sign-offs) — **esses
+são do humano, não do agente**; (T2) **código de Núcleo 2 já ratificado e ortogonal ao gate fiscal** =
+**INCR-COUNTERPARTY (A1)** + **INCR-DIM-COMPLETENESS (B1)** (fila B1/B2 acima) + N2 busca/filtros; (T3) abrir
+uma frente ⚫ do Bloco B (item 10 ECF F3 depende do PVA — só depois; NF-e/Folha via ADR). O gargalo real segue
+sendo **validação humana**, mas os dois increments de integridade dão trabalho de código legítimo que **não**
+espera o PVA. Cada frente nova ⚫ continua exigindo ADR + ratificação.
 
 ---
 
@@ -263,7 +269,7 @@ Antes de gerar "novo", reuse (Contrato §0). Confirmado por código:
 | Núcleo | Estado | % | Falta |
 |---|---|---|---|
 | **1 — Ledger confiável** | ✅ | ~95% | (nada estrutural; "permissões/aprovação" que o grafo mistura aqui são torre nova, não gap) |
-| **2 — Operação real** | 🟡 | ~80% | ~~subrazão AP~~ (✅ INCR-AP, PR #102 + FE #106); ~~aprovação~~ (✅ torre maker-checker/SoD, PR #108 + Emenda F3 SoD-off single-user); ~~subrazão AR~~ (✅ INCR-AR, PR #111 — par do subledger fechado); ~~dimensões~~ (✅ INCR-DIM, PR #113 `9a73392` — centro de custo/projeto, etiqueta ortogonal + DRE por dimensão + **FE #116**); falta busca/filtros ricos nos subledgers/lançamentos. Dívida de integridade em aberto (candidatas a ADR): contraparte AP/AR não-first-class (aging por fornecedor/cliente não é invariante garantido) e eixo dimensional opcional (DRE por dimensão pode sub-reportar em silêncio) |
+| **2 — Operação real** | 🟡 | ~80% | ~~subrazão AP~~ (✅ INCR-AP, PR #102 + FE #106); ~~aprovação~~ (✅ torre maker-checker/SoD, PR #108 + Emenda F3 SoD-off single-user); ~~subrazão AR~~ (✅ INCR-AR, PR #111 — par do subledger fechado); ~~dimensões~~ (✅ INCR-DIM, PR #113 `9a73392` — centro de custo/projeto, etiqueta ortogonal + DRE por dimensão + **FE #116**); falta busca/filtros ricos nos subledgers/lançamentos. **2 increments de integridade RATIFICADOS 2026-07-15** (impl. pendente): INCR-COUNTERPARTY (A1, contraparte first-class → aging garantido) e INCR-DIM-COMPLETENESS (B1, etiqueta obrigatória por conta, emenda F5) |
 | **3 — Integração** | 🟡 | ~40% | ~~SourceDocument formal~~ (✅ BE-INCR-8, mergeado PR #43); inbox, outbox (só se sair de single-process) |
 | **4 — Gestão** | 🟡 | ~85% | ~~fluxo de caixa~~ (✅ DFC método indireto, `report-dfc-cashflow`); ~~variação mensal~~ (✅ balancete comparativo, `report-period-comparison`); ~~Livro Diário~~ (✅ registro cronológico read-only, `report-daily-journal`); ~~análise por dimensão~~ (✅ INCR-DIM backend PR #113 + **FE #116** — balancete + DRE recortados por centro de custo/projeto, rollup por parentId; caveat de completude: reconciliação Σ-por-dimensão == DRE total só é garantida se o eixo for obrigatório nas contas etiquetáveis — hoje opcional, ver ADR-B candidato §5.1) |
 | **5 — Compliance** | 🟡 | ~70% | ~~mapeamento referencial~~ (✅ BE-INCR-9, PR #58; ~~autoria em lote Track A~~ PR #71; ~~catálogo RFB + validação analytic-only Track B~~ PR #74, smoke-gate PR #75 — Fork 2/import do arquivo oficial = dado externo); ~~geração do arquivo ECD~~ (✅ BE-INCR-SPED-ECD, PR #62, merge `9deb928`); ~~apuração/encerramento (I350/I355)~~ (✅ BE-INCR-SPED-APURACAO, PR #63, merge `1465bae`; residual PVA); ~~split de receita por natureza (pré-req ECF-Presumido)~~ (✅ BE-INCR-REVENUE-SPLIT, PR #66); ~~ECF (arquivo fiscal) Fase 2~~ (✅ BE-INCR-SPED-ECF, PR #78, merge `70caa1c`; residual PVA); ~~CNAB 240~~ (✅ BE-INCR7-CNAB, PR #61, merge `1088e32`); ~~recibos/comprovantes~~ (✅ BE-RECIBOS Fase A+B, PR #84; comprovante de lançamento PDF via puppeteer, no-persist; ADR-RECIBOS-pdf-generation); ~~FE do referencial~~ (✅ A1a aba Compliance, PR #89 `b88f628`); falta ECF Fase 3 (pós sign-off PVA), pacotes; **gate humano dominante: sign-off PVA dos 3 SPEDs** (item 3 da fila §5.1) |

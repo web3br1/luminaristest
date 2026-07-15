@@ -1,9 +1,13 @@
 # PRE-ADR-INCR-DIM-COMPLETENESS — Completude da DRE por dimensão (eixo opcional × obrigatório)
 
 - **Data:** 2026-07-15
-- **Status:** **PRE-ADR — aguardando ratificação humana fork-a-fork.** Nenhuma linha de código até o sinal.
-  **REABRE parcialmente `ADR-INCR-DIM` F5 (dimensão sempre opcional)** — portanto é `DECISÃO ARQUITETURAL`,
-  não tarefa. Levantado pelo debate de personas (Arquiteto Contábil), aterrado no código (CBM-001).
+- **Status:** **Accepted — RATIFICADO POR SINAL HUMANO FORK-A-FORK 2026-07-15 (via AskUserQuestion).**
+  Decisão: **F-DC0 → B1**, etiqueta **obrigatória em classes de conta designadas** (posting-time).
+  **Isto EMENDA `ADR-INCR-DIM` F5** ("dimensão sempre opcional" → "opcional por padrão, **condicionalmente
+  obrigatória** por flag de conta"): é `DECISÃO ARQUITETURAL` por sinal humano. **Não reintroduz o §4** (ver
+  §3 abaixo, precisão corrigida): B1 é um **gate de validação por flag booleano por `Account`** (rejeita
+  partida sem tag), não um motor que *gera* lançamento a partir de template/condições. Implementação (Task
+  pós-ADR) NÃO iniciada; migração toca `accounts` (add flag) + gate no `postEntry` → smoke-migration-gate.
 - **Autores:** par `luminaris-orchestrator` + `luminaris-accounting-architect`.
 - **Nó do master map:** §7 Núcleo 4 (caveat de completude na "análise por dimensão") + §4 (roça a rejeição
   "Motor de Regras Contábeis"). Relação com `ADR-INCR-DIM` F5 explícita em §3.
@@ -36,12 +40,18 @@ total` seja **sempre visível e explicável**, mesmo quando parte das partidas n
 
 ## 3. Relação com `ADR-INCR-DIM` F5 e com o §4
 
-- **F5→a (opcional) permanece correto para o *posting-time*.** Forçar etiqueta na escrita, condicionada à
-  conta, **é** uma regra dirigida por dado no caminho do ledger — exatamente o antipadrão §4. A opção B1 abaixo
-  reabre isso e deve ser tratada como reversão arquitetural séria.
-- **Completude é um problema de *read-time*, e read-time não colide com §4.** Um "bucket Não Alocado" no
-  relatório é **convenção de apresentação**, não regra de postagem — não reintroduz motor nenhum. Este é o
-  ponto que separa "honestidade do relatório" (barato, sem colisão) de "obrigar dado" (caro, colide).
+- **Precisão corrigida na ratificação (o par foi cauteloso demais):** B1 **NÃO reintroduz o §4**. O §4 rejeita
+  o **Motor de Regras Contábeis** = template/`conditionsJson` que **GERA/valida um lançamento inteiro** por
+  dado configurável. B1 é um **flag booleano `requiresDimension` por `Account`** consumido por um **gate de
+  validação** no `postEntry` que **rejeita** (não gera) uma partida sem etiqueta — a mesma classe do gate de
+  período (INCR-1) e do gate de conta-folha já existentes. Não há DSL de condições, não há geração. Logo B1
+  **emenda F5** (opcional→condicionalmente obrigatório), mas fica **dentro** dos padrões travados, não os viola.
+- **F5 (opcional) permanece o *default*.** A obrigatoriedade é **opt-in por conta** (o flag), não global; contas
+  sem flag seguem 100% opcionais como INCR-DIM ratificou.
+- **B0 (bucket read-time) continua recomendado como complemento**, não substituto: mesmo com B1, contas
+  **não** marcadas ainda produzem partidas sem tag, então o relatório ainda precisa do "(Não alocado)" para
+  `Σ == total`. **Decisão prática: B1 (gate) + B0 (bucket) juntos** — B1 fecha a origem nas contas críticas,
+  B0 mantém a honestidade nas demais.
 
 ## 4. Forks (decisão do dono)
 
@@ -57,12 +67,17 @@ total` seja **sempre visível e explicável**, mesmo quando parte das partidas n
 - **B2 — Ambos:** B0 agora (honestidade imediata, sem colisão) + B1 depois **se** o bucket "Não alocado" na
   prática vier grande demais para ser útil (evidência empírica de que opcional não basta).
 
-## 5. Recomendação do par (não-vinculante)
+## 5. Recomendação do par e decisão do dono
 
-**B0.** É a correção proporcional: entrega a propriedade que o Arquiteto quer (`Σ == total`, sem mentira por
-omissão) **sem** reabrir uma decisão travada nem tocar o §4. B1 só se, depois de usar o sistema de verdade, o
-"(Não alocado)" for grande a ponto de esvaziar o relatório — aí há **evidência** para pagar o custo
-arquitetural de reabrir F5. Decidir B1 agora, sem esse dado, é reabrir um lock por hipótese.
+**Recomendação do par:** B0 (bucket) primeiro; B1 só com evidência de uso. **Decisão do dono (ratificada):
+B1** — etiqueta obrigatória por classe de conta. **Interpretação de implementação (par):** B1 **inclui** B0
+por necessidade (contas não-marcadas seguem opcionais ⇒ o bucket "(Não alocado)" continua obrigatório para
+`Σ == total`). Entrega:
+1. `Account.requiresDimension` (flag booleano, default `false`) + qual(is) eixo(s) exige (ou "qualquer eixo");
+2. gate no `postEntry`: partida a conta com `requiresDimension` **sem** `PostingDimension` no(s) eixo(s)
+   exigido(s) → rejeita (mesma forma do gate de período/conta-folha, T6 in-tx);
+3. bucket "(Não alocado)" no relatório de DRE por dimensão (B0), para as contas ainda opcionais.
+**Fora:** UI de marcar conta como obrigatória (parte do FE do incremento); rateio automático (§4, fora).
 
 ## 6. Fora de escopo
 
