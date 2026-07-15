@@ -40,6 +40,12 @@ export interface IAccountingPolicy {
   /** Can list/read Contas a Receber (INCR-AR). */
   canReadReceivable(scope: AccountingScope): boolean;
 
+  /** Can create/archive dimension definitions and values (catalog management, INCR-DIM). */
+  canManageDimension(scope: AccountingScope): boolean;
+
+  /** Can read the dimension catalog and dimension-sliced reports (INCR-DIM). */
+  canReadDimension(scope: AccountingScope): boolean;
+
   /**
    * Can author/submit/reject draft journal entries in the approval tower (maker actions,
    * ADR-INCR-APPROVAL). The dynamic SoD gate (approver ≠ creator) is enforced in the service,

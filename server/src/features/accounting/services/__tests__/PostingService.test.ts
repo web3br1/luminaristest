@@ -64,6 +64,7 @@ function buildService(over: {
   periodRepo?: any;
   auditService?: any;
   sourceProvenanceRepo?: any;
+  dimensionRepo?: any;
 } = {}) {
   const accountRepo = {
     findByCode: jest.fn(async (_scope: AccountingScope, code: string) => ({
@@ -133,6 +134,15 @@ function buildService(over: {
     ...over.sourceProvenanceRepo,
   };
 
+  // INCR-DIM: dimension repo — default returns no value (untagged posts never touch it). Tests that
+  // exercise tagging override findValueById/countActiveChildren.
+  const dimensionRepo = {
+    findValueById: jest.fn(async () => null),
+    countActiveChildren: jest.fn(async () => 0),
+    createPostingDimension: jest.fn(async (data: any) => ({ id: 'pd-1', ...data })),
+    ...over.dimensionRepo,
+  };
+
   const svc = new PostingService(
     accountRepo as any,
     journalEntryRepo as any,
@@ -141,8 +151,9 @@ function buildService(over: {
     periodRepo as any,
     auditService as any,
     sourceProvenanceRepo as any,
+    dimensionRepo as any,
   );
-  return { svc, accountRepo, journalEntryRepo, postingRepo, policy, periodRepo, auditService, sourceProvenanceRepo };
+  return { svc, accountRepo, journalEntryRepo, postingRepo, policy, periodRepo, auditService, sourceProvenanceRepo, dimensionRepo };
 }
 
 const balancedInput = {
@@ -1022,6 +1033,102 @@ describe('PostingService', () => {
       expect(sourceProvenanceRepo.createSourceDocument).toHaveBeenCalledTimes(2);
       const refs = sourceProvenanceRepo.createSourceDocument.mock.calls.map((c: any[]) => c[0].externalRef);
       expect(refs).toEqual(['NF-DUP', 'NF-DUP']); // no collision — externalRef participates in no dedup key
+    });
+  });
+
+  describe('postEntry — dimension tagging (INCR-DIM)', () => {
+    const valueRow = (over: any = {}) => ({
+      id: 'val-cc-1', userId: 'u1', unitId, definitionId: 'def-cc', code: 'CC1', name: 'Loja Centro',
+      parentId: null, status: 'ACTIVE', createdById: null, createdAt: new Date(), updatedAt: new Date(),
+      deletedAt: null, ...over,
+    });
+    const taggedInput = (dimensions: string[]) => ({
+      ...balancedInput,
+      lines: [
+        { accountCode: '1.1.1', debitCents: 10000, creditCents: 0 },
+        { accountCode: '3.1', debitCents: 0, creditCents: 10000, dimensions },
+      ],
+    });
+
+    it('tags a leg: derives definitionId from the value and writes PostingDimension in the tx', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => valueRow()),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(async (d: any) => ({ id: 'pd-1', ...d })),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await svc.postEntry(scope, taggedInput(['val-cc-1']));
+      expect(dimensionRepo.createPostingDimension).toHaveBeenCalledTimes(1);
+      expect(dimensionRepo.createPostingDimension).toHaveBeenCalledWith(
+        expect.objectContaining({ postingId: 'p-x', definitionId: 'def-cc', valueId: 'val-cc-1', userId: 'u1', unitId }),
+        txHandle,
+      );
+    });
+
+    it('untagged post writes NO PostingDimension and never touches the dimension repo (ACC-024)', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => null),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await svc.postEntry(scope, balancedInput);
+      expect(dimensionRepo.findValueById).not.toHaveBeenCalled();
+      expect(dimensionRepo.createPostingDimension).not.toHaveBeenCalled();
+    });
+
+    it('rejects two values of the SAME axis on one leg (ACC-025), writing nothing', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async (_s: any, id: string) => valueRow({ id, definitionId: 'def-cc' })),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await expect(svc.postEntry(scope, taggedInput(['val-a', 'val-b']))).rejects.toBeInstanceOf(ValidationError);
+      expect(dimensionRepo.createPostingDimension).not.toHaveBeenCalled();
+    });
+
+    it('rejects a non-leaf value (has active children) — leaf-only tagging D3', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => valueRow()),
+        countActiveChildren: jest.fn(async () => 1),
+        createPostingDimension: jest.fn(),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await expect(svc.postEntry(scope, taggedInput(['val-parent']))).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it('rejects an archived value', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => valueRow({ status: 'ARCHIVED' })),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await expect(svc.postEntry(scope, taggedInput(['val-x']))).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it('rejects a value not in the scope', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => null),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await expect(svc.postEntry(scope, taggedInput(['ghost']))).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it('tags across DIFFERENT axes on the same leg (N-axis)', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async (_s: any, id: string) =>
+          id === 'v-cc' ? valueRow({ id, definitionId: 'def-cc' }) : valueRow({ id, definitionId: 'def-proj' }),
+        ),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(async (d: any) => ({ id: 'pd', ...d })),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await svc.postEntry(scope, taggedInput(['v-cc', 'v-proj']));
+      expect(dimensionRepo.createPostingDimension).toHaveBeenCalledTimes(2);
     });
   });
   });

@@ -25,6 +25,7 @@ import { ReferentialMappingRepository } from '../features/accounting/repositorie
 import { ReferentialAccountRepository } from '../features/accounting/repositories/ReferentialAccountRepository';
 import { PayableRepository } from '../features/accounting/repositories/PayableRepository';
 import { ReceivableRepository } from '../features/accounting/repositories/ReceivableRepository';
+import { DimensionRepository } from '../features/accounting/repositories/DimensionRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
@@ -75,6 +76,8 @@ import { SpedEcfGenerationService } from '../features/accounting/services/SpedEc
 import { ExerciseClosingService } from '../features/accounting/services/ExerciseClosingService';
 import { PayableService } from '../features/accounting/services/PayableService';
 import { ReceivableService } from '../features/accounting/services/ReceivableService';
+import { DimensionService } from '../features/accounting/services/DimensionService';
+import { DimensionReportService } from '../features/accounting/services/DimensionReportService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
@@ -127,6 +130,7 @@ import type { IReferentialMappingRepository } from '../features/accounting/repos
 import type { IReferentialAccountRepository } from '../features/accounting/repositories/IReferentialAccountRepository';
 import type { IPayableRepository } from '../features/accounting/repositories/IPayableRepository';
 import type { IReceivableRepository } from '../features/accounting/repositories/IReceivableRepository';
+import type { IDimensionRepository } from '../features/accounting/repositories/IDimensionRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
 import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
@@ -162,6 +166,7 @@ export class ApplicationFactory {
     referentialAccount: IReferentialAccountRepository;
     payable: IPayableRepository;
     receivable: IReceivableRepository;
+    dimension: IDimensionRepository;
   };
 
   private readonly policies: {
@@ -214,6 +219,8 @@ export class ApplicationFactory {
     exerciseClosing: ExerciseClosingService;
     payable: PayableService;
     receivable: ReceivableService;
+    dimension: DimensionService;
+    dimensionReport: DimensionReportService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
@@ -254,6 +261,7 @@ export class ApplicationFactory {
       referentialAccount: new ReferentialAccountRepository(),
       payable: new PayableRepository(),
       receivable: new ReceivableRepository(),
+      dimension: new DimensionRepository(),
     };
 
     // Policies
@@ -337,6 +345,7 @@ export class ApplicationFactory {
       this.repositories.accountingPeriod,
       auditService,
       this.repositories.sourceProvenance,
+      this.repositories.dimension,
     );
 
     // Maker-checker approval tower (ADR-INCR-APPROVAL) — the controlled Draft→PendingApproval→Posted
@@ -515,6 +524,17 @@ export class ApplicationFactory {
         auditService,
         this.policies.accounting,
       ),
+      dimension: new DimensionService(
+        this.repositories.dimension,
+        auditService,
+        this.policies.accounting,
+      ),
+      dimensionReport: new DimensionReportService(
+        this.repositories.posting,
+        this.repositories.account,
+        this.repositories.dimension,
+        this.policies.accounting,
+      ),
       packageBalance: packageBalanceService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
@@ -569,6 +589,8 @@ export class ApplicationFactory {
   public getPayableService = (): PayableService => this.services.payable;
 
   public getReceivableService = (): ReceivableService => this.services.receivable;
+  public getDimensionService = (): DimensionService => this.services.dimension;
+  public getDimensionReportService = (): DimensionReportService => this.services.dimensionReport;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;

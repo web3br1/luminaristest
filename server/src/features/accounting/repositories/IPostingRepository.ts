@@ -19,6 +19,18 @@ export interface AccountPostingTotals {
 }
 
 /**
+ * A per-(account × dimension value) debit/credit aggregate produced by groupByAccountAndDimension
+ * (INCR-DIM Fatia 3). `valueId === null` is the "(sem dimensão)" bucket — legs not tagged on the
+ * queried axis. Money in INTEGER CENTS.
+ */
+export interface AccountDimensionTotals {
+  accountId: string;
+  valueId: string | null;
+  debitCents: number;
+  creditCents: number;
+}
+
+/**
  * Contract for ledger-line (partida) data access. First-class Prisma. Money is
  * INTEGER CENTS — aggregates sum Int columns, never floats.
  */
@@ -61,6 +73,19 @@ export interface IPostingRepository {
     statuses: string[],
     options?: { from?: Date; to?: Date; excludeSourceTypes?: string[] },
   ): Promise<AccountPostingTotals[]>;
+
+  /**
+   * Sums debit/credit per (account × dimension value) for ONE axis (definitionId), scoped and
+   * status/date-filtered exactly like groupByAccount (INCR-DIM Fatia 3). Prisma groupBy can't cross
+   * the posting_dimensions bridge, so this fetches legs with their tag for the axis and reduces
+   * in-memory. Legs with no tag on the axis fall into the `valueId: null` bucket. Reads only — never
+   * a ledger write; the aggregation is ORTHOGONAL to the trial balance (ACC-024).
+   */
+  groupByAccountAndDimension(
+    scope: AccountingScope,
+    statuses: string[],
+    options: { definitionId: string; from?: Date; to?: Date; excludeSourceTypes?: string[] },
+  ): Promise<AccountDimensionTotals[]>;
 
   /**
    * Atomically increments the JournalEntrySequence counter for (scope, fiscalYear)

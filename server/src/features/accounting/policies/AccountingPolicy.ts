@@ -52,6 +52,14 @@ export class AccountingPolicy implements IAccountingPolicy {
     return !!scope.actorUserId;
   }
 
+  canManageDimension(scope: AccountingScope): boolean {
+    return !!scope.actorUserId;
+  }
+
+  canReadDimension(scope: AccountingScope): boolean {
+    return !!scope.actorUserId;
+  }
+
   // ponytail: RBAC por papel (F6, ⚫) entra quando os papéis existirem. Aqui só a checagem
   // grosseira de ator; a SoD dinâmica vive em enforcesSegregationOfDuties (abaixo).
   canManageEntryApproval(scope: AccountingScope): boolean {

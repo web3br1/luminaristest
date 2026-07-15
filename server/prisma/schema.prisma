@@ -41,6 +41,7 @@ model User {
   packageBalanceMovements PackageBalanceMovement[] // Relation to PackageBalanceMovement (prepaid packages)
   payables                Payable[] // Relation to Payable (accounts payable / contas a pagar, INCR-AP)
   receivables             Receivable[] // Relation to Receivable (accounts receivable / contas a receber, INCR-AR)
+  dimensionDefinitions    DimensionDefinition[] // Relation to DimensionDefinition (cost-center/project dimensions, INCR-DIM)
 }
 
 // Per-user saved table views (query/filters/sort) for the canonical table stack.
@@ -624,6 +625,7 @@ model Posting {
   createdAt             DateTime              @default(now())
   updatedAt             DateTime?             @updatedAt
   reconciliationMatches ReconciliationMatch[] @relation("PostingReconciliationMatches")
+  dimensions            PostingDimension[] // dimension tags on THIS leg (INCR-DIM) — virtual relation, FK lives in posting_dimensions (zero ALTER on postings)
 
   @@index([userId, unitId])
   @@index([entryId])
@@ -952,4 +954,89 @@ model ReceivableReceipt {
 
   @@index([userId, unitId, receivableId])
   @@map("receivable_receipts")
+}
+
+// ── Dimensões (centro de custo / projeto) — INCR-DIM / ADR-INCR-DIM ─────────────
+// A dimension is a MANAGEMENT classification axis ORTHOGONAL to the chart of accounts: the same
+// leaf account, sliced by cost center / project. It is METADATA on a posting leg — NOT a ledger
+// value. It NEVER enters Σdébito=Σcrédito, the period gate, numbering, idempotency
+// (sourceType+sourceId) or the audit hash-chain (T4/T6/T7/T8 untouched; invariant ACC-024). First-
+// class Prisma (F1→a; NOT the DynamicTable-ref of AR/AP customer/supplier — the complete build needs
+// hierarchy + integrity). NOT the multi-company tower §4 rejected — this is a classification catalog.
+// Tenancy = AccountingScope (userId + unitId). Migration = CREATE TABLE ×3, ZERO ALTER on postings.
+
+// The AXIS/type (e.g. "COST_CENTER", "PROJECT"). User FK cascade like Payable/Receivable (the trail
+// is the AuditEvent). Values cascade via the definition FK (below), so on tenant teardown the whole
+// axis + its values go together.
+model DimensionDefinition {
+  id          String           @id @default(cuid())
+  userId      String // scope owner (AccountingScope.ownerUserId); FK User — cascade on tenant delete
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId      String // business unit (scoped string, not a FK)
+  code        String // stable axis key, e.g. "COST_CENTER" | "PROJECT"
+  name        String // display label, e.g. "Centro de Custo"
+  status      String           @default("ACTIVE") // ACTIVE | ARCHIVED (see DIMENSION_STATUSES)
+  createdById String? // actor (AccountingScope.actorUserId); plain string
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime? // set when ARCHIVED (soft)
+  values      DimensionValue[]
+
+  @@unique([userId, unitId, code]) // one axis per code per unit
+  @@index([userId, unitId])
+  @@index([deletedAt])
+  @@map("dimension_definitions")
+}
+
+// The VALUE list, HIERARCHICAL. parentId is a self-relation (rollup: "Marketing" sums its sub-
+// centers) — precedent JournalEntry.reversedById self-relation; no onDelete on the self-rel mirrors
+// it (bulk cascade via the definition FK removes the whole set together). `definition` cascades so a
+// teardown of the axis removes its values. Only ANALYTIC (leaf = no active children) values are
+// taggable (D3), mirroring Account.acceptsEntries; the service enforces leaf-only at post time.
+model DimensionValue {
+  id           String              @id @default(cuid())
+  userId       String // scope owner; plain scope key (cascades via definition, mirrors ReferentialMapping/child tables)
+  unitId       String // business unit (scoped string, not a FK)
+  definitionId String
+  definition   DimensionDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  code         String // stable value key within the axis, e.g. "LOJA_CENTRO"
+  name         String // display label, e.g. "Loja Centro"
+  parentId     String? // rollup parent within the SAME definition (service enforces same-axis + no cycle, ACC-026)
+  parent       DimensionValue?     @relation("DimensionValueTree", fields: [parentId], references: [id])
+  children     DimensionValue[]    @relation("DimensionValueTree")
+  status       String              @default("ACTIVE") // ACTIVE | ARCHIVED (archived value keeps historical links)
+  createdById  String? // actor; plain string
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  deletedAt    DateTime? // set when ARCHIVED (soft)
+  postingLinks PostingDimension[]
+
+  @@unique([userId, unitId, definitionId, code]) // one value per code per axis per unit
+  @@index([userId, unitId, definitionId])
+  @@index([parentId])
+  @@index([deletedAt])
+  @@map("dimension_values")
+}
+
+// The LINK (bridge) posting↔value — a leg carries AT MOST ONE value per axis (@@unique), enforcing
+// "a line can't be in two cost centers; split the line". Link table shape mirrors ReconciliationMatch
+// (userId plain string, no User FK; cascades via the posting). definitionId is DENORMALIZED from
+// value.definitionId (== the axis) so reports can filter/group by axis without a join back through the
+// value (the value FK already guarantees existence). Prisma groupBy can't cross this bridge → reports
+// join/reduce (D5). CREATE TABLE only — postings gains a virtual relation, no column, no ALTER.
+model PostingDimension {
+  id           String         @id @default(cuid())
+  userId       String // scope owner; plain scope key (cascades via posting)
+  unitId       String // business unit (scoped string, not a FK)
+  postingId    String
+  posting      Posting        @relation(fields: [postingId], references: [id], onDelete: Cascade)
+  definitionId String // denormalized axis == value.definitionId (query/group key, D5)
+  valueId      String
+  value        DimensionValue @relation(fields: [valueId], references: [id])
+  createdAt    DateTime       @default(now())
+
+  @@unique([postingId, definitionId]) // ACC-025 — at most one value per axis per leg
+  @@index([userId, unitId, definitionId, valueId])
+  @@index([postingId])
+  @@map("posting_dimensions")
 }

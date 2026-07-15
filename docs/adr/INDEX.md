@@ -6,7 +6,7 @@
 >
 > **Convenção:** `ADR-<trilho><n>` = decisão; `D0-*` = registro de ratificação humana (gate G0) de uma fase.
 > Onde uma decisão de módulo **não** tem ADR próprio, o ponteiro para onde ela vive está em §Fora-de-ADR.
-> Última atualização: **2026-07-12**.
+> Última atualização: **2026-07-15**.
 
 ## Buildout contábil (INCR-*)
 
@@ -23,6 +23,7 @@
 | [INCR-AP](ADR-INCR-AP-accounts-payable.md) | Contas a Pagar operacional (`Payable`+`PayablePayment`, duplo fato gerador, `2.1.2 Fornecedores`) | **Accepted — RATIFICADO 2026-07-14** (F0→(a) `postEntry` direto; F1–F6 conforme recomendado); impl. + FE mergeados (PRs #102/#106) | 2026-07-14 | PRISMA_FIRST_CLASS |
 | [INCR-APPROVAL](ADR-INCR-APPROVAL-maker-checker.md) | Torre de aprovação (maker-checker / SoD) — `Draft→PendingApproval→Posted` no `JournalEntry` | **Accepted — MERGEADO** (PR #108, `1f4ff78`); **Emenda F3 re-ratificada fork-a-fork 2026-07-14** (§9): SoD hard→desligada single-user (`enforcesSegregationOfDuties = owner≠actor`), staging usável, endurece via membership | 2026-07-14 | PRISMA_FIRST_CLASS |
 | [INCR-AR](ADR-INCR-AR-accounts-receivable.md) | Contas a Receber (AR) operacional (`Receivable`+`ReceivableReceipt`, duplo fato gerador, conta dedicada `1.1.5`) | **Accepted — RATIFICADO FORK-A-FORK 2026-07-14; IMPLEMENTADO E MERGEADO** (PR #111 `87ab95b`, 2026-07-15; review indep. PASS; smoke-gate DEPLOY-CLEARED) — F7→(a) conta dedicada `1.1.5`; F0→(a) `postEntry` direto; F1–F6 espelho do AP | 2026-07-15 | PRISMA_FIRST_CLASS |
+| [INCR-DIM](ADR-INCR-DIM-dimensions.md) | Dimensões (centro de custo/projeto) — `DimensionDefinition`+`DimensionValue`(hierárquico)+`PostingDimension`, etiqueta ortogonal ao ledger | **Accepted — RATIFICADO FORK-A-FORK 2026-07-15** (F0→CONSTRUIR build completa; F1→(a) catálogo Prisma; F2→(a) partida; F3→ponte + F4→N eixos; F5→(a) opcional/não-reabre-§4; F6→(a) razão/balancete + DRE por dimensão); impl. **não iniciada** (PRE-ADR fechado, nó ⚫ até closeout) | 2026-07-15 | PRISMA_FIRST_CLASS |
 
 ## Bridges de integração (venda DynamicTable → ledger Prisma)
 
