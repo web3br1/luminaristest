@@ -21,6 +21,7 @@ const protectedApiPaths = [
   '/api/payables',        // ← cobre Contas a Pagar (INCR-AP): create/pay/cancel/reconcile
   '/api/receivables',     // ← cobre Contas a Receber (INCR-AR): create/receive/cancel/reconcile
   '/api/dimensions',      // ← cobre Dimensões (INCR-DIM): catálogo (definitions/values) + reports
+  '/api/access-control',  // ← cobre RBAC (LGPD Fatia A): roles/permissions/assignments
   '/api/entry-approvals', // ← cobre a torre de aprovação (ADR-INCR-APPROVAL): draft/submit/approve/reject
   '/api/sales',           // ← cobre /api/sales/cancel e /return (transições Incremento D)
   '/api/saved-views',     // ← saved table views (per-user)

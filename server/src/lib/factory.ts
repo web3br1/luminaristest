@@ -26,6 +26,7 @@ import { ReferentialAccountRepository } from '../features/accounting/repositorie
 import { PayableRepository } from '../features/accounting/repositories/PayableRepository';
 import { ReceivableRepository } from '../features/accounting/repositories/ReceivableRepository';
 import { DimensionRepository } from '../features/accounting/repositories/DimensionRepository';
+import { AccessControlRepository } from '../features/accounting/repositories/AccessControlRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
@@ -77,6 +78,7 @@ import { ExerciseClosingService } from '../features/accounting/services/Exercise
 import { PayableService } from '../features/accounting/services/PayableService';
 import { ReceivableService } from '../features/accounting/services/ReceivableService';
 import { DimensionService } from '../features/accounting/services/DimensionService';
+import { AccessControlService } from '../features/accounting/services/AccessControlService';
 import { DimensionReportService } from '../features/accounting/services/DimensionReportService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
@@ -131,6 +133,7 @@ import type { IReferentialAccountRepository } from '../features/accounting/repos
 import type { IPayableRepository } from '../features/accounting/repositories/IPayableRepository';
 import type { IReceivableRepository } from '../features/accounting/repositories/IReceivableRepository';
 import type { IDimensionRepository } from '../features/accounting/repositories/IDimensionRepository';
+import type { IAccessControlRepository } from '../features/accounting/repositories/IAccessControlRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
 import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
@@ -167,6 +170,7 @@ export class ApplicationFactory {
     payable: IPayableRepository;
     receivable: IReceivableRepository;
     dimension: IDimensionRepository;
+    accessControl: IAccessControlRepository;
   };
 
   private readonly policies: {
@@ -221,6 +225,7 @@ export class ApplicationFactory {
     receivable: ReceivableService;
     dimension: DimensionService;
     dimensionReport: DimensionReportService;
+    accessControl: AccessControlService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
@@ -262,6 +267,7 @@ export class ApplicationFactory {
       payable: new PayableRepository(),
       receivable: new ReceivableRepository(),
       dimension: new DimensionRepository(),
+      accessControl: new AccessControlRepository(),
     };
 
     // Policies
@@ -348,6 +354,14 @@ export class ApplicationFactory {
       this.repositories.dimension,
     );
 
+    // RBAC (LGPD Fatia A) — role/assignment catalog + the assertPermission enforcement port. Built
+    // before the approval tower because the tower consults it (accounting.entry.approve).
+    const accessControlService = new AccessControlService(
+      this.repositories.accessControl,
+      auditService,
+      this.policies.accounting,
+    );
+
     // Maker-checker approval tower (ADR-INCR-APPROVAL) — the controlled Draft→PendingApproval→Posted
     // path for manual entries. Owns its own tx (CAS on version); does NOT wrap postEntry.
     const entryApprovalService = new EntryApprovalService(
@@ -357,6 +371,7 @@ export class ApplicationFactory {
       this.repositories.accountingPeriod,
       auditService,
       this.policies.accounting,
+      accessControlService,
     );
 
     const periodService = new PeriodService(
@@ -535,6 +550,7 @@ export class ApplicationFactory {
         this.repositories.dimension,
         this.policies.accounting,
       ),
+      accessControl: accessControlService,
       packageBalance: packageBalanceService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
@@ -591,6 +607,7 @@ export class ApplicationFactory {
   public getReceivableService = (): ReceivableService => this.services.receivable;
   public getDimensionService = (): DimensionService => this.services.dimension;
   public getDimensionReportService = (): DimensionReportService => this.services.dimensionReport;
+  public getAccessControlService = (): AccessControlService => this.services.accessControl;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;

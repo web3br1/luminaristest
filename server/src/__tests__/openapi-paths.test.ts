@@ -25,7 +25,9 @@ const { options } = require('../../scripts/generate-openapi');
 //    /{id}/cancel, /{id}/payments/{paymentId}/cancel.
 // +6 (ADR-INCR-APPROVAL maker-checker torre): /api/entry-approvals/pending (GET), /drafts (POST),
 //    /drafts/{id} (PUT), /drafts/{id}/submit, /{id}/approve, /{id}/reject.
-const BASELINE = 134;
+// +5 (LGPD Fatia A RBAC): /api/access-control/roles (GET+POST), /roles/{id}/permissions,
+//    /roles/{id}/archive, /assignments (GET+POST), /assignments/{id}/revoke.
+const BASELINE = 139;
 
 describe('OpenAPI @openapi path coverage', () => {
   it('exposes at least BASELINE paths (guards the swagger-jsdoc `: ` drop bug)', () => {

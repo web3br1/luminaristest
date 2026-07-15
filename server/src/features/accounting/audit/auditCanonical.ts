@@ -63,6 +63,14 @@ const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   'dimension.definition_archived': ['definitionId', 'code'],
   'dimension.value_created':       ['definitionId', 'valueId', 'code', 'name', 'parentId'],
   'dimension.value_archived':      ['definitionId', 'valueId', 'code'],
+  // LGPD Fatia A — RBAC role/assignment management (ADR-LGPD). Ids/codes/permission counts + the
+  // subject user id (an internal id, consistent with actorUserId/createdById already logged); NEVER a
+  // user's name/email. permissionCount (not the keys) keeps the trail bounded.
+  'access.role_created':         ['roleId', 'code', 'name', 'permissionCount'],
+  'access.role_archived':        ['roleId', 'code'],
+  'access.role_permissions_set': ['roleId', 'permissionCount'],
+  'access.role_assigned':        ['roleId', 'assignmentId', 'subjectUserId'],
+  'access.assignment_revoked':   ['assignmentId', 'roleId', 'subjectUserId'],
 };
 
 /**

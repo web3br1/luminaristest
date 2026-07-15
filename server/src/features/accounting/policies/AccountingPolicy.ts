@@ -70,6 +70,17 @@ export class AccountingPolicy implements IAccountingPolicy {
     return !!scope.actorUserId;
   }
 
+  // RBAC management (LGPD Fatia A) — OWNER-ONLY: only the scope owner authors roles/assignments (no
+  // bootstrap paradox; delegated mgmt via `accounting.rbac.manage` is a named future refinement).
+  // Per-permission ENFORCEMENT is a runtime lookup in AccessControlService.assertPermission, not here.
+  canManageAccessControl(scope: AccountingScope): boolean {
+    return !!scope.actorUserId && scope.ownerUserId === scope.actorUserId;
+  }
+
+  canReadAccessControl(scope: AccountingScope): boolean {
+    return !!scope.actorUserId && scope.ownerUserId === scope.actorUserId;
+  }
+
   // SoD dinâmica (ADR-INCR-APPROVAL F3, re-ratificado fork-a-fork 2026-07-14): OFF enquanto
   // ownerUserId === actorUserId (single-user → staging usável), ativa sozinha quando um delegado
   // opera os livros do dono (ownerUserId !== actorUserId, via membership futuro). Ver

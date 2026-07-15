@@ -42,6 +42,8 @@ model User {
   payables                Payable[] // Relation to Payable (accounts payable / contas a pagar, INCR-AP)
   receivables             Receivable[] // Relation to Receivable (accounts receivable / contas a receber, INCR-AR)
   dimensionDefinitions    DimensionDefinition[] // Relation to DimensionDefinition (cost-center/project dimensions, INCR-DIM)
+  accessRoles             AccessRole[] // Relation to AccessRole (RBAC roles, LGPD Fatia A)
+  accessRoleAssignments   AccessRoleAssignment[] // Relation to AccessRoleAssignment (RBAC assignments, LGPD Fatia A)
 }
 
 // Per-user saved table views (query/filters/sort) for the canonical table stack.
@@ -1039,4 +1041,69 @@ model PostingDimension {
   @@index([userId, unitId, definitionId, valueId])
   @@index([postingId])
   @@map("posting_dimensions")
+}
+
+// RBAC — fine-grained roles/permissions (LGPD Fatia A / ADR-LGPD F1→a). FIRST-CLASS PRISMA. This is
+// the "membership" seam ADR-INCR-APPROVAL Emenda F3 anticipated: a role grants a set of permission
+// keys (catalog in models/AccessControl.model.ts) and an assignment grants a role to a subject user
+// within a scope. It plugs INTO the existing AccountingPolicy/EntryApprovalService, not a parallel
+// gate (§3 do ADR). Additive CREATE TABLE ×3, zero ALTER on any existing table. NOT the coarse User
+// `Role` enum (USER/ADMIN) — these are per-scope named roles the owner authors at runtime.
+model AccessRole {
+  id          String                 @id @default(cuid())
+  userId      String // scope owner (AccountingScope.ownerUserId); FK User — cascade on tenant delete
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId      String // business unit (scoped string, not a FK)
+  code        String // stable role key, e.g. "APPROVER" | "BOOKKEEPER" (unique per unit)
+  name        String // display label, e.g. "Aprovador"
+  status      String                 @default("ACTIVE") // ACTIVE | ARCHIVED (see ACCESS_ROLE_STATUSES)
+  createdById String? // actor (AccountingScope.actorUserId); plain string
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  deletedAt   DateTime? // set when ARCHIVED (soft)
+  permissions AccessRolePermission[]
+  assignments AccessRoleAssignment[]
+
+  @@unique([userId, unitId, code]) // one row per code per unit — archived rows too; re-create REVIVES the archived same-code role (AccessControlService.createRole), no separate unarchive
+  @@index([userId, unitId])
+  @@index([deletedAt])
+  @@map("access_roles")
+}
+
+// The role→permission grant (join). permissionKey is a catalog string (PERMISSION_KEYS); the DTO
+// rejects any key outside the catalog. Cascades via the role (no User FK, mirrors AccessRolePermission
+// being scoped through its parent role). Replacing a role's permission set = delete-all + recreate in
+// one tx (setRolePermissions).
+model AccessRolePermission {
+  id            String     @id @default(cuid())
+  roleId        String
+  role          AccessRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionKey String // one of PERMISSION_KEYS (validated at the DTO/service boundary)
+  createdAt     DateTime   @default(now())
+
+  @@unique([roleId, permissionKey]) // a permission appears at most once per role
+  @@index([roleId])
+  @@map("access_role_permissions")
+}
+
+// The assignment: subject user holds a role within a scope. subjectUserId is a plain string (the
+// granted member) — NOT a User FK, mirroring createdById/actor strings (a member may be any user id;
+// tenancy is the owner's userId + unitId). Soft-revoke via deletedAt (the trail lives in AuditEvent).
+model AccessRoleAssignment {
+  id            String     @id @default(cuid())
+  userId        String // scope owner (AccountingScope.ownerUserId); FK User — cascade on tenant delete
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId        String // business unit (scoped string, not a FK)
+  subjectUserId String // the member granted the role (plain string, like createdById)
+  roleId        String
+  role          AccessRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdById   String? // actor who granted; plain string
+  createdAt     DateTime   @default(now())
+  deletedAt     DateTime? // set when revoked (soft)
+
+  @@unique([userId, unitId, subjectUserId, roleId]) // one row per (member, role) per unit — revoked rows too; re-assign REVIVES the revoked grant (AccessControlService.assignRole)
+  @@index([userId, unitId, subjectUserId])
+  @@index([roleId])
+  @@index([deletedAt])
+  @@map("access_role_assignments")
 }
