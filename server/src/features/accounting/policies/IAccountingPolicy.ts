@@ -34,6 +34,12 @@ export interface IAccountingPolicy {
   /** Can list/read Contas a Pagar (INCR-AP). */
   canReadPayable(scope: AccountingScope): boolean;
 
+  /** Can create/receive/cancel Contas a Receber (INCR-AR). */
+  canManageReceivable(scope: AccountingScope): boolean;
+
+  /** Can list/read Contas a Receber (INCR-AR). */
+  canReadReceivable(scope: AccountingScope): boolean;
+
   /**
    * Can author/submit/reject draft journal entries in the approval tower (maker actions,
    * ADR-INCR-APPROVAL). The dynamic SoD gate (approver ≠ creator) is enforced in the service,

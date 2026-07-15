@@ -25,6 +25,14 @@ export const CANONICAL_ACCOUNTS: ReadonlyArray<CanonicalAccount> = [
   // Settlement debit leaf (Incremento D / D1-QMAP): card payments land here (the acquirer owes
   // us until the deposit clears) — gross, NOT net; the acquirer fee is a separate Incremento F.
   { code: '1.1.4', name: 'A Receber Cartão / Adquirente', nature: 'Asset', acceptsEntries: true },
+  // Contas a Receber (INCR-AR / ADR-INCR-AR F7): the DEDICATED control account of the AR-formal
+  // subledger. The recognition of a customer invoice debits this Asset leaf (D 1.1.5 / C
+  // revenueAccount 3.x); the receipt credits it (D conta-por-método / C 1.1.5). Deliberately DISTINCT
+  // from `1.1.2 A Receber` (which the salon bridge already uses for POS receivables) so
+  // Σ open Receivable rows == saldo(1.1.5) — a subledger↔GL tie-out a shared 1.1.2 would break.
+  // Sibling leaf under `1.1` — ACC-018 NOT triggered, zero migration (ensureChartOfAccounts creates
+  // -if-missing by code; precedent `2.1.2` do AP). BP maps it automatically (nature-only).
+  { code: '1.1.5', name: 'Clientes a Receber', nature: 'Asset', acceptsEntries: true },
   // Liability tower (Incremento D / D1-Q10): a Package Balance settlement debits the prepaid
   // liability (service delivered against an advance), NEVER cash. `2` is the synthetic root.
   { code: '2', name: 'Passivo', nature: 'Liability', acceptsEntries: false },
@@ -68,3 +76,10 @@ export const RETAINED_EARNINGS_CODE = '2.3.1';
  * the settlement debits it. Resolved by CODE (stable), never by name.
  */
 export const FORNECEDORES_A_PAGAR_CODE = '2.1.2';
+
+/**
+ * Canonical "Clientes a Receber" leaf (INCR-AR, F7). The AR recognition debits this account and the
+ * receipt credits it. DEDICATED to the AR-formal subledger (distinct from `1.1.2` used by the salon)
+ * so the subledger ties out to the GL. Resolved by CODE (stable), never by name.
+ */
+export const CLIENTES_A_RECEBER_CODE = '1.1.5';
