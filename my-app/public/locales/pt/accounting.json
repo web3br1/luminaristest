@@ -25,7 +25,8 @@
       "diario": "Livro Diário",
       "importacaoExportacao": "Importação/Exportação",
       "conciliacao": "Conciliação",
-      "compliance": "Compliance"
+      "compliance": "Compliance",
+      "dimensoes": "Dimensões"
     },
     "error": {
       "units": "Falha ao carregar as unidades.",
@@ -531,6 +532,10 @@
       "missingAccount": "Selecione uma conta para cada linha.",
       "missingAmount": "Informe um valor maior que zero em cada linha.",
       "postFailed": "Erro ao postar o lançamento. Tente novamente."
+    },
+    "dimensions": {
+      "label": "Dimensões",
+      "none": "— {{axis}} —"
     }
   },
   "balanceSheet": {
@@ -865,6 +870,89 @@
     "unbalanced": "Desbalanceado",
     "range": {
       "label": "{{from}} a {{to}}"
+    }
+  },
+  "dimensions": {
+    "status": {
+      "active": "Ativo",
+      "archived": "Arquivado"
+    },
+    "error": {
+      "load": "Erro ao carregar as dimensões.",
+      "archive": "Não foi possível arquivar."
+    },
+    "view": {
+      "catalog": "Catálogo",
+      "reports": "Relatórios"
+    },
+    "includeArchived": "Incluir arquivados",
+    "newAxis": "Novo Eixo",
+    "empty": "Nenhum eixo de dimensão cadastrado. Crie um centro de custo ou projeto para começar.",
+    "loading": "Carregando dimensões…",
+    "newValue": "Novo valor",
+    "archiveAxisTitle": "Arquivar o eixo",
+    "archive": "Arquivar",
+    "noValues": "Nenhum valor neste eixo ainda.",
+    "rollupOnly": "(agregador)",
+    "archiveValueTitle": "Arquivar o valor",
+    "optional": "(opcional)",
+    "archiveModal": {
+      "title": "Arquivar dimensão",
+      "cancel": "Voltar",
+      "archiving": "Arquivando…",
+      "confirm": "Arquivar",
+      "axisNote": "Arquive todos os valores do eixo antes de arquivar o eixo. Os vínculos históricos de lançamentos são preservados.",
+      "valueNote": "Arquive os valores-filho antes deste. O valor deixa de aparecer na etiquetagem, mas os vínculos históricos são preservados."
+    },
+    "field": {
+      "code": "Código",
+      "name": "Nome",
+      "parent": "Valor-pai (rollup)"
+    },
+    "createAxis": {
+      "title": "Novo Eixo de Dimensão",
+      "cancel": "Cancelar",
+      "saving": "Criando…",
+      "submit": "Criar",
+      "codePlaceholder": "Ex.: COST_CENTER, PROJECT",
+      "namePlaceholder": "Ex.: Centro de Custo, Projeto",
+      "error": "Erro ao criar o eixo."
+    },
+    "createValue": {
+      "title": "Novo Valor de Dimensão",
+      "cancel": "Cancelar",
+      "saving": "Criando…",
+      "submit": "Criar",
+      "axisLabel": "Eixo",
+      "codePlaceholder": "Ex.: LOJA_CENTRO",
+      "namePlaceholder": "Ex.: Loja Centro",
+      "noParent": "— sem pai (raiz) —",
+      "error": "Erro ao criar o valor."
+    },
+    "reports": {
+      "error": "Erro ao gerar o relatório.",
+      "noAxes": "Cadastre um eixo de dimensão ativo no catálogo para gerar relatórios.",
+      "axis": "Eixo",
+      "selectAxis": "— selecione o eixo —",
+      "from": "De",
+      "to": "Até",
+      "balance": "Balancete",
+      "result": "DRE",
+      "generate": "Gerar",
+      "generating": "Gerando…",
+      "emptyState": "Selecione um eixo e clique em \"Gerar\" para o recorte por dimensão.",
+      "balanceTitle": "Balancete por dimensão",
+      "resultTitle": "DRE por dimensão",
+      "noResult": "Nenhum resultado (receita/despesa) etiquetado neste eixo no período.",
+      "total": "Total",
+      "col": {
+        "value": "Valor",
+        "ownBalance": "Saldo próprio",
+        "rollupBalance": "Saldo acumulado",
+        "revenue": "Receita",
+        "expense": "Despesa",
+        "result": "Resultado"
+      }
     }
   }
 }

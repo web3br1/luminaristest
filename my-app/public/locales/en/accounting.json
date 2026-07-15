@@ -25,7 +25,8 @@
       "diario": "Daily Journal",
       "importacaoExportacao": "Import/Export",
       "conciliacao": "Reconciliation",
-      "compliance": "Compliance"
+      "compliance": "Compliance",
+      "dimensoes": "Dimensions"
     },
     "error": {
       "units": "Failed to load units.",
@@ -531,6 +532,10 @@
       "missingAccount": "Select an account for each line.",
       "missingAmount": "Enter an amount greater than zero on each line.",
       "postFailed": "Error posting the entry. Please try again."
+    },
+    "dimensions": {
+      "label": "Dimensions",
+      "none": "— {{axis}} —"
     }
   },
   "balanceSheet": {
@@ -865,6 +870,89 @@
     "unbalanced": "Unbalanced",
     "range": {
       "label": "{{from}} to {{to}}"
+    }
+  },
+  "dimensions": {
+    "status": {
+      "active": "Active",
+      "archived": "Archived"
+    },
+    "error": {
+      "load": "Failed to load dimensions.",
+      "archive": "Could not archive."
+    },
+    "view": {
+      "catalog": "Catalog",
+      "reports": "Reports"
+    },
+    "includeArchived": "Include archived",
+    "newAxis": "New Axis",
+    "empty": "No dimension axis yet. Create a cost center or project to get started.",
+    "loading": "Loading dimensions…",
+    "newValue": "New value",
+    "archiveAxisTitle": "Archive the axis",
+    "archive": "Archive",
+    "noValues": "No values in this axis yet.",
+    "rollupOnly": "(rollup)",
+    "archiveValueTitle": "Archive the value",
+    "optional": "(optional)",
+    "archiveModal": {
+      "title": "Archive dimension",
+      "cancel": "Back",
+      "archiving": "Archiving…",
+      "confirm": "Archive",
+      "axisNote": "Archive all of the axis values before archiving the axis. Historical entry links are preserved.",
+      "valueNote": "Archive the child values first. The value stops appearing for tagging, but historical links are preserved."
+    },
+    "field": {
+      "code": "Code",
+      "name": "Name",
+      "parent": "Parent value (rollup)"
+    },
+    "createAxis": {
+      "title": "New Dimension Axis",
+      "cancel": "Cancel",
+      "saving": "Creating…",
+      "submit": "Create",
+      "codePlaceholder": "e.g. COST_CENTER, PROJECT",
+      "namePlaceholder": "e.g. Cost Center, Project",
+      "error": "Failed to create the axis."
+    },
+    "createValue": {
+      "title": "New Dimension Value",
+      "cancel": "Cancel",
+      "saving": "Creating…",
+      "submit": "Create",
+      "axisLabel": "Axis",
+      "codePlaceholder": "e.g. DOWNTOWN_STORE",
+      "namePlaceholder": "e.g. Downtown Store",
+      "noParent": "— no parent (root) —",
+      "error": "Failed to create the value."
+    },
+    "reports": {
+      "error": "Failed to generate the report.",
+      "noAxes": "Create an active dimension axis in the catalog to generate reports.",
+      "axis": "Axis",
+      "selectAxis": "— select the axis —",
+      "from": "From",
+      "to": "To",
+      "balance": "Trial balance",
+      "result": "Income",
+      "generate": "Generate",
+      "generating": "Generating…",
+      "emptyState": "Select an axis and click \"Generate\" for the per-dimension breakdown.",
+      "balanceTitle": "Trial balance by dimension",
+      "resultTitle": "Income statement by dimension",
+      "noResult": "No result (revenue/expense) tagged on this axis in the period.",
+      "total": "Total",
+      "col": {
+        "value": "Value",
+        "ownBalance": "Own balance",
+        "rollupBalance": "Rollup balance",
+        "revenue": "Revenue",
+        "expense": "Expense",
+        "result": "Result"
+      }
     }
   }
 }

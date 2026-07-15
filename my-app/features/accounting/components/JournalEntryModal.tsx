@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import { Modal } from '../../../components/ui/Modal';
 import { accountingService } from '../../../lib/services/accounting.service';
+import type { DimensionCatalogEntry } from '../../../lib/services/dimensions.service';
 
 export interface AccountOption {
   id: string;
@@ -16,6 +17,8 @@ export interface JournalEntryModalProps {
   unitId: string;
   accounts: AccountOption[];
   onSuccess: () => void;
+  /** Active dimension axes + their values (INCR-DIM). Optional per-line tagging; empty = no picker. */
+  dimensionCatalog?: DimensionCatalogEntry[];
 }
 
 interface Line {
@@ -23,6 +26,36 @@ interface Line {
   accountCode: string;
   side: 'DEBIT' | 'CREDIT';
   amountBrl: string;
+  /** definitionId → valueId (one value per axis by construction). */
+  dims: Record<string, string>;
+}
+
+/** An axis with only its leaf, active values — the only ones taggable (backend rejects non-leaf). */
+interface TaggableAxis {
+  definitionId: string;
+  code: string;
+  name: string;
+  leaves: Array<{ id: string; code: string; name: string }>;
+}
+
+/**
+ * Reduce the catalog to taggable axes: active definitions, each with its ACTIVE LEAF values (a value
+ * with no active child). Mirrors PostingService.resolveLineDimensions (leaf-only) so the picker never
+ * offers a value the backend would reject.
+ */
+function toTaggableAxes(catalog: DimensionCatalogEntry[]): TaggableAxis[] {
+  return catalog
+    .filter((c) => c.definition.status === 'ACTIVE')
+    .map((c) => {
+      const activeChildOf = new Set(
+        c.values.filter((v) => v.status === 'ACTIVE' && v.parentId).map((v) => v.parentId as string),
+      );
+      const leaves = c.values
+        .filter((v) => v.status === 'ACTIVE' && !activeChildOf.has(v.id))
+        .map((v) => ({ id: v.id, code: v.code, name: v.name }));
+      return { definitionId: c.definition.id, code: c.definition.code, name: c.definition.name, leaves };
+    })
+    .filter((a) => a.leaves.length > 0);
 }
 
 function today(): string {
@@ -44,8 +77,8 @@ function formatCents(cents: number): string {
 let nextId = 3;
 
 const DEFAULT_LINES: Line[] = [
-  { id: '1', accountCode: '', side: 'DEBIT', amountBrl: '' },
-  { id: '2', accountCode: '', side: 'CREDIT', amountBrl: '' },
+  { id: '1', accountCode: '', side: 'DEBIT', amountBrl: '', dims: {} },
+  { id: '2', accountCode: '', side: 'CREDIT', amountBrl: '', dims: {} },
 ];
 
 export function JournalEntryModal({
@@ -54,6 +87,7 @@ export function JournalEntryModal({
   unitId,
   accounts,
   onSuccess,
+  dimensionCatalog = [],
 }: JournalEntryModalProps) {
   const { t } = useTranslation('accounting');
   const [date, setDate] = useState<string>(today);
@@ -63,6 +97,7 @@ export function JournalEntryModal({
   const [error, setError] = useState<string | null>(null);
 
   const entryAccounts = accounts.filter((a) => a.acceptsEntries);
+  const taggableAxes = useMemo(() => toTaggableAxes(dimensionCatalog), [dimensionCatalog]);
 
   // ── Balance computation ──────────────────────────────────────────────────────
   const totalDebit = lines
@@ -87,8 +122,21 @@ export function JournalEntryModal({
   function addLine() {
     setLines((prev) => [
       ...prev,
-      { id: String(nextId++), accountCode: '', side: 'DEBIT', amountBrl: '' },
+      { id: String(nextId++), accountCode: '', side: 'DEBIT', amountBrl: '', dims: {} },
     ]);
+  }
+
+  /** Set (or clear, when valueId is '') the tag for one axis on one line. One value per axis. */
+  function setLineDim(lineId: string, definitionId: string, valueId: string) {
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.id !== lineId) return l;
+        const dims = { ...l.dims };
+        if (valueId) dims[definitionId] = valueId;
+        else delete dims[definitionId];
+        return { ...l, dims };
+      }),
+    );
   }
 
   function removeLine(id: string) {
@@ -138,11 +186,15 @@ export function JournalEntryModal({
         date,
         description,
         unitId,
-        lines: lines.map((l) => ({
-          accountCode: l.accountCode,
-          debitCents: l.side === 'DEBIT' ? parseBrl(l.amountBrl) : 0,
-          creditCents: l.side === 'CREDIT' ? parseBrl(l.amountBrl) : 0,
-        })),
+        lines: lines.map((l) => {
+          const dimensions = Object.values(l.dims).filter(Boolean);
+          return {
+            accountCode: l.accountCode,
+            debitCents: l.side === 'DEBIT' ? parseBrl(l.amountBrl) : 0,
+            creditCents: l.side === 'CREDIT' ? parseBrl(l.amountBrl) : 0,
+            ...(dimensions.length ? { dimensions } : {}),
+          };
+        }),
       });
       // Reset form state before closing
       setDate(today());
@@ -238,9 +290,9 @@ export function JournalEntryModal({
 
             {/* Rows */}
             {lines.map((line) => (
+              <div key={line.id} className="border-b border-neutral-800/60 last:border-0">
               <div
-                key={line.id}
-                className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-0 border-b border-neutral-800/60 px-3 py-2 last:border-0"
+                className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-0 px-3 py-2"
               >
                 {/* Account select */}
                 <select
@@ -295,6 +347,34 @@ export function JournalEntryModal({
                 >
                   ×
                 </button>
+              </div>
+
+              {/* Per-line dimension tagging (INCR-DIM) — optional, one leaf value per axis. */}
+              {taggableAxes.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 px-3 pb-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-600">
+                    {t('journalEntryModal.dimensions.label', 'Dimensões')}
+                  </span>
+                  {taggableAxes.map((axis) => (
+                    <select
+                      key={axis.definitionId}
+                      value={line.dims[axis.definitionId] ?? ''}
+                      onChange={(e) => setLineDim(line.id, axis.definitionId, e.target.value)}
+                      title={axis.name}
+                      className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-300 focus:border-emerald-500 focus:outline-none"
+                    >
+                      <option value="">
+                        {t('journalEntryModal.dimensions.none', '— {{axis}} —', { axis: axis.name })}
+                      </option>
+                      {axis.leaves.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.code} — {v.name}
+                        </option>
+                      ))}
+                    </select>
+                  ))}
+                </div>
+              )}
               </div>
             ))}
           </div>
