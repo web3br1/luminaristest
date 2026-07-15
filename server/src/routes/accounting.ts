@@ -14,6 +14,7 @@ import {
   getEntryReceipt,
   createAccount,
   deleteAccount,
+  setAccountRequiresDimension,
   listPeriods,
   seedYear,
   openPeriod,
@@ -86,6 +87,7 @@ router.get('/reports/daily-journal', getDailyJournal);
 router.get('/accounts', listAccounts);
 router.post('/accounts', createAccount);
 router.delete('/accounts/:id', deleteAccount);
+router.patch('/accounts/:id/requires-dimension', setAccountRequiresDimension);
 
 // Journal entry listing.
 router.get('/entries', listEntries);
