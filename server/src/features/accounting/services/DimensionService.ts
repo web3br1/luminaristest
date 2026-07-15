@@ -108,6 +108,10 @@ export class DimensionService {
 
     // Clean removal order: archive the values first (an axis with live values would leave orphan tags
     // reachable in the picker). This is a guard, not a cascade — the operator empties the axis first.
+    // ponytail: pre-tx guard, best-effort — a createValue racing this archive could slip a value under
+    // an axis mid-archive. Benign (recoverable CATALOG state, never a ledger/money corruption — the tag
+    // is metadata, ACC-024) and near-impossible under single-process SQLite (T11). Upgrade path if
+    // multi-writer ever lands: move the count + update into one tx AND re-check axis status in createValue's tx.
     const activeValues = await this.dimensionRepo.countActiveValues(scope, definitionId);
     if (activeValues > 0) {
       throw new ValidationError('Arquive os valores do eixo antes de arquivar o eixo.');
@@ -210,6 +214,8 @@ export class DimensionService {
 
     // Orphan guard: a value with active children cannot be archived (rollup would break). Archived
     // value KEEPS its historical PostingDimension links (D2 — the trail never disappears).
+    // ponytail: pre-tx guard, best-effort — same benign catalog TOCTOU as archiveDefinition (a child
+    // created mid-archive); never a ledger corruption (ACC-024), non-issue under single-process (T11).
     const activeChildren = await this.dimensionRepo.countActiveChildren(scope, valueId);
     if (activeChildren > 0) {
       throw new ValidationError('Arquive os valores-filho antes de arquivar este valor.');
