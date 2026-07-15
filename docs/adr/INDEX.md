@@ -25,6 +25,23 @@
 | [INCR-AR](ADR-INCR-AR-accounts-receivable.md) | Contas a Receber (AR) operacional (`Receivable`+`ReceivableReceipt`, duplo fato gerador, conta dedicada `1.1.5`) | **Accepted — RATIFICADO FORK-A-FORK 2026-07-14; IMPLEMENTADO E MERGEADO** (PR #111 `87ab95b`, 2026-07-15; review indep. PASS; smoke-gate DEPLOY-CLEARED) — F7→(a) conta dedicada `1.1.5`; F0→(a) `postEntry` direto; F1–F6 espelho do AP | 2026-07-15 | PRISMA_FIRST_CLASS |
 | [INCR-DIM](ADR-INCR-DIM-dimensions.md) | Dimensões (centro de custo/projeto) — `DimensionDefinition`+`DimensionValue`(hierárquico)+`PostingDimension`, etiqueta ortogonal ao ledger | **Accepted — RATIFICADO FORK-A-FORK 2026-07-15; IMPLEMENTADO E MERGEADO** (PR #113 `9a73392`; review indep. PASS; 1114/1114 jest; smoke-gate DEPLOY-CLEARED) — F0→CONSTRUIR build completa; F1→(a) catálogo Prisma; F2→(a) partida; F3→ponte + F4→N eixos; F5→(a) opcional/não-reabre-§4; F6→(a) razão/balancete + DRE por dimensão | 2026-07-15 | PRISMA_FIRST_CLASS |
 
+## Diferidos — ADRs PROPOSED (enquadramento; **NÃO ratificados**, aguardando fork-a-fork + sinal humano)
+
+> Estes são o passo `PLAN → ADR` do fluxo T12 para os nós ⚫ do master map §5.1 Bloco B (itens 10–16). Cada um
+> enquadra o problema, fixa os rails (T1–T12) e as colisões §4, e deixa os **FORKS abertos** com recomendação —
+> **sem** ratificação. **Nenhum autoriza código:** o nó do master map permanece ⚫ até revisão fork-a-fork (G0).
+> **Item 9 (Dimensões) NÃO está aqui — já foi ratificado e mergeado** (ADR-INCR-DIM, PR #113, acima).
+
+| # §5.1 | ADR | Título | Status | Recomendação em aberto |
+|---|---|---|---|---|
+| 10 | [ECF-FASE3](ADR-ECF-FASE3-remaining-blocks.md) | ECF Fase 3 — blocos remanescentes (Presumido) | **PROPOSED** | F0→diferir até sign-off PVA da Fase 2 (fila §5.1 item 3) |
+| 11 | [NFE](ADR-NFE-fiscal-document-ingestion.md) | NF-e — ingestão de documento fiscal (não emissão) | **PROPOSED** | F0→só ingestão→proveniência (INCR-8); emissão FORA |
+| 12 | [ESTOQUE](ADR-ESTOQUE-inventory-subledger.md) | Estoque / Imobilizado — subrazão | **PROPOSED** | F0→diferir p/ demanda de revenda; F1→custo médio; imobilizado = ADR próprio |
+| 13 | [FOLHA](ADR-FOLHA-payroll-subledger.md) | Folha de pagamento — subrazão | **PROPOSED** | F0→integrar (importa folha calculada), NÃO construir calculadora; eSocial FORA |
+| 14 | [LGPD](ADR-LGPD-rbac-data-protection.md) | LGPD / RBAC granular — proteção de dado | **Accepted — RATIFICADO fork-a-fork 2026-07-15** (F0→a três fatias; F1→a papéis sobre Policy; F2→a pseudonimização/crypto-shred **T8 preservado**; F3→a mascaramento na leitura/exportação); impl. não iniciada; nó ⚫ Parcial até closeout | Fatia A (RBAC) primeiro → habilita B (mascaramento) e C (retenção) |
+| 15 | [IA](ADR-IA-analytics-suggestions.md) | IA / analytics — sugestão de conta/conciliação | **PROPOSED** | F3→humano confirma sempre; F2→heurística local antes de LLM (depende do item 14) |
+| 16 | [INBOX](ADR-INBOX-outbox-dlq.md) | Inbox / Outbox / DLQ — integração assíncrona | **PROPOSED** | F0→manter não-objetivo (T11); reabrir = emendar T11 |
+
 ## Bridges de integração (venda DynamicTable → ledger Prisma)
 
 | ADR | Título | Status | Data | Classe |
