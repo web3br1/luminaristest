@@ -231,7 +231,8 @@ impl. NÃO iniciada — seguem PLAN→BRIEF→impl→review→smoke-migration-ga
   (opcional→condicionalmente obrigatório). **NÃO reintroduz o §4** — é gate de validação (rejeita), não motor
   que gera lançamento. Migração toca `accounts` (add flag) + `postEntry`.
 
-**🔴 RISK-SEC-AUTH-001 — CRÍTICO, ABERTO (auditoria de segurança 2026-07-15, VERIFICADO em código).**
+**🟠 RISK-SEC-AUTH-001 — CRÍTICO, FIX IMPLEMENTADO (pendente review + merge) (auditoria de segurança
+2026-07-15, VERIFICADO em código; fix em `claude/sec-hardening-auth` commit `326aaad`).**
 **Bypass de autenticação + impersonação de tenant na borda HTTP** — não é bug do código contábil (a
 disciplina de escopo dos repos/services é sólida: todo `findById`/read/update passa `accountingScopeWhere`),
 mas **os increments contábeis estacionaram os endpoints de altíssimo valor** (`/api/accounting`,
@@ -244,23 +245,24 @@ mas **os increments contábeis estacionaram os endpoints de altíssimo valor** (
   `x-user-id/x-user-username/x-user-role` forjados → `startsWith` falha → `next()` sem auth → rota casa
   case-insensitive → controller age como a vítima. Escrita/leitura irrestrita nos livros de **qualquer** tenant
   (postar/estornar, apagar conta, pagar AP, aprovar AR, gerar SPED). Atinge **todos** os prefixos protegidos.
-- **Fix (pequeno, defense-in-depth):** (1) normalizar o path no guard — `req.path.toLowerCase()` (fecha caixa
-  E o vetor percent-encode `/api/%61ccounting`); (2) **strip incondicional dos headers `x-user-*` de entrada**
-  antes do auth (mata o spoof de identidade mesmo em path não-casado); (3) idealmente montar o auth **no router**
-  em vez de por lista de prefixos. Correção vive na plataforma (`middleware/auth.ts`), não no código contábil.
-- **Gate:** antes de qualquer deploy real (T11), este risco é bloqueante. Reflexo: rota nova de mutação =
-  confirmar que passa pelo auth normalizado, não por `startsWith` case-sensitive.
+- **Fix IMPLEMENTADO (`326aaad`, defense-in-depth):** (1) **strip incondicional dos headers `x-user-*` de
+  entrada** antes do auth (mata o spoof de identidade mesmo em path não-casado — controle autoritativo); (2)
+  match do prefixo no **`req.path` decodificado + lowercase** (fecha caixa E o percent-encode `/api/%61ccounting`;
+  também exclui a query string). Correção na plataforma (`middleware/auth.ts`), não no código contábil. 4 testes
+  de regressão (path maiúsculo, percent-encode, strip de header, token sobrescreve spoof) verdes.
+- **Gate:** antes de qualquer deploy real (T11), o risco só fecha quando `claude/sec-hardening-auth` for
+  revisado + mergeado. Reflexo permanente: rota nova de mutação = confirmar que passa pelo auth normalizado.
 
-**Achados de segurança adicionais (auditoria 2026-07-15) — follow-ups, não bloqueiam dev:**
-- **ALTA · catálogo RFB global gravável por qualquer tenant** (`ReferentialCatalogService`: gate só
-  `!!actorUserId`) → um tenant envenena descrições/natureza do catálogo compartilhado ECD/ECF de todos. Falta
-  papel admin/global no gate.
-- **MÉDIA · CSV formula-injection no export** (`lib/spreadsheet.ts:132-139`: sem neutralizar `= + - @`
-  iniciais em nome de conta/histórico). Fix: prefixar `'`. (XLSX via exceljs está OK.)
-- **MÉDIA · zip-bomb XLSX no import** (`exceljs.xlsx.load` sem teto de descompressão/linhas; deploy
-  single-process ⇒ 1 upload derruba o app). Fix: cap de linhas/células.
-- **BAIXA · `validateMagicBytes` não aplicado** nos uploads de data-exchange/reconciliation/catálogo (só nos
-  attachments) — confiam no mimetype declarado.
+**Achados de segurança adicionais (auditoria 2026-07-15) — FIX IMPLEMENTADO em `326aaad` (mesma branch):**
+- **ALTA · catálogo RFB global gravável por qualquer tenant** → **corrigido:** import do catálogo agora
+  **admin-only** (`referentialCatalogController`, read segue aberto).
+- **MÉDIA · CSV formula-injection no export** → **corrigido:** `serializeTable` prefixa `'` em células
+  iniciadas por `= + @` (e `-` que não seja número puro — dinheiro negativo intacto).
+- **MÉDIA · zip-bomb XLSX no import** → **mitigado:** teto de células (2M) no `parseTable` antes de montar
+  a matriz. **Resíduo honesto:** cap de descompressão em tempo de load (streaming reader) diferido.
+- **BAIXA · `validateMagicBytes` não aplicado** → **corrigido:** magic-bytes agora exigido nos imports
+  data-exchange/reconciliation/catálogo, mas **só para tipos declarados binários** (XLSX/office/PDF), para não
+  rejeitar OFX/CNAB/CSV enviados como octet-stream.
 - **DEFENDIDO (valor de descarte):** IDOR em reads/writes por id (scope em todo repo), injeção SQL (zero raw
   interpolado), SSRF/RCE no puppeteer (`receiptHtml.ts:30-37` escapa; template self-contained), mass-assignment
   (userId/status/approvedById nunca vêm do body).
