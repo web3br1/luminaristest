@@ -5,6 +5,13 @@ Entradas mais novas no topo.
 
 ---
 
+### 2026-07-15 · pattern · Review de branch NÃO-mergeado precisa de guarda-de-árvore (worktree isolado reflete main)
+- **Contexto:** FE-INCR-AR (aba Contas a Receber, clone invertido do FE-INCR-AP; backend AR já em main #111). Numa sessão anterior deste mesmo dia, um reviewer com `isolation: worktree` sobre um branch cujo trabalho NÃO estava em main acabou lendo `main` (não o branch) e reportou o código de main como se fosse o do branch — um falso "PASS por árvore errada" que quase virou acusação de alucinação.
+- **Aprendizado:** ao delegar review de trabalho que ainda não foi mergeado, NÃO confie no worktree isolado default (ele pode partir de main). Aponte o reviewer para o worktree REAL do branch e exija, como PRIMEIRO passo antes de qualquer check, a **guarda-de-árvore**: `git branch --show-current` == branch esperado, `git log origin/main..HEAD` lista os commits esperados, `git diff --stat origin/main..HEAD` não-vazio e restrito aos paths esperados. Se a guarda falhar → "ÁRVORE ERRADA", nunca um review inventado. Reforce com regra anti-alucinação (toda afirmação factual cola a linha literal).
+- **Evidência:** review FE-INCR-AR PASS 9/9 com guarda-de-árvore confirmada (branch `claude/fe-incr-ar`, 4 commits, `server/` intocado); `next build` verde; contraste com o review do backend AR que leu main por falta da guarda.
+- **Como aplicar:** todo handoff de review de branch não-mergeado carrega a guarda-de-árvore como passo 0; a independência do reviewer é de julgamento, não exige worktree novo — um agente fresco lendo o branch certo basta.
+- **Durável?** sim → [[duplicate-ar-on-stale-branch]] (auto-memória)
+
 ### 2026-07-14 · decision · INCR-AP Contas a Pagar — subledger first-class que posta DIRETO via postEntry
 - **Contexto:** Task 5 (INCR-AP), merged main PR #102 (`4a6eddb`). Primeiro subrazão de despesa operacional.
 - **Aprendizado:** F0 rota (a) — `PayableService` chama `PostingService.postEntry` direto (sem port/mapper/bridge; golden ref `ExerciseClosingService`). Duplo fato gerador: recognition `D 4.x / C 2.1.2` (`sourceType=ap.payable`, `sourceId=payableId`) + settlement `D 2.1.2 / C método` (`sourceType=ap.payment`, `sourceId=paymentId`, NUNCA payableId). Conta `2.1.2` nova = zero migração (seed idempotente por code).

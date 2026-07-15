@@ -15,6 +15,7 @@
       "periodos": "Periods",
       "lancamentos": "Journal Entries",
       "contasAPagar": "Accounts Payable",
+      "contasAReceber": "Accounts Receivable",
       "razao": "Ledger",
       "planoDeContas": "Chart of Accounts",
       "bp": "BS",
@@ -116,6 +117,93 @@
       "undoConfirm": "Confirm",
       "undoing": "Undoing…",
       "undoNote": "The payment will be reversed and the bill will return to “Open”."
+    }
+  },
+  "contasAReceber": {
+    "heading": "Accounts Receivable",
+    "newReceivable": "New Invoice",
+    "loading": "Loading accounts receivable…",
+    "empty": "No accounts receivable recorded for this unit yet.",
+    "viewPeriods": "View Periods",
+    "status": {
+      "OPEN": "Open",
+      "RECEIVING": "Receiving",
+      "RECEIVED": "Received",
+      "CANCELLED": "Cancelled"
+    },
+    "col": {
+      "expand": "Expand",
+      "customer": "Customer",
+      "description": "Description",
+      "dueDate": "Due date",
+      "amount": "Amount",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "action": {
+      "receive": "Receive",
+      "receiveTitle": "Register receipt",
+      "cancel": "Cancel",
+      "cancelTitle": "Cancel the invoice",
+      "undo": "Undo receipt",
+      "undoTitle": "Undo the receipt (reopens the invoice)",
+      "receiving": "Processing…"
+    },
+    "receipts": {
+      "date": "Received on",
+      "method": "Method",
+      "amount": "Amount",
+      "status": "State",
+      "active": "Active",
+      "cancelled": "Cancelled"
+    },
+    "error": {
+      "load": "Failed to load accounts receivable.",
+      "action": "Could not complete the operation."
+    },
+    "createModal": {
+      "title": "New Invoice",
+      "cancel": "Cancel",
+      "submit": "Save",
+      "saving": "Saving…",
+      "optional": "(optional)",
+      "noRevenueAccounts": "No analytic revenue account found. Create one in the Chart of Accounts.",
+      "field": {
+        "customer": "Customer",
+        "customerPlaceholder": "Customer name…",
+        "description": "Description",
+        "descriptionPlaceholder": "e.g. service rendered, sale, subscription…",
+        "document": "Document no.",
+        "documentPlaceholder": "Invoice, bill…",
+        "amount": "Amount (R$)",
+        "issueDate": "Issue date",
+        "dueDate": "Due date",
+        "revenueAccount": "Revenue account (counterpart)",
+        "selectAccount": "— select the revenue account —"
+      },
+      "error": {
+        "invalid": "Fill in customer, description, dates, amount and revenue account.",
+        "failed": "Failed to record the invoice."
+      }
+    },
+    "actionModal": {
+      "cancel": "Back",
+      "receivedAtLabel": "Receipt date",
+      "reversalDateLabel": "Reversal date",
+      "methodLabel": "Receipt method",
+      "reasonLabel": "Reason",
+      "receiveTitle": "Register receipt",
+      "receiveConfirm": "Confirm receipt",
+      "receiving": "Saving…",
+      "receiveNote": "Will post D Bank / C Customers for the full balance. Partial receipt is not supported.",
+      "cancelTitle": "Cancel receivable",
+      "cancelConfirm": "Confirm cancellation",
+      "cancelling": "Cancelling…",
+      "cancelNote": "The recognition entry will be reversed on the date above. This action cannot be undone.",
+      "undoTitle": "Undo receipt",
+      "undoConfirm": "Confirm",
+      "undoing": "Undoing…",
+      "undoNote": "The receipt will be reversed and the invoice will return to “Open”."
     }
   },
   "compliance": {
