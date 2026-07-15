@@ -18,6 +18,7 @@ import type {
 } from '../dtos/PayableDto';
 import type { IPayableRepository, PayableWithPayments } from '../repositories/IPayableRepository';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
+import type { ICounterpartyRepository } from '../repositories/ICounterpartyRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { PostEntryInput } from '../dtos/PostingDto';
 import type { AuditService } from './AuditService';
@@ -52,6 +53,7 @@ export class PayableService {
     private readonly posting: PostingService,
     private readonly auditService: AuditService,
     private readonly policy: IAccountingPolicy,
+    private readonly counterpartyRepo: ICounterpartyRepository,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -98,6 +100,12 @@ export class PayableService {
     // Expense-account gate (D4): must be an existing, active, LEAF Expense account of this scope.
     const expenseAccount = await this.resolveExpenseAccount(scope, dto.expenseAccountId);
 
+    // Counterparty gate (SEC-A1-1 — IDOR #1): if a counterpartyId is supplied, RE-SCOPE it here
+    // (findById carries the scope), so a payable can never link to another tenant's counterparty. The
+    // DTO cannot know the scope, so this resolution lives in the service, never in Zod. Nullable this
+    // increment (SEC-A1-5): no counterpartyId → no link; supplierName stays the identity snapshot.
+    const counterpartyId = await this.resolveCounterpartyId(scope, dto.counterpartyId);
+
     // tx1 — create the row (OPEN) + payable.created audit atomically (ACC-019). Mints payableId.
     let payable: Payable;
     try {
@@ -108,6 +116,7 @@ export class PayableService {
             unitId,
             supplierName: dto.supplierName,
             supplierRef: dto.supplierRef ?? null,
+            counterpartyId,
             documentNumber: dto.documentNumber ?? null,
             description: dto.description,
             issueDate: new Date(dto.issueDate),
@@ -477,6 +486,27 @@ export class PayableService {
     return payable.payments
       .filter((p) => p.status === 'ACTIVE')
       .reduce((acc, p) => acc + p.amountCents, 0);
+  }
+
+  /**
+   * Re-scope a body-supplied counterpartyId (SEC-A1-1). Returns null when none was supplied (the FK
+   * is nullable this increment, SEC-A1-5); otherwise the counterparty MUST exist IN THIS SCOPE and be
+   * a SUPPLIER — a cross-tenant id resolves to null via the scoped findById and is rejected here, so a
+   * payable can never point at another tenant's counterparty (IDOR #1) or at a CUSTOMER record.
+   */
+  private async resolveCounterpartyId(
+    scope: AccountingScope,
+    counterpartyId: string | undefined,
+  ): Promise<string | null> {
+    if (!counterpartyId) return null;
+    const counterparty = await this.counterpartyRepo.findById(scope, counterpartyId);
+    if (!counterparty) {
+      throw new ValidationError('Contraparte informada não existe nesta unidade.');
+    }
+    if (counterparty.type !== 'SUPPLIER') {
+      throw new ValidationError('A contraparte de uma conta a pagar deve ser um fornecedor (SUPPLIER).');
+    }
+    return counterparty.id;
   }
 
   private async resolveExpenseAccount(scope: AccountingScope, accountId: string): Promise<Account> {

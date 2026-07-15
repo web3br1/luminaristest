@@ -26,6 +26,7 @@ import { ReferentialAccountRepository } from '../features/accounting/repositorie
 import { PayableRepository } from '../features/accounting/repositories/PayableRepository';
 import { ReceivableRepository } from '../features/accounting/repositories/ReceivableRepository';
 import { DimensionRepository } from '../features/accounting/repositories/DimensionRepository';
+import { CounterpartyRepository } from '../features/accounting/repositories/CounterpartyRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
@@ -78,6 +79,7 @@ import { PayableService } from '../features/accounting/services/PayableService';
 import { ReceivableService } from '../features/accounting/services/ReceivableService';
 import { DimensionService } from '../features/accounting/services/DimensionService';
 import { DimensionReportService } from '../features/accounting/services/DimensionReportService';
+import { CounterpartyService } from '../features/accounting/services/CounterpartyService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
@@ -131,6 +133,7 @@ import type { IReferentialAccountRepository } from '../features/accounting/repos
 import type { IPayableRepository } from '../features/accounting/repositories/IPayableRepository';
 import type { IReceivableRepository } from '../features/accounting/repositories/IReceivableRepository';
 import type { IDimensionRepository } from '../features/accounting/repositories/IDimensionRepository';
+import type { ICounterpartyRepository } from '../features/accounting/repositories/ICounterpartyRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
 import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
@@ -167,6 +170,7 @@ export class ApplicationFactory {
     payable: IPayableRepository;
     receivable: IReceivableRepository;
     dimension: IDimensionRepository;
+    counterparty: ICounterpartyRepository;
   };
 
   private readonly policies: {
@@ -221,6 +225,7 @@ export class ApplicationFactory {
     receivable: ReceivableService;
     dimension: DimensionService;
     dimensionReport: DimensionReportService;
+    counterparty: CounterpartyService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
@@ -262,6 +267,7 @@ export class ApplicationFactory {
       payable: new PayableRepository(),
       receivable: new ReceivableRepository(),
       dimension: new DimensionRepository(),
+      counterparty: new CounterpartyRepository(),
     };
 
     // Policies
@@ -516,6 +522,7 @@ export class ApplicationFactory {
         postingService,
         auditService,
         this.policies.accounting,
+        this.repositories.counterparty,
       ),
       receivable: new ReceivableService(
         this.repositories.receivable,
@@ -523,6 +530,7 @@ export class ApplicationFactory {
         postingService,
         auditService,
         this.policies.accounting,
+        this.repositories.counterparty,
       ),
       dimension: new DimensionService(
         this.repositories.dimension,
@@ -533,6 +541,11 @@ export class ApplicationFactory {
         this.repositories.posting,
         this.repositories.account,
         this.repositories.dimension,
+        this.policies.accounting,
+      ),
+      counterparty: new CounterpartyService(
+        this.repositories.counterparty,
+        auditService,
         this.policies.accounting,
       ),
       packageBalance: packageBalanceService,
@@ -591,6 +604,7 @@ export class ApplicationFactory {
   public getReceivableService = (): ReceivableService => this.services.receivable;
   public getDimensionService = (): DimensionService => this.services.dimension;
   public getDimensionReportService = (): DimensionReportService => this.services.dimensionReport;
+  public getCounterpartyService = (): CounterpartyService => this.services.counterparty;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;

@@ -10,6 +10,7 @@ export interface CreatePayableData {
   unitId: string;
   supplierName: string;
   supplierRef: string | null;
+  counterpartyId: string | null;
   documentNumber: string | null;
   description: string;
   issueDate: Date;
