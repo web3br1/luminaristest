@@ -22,6 +22,7 @@
 | [RECIBOS](ADR-RECIBOS-pdf-generation.md) | Comprovante de lançamento em PDF (puppeteer HTML→PDF, sem persistência) | Accepted (escolha do dono do produto); backend Fase A+B **mergeado** (PR #84); dep nova puppeteer/Chromium → smoke-launch-gate no deploy | 2026-07-13 | READ_ONLY (geração de documento) |
 | [INCR-AP](ADR-INCR-AP-accounts-payable.md) | Contas a Pagar operacional (`Payable`+`PayablePayment`, duplo fato gerador, `2.1.2 Fornecedores`) | **Accepted — RATIFICADO 2026-07-14** (F0→(a) `postEntry` direto; F1–F6 conforme recomendado); impl. + FE mergeados (PRs #102/#106) | 2026-07-14 | PRISMA_FIRST_CLASS |
 | [INCR-APPROVAL](ADR-INCR-APPROVAL-maker-checker.md) | Torre de aprovação (maker-checker / SoD) — `Draft→PendingApproval→Posted` no `JournalEntry` | **Accepted — MERGEADO** (PR #108, `1f4ff78`); **Emenda F3 re-ratificada fork-a-fork 2026-07-14** (§9): SoD hard→desligada single-user (`enforcesSegregationOfDuties = owner≠actor`), staging usável, endurece via membership | 2026-07-14 | PRISMA_FIRST_CLASS |
+| [INCR-AR](ADR-INCR-AR-accounts-receivable.md) | Contas a Receber (AR) operacional (`Receivable`+`ReceivableReceipt`, duplo fato gerador, conta dedicada `1.1.5`) | **Accepted — RATIFICADO FORK-A-FORK 2026-07-14** (F7→(a) conta dedicada `1.1.5`; F0→(a) `postEntry` direto; F1–F6 espelho do AP); impl. não iniciada (PRE-ADR fechado) | 2026-07-14 | PRISMA_FIRST_CLASS |
 
 ## Bridges de integração (venda DynamicTable → ledger Prisma)
 
