@@ -18,10 +18,12 @@ import { PeriodComparisonPanel } from './components/PeriodComparisonPanel';
 import { DailyJournalPanel } from './components/DailyJournalPanel';
 import { AccountsPayablePanel } from './components/AccountsPayablePanel';
 import { AccountsReceivablePanel } from './components/AccountsReceivablePanel';
+import { DimensionsPanel } from './components/DimensionsPanel';
 import { JournalEntryModal, type AccountOption } from './components/JournalEntryModal';
 import { accountingService } from '../../lib/services/accounting.service';
+import { dimensionsService, type DimensionCatalogEntry } from '../../lib/services/dimensions.service';
 
-type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'contas-a-pagar' | 'contas-a-receber' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'dfc' | 'comparativo' | 'diario' | 'importacao-exportacao' | 'conciliacao' | 'compliance';
+type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'contas-a-pagar' | 'contas-a-receber' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'dfc' | 'comparativo' | 'diario' | 'importacao-exportacao' | 'conciliacao' | 'compliance' | 'dimensoes';
 
 // label = i18n fallback (current pt-BR); rendered via t(`view.tabs.<id>`, label)
 const TABS: Array<{ id: Tab; labelKey: string; label: string }> = [
@@ -40,6 +42,7 @@ const TABS: Array<{ id: Tab; labelKey: string; label: string }> = [
   { id: 'importacao-exportacao', labelKey: 'view.tabs.importacaoExportacao', label: 'Importação/Exportação' },
   { id: 'conciliacao',    labelKey: 'view.tabs.conciliacao',    label: 'Conciliação' },
   { id: 'compliance',     labelKey: 'view.tabs.compliance',     label: 'Compliance' },
+  { id: 'dimensoes',      labelKey: 'view.tabs.dimensoes',      label: 'Dimensões' },
 ];
 
 /**
@@ -55,9 +58,11 @@ export function AccountingView() {
   const [activeTab, setActiveTab] = useState<Tab>('balancete');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalAccounts, setModalAccounts] = useState<AccountOption[]>([]);
+  const [modalDimensionCatalog, setModalDimensionCatalog] = useState<DimensionCatalogEntry[]>([]);
 
   function openNewEntryModal() {
     if (!unitId) return;
+    // Fetch accounts (required) and the dimension catalog (best-effort, for optional per-line tagging).
     accountingService
       .getAccounts(unitId)
       .then((r) => {
@@ -69,6 +74,10 @@ export function AccountingView() {
         setModalAccounts([]);
         setIsModalOpen(true);
       });
+    dimensionsService
+      .listCatalog({ unitId })
+      .then(setModalDimensionCatalog)
+      .catch(() => setModalDimensionCatalog([]));
   }
 
   return (
@@ -245,12 +254,18 @@ export function AccountingView() {
         </div>
       )}
 
+      {/* ── Dimensões (centro de custo / projeto) tab ──────────────────────── */}
+      {activeTab === 'dimensoes' && unitId && (
+        <DimensionsPanel unitId={unitId} />
+      )}
+
       {/* ── New Entry Modal ────────────────────────────────────────────────── */}
       <JournalEntryModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         unitId={unitId}
         accounts={modalAccounts}
+        dimensionCatalog={modalDimensionCatalog}
         onSuccess={() => {
           setIsModalOpen(false);
           void reload();

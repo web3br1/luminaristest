@@ -14,6 +14,9 @@ export interface PostingLineInput {
   accountCode: string;
   debitCents: number;
   creditCents: number;
+  /** Optional dimension VALUE ids tagging this leg (INCR-DIM). Metadata only — never enters
+   *  Σdébito=Σcrédito (ACC-024). At most one value per axis (backend rejects duplicates). */
+  dimensions?: string[];
 }
 
 export interface PostEntryPayload {
