@@ -43,4 +43,15 @@ export interface IAccountingPolicy {
 
   /** Can approve a submitted journal entry (checker action, ADR-INCR-APPROVAL). */
   canApproveEntry(scope: AccountingScope): boolean;
+
+  /**
+   * Whether dynamic segregation of duties (approver ≠ creator/submitter) is ENFORCED for this
+   * scope (ADR-INCR-APPROVAL F3, re-ratified fork-a-fork 2026-07-14). Today it is OFF while
+   * `ownerUserId === actorUserId` (single-user reality): a lone operator gets a usable
+   * Draft→submit→approve STAGING flow instead of a maker-checker that would block them from ever
+   * approving their own draft. It hardens to real SoD automatically the moment membership makes a
+   * delegate act on the owner's books (`ownerUserId !== actorUserId`). The staging machine stays
+   * built; only this gate flips.
+   */
+  enforcesSegregationOfDuties(scope: AccountingScope): boolean;
 }

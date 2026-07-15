@@ -1,5 +1,7 @@
 import { EntryApprovalService } from '../EntryApprovalService';
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from '../../../../lib/errors';
+import { AccountingPolicy } from '../../policies/AccountingPolicy';
+import type { AccountingScope } from '../../scope/AccountingScope';
 import { resolveAccountingScope } from '../../scope/AccountingScope';
 import { computeEntryContentHash } from '../../models/entryContentHash';
 import type { Account, JournalEntry, Posting } from 'generated/prisma';
@@ -42,6 +44,7 @@ interface Opts {
   periodOpen?: boolean;
   canManage?: boolean;
   canApprove?: boolean;
+  sod?: boolean; // whether SoD is ENFORCED (membership present); default off = single-user staging
 }
 
 function build(opts: Opts = {}) {
@@ -74,6 +77,7 @@ function build(opts: Opts = {}) {
   const policy = {
     canManageEntryApproval: () => opts.canManage ?? true,
     canApproveEntry: () => opts.canApprove ?? true,
+    enforcesSegregationOfDuties: () => opts.sod ?? false,
   };
 
   const service = new EntryApprovalService(
@@ -160,23 +164,34 @@ describe('EntryApprovalService.approveEntry — the money moment', () => {
     contentHash: computeEntryContentHash({ date: new Date('2026-06-10'), description: 'Lançamento manual', postings: twoLegs }),
   };
 
-  it('SoD: the creator cannot approve their own entry (server-side, not just UI)', async () => {
-    const { service } = build({ entry: pending });
+  it('SoD ENFORCED: the creator cannot approve their own entry (server-side, not just UI)', async () => {
+    const { service } = build({ entry: pending, sod: true });
     await expect(
       service.approveEntry(maker, 'entry-1', { unitId: 'unit-1', expectedVersion: 2 } as never),
     ).rejects.toThrow(ForbiddenError);
   });
 
-  it('SoD: the submitter (even if not the creator) cannot approve', async () => {
+  it('SoD ENFORCED: the submitter (even if not the creator) cannot approve', async () => {
     // createdById != submittedById; the submitter (checker-1) must still be blocked.
-    const { service } = build({ entry: { ...pending, createdById: 'maker-1', submittedById: 'checker-1' } });
+    const { service } = build({ entry: { ...pending, createdById: 'maker-1', submittedById: 'checker-1' }, sod: true });
     await expect(
       service.approveEntry(checker, 'entry-1', { unitId: 'unit-1', expectedVersion: 2 } as never),
     ).rejects.toThrow(ForbiddenError);
   });
 
-  it('approves as a different actor: assigns number (ACC-015), sets approvedById+postedById, audits with createdById', async () => {
-    const { service, casUpdate, nextEntryNumber, auditService } = build({ entry: pending });
+  it('SoD OFF (single-user staging): the creator CAN approve their own entry and it posts (F3 re-ratified)', async () => {
+    // sod default off — the lone operator submits and approves; the staging flow is usable.
+    const { service, casUpdate, nextEntryNumber } = build({ entry: pending });
+    await service.approveEntry(maker, 'entry-1', { unitId: 'unit-1', expectedVersion: 2 } as never);
+
+    expect(nextEntryNumber).toHaveBeenCalled();
+    const casData = (casUpdate.mock.calls[0] as unknown[])[3] as Record<string, unknown>;
+    expect(casData.status).toBe('Posted');
+    expect(casData.approvedById).toBe('maker-1'); // self-approval allowed when SoD off
+  });
+
+  it('SoD ENFORCED, different actor: assigns number (ACC-015), sets approvedById+postedById, audits with createdById', async () => {
+    const { service, casUpdate, nextEntryNumber, auditService } = build({ entry: pending, sod: true });
     await service.approveEntry(checker, 'entry-1', { unitId: 'unit-1', expectedVersion: 2 } as never);
 
     expect(nextEntryNumber).toHaveBeenCalled();
@@ -276,6 +291,23 @@ describe('EntryApprovalService — not found', () => {
     await expect(
       service.submitForApproval(maker, 'nope', { unitId: 'unit-1', expectedVersion: 1 } as never),
     ).rejects.toThrow(NotFoundError);
+  });
+});
+
+describe('AccountingPolicy.enforcesSegregationOfDuties — the gate that flips (F3 re-ratified)', () => {
+  const policy = new AccountingPolicy();
+
+  it('is OFF while ownerUserId === actorUserId (single-user reality today)', () => {
+    // resolveAccountingScope collapses owner === actor, so SoD is a no-op — staging usable.
+    expect(policy.enforcesSegregationOfDuties(resolveAccountingScope({ userId: 'u-1' }, 'unit-1'))).toBe(false);
+  });
+
+  it('is ON when a delegate acts on the owner books (ownerUserId !== actorUserId, future membership)', () => {
+    const delegated: AccountingScope = {
+      ownerUserId: 'owner-1', actorUserId: 'delegate-2', unitId: 'unit-1',
+      ledgerCode: 'DEFAULT', baseCurrencyCode: 'BRL', timeZone: 'America/Sao_Paulo',
+    };
+    expect(policy.enforcesSegregationOfDuties(delegated)).toBe(true);
   });
 });
 
