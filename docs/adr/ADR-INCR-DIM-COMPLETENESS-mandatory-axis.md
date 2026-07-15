@@ -74,10 +74,33 @@ B1** — etiqueta obrigatória por classe de conta. **Interpretação de impleme
 por necessidade (contas não-marcadas seguem opcionais ⇒ o bucket "(Não alocado)" continua obrigatório para
 `Σ == total`). Entrega:
 1. `Account.requiresDimension` (flag booleano, default `false`) + qual(is) eixo(s) exige (ou "qualquer eixo");
-2. gate no `postEntry`: partida a conta com `requiresDimension` **sem** `PostingDimension` no(s) eixo(s)
-   exigido(s) → rejeita (mesma forma do gate de período/conta-folha, T6 in-tx);
+2. gate num **choke-point compartilhado de escrita de partida** (ver §7 — **corrigido pós red-team de
+   segurança**): partida a conta com `requiresDimension` **sem** `PostingDimension` no(s) eixo(s) exigido(s)
+   → rejeita, in-tx (T6);
 3. bucket "(Não alocado)" no relatório de DRE por dimensão (B0), para as contas ainda opcionais.
 **Fora:** UI de marcar conta como obrigatória (parte do FE do incremento); rateio automático (§4, fora).
+
+## 7. Gates de segurança (red-team 2026-07-15 — VINCULANTES ao BRIEF/impl)
+
+> Red-team de segurança aterrado no código achou **uma falha de design na letra deste ADR** e riscos de
+> bypass. Correções abaixo são pré-condição da implementação (o increment **não** nasce sem elas).
+
+- **[SEC-B1-1 — FALHA DE DESIGN CORRIGIDA] O gate NÃO pode viver só em `postEntry`.** `postEntry` **não é o
+  único** escritor de partidas: `PostingService.reverseEntry` e `EntryApprovalService` (aprovar==postar)
+  escrevem legs **direto** via `postingRepo.create`. Um gate só em `postEntry` é **furado** pela torre de
+  aprovação e pelo estorno. → O gate vive num **choke-point compartilhado** (ex. `assertLegDimensions(tx,
+  resolvedLines)`) invocado pelos **três** caminhos (`postEntry` + `reverseEntry` + `EntryApprovalService`).
+- **[SEC-B1-2] Estorno.** `reverseEntry` não copia `PostingDimension` para os legs-espelho ⇒ se o gate cobrir
+  estorno, **todo** estorno de conta `requiresDimension` falha. → Copiar as tags do leg original para o
+  espelho, **ou** isentar estorno explicitamente (espelha lançamento já válido).
+- **[SEC-B1-3] Aprovação.** O fluxo de aprovação hoje descarta dimensões ⇒ conta `requiresDimension` numa rota
+  de aprovação fica insatisfazível (DoS de rota). → A torre de aprovação deve aceitar+persistir tags **antes**
+  de qualquer conta de aprovação virar obrigatória.
+- **[SEC-B1-4] AuthZ do flag.** Ator que liga/desliga `requiresDimension` pode desligar→postar sem tag→religar,
+  burlando a completude. → **Toda mutação de `Account.requiresDimension` emite `AuditEvent`** (hash-chain já
+  existe ⇒ off→post→on fica visível); toggle atrás de `canManage`. (RBAC fino segue diferido, §6.)
+- **[SEC-B1-5] Só prospectivo.** O gate **nunca** retro-rejeita histórico postado sem tag; o bucket
+  "(Não alocado)" cobre os antigos para `Σ == total`.
 
 ## 6. Fora de escopo
 

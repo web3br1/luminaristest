@@ -93,6 +93,29 @@ linhas existentes) + backfill idempotente das linhas string-keyed (uma `Counterp
 carrega `userId`+`unitId` (AccountingScope, T2); soft-delete + rename-on-key como AP/AR; **sem** cascade que
 apague histórico (T8). Smoke-migration-gate sobre cópia do dev.db real antes de deploy.
 
+## 5.1 Gates de segurança (red-team 2026-07-15 — VINCULANTES ao BRIEF/impl)
+
+> Red-team aterrado no código: A1 **não tem falha de design** (é disciplina de escopo + migração, e todos os
+> controles já existem como padrão no codebase), mas os controles abaixo são **pré-condição** — sem eles, o
+> increment nasce com IDOR/vazamento cross-tenant.
+
+- **[SEC-A1-1] Resolver `counterpartyId` DENTRO do create** AP/AR via `counterpartyRepo.findById(scope, id)`
+  (mesmo padrão do `expenseAccountId`/`revenueAccountId` atual), `null` → `ValidationError`. **Nunca** confiar
+  no `counterpartyId` do body nem validar no DTO Zod (o DTO não conhece o escopo) ⇒ senão AP/AR de um tenant
+  liga a `Counterparty` de outro (vaza nome/dedupe cross-tenant). É o IDOR #1 deste increment.
+- **[SEC-A1-2] Backfill dedupe por `(userId, unitId, name)`, JAMAIS por nome só.** Dois tenants com "ACME"
+  **não** podem colapsar numa `Counterparty`. `@@unique([userId, unitId, type, name])` + upsert idempotente
+  (`INSERT OR IGNORE`) para rodar 2× sem P2002; inclui linhas canceladas/soft-deleted (aging histórico) com
+  escopo correto.
+- **[SEC-A1-3] Smoke-migration-gate anti-vazamento.** Sobre cópia do dev.db real, o gate **falha** se existir
+  qualquer `counterpartyId` cujo `Counterparty` tenha `userId/unitId` ≠ do payable/receivable, e assere
+  `#counterparties por escopo == #nomes distintos por escopo`.
+- **[SEC-A1-4] Soft-delete × `@@unique`** (class bug conhecido, memória `unique-de-idempotencia-x-soft-delete`):
+  `Counterparty` com unique por nome reintroduz P2002 no arquivar+recriar. → Mesma disciplina rename-on-delete
+  do `Payable.deletedDocumentNumber`, ou definir que archive não libera o nome.
+- **[SEC-A1-5] Passo NOT NULL** num 2º migration que **assere** zero `counterpartyId` NULL in-scope **antes**
+  de aplicar (a FK só endurece depois do backfill provar cobertura total).
+
 ## 6. Fora de escopo
 
 Dados cadastrais ricos da contraparte (CNPJ, endereço, condições), dedupe/merge de contrapartes, portal do

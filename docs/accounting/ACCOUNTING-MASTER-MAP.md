@@ -231,7 +231,41 @@ impl. NÃO iniciada — seguem PLAN→BRIEF→impl→review→smoke-migration-ga
   (opcional→condicionalmente obrigatório). **NÃO reintroduz o §4** — é gate de validação (rejeita), não motor
   que gera lançamento. Migração toca `accounts` (add flag) + `postEntry`.
 
-**Riscos latentes:** ~~`RISK-INCR3-MIGRATION-001`~~ **FECHADO 2026-07-14** (fix replay-safe PR #98 +
+**🔴 RISK-SEC-AUTH-001 — CRÍTICO, ABERTO (auditoria de segurança 2026-07-15, VERIFICADO em código).**
+**Bypass de autenticação + impersonação de tenant na borda HTTP** — não é bug do código contábil (a
+disciplina de escopo dos repos/services é sólida: todo `findById`/read/update passa `accountingScopeWhere`),
+mas **os increments contábeis estacionaram os endpoints de altíssimo valor** (`/api/accounting`,
+`/api/payables`, `/api/receivables`, `/api/dimensions`, `/api/entry-approvals`) atrás dele.
+- **Causa:** `middleware/auth.ts:37,45` casa o prefixo protegido com `req.originalUrl.startsWith('/api/accounting')`
+  **case-sensitive**; o Express roteia **case-insensitive** (`case sensitive routing` não setado, `server.ts:50`);
+  a identidade vem de headers `x-user-*` (`lib/authUtils.ts:12-21`) que só são sobrescritos pelo token **dentro**
+  do ramo protegido e **não são stripados** em ingresso.
+- **Exploração (VERIFICADO em código):** `POST /api/ACCOUNTING/post` (maiúsculo) **sem JWT** + headers
+  `x-user-id/x-user-username/x-user-role` forjados → `startsWith` falha → `next()` sem auth → rota casa
+  case-insensitive → controller age como a vítima. Escrita/leitura irrestrita nos livros de **qualquer** tenant
+  (postar/estornar, apagar conta, pagar AP, aprovar AR, gerar SPED). Atinge **todos** os prefixos protegidos.
+- **Fix (pequeno, defense-in-depth):** (1) normalizar o path no guard — `req.path.toLowerCase()` (fecha caixa
+  E o vetor percent-encode `/api/%61ccounting`); (2) **strip incondicional dos headers `x-user-*` de entrada**
+  antes do auth (mata o spoof de identidade mesmo em path não-casado); (3) idealmente montar o auth **no router**
+  em vez de por lista de prefixos. Correção vive na plataforma (`middleware/auth.ts`), não no código contábil.
+- **Gate:** antes de qualquer deploy real (T11), este risco é bloqueante. Reflexo: rota nova de mutação =
+  confirmar que passa pelo auth normalizado, não por `startsWith` case-sensitive.
+
+**Achados de segurança adicionais (auditoria 2026-07-15) — follow-ups, não bloqueiam dev:**
+- **ALTA · catálogo RFB global gravável por qualquer tenant** (`ReferentialCatalogService`: gate só
+  `!!actorUserId`) → um tenant envenena descrições/natureza do catálogo compartilhado ECD/ECF de todos. Falta
+  papel admin/global no gate.
+- **MÉDIA · CSV formula-injection no export** (`lib/spreadsheet.ts:132-139`: sem neutralizar `= + - @`
+  iniciais em nome de conta/histórico). Fix: prefixar `'`. (XLSX via exceljs está OK.)
+- **MÉDIA · zip-bomb XLSX no import** (`exceljs.xlsx.load` sem teto de descompressão/linhas; deploy
+  single-process ⇒ 1 upload derruba o app). Fix: cap de linhas/células.
+- **BAIXA · `validateMagicBytes` não aplicado** nos uploads de data-exchange/reconciliation/catálogo (só nos
+  attachments) — confiam no mimetype declarado.
+- **DEFENDIDO (valor de descarte):** IDOR em reads/writes por id (scope em todo repo), injeção SQL (zero raw
+  interpolado), SSRF/RCE no puppeteer (`receiptHtml.ts:30-37` escapa; template self-contained), mass-assignment
+  (userId/status/approvedById nunca vêm do body).
+
+**Riscos latentes (migração):** ~~`RISK-INCR3-MIGRATION-001`~~ **FECHADO 2026-07-14** (fix replay-safe PR #98 +
 smoke-gate DEPLOY-CLEARED PR #99 — ver T12). Nenhum risco de migração aberto; o reflexo permanece:
 toda migração que tocar `journal_entries` re-roda o smoke-migration-gate sobre cópia do dev.db real.
 
