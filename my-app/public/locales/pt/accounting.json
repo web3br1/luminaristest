@@ -15,6 +15,7 @@
       "periodos": "Períodos",
       "lancamentos": "Lançamentos",
       "contasAPagar": "Contas a Pagar",
+      "contasAReceber": "Contas a Receber",
       "razao": "Razão",
       "planoDeContas": "Plano de Contas",
       "bp": "BP",
@@ -116,6 +117,93 @@
       "undoConfirm": "Confirmar",
       "undoing": "Desfazendo…",
       "undoNote": "O pagamento será estornado e a conta voltará para “Em aberto”."
+    }
+  },
+  "contasAReceber": {
+    "heading": "Contas a Receber",
+    "newReceivable": "Nova Conta",
+    "loading": "Carregando contas a receber…",
+    "empty": "Nenhuma conta a receber registrada nesta unidade ainda.",
+    "viewPeriods": "Ver Períodos",
+    "status": {
+      "OPEN": "Em aberto",
+      "RECEIVING": "Em recebimento",
+      "RECEIVED": "Recebida",
+      "CANCELLED": "Cancelada"
+    },
+    "col": {
+      "expand": "Expandir",
+      "customer": "Cliente",
+      "description": "Descrição",
+      "dueDate": "Vencimento",
+      "amount": "Valor",
+      "status": "Status",
+      "actions": "Ações"
+    },
+    "action": {
+      "receive": "Receber",
+      "receiveTitle": "Registrar recebimento",
+      "cancel": "Cancelar",
+      "cancelTitle": "Cancelar a conta",
+      "undo": "Desfazer recebimento",
+      "undoTitle": "Desfazer o recebimento (reabre a conta)",
+      "receiving": "Processando…"
+    },
+    "receipts": {
+      "date": "Recebido em",
+      "method": "Forma",
+      "amount": "Valor",
+      "status": "Situação",
+      "active": "Ativo",
+      "cancelled": "Cancelado"
+    },
+    "error": {
+      "load": "Erro ao carregar as contas a receber.",
+      "action": "Não foi possível concluir a operação."
+    },
+    "createModal": {
+      "title": "Nova Conta a Receber",
+      "cancel": "Cancelar",
+      "submit": "Registrar",
+      "saving": "Registrando…",
+      "optional": "(opcional)",
+      "noRevenueAccounts": "Nenhuma conta de receita analítica encontrada. Cadastre uma no Plano de Contas.",
+      "field": {
+        "customer": "Cliente",
+        "customerPlaceholder": "Nome do cliente…",
+        "description": "Descrição",
+        "descriptionPlaceholder": "Ex.: serviço prestado, venda, mensalidade…",
+        "document": "Nº do documento",
+        "documentPlaceholder": "NF, fatura…",
+        "amount": "Valor (R$)",
+        "issueDate": "Emissão",
+        "dueDate": "Vencimento",
+        "revenueAccount": "Conta de receita (contrapartida)",
+        "selectAccount": "— selecione a conta de receita —"
+      },
+      "error": {
+        "invalid": "Preencha cliente, descrição, datas, valor e conta de receita.",
+        "failed": "Erro ao registrar a conta a receber."
+      }
+    },
+    "actionModal": {
+      "cancel": "Voltar",
+      "receivedAtLabel": "Data do recebimento",
+      "reversalDateLabel": "Data da reversão",
+      "methodLabel": "Forma de recebimento",
+      "reasonLabel": "Motivo",
+      "receiveTitle": "Registrar recebimento",
+      "receiveConfirm": "Confirmar recebimento",
+      "receiving": "Registrando…",
+      "receiveNote": "Será lançado D Banco / C Clientes pelo saldo integral. Recebimento parcial não é suportado.",
+      "cancelTitle": "Cancelar conta a receber",
+      "cancelConfirm": "Confirmar cancelamento",
+      "cancelling": "Cancelando…",
+      "cancelNote": "O lançamento de reconhecimento será estornado na data acima. Esta ação não pode ser desfeita.",
+      "undoTitle": "Desfazer recebimento",
+      "undoConfirm": "Confirmar",
+      "undoing": "Desfazendo…",
+      "undoNote": "O recebimento será estornado e a conta voltará para “Em aberto”."
     }
   },
   "compliance": {
