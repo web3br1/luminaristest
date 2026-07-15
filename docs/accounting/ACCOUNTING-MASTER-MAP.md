@@ -231,8 +231,13 @@ impl. NÃO iniciada — seguem PLAN→BRIEF→impl→review→smoke-migration-ga
   (opcional→condicionalmente obrigatório). **NÃO reintroduz o §4** — é gate de validação (rejeita), não motor
   que gera lançamento. Migração toca `accounts` (add flag) + `postEntry`.
 
-**🟠 RISK-SEC-AUTH-001 — CRÍTICO, FIX IMPLEMENTADO (pendente review + merge) (auditoria de segurança
-2026-07-15, VERIFICADO em código; fix em `claude/sec-hardening-auth` commit `326aaad`).**
+**🟠 RISK-SEC-AUTH-001 — CRÍTICO, FIX IMPLEMENTADO + REVIEW INDEPENDENTE PASS (pronto p/ merge; risco fecha
+no merge) (auditoria de segurança 2026-07-15, VERIFICADO em código; fix em `claude/sec-hardening-auth`,
+head `57f9ed3` = fix `326aaad` + endurecimento de testes do review).** Review independente (agente separado,
+re-derivou o exploit pela diff) = **PASS-COM-RESSALVAS não-bloqueantes**: crítico fechado por 2 camadas (strip
+incondicional de identidade + match no `req.path` decodificado), sem bypass remanescente (dupla-codificação,
+`..`, cobertura dos 7 headers — tudo checado), zero regressão, 4 follow-ups corretos. Ressalva de deployment:
+o import RFB admin-only pressupõe existir conta ADMIN no ambiente-alvo.
 **Bypass de autenticação + impersonação de tenant na borda HTTP** — não é bug do código contábil (a
 disciplina de escopo dos repos/services é sólida: todo `findById`/read/update passa `accountingScopeWhere`),
 mas **os increments contábeis estacionaram os endpoints de altíssimo valor** (`/api/accounting`,
