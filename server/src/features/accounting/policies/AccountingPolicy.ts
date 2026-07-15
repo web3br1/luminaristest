@@ -43,4 +43,14 @@ export class AccountingPolicy implements IAccountingPolicy {
   canReadPayable(scope: AccountingScope): boolean {
     return !!scope.actorUserId;
   }
+
+  // ponytail: SoD dinâmica (approver != creator) e RBAC por papel entram quando a unidade for
+  // compartilhada / os papéis existirem (F3/F6, ⚫). Aqui só a checagem grosseira de ator.
+  canManageEntryApproval(scope: AccountingScope): boolean {
+    return !!scope.actorUserId;
+  }
+
+  canApproveEntry(scope: AccountingScope): boolean {
+    return !!scope.actorUserId;
+  }
 }

@@ -33,4 +33,14 @@ export interface IAccountingPolicy {
 
   /** Can list/read Contas a Pagar (INCR-AP). */
   canReadPayable(scope: AccountingScope): boolean;
+
+  /**
+   * Can author/submit/reject draft journal entries in the approval tower (maker actions,
+   * ADR-INCR-APPROVAL). The dynamic SoD gate (approver ≠ creator) is enforced in the service,
+   * not here — this is the coarse "is an authenticated actor" check until RBAC lands (F6, ⚫).
+   */
+  canManageEntryApproval(scope: AccountingScope): boolean;
+
+  /** Can approve a submitted journal entry (checker action, ADR-INCR-APPROVAL). */
+  canApproveEntry(scope: AccountingScope): boolean;
 }

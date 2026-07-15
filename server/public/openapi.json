@@ -7505,6 +7505,289 @@
           }
         }
       }
+    },
+    "/api/entry-approvals/pending": {
+      "get": {
+        "summary": "List entries awaiting approval (maker-checker queue, ADR-INCR-APPROVAL)",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "paginated PendingApproval entries with their legs"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/entry-approvals/drafts": {
+      "post": {
+        "summary": "Create a draft journal entry with its legs (no number, no ledger impact yet)",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDraftEntryInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "the created Draft entry"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/entry-approvals/drafts/{id}": {
+      "put": {
+        "summary": "Replace a draft entry content (edit after rejection)",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDraftEntryInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the updated Draft entry"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/entry-approvals/drafts/{id}/submit": {
+      "post": {
+        "summary": "Submit a draft for approval (freezes the content hash, moves to PendingApproval)",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitEntryInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the submitted entry (PendingApproval)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "409": {
+            "description": "version conflict (stale expectedVersion)"
+          }
+        }
+      }
+    },
+    "/api/entry-approvals/{id}/approve": {
+      "post": {
+        "summary": "Approve and post a submitted entry (checker; segregation of duties)",
+        "description": "Approves and posts atomically. The approver must NOT be the creator or submitter (dynamic SoD, server-side). Assigns the gapless entryNumber inside the tx, re-checks the period gate and the frozen content hash. Fails 403 on a SoD violation, 409 on a stale version.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveEntryInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the Posted entry"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "SoD violation (approver is the creator or submitter)"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "409": {
+            "description": "version conflict (stale expectedVersion)"
+          }
+        }
+      }
+    },
+    "/api/entry-approvals/{id}/reject": {
+      "post": {
+        "summary": "Reject a submitted entry back to Draft",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectEntryInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the entry back in Draft"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "409": {
+            "description": "version conflict (stale expectedVersion)"
+          }
+        }
+      }
     }
   },
   "tags": [

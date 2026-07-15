@@ -12,8 +12,28 @@ export interface CreateJournalEntryInput {
   sourceId?: string | null;
   createdById?: string | null;
   postedById?: string | null;
-  fiscalYear: number;
-  entryNumber: number;
+  // Nullable since ADR-INCR-APPROVAL: a Draft/PendingApproval entry has NO number — it is
+  // born at POST/approve inside the tx (ACC-015). postEntry still passes both non-null.
+  fiscalYear: number | null;
+  entryNumber: number | null;
+}
+
+/**
+ * Fields settable by the optimistic-lock CAS (ADR-INCR-APPROVAL, ACC-023). `version` is the
+ * NEW value to write; the WHERE clause matches the expected (prior) version so a concurrent
+ * writer that already bumped it makes this update affect 0 rows.
+ */
+export interface JournalEntryCasData {
+  status?: string;
+  submittedById?: string | null;
+  approvedById?: string | null;
+  postedById?: string | null;
+  contentHash?: string | null;
+  fiscalYear?: number | null;
+  entryNumber?: number | null;
+  date?: Date;
+  description?: string;
+  version: number;
 }
 
 /** A JournalEntry with its postings eagerly loaded. */
@@ -60,6 +80,32 @@ export interface IJournalEntryRepository {
     status: string,
     tx?: Prisma.TransactionClient,
   ): Promise<void>;
+
+  /**
+   * Optimistic-lock CAS update (ADR-INCR-APPROVAL, ACC-023). Updates the entry ONLY when its
+   * current `version` equals `expectedVersion` (and it belongs to the scope). Returns the number
+   * of rows affected: 1 = applied, 0 = version conflict / not found (the caller raises a 409).
+   * The whole approval state machine (submit/approve/reject/updateDraft) mutates through here so
+   * two concurrent transitions can never both win.
+   */
+  casUpdate(
+    scope: AccountingScope,
+    id: string,
+    expectedVersion: number,
+    data: JournalEntryCasData,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number>;
+
+  /**
+   * Lists entries for the scope whose status is in `statuses` (e.g. the PendingApproval queue),
+   * paginated, with postings + account code/name. Ordered by date descending. Read-only.
+   */
+  findManyByStatus(
+    scope: AccountingScope,
+    statuses: string[],
+    skip: number,
+    take: number,
+  ): Promise<{ entries: JournalEntryWithFullPostings[]; total: number }>;
 
   /** Links an original entry to its reversal (sets reversedById). Tenant-scoped. */
   setReversedBy(

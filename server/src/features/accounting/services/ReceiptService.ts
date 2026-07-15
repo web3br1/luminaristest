@@ -1,4 +1,4 @@
-import { ForbiddenError, NotFoundError } from '../../../lib/errors';
+import { ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
 import { htmlToPdf } from '../../../lib/pdf';
 import { renderReceiptHtml, type ReceiptData } from '../../../lib/receiptHtml';
 import type { AccountingScope } from '../scope/AccountingScope';
@@ -37,6 +37,15 @@ export class ReceiptService {
     const entry = await this.entries.findById(scope, entryId);
     if (!entry) throw new NotFoundError('Lançamento não encontrado.');
 
+    // A receipt is only meaningful for a numbered (posted-family) entry. Draft/PendingApproval
+    // entries (ADR-INCR-APPROVAL) have no entryNumber/fiscalYear yet — reject them explicitly
+    // instead of rendering a "nº null/null" comprovante.
+    if (entry.entryNumber === null || entry.fiscalYear === null) {
+      throw new ValidationError('Comprovante disponível apenas para lançamentos postados.');
+    }
+    const entryNumber = entry.entryNumber;
+    const fiscalYear = entry.fiscalYear;
+
     // An entry has a handful of legs — resolve each account's code/name. findById gives
     // bare postings; a removed account (soft-deleted) surfaces as a placeholder rather
     // than dropping the leg, so the comprovante stays balanced.
@@ -53,8 +62,8 @@ export class ReceiptService {
     );
 
     const data: ReceiptData = {
-      entryNumber: entry.entryNumber,
-      fiscalYear: entry.fiscalYear,
+      entryNumber,
+      fiscalYear,
       status: entry.status,
       date: entry.date,
       description: entry.description,
@@ -66,7 +75,7 @@ export class ReceiptService {
     const buffer = await htmlToPdf(renderReceiptHtml(data, new Date()));
     return {
       buffer,
-      fileName: `comprovante-lancamento-${entry.fiscalYear}-${entry.entryNumber}.pdf`,
+      fileName: `comprovante-lancamento-${fiscalYear}-${entryNumber}.pdf`,
       mimeType: 'application/pdf',
     };
   }
