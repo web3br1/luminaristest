@@ -19,6 +19,8 @@ rules:
   ROUTE-002:
     gates:
       - type: eval
+        target: ./evals/evals.json#happy-1
+      - type: eval
         target: ./evals/evals.json#regression-1
   ROUTE-003:
     gates:

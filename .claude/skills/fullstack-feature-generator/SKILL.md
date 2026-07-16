@@ -6,7 +6,7 @@ allowed-tools: Read, Grep, Glob, Write, Edit, Bash
 disable-model-invocation: true
 metadata:
   governance-skill-id: "SKL-FULLSTACK-FEATURE"
-  governance-version: "1.0.0"
+  governance-version: "1.1.0"
   governance-status: "validated"
   governance-owner: "engineering"
   governance-last-evaluated: "2026-06-25"

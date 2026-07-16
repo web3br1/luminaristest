@@ -5,7 +5,7 @@ argument-hint: "[lista de arquivos criados/editados — deixar vazio para auto-d
 allowed-tools: Read, Grep, Glob, Bash
 metadata:
   governance-skill-id: "SKL-REVIEWER"
-  governance-version: "1.1.0"
+  governance-version: "1.2.0"
   governance-status: "validated"
   governance-owner: "engineering"
   governance-last-evaluated: "2026-06-25"
@@ -170,7 +170,7 @@ grep -n "res\.json\|Response" <arquivo>             # → HTTP no service
   ```
 - [ ] **`middleware/auth.ts` NÃO foi tocado** para "proteger" a rota — auth é deny-by-default, a rota nasce protegida ao ser montada e não há allowlist a atualizar. Um diff que adiciona a rota a um array de prefixos protegidos = FAIL (instrução obsoleta, anterior ao `RISK-SEC-AUTH-001`). Exceção: rota **pública**, que exige regra em `publicApiRoutes` **+ justificativa explícita no relatório** — endpoint sem auth é decisão de segurança, e a ausência da justificativa é FAIL.
   ```bash
-  grep -n "/api/<resource>" server/src/middleware/auth.ts   # deve existir
+  git diff --name-only origin/main..HEAD | grep -c "middleware/auth.ts"   # deve ser 0 (rota nova não toca auth)
   ```
 - [ ] `routes/docs.paths.ts` tem bloco OpenAPI para cada endpoint novo
 - [ ] Router exportado como `export default router`

@@ -6,7 +6,7 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 compatibility: Claude Code; requer o monorepo Luminaris (server/ com express + tsc). Sem efeitos externos — apenas gera/edita arquivos no repositório.
 metadata:
   governance-skill-id: "SKL-BACKEND-ROUTE"
-  governance-version: "1.0.0"
+  governance-version: "1.1.0"
   governance-status: "validated"
   governance-owner: "engineering"
   governance-last-evaluated: "2026-06-25"
@@ -82,10 +82,14 @@ Leia os três ANTES de gerar e replique exatamente os 2 toques (o arquivo de rot
 ## Registro = 2 toques
 
 ```
-1. routes/<resource>.ts           ← cria o router
-2. routes/index.ts                ← router.use('/<resource>', ...)
-3. routes/docs.paths.ts           ← bloco @openapi de PATH  ← FÁCIL DE ESQUECER (tsc-cego)
+   routes/<resource>.ts           ← o artefato (não é toque — é a rota em si)
+1. routes/index.ts                ← toque 1: router.use('/<resource>', ...)
+2. routes/docs.paths.ts           ← toque 2: bloco @openapi de PATH  ← FÁCIL DE ESQUECER (tsc-cego)
 ```
+
+> Conte só os **registros**, nunca o arquivo de rota. A contagem ambígua ("3 toques" listando 3 itens
+> dos quais um era o próprio artefato) foi o que gerou a divergência histórica 3-toques × 4-toques
+> entre as skills e o `REPORT.md`.
 
 **[ROUTE-002] Auth não é toque de registro — a rota nasce protegida.** `middleware/auth.ts` é
 deny-by-default: tudo sob `/api` exige JWT a partir do momento em que a rota é montada, e o user

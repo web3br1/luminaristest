@@ -66,9 +66,13 @@ function isApiPath(pathname: string): boolean {
 }
 
 function isPublic(pathname: string, method: string): boolean {
+  // Express serves HEAD from a GET handler, so a HEAD to a public GET must stay public —
+  // otherwise `HEAD /api/docs/openapi.json` 401s while the GET succeeds. Mirroring the
+  // router is the rule; every divergence from it is what RISK-SEC-AUTH-001 was made of.
+  const effectiveMethod = method === 'HEAD' ? 'GET' : method;
   return publicApiRoutes.some(
     (rule) =>
-      rule.method === method &&
+      rule.method === effectiveMethod &&
       (rule.match === 'exact' ? pathname === rule.path : matchesSegmentPrefix(pathname, rule.path))
   );
 }
@@ -125,8 +129,10 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
       matchesSegmentPrefix(pathname, '/api/users') && (method === 'PUT' || method === 'PATCH');
     if (isUserUpdateOperation && payload.role !== 'ADMIN') {
       const pathParts = rawPath.split('/');
-      // If the route is /api/users/me/..., it's intrinsically a self-update
-      const isMeRoute = pathParts.includes('me');
+      // If the route is /api/users/me/..., it's intrinsically a self-update. Folded, because
+      // Express routes /api/users/ME/preferences to the same handler — the id comparison below
+      // is what must stay byte-exact, not this segment check.
+      const isMeRoute = pathParts.some((p) => p.toLowerCase() === 'me');
 
       if (!isMeRoute) {
         const targetUserId = pathParts.pop();

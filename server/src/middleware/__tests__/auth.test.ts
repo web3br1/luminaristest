@@ -233,6 +233,23 @@ describe('authMiddleware', () => {
       expect(ctx.statusCode).toBeUndefined();
     });
 
+    it.each([
+      ['/api/docs/openapi.json'],
+      ['/api'],
+    ])('keeps HEAD %s public, because Express serves HEAD from the GET handler', (path) => {
+      const { ctx, next } = run(makeReq(path, 'HEAD'));
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(ctx.statusCode).toBeUndefined();
+    });
+
+    it('does not let HEAD reach a protected route without a token', () => {
+      const { ctx, next } = run(makeReq('/api/accounting/post', 'HEAD'));
+
+      expect(next).not.toHaveBeenCalled();
+      expect(ctx.statusCode).toBe(401);
+    });
+
     it('calls next() for non-/api paths such as /health', () => {
       const { ctx, next } = run(makeReq('/health', 'GET'));
 
@@ -317,12 +334,26 @@ describe('authMiddleware', () => {
       expect(ctx.statusCode).toBeUndefined();
     });
 
-    it('allows PATCH /api/users/me/preferences', () => {
+    it.each([
+      ['/api/users/me/preferences'],
+      ['/api/users/ME/preferences'],
+      ['/api/USERS/me/preferences'],
+    ])('allows PATCH %s — Express routes them all to the same handler', (path) => {
       const token = signToken({ id: 'user-abc', username: 'alice', role: 'USER' });
-      const { ctx, next } = run(makeReq('/api/users/me/preferences', 'PATCH', `Bearer ${token}`));
+      const { ctx, next } = run(makeReq(path, 'PATCH', `Bearer ${token}`));
 
       expect(next).toHaveBeenCalledTimes(1);
       expect(ctx.statusCode).toBeUndefined();
+    });
+
+    it('a mixed-case id still cannot target someone else via the me-route check', () => {
+      // The `me` segment check folds case; the id comparison must not — otherwise
+      // `PUT /api/users/User-AbC` by `user-abc` would escalate (the latent bug in #118).
+      const token = signToken({ id: 'user-abc', username: 'alice', role: 'USER' });
+      const { ctx, next } = run(makeReq('/api/users/User-AbC', 'PUT', `Bearer ${token}`));
+
+      expect(next).not.toHaveBeenCalled();
+      expect(ctx.statusCode).toBe(403);
     });
   });
 });

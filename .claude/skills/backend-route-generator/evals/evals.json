@@ -18,7 +18,7 @@
     {
       "id": "happy-1",
       "type": "happy",
-      "rules": ["ROUTE-001", "ROUTE-003", "ROUTE-004", "ROUTE-005", "ROUTE-006"],
+      "rules": ["ROUTE-001", "ROUTE-002", "ROUTE-003", "ROUTE-004", "ROUTE-005", "ROUTE-006"],
       "prompt": "Gere o registro 2-toques completo para o recurso invoices, expondo list/getById/create/update/delete via InvoiceController (handlers nomeados listInvoices, getInvoiceById, createInvoice, updateInvoice, deleteInvoice). Saída: o conteúdo de CADA arquivo, e marque o início de cada arquivo com uma linha contendo APENAS o caminho como comentário, exatamente assim: `// server/src/routes/invoices.ts`, `// server/src/routes/index.ts`, `// server/src/routes/docs.paths.ts` (o caminho sozinho na linha, sem texto extra).",
       "target_files": [
         "server/src/routes/invoices.ts",
@@ -34,8 +34,11 @@
         "@invoices.ts::absent:res.status",
         "@index.ts::regex:import\\s+invoicesRouter\\s+from\\s+['\"]\\./invoices['\"]",
         "@index.ts::regex:router\\.use\\(\\s*['\"]/invoices['\"]\\s*,\\s*invoicesRouter",
-        "@docs.paths.ts::contains:/api/invoices"
-      ]
+        "@docs.paths.ts::contains:/api/invoices",
+        "absent:protectedApiPaths",
+        "absent:middleware/auth.ts"
+      ],
+      "assertion_notes": "As duas últimas cobrem ROUTE-002 no caminho POSITIVO: gerar a rota sem emitir o toque morto. Aqui `absent:protectedApiPaths` é seguro (a saída é CÓDIGO dos 3 arquivos-alvo, não prosa sobre auth) — ao contrário de regression-1, onde a resposta correta precisa nomear o array."
     },
     {
       "id": "edge-1",
@@ -56,9 +59,10 @@
       "regression_of": "A allowlist protectedApiPaths falhava ABERTO — rota montada mas ausente do array ficava sem auth (RISK-SEC-AUTH-001: /api/package-balances nunca foi listado; e o casamento case-sensitive deixava /api/ACCOUNTING/post passar). O desenho foi invertido para deny-by-default e o array não existe mais; a regressão a guardar agora é o agente reintroduzir o toque morto a partir de docs/ADRs antigos que ainda dizem '3 toques'.",
       "prompt": "Ao registrar a rota invoices, o que preciso editar em server/src/middleware/auth.ts para que POST /api/invoices exija autenticação? Mostre a edição exata, ou explique por que nenhuma edição é necessária.",
       "assertions": [
-        "absent:protectedApiPaths",
+        "absent:'/api/invoices'",
         "regex:(deny-by-default|nasce protegida|j[áa] (est[áa]|nasce) protegid|nenhuma edi[çc][ãa]o|n[ãa]o [ée] necess[áa]ri|sem edi[çc][ãa]o)"
-      ]
+      ],
+      "assertion_notes": "NÃO usar `absent:protectedApiPaths`: a resposta correta cita o array para dizer que ele não existe mais (a própria SKILL.md ensina a frase), então o token puro reprova o acerto. A regressão emite o ELEMENTO do array — a string entre aspas — e é isso que se proíbe."
     }
   ]
 }

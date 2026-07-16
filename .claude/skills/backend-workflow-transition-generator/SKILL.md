@@ -5,7 +5,7 @@ argument-hint: "[NomeDoDominio] (ex: Pipeline, Order, Ticket)"
 allowed-tools: Read, Grep, Glob, Write, Edit
 metadata:
   governance-skill-id: SKL-WORKFLOW-TRANS
-  governance-version: "1.0.0"
+  governance-version: "1.0.1"
   governance-status: validated
   governance-owner: engineering
   governance-last-evaluated: "2026-06-25"

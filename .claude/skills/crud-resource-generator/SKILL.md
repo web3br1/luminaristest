@@ -6,7 +6,7 @@ allowed-tools: Read, Grep, Glob, Write, Edit, Bash
 compatibility: Claude Code; requer o monorepo Luminaris (server/ com Prisma + zod + tsc e my-app/ com tsc). Sem efeitos externos nem migration por padrão — apenas gera/edita arquivos no repositório.
 metadata:
   governance-skill-id: "SKL-CRUD"
-  governance-version: "1.0.0"
+  governance-version: "1.1.0"
   governance-status: "validated"
   governance-owner: "engineering"
   governance-last-evaluated: "2026-06-25"
