@@ -60,6 +60,13 @@ export interface IReceivableRepository {
   findAllActive(scope: AccountingScope, tx?: Prisma.TransactionClient): Promise<Receivable[]>;
 
   /**
+   * All "em aberto" receivables in scope for the aging report (INCR-AGING): non-deleted rows whose
+   * status ∈ RECEIVABLE_OUTSTANDING_STATUSES (`OPEN`/`RECEIVING`). Read-only; excludes RECEIVED/CANCELLED
+   * and soft-deleted. Ordered by dueDate ASC for a deterministic drill. MIRROR of findOutstanding (AP).
+   */
+  findOutstanding(scope: AccountingScope, tx?: Prisma.TransactionClient): Promise<Receivable[]>;
+
+  /**
    * Atomically claim a receivable for receipt: `updateMany` where status='OPEN' → 'RECEIVING'.
    * Returns the row count (1 = won the race, 0 = lost / not open). This is the TOCTOU gate.
    */

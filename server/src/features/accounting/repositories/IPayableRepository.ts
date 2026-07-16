@@ -60,6 +60,13 @@ export interface IPayableRepository {
   findAllActive(scope: AccountingScope, tx?: Prisma.TransactionClient): Promise<Payable[]>;
 
   /**
+   * All "em aberto" payables in scope for the aging report (INCR-AGING): non-deleted rows whose
+   * status ∈ PAYABLE_OUTSTANDING_STATUSES (`OPEN`/`PAYING`). Read-only; excludes PAID/CANCELLED and
+   * soft-deleted. Ordered by dueDate ASC for a deterministic drill.
+   */
+  findOutstanding(scope: AccountingScope, tx?: Prisma.TransactionClient): Promise<Payable[]>;
+
+  /**
    * Atomically claim a payable for payment: `updateMany` where status='OPEN' → 'PAYING'.
    * Returns the row count (1 = won the race, 0 = lost / not open). This is the TOCTOU gate.
    */

@@ -9,6 +9,7 @@ import {
   getCashFlow,
   getPeriodComparison,
   getDailyJournal,
+  getAging,
   listAccounts,
   listEntries,
   getEntryReceipt,
@@ -81,6 +82,7 @@ router.get('/income-statement', getIncomeStatement);
 router.get('/reports/cash-flow', getCashFlow);
 router.get('/reports/period-comparison', getPeriodComparison);
 router.get('/reports/daily-journal', getDailyJournal);
+router.get('/reports/aging', getAging);
 
 // Chart of accounts management.
 router.get('/accounts', listAccounts);

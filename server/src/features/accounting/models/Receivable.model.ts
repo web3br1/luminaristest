@@ -14,6 +14,14 @@ import { ValidationError } from '../../../lib/errors';
 export const RECEIVABLE_STATUSES = ['OPEN', 'RECEIVING', 'RECEIVED', 'CANCELLED'] as const;
 export type ReceivableStatus = (typeof RECEIVABLE_STATUSES)[number];
 
+/**
+ * "Em aberto" statuses for aging / posição (INCR-AGING, F-AG3→a): a receivable is still owed its full
+ * `amountCents` while `OPEN` or in-flight `RECEIVING` (the CAS 2-tx window before receipt finalizes).
+ * EXCLUDES the terminal `RECEIVED`/`CANCELLED`. Since receipt is full-only there is no partial balance,
+ * so outstanding per line is exactly `amountCents` for these statuses. MIRROR of PAYABLE_OUTSTANDING_STATUSES.
+ */
+export const RECEIVABLE_OUTSTANDING_STATUSES = ['OPEN', 'RECEIVING'] as const;
+
 /** Receipt lifecycle. Cancel is a status flip (+ receipt reversal), never a hard delete. */
 export const RECEIPT_STATUSES = ['ACTIVE', 'CANCELLED'] as const;
 export type ReceiptStatus = (typeof RECEIPT_STATUSES)[number];

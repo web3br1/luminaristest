@@ -25,7 +25,8 @@ const { options } = require('../../scripts/generate-openapi');
 //    /{id}/cancel, /{id}/payments/{paymentId}/cancel.
 // +6 (ADR-INCR-APPROVAL maker-checker torre): /api/entry-approvals/pending (GET), /drafts (POST),
 //    /drafts/{id} (PUT), /drafts/{id}/submit, /{id}/approve, /{id}/reject.
-const BASELINE = 134;
+// +1 (INCR-AGING): GET /api/accounting/reports/aging.
+const BASELINE = 135;
 
 describe('OpenAPI @openapi path coverage', () => {
   it('exposes at least BASELINE paths (guards the swagger-jsdoc `: ` drop bug)', () => {
