@@ -10,6 +10,7 @@ import {
   type ReceiptMethod,
 } from '../../../lib/services/accountsReceivable.service';
 import { accountingService, type Account } from '../../../lib/services/accounting.service';
+import { counterpartiesService, type Counterparty } from '../../../lib/services/counterparties.service';
 import { Modal } from '../../../components/ui/Modal';
 import { CreateReceivableModal } from './CreateReceivableModal';
 import { formatCents } from '../lib/formatCents';
@@ -201,6 +202,8 @@ interface AccountsReceivablePanelProps {
   onLedgerChange?: () => void;
   /** Navigate to the Períodos tab (period-closed guidance). */
   onNavigateToPeriods?: () => void;
+  /** Navigate to the Contrapartes tab (from the create modal when none is registered). */
+  onNavigateToCounterparties?: () => void;
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
@@ -210,7 +213,7 @@ interface AccountsReceivablePanelProps {
  * the recognition posting; per-row commands (receive / cancel / undo receipt) each post
  * to the ledger via the AR command endpoints and refetch the trial balance.
  */
-export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPeriods }: AccountsReceivablePanelProps) {
+export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPeriods, onNavigateToCounterparties }: AccountsReceivablePanelProps) {
   const { t } = useTranslation('accounting');
   const [receivables, setReceivables] = useState<ReceivableWithReceipts[]>([]);
   const [loading, setLoading] = useState(false);
@@ -219,6 +222,7 @@ export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPe
   // create modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [revenueAccounts, setRevenueAccounts] = useState<Account[]>([]);
+  const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
 
   // action modal (receive / cancel receivable / cancel receipt)
   const [action, setAction] = useState<ActionState>(null);
@@ -253,6 +257,11 @@ export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPe
   // ── create ─────────────────────────────────────────────────────────────────
   function openCreate() {
     if (!unitId) return;
+    // Customers are a best-effort convenience list; a failed fetch must not block the create modal.
+    counterpartiesService
+      .listCounterparties({ unitId, type: 'CUSTOMER' })
+      .then(setCounterparties)
+      .catch(() => setCounterparties([]));
     accountingService
       .getAccounts(unitId)
       .then((r) => setRevenueAccounts(r.accounts.filter((a) => a.nature === 'Revenue' && a.acceptsEntries)))
@@ -413,12 +422,14 @@ export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPe
         onClose={() => setIsCreateOpen(false)}
         unitId={unitId}
         revenueAccounts={revenueAccounts}
+        counterparties={counterparties}
         onSuccess={() => {
           setIsCreateOpen(false);
           void fetchReceivables();
           onLedgerChange?.();
         }}
         onNavigateToPeriods={onNavigateToPeriods}
+        onNavigateToCounterparties={onNavigateToCounterparties}
       />
 
       {/* Action modal (receive / cancel / undo) */}

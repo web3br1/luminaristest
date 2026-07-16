@@ -18,12 +18,13 @@ import { PeriodComparisonPanel } from './components/PeriodComparisonPanel';
 import { DailyJournalPanel } from './components/DailyJournalPanel';
 import { AccountsPayablePanel } from './components/AccountsPayablePanel';
 import { AccountsReceivablePanel } from './components/AccountsReceivablePanel';
+import { CounterpartiesPanel } from './components/CounterpartiesPanel';
 import { DimensionsPanel } from './components/DimensionsPanel';
 import { JournalEntryModal, type AccountOption } from './components/JournalEntryModal';
 import { accountingService } from '../../lib/services/accounting.service';
 import { dimensionsService, type DimensionCatalogEntry } from '../../lib/services/dimensions.service';
 
-type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'contas-a-pagar' | 'contas-a-receber' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'dfc' | 'comparativo' | 'diario' | 'importacao-exportacao' | 'conciliacao' | 'compliance' | 'dimensoes';
+type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'contas-a-pagar' | 'contas-a-receber' | 'contrapartes' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'dfc' | 'comparativo' | 'diario' | 'importacao-exportacao' | 'conciliacao' | 'compliance' | 'dimensoes';
 
 // label = i18n fallback (current pt-BR); rendered via t(`view.tabs.<id>`, label)
 const TABS: Array<{ id: Tab; labelKey: string; label: string }> = [
@@ -32,6 +33,7 @@ const TABS: Array<{ id: Tab; labelKey: string; label: string }> = [
   { id: 'lancamentos',    labelKey: 'view.tabs.lancamentos',    label: 'Lançamentos' },
   { id: 'contas-a-pagar', labelKey: 'view.tabs.contasAPagar',   label: 'Contas a Pagar' },
   { id: 'contas-a-receber', labelKey: 'view.tabs.contasAReceber', label: 'Contas a Receber' },
+  { id: 'contrapartes',   labelKey: 'view.tabs.contrapartes',   label: 'Contrapartes' },
   { id: 'razao',          labelKey: 'view.tabs.razao',          label: 'Razão' },
   { id: 'plano-de-contas',labelKey: 'view.tabs.planoDeContas',  label: 'Plano de Contas' },
   { id: 'bp',             labelKey: 'view.tabs.bp',             label: 'BP' },
@@ -193,12 +195,17 @@ export function AccountingView() {
 
       {/* ── Contas a Pagar tab ─────────────────────────────────────────────── */}
       {activeTab === 'contas-a-pagar' && unitId && (
-        <AccountsPayablePanel unitId={unitId} onLedgerChange={reload} onNavigateToPeriods={() => setActiveTab('periodos')} />
+        <AccountsPayablePanel unitId={unitId} onLedgerChange={reload} onNavigateToPeriods={() => setActiveTab('periodos')} onNavigateToCounterparties={() => setActiveTab('contrapartes')} />
       )}
 
       {/* ── Contas a Receber tab ───────────────────────────────────────────── */}
       {activeTab === 'contas-a-receber' && unitId && (
-        <AccountsReceivablePanel unitId={unitId} onLedgerChange={reload} onNavigateToPeriods={() => setActiveTab('periodos')} />
+        <AccountsReceivablePanel unitId={unitId} onLedgerChange={reload} onNavigateToPeriods={() => setActiveTab('periodos')} onNavigateToCounterparties={() => setActiveTab('contrapartes')} />
+      )}
+
+      {/* ── Contrapartes tab ───────────────────────────────────────────────── */}
+      {activeTab === 'contrapartes' && unitId && (
+        <CounterpartiesPanel unitId={unitId} />
       )}
 
       {/* ── Razão tab ──────────────────────────────────────────────────────── */}
