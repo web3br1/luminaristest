@@ -14,6 +14,14 @@ import { ValidationError } from '../../../lib/errors';
 export const PAYABLE_STATUSES = ['OPEN', 'PAYING', 'PAID', 'CANCELLED'] as const;
 export type PayableStatus = (typeof PAYABLE_STATUSES)[number];
 
+/**
+ * "Em aberto" statuses for aging / posição (INCR-AGING, F-AG3→a): a payable still owes its full
+ * `amountCents` while `OPEN` or in-flight `PAYING` (the CAS 2-tx window before settlement finalizes).
+ * EXCLUDES the terminal `PAID`/`CANCELLED`. Since payment is full-only there is no partial balance,
+ * so outstanding per line is exactly `amountCents` for these statuses.
+ */
+export const PAYABLE_OUTSTANDING_STATUSES = ['OPEN', 'PAYING'] as const;
+
 /** Payment lifecycle. Cancel is a status flip (+ settlement reversal), never a hard delete. */
 export const PAYMENT_STATUSES = ['ACTIVE', 'CANCELLED'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];

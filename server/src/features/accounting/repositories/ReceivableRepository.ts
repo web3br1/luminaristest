@@ -2,6 +2,7 @@ import prisma from '../../../lib/prisma';
 import type { Receivable, ReceivableReceipt, Prisma } from 'generated/prisma';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { accountingScopeWhere } from '../scope/AccountingScope';
+import { RECEIVABLE_OUTSTANDING_STATUSES } from '../models/Receivable.model';
 import type {
   CreateReceivableData,
   CreateReceiptData,
@@ -62,6 +63,17 @@ export class ReceivableRepository implements IReceivableRepository {
   public async findAllActive(scope: AccountingScope, tx?: Prisma.TransactionClient): Promise<Receivable[]> {
     return (tx ?? prisma).receivable.findMany({
       where: { ...accountingScopeWhere(scope), deletedAt: null },
+    });
+  }
+
+  public async findOutstanding(scope: AccountingScope, tx?: Prisma.TransactionClient): Promise<Receivable[]> {
+    return (tx ?? prisma).receivable.findMany({
+      where: {
+        ...accountingScopeWhere(scope),
+        deletedAt: null,
+        status: { in: [...RECEIVABLE_OUTSTANDING_STATUSES] },
+      },
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
     });
   }
 

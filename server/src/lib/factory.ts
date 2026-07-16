@@ -65,6 +65,7 @@ import { AccountingReportService } from '../features/accounting/services/Account
 import { CashFlowReportService } from '../features/accounting/services/CashFlowReportService';
 import { PeriodComparisonReportService } from '../features/accounting/services/PeriodComparisonReportService';
 import { DailyJournalReportService } from '../features/accounting/services/DailyJournalReportService';
+import { AgingReportService } from '../features/accounting/services/AgingReportService';
 import { ReconciliationService } from '../features/accounting/services/ReconciliationService';
 import { ReferentialMappingService } from '../features/accounting/services/ReferentialMappingService';
 import { ReferentialCatalogService } from '../features/accounting/services/ReferentialCatalogService';
@@ -211,6 +212,7 @@ export class ApplicationFactory {
     cashFlowReport: CashFlowReportService;
     periodComparisonReport: PeriodComparisonReportService;
     dailyJournalReport: DailyJournalReportService;
+    agingReport: AgingReportService;
     reconciliation: ReconciliationService;
     referentialMapping: ReferentialMappingService;
     referentialCatalog: ReferentialCatalogService;
@@ -462,6 +464,11 @@ export class ApplicationFactory {
         this.repositories.journalEntry,
         this.policies.accounting,
       ),
+      agingReport: new AgingReportService(
+        this.repositories.payable,
+        this.repositories.receivable,
+        this.policies.accounting,
+      ),
       reconciliation: new ReconciliationService(
         this.repositories.reconciliation,
         this.repositories.account,
@@ -590,6 +597,8 @@ export class ApplicationFactory {
   public getCashFlowReportService = (): CashFlowReportService => this.services.cashFlowReport;
   public getPeriodComparisonReportService = (): PeriodComparisonReportService => this.services.periodComparisonReport;
   public getDailyJournalReportService = (): DailyJournalReportService => this.services.dailyJournalReport;
+
+  public getAgingReportService = (): AgingReportService => this.services.agingReport;
   public getReconciliationService = (): ReconciliationService => this.services.reconciliation;
   public getReferentialMappingService = (): ReferentialMappingService => this.services.referentialMapping;
   public getReferentialCatalogService = (): ReferentialCatalogService => this.services.referentialCatalog;
