@@ -5,8 +5,10 @@
   POR DELEGAÇÃO 2026-07-15** (humano pediu para seguir e dispensou a revisão fork-a-fork via AskUserQuestion
   ⇒ os defaults recomendados do par foram adotados: F-AG1→(a) read-time, F-AG2→(a) buckets fixos, F-AG3→(a)
   OPEN+em-trânsito, F-AG4→(a) só-aging, tie-out como follow-on). Registro honesto: não houve escolha explícita
-  por fork; a delegação é o sinal. Implementação (Task pós-ADR) a seguir; **read-only ⇒ SEM migração ⇒ SEM
-  smoke-migration-gate** (só review independente + FE).
+  por fork; a delegação é o sinal. **BACKEND IMPLEMENTADO + REVIEW INDEP. PASS 2026-07-15** (branch `claude/incr-aging`
+  @ `083ad5c`, empilhada sobre A1; PR #127 draft; tsc limpo, 13 testes; faixas imunes ao UTC-shift, invariante
+  total===Σfaixas===Σgrupos). **read-only ⇒ SEM migração ⇒ SEM smoke-migration-gate.** Pendente: merge (após A1)
+  + FE (`FE-INCR-AGING`).
 - **Autores:** par `luminaris-orchestrator` + `luminaris-accounting-architect`.
 - **Depende de:** **INCR-COUNTERPARTY (A1, PR #119)** — o aging agrupa por `counterpartyId`. Empilha sobre a
   branch `claude/incr-counterparty-a1` (re-aponta p/ `main` quando A1 mergear). **Não depende do PVA.**
