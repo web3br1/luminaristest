@@ -214,7 +214,7 @@ Ordenados por proximidade da fundação. **Nenhum** é "o próximo passo" antes 
 | 11 | **NF-e** (ingestão fiscal) | Domínio fiscal pesado, ADR próprio campo-a-campo; alto esforço, valor condicionado a operação real emitindo NF. |
 | 12 | **Estoque / Imobilizado** (subrazões) | Módulos ERP próprios; dependem de demanda do setor-alvo. |
 | 13 | **Folha** (subrazão) | O mais pesado dos diferidos (domínio legal denso); só com demanda explícita. |
-| 14 | **LGPD/RBAC granular** | Parcial (autorização de servidor já vale); mascaramento/retenção viram incremento quando houver dado real de terceiros. |
+| 14 | **LGPD/RBAC granular** | Parcial (autorização de servidor já vale); mascaramento/retenção viram incremento quando houver dado real de terceiros. **ADR ratificado fork-a-fork 2026-07-15** ([ADR-LGPD](../adr/ADR-LGPD-rbac-data-protection.md)): F0→3 fatias (RBAC · mascaramento · retenção), F2→pseudonimização/crypto-shred (**T8 preservado, sem delete da trilha**). Gate ADR+sinal **fechado**; nó permanece ⚫ Parcial até a impl da Fatia A (RBAC) fechar (ORCH-007). |
 | 15 | **IA/analytics** (sugestão de conta/conciliação) | O mapa fixa: "sobre um ledger já confiável; IA sugere, humano contabiliza" — última camada. |
 | 16 | **Inbox/outbox/DLQ** | Condicionado a sair de single-process (T11) — hoje é não-objetivo por decisão travada. |
 

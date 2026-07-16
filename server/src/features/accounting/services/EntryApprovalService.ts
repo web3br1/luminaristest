@@ -20,6 +20,7 @@ import type { IAccountRepository } from '../repositories/IAccountRepository';
 import type { IAccountingPeriodRepository } from '../repositories/IAccountingPeriodRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { AuditService } from './AuditService';
+import type { IAccessControlEnforcer } from './AccessControlService';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { accountingScopeWhere } from '../scope/AccountingScope';
 
@@ -62,6 +63,7 @@ export class EntryApprovalService {
     private readonly periodRepo: IAccountingPeriodRepository,
     private readonly auditService: AuditService,
     private readonly policy: IAccountingPolicy,
+    private readonly accessControl: IAccessControlEnforcer,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -211,6 +213,11 @@ export class EntryApprovalService {
     if (!this.policy.canApproveEntry(scope)) {
       throw new ForbiddenError('Você não tem permissão para aprovar lançamentos.');
     }
+    // RBAC (LGPD Fatia A) — the reference enforcement seam. A DELEGATE (ownerUserId !== actorUserId)
+    // must hold `accounting.entry.approve` via an active role assignment; the OWNER is bypassed
+    // (assertPermission owner-bypass), so single-user staging is byte-identical to before RBAC. This
+    // is the "SoD via papel casa com a Torre de Aprovação" integration — the single gate extended.
+    await this.accessControl.assertPermission(scope, 'accounting.entry.approve');
     const entry = await this.journalEntryRepo.findById(scope, id);
     if (!entry) throw new NotFoundError(`Lançamento '${id}' não foi encontrado.`);
     if (entry.status !== 'PendingApproval') {

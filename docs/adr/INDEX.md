@@ -28,6 +28,23 @@
 | [AGING](ADR-INCR-AP-AR-AGING.md) | Aging / posição por contraparte (AP+AR) — report read-only por faixa de vencimento | **Accepted — RATIFICADO (F-AG0 humano + F-AG1..4 delegação) + IMPLEMENTADO + REVIEW PASS 2026-07-15** (branch `claude/incr-aging` @ `083ad5c`, PR #127 draft, empilhado sobre A1 #119); read-time, buckets fixos, OPEN+trânsito, só-aging (tie-out follow-on); read-only, SEM migração/smoke-gate; FE diferido | 2026-07-15 | READ_ONLY_REPORT |
 | [DIM-COMPLETENESS](ADR-INCR-DIM-COMPLETENESS-mandatory-axis.md) | Completude da DRE por dimensão (opcional × obrigatório × bucket "Não alocado") — **EMENDA INCR-DIM F5** | **Accepted — RATIFICADO FORK-A-FORK 2026-07-15** (**F-DC0→B1** etiqueta obrigatória por classe de conta = flag `requiresDimension` por `Account` + gate no `postEntry`; inclui B0 bucket; NÃO reintroduz §4 — é gate de validação, não motor); impl. NÃO iniciada | 2026-07-15 | DECISÃO ARQUITETURAL |
 
+## Diferidos — ADRs PROPOSED (enquadramento; **NÃO ratificados**, aguardando fork-a-fork + sinal humano)
+
+> Estes são o passo `PLAN → ADR` do fluxo T12 para os nós ⚫ do master map §5.1 Bloco B (itens 10–16). Cada um
+> enquadra o problema, fixa os rails (T1–T12) e as colisões §4, e deixa os **FORKS abertos** com recomendação —
+> **sem** ratificação. **Nenhum autoriza código:** o nó do master map permanece ⚫ até revisão fork-a-fork (G0).
+> **Item 9 (Dimensões) NÃO está aqui — já foi ratificado e mergeado** (ADR-INCR-DIM, PR #113, acima).
+
+| # §5.1 | ADR | Título | Status | Recomendação em aberto |
+|---|---|---|---|---|
+| 10 | [ECF-FASE3](ADR-ECF-FASE3-remaining-blocks.md) | ECF Fase 3 — blocos remanescentes (Presumido) | **PROPOSED** | F0→diferir até sign-off PVA da Fase 2 (fila §5.1 item 3) |
+| 11 | [NFE](ADR-NFE-fiscal-document-ingestion.md) | NF-e — ingestão de documento fiscal (não emissão) | **PROPOSED** | F0→só ingestão→proveniência (INCR-8); emissão FORA |
+| 12 | [ESTOQUE](ADR-ESTOQUE-inventory-subledger.md) | Estoque / Imobilizado — subrazão | **PROPOSED** | F0→diferir p/ demanda de revenda; F1→custo médio; imobilizado = ADR próprio |
+| 13 | [FOLHA](ADR-FOLHA-payroll-subledger.md) | Folha de pagamento — subrazão | **PROPOSED** | F0→integrar (importa folha calculada), NÃO construir calculadora; eSocial FORA |
+| 14 | [LGPD](ADR-LGPD-rbac-data-protection.md) | LGPD / RBAC granular — proteção de dado | **Accepted — RATIFICADO fork-a-fork 2026-07-15** (F0→a três fatias; F1→a papéis sobre Policy; F2→a pseudonimização/crypto-shred **T8 preservado**; F3→a mascaramento na leitura/exportação); impl. não iniciada; nó ⚫ Parcial até closeout | Fatia A (RBAC) primeiro → habilita B (mascaramento) e C (retenção) |
+| 15 | [IA](ADR-IA-analytics-suggestions.md) | IA / analytics — sugestão de conta/conciliação | **PROPOSED** | F3→humano confirma sempre; F2→heurística local antes de LLM (depende do item 14) |
+| 16 | [INBOX](ADR-INBOX-outbox-dlq.md) | Inbox / Outbox / DLQ — integração assíncrona | **PROPOSED** | F0→manter não-objetivo (T11); reabrir = emendar T11 |
+
 ## Bridges de integração (venda DynamicTable → ledger Prisma)
 
 | ADR | Título | Status | Data | Classe |

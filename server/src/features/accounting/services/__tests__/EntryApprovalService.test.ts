@@ -45,6 +45,7 @@ interface Opts {
   canManage?: boolean;
   canApprove?: boolean;
   sod?: boolean; // whether SoD is ENFORCED (membership present); default off = single-user staging
+  approvePermitted?: boolean; // RBAC: whether the actor holds accounting.entry.approve (default: allowed)
 }
 
 function build(opts: Opts = {}) {
@@ -79,6 +80,12 @@ function build(opts: Opts = {}) {
     canApproveEntry: () => opts.canApprove ?? true,
     enforcesSegregationOfDuties: () => opts.sod ?? false,
   };
+  // RBAC enforcer (LGPD Fatia A): default no-op (owner/allowed); throws when the delegate lacks the perm.
+  const accessControl = {
+    assertPermission: jest.fn(async () => {
+      if (opts.approvePermitted === false) throw new ForbiddenError('Esta ação requer a permissão \'accounting.entry.approve\'.');
+    }),
+  };
 
   const service = new EntryApprovalService(
     journalEntryRepo as never,
@@ -87,8 +94,9 @@ function build(opts: Opts = {}) {
     periodRepo as never,
     auditService as never,
     policy as never,
+    accessControl as never,
   );
-  return { service, journalEntryRepo, postingRepo, accountRepo, periodRepo, auditService, casUpdate, nextEntryNumber };
+  return { service, journalEntryRepo, postingRepo, accountRepo, periodRepo, auditService, accessControl, casUpdate, nextEntryNumber };
 }
 
 const draftDto = {
@@ -177,6 +185,22 @@ describe('EntryApprovalService.approveEntry — the money moment', () => {
     await expect(
       service.approveEntry(checker, 'entry-1', { unitId: 'unit-1', expectedVersion: 2 } as never),
     ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('RBAC (LGPD Fatia A): a delegate WITHOUT accounting.entry.approve is blocked before any state read', async () => {
+    // approvePermitted=false simulates a delegate (ownerUserId !== actorUserId) whose active roles do
+    // not grant the permission. The approval must fail with ForbiddenError and never touch the entry.
+    const { service, journalEntryRepo } = build({ entry: pending, approvePermitted: false });
+    await expect(
+      service.approveEntry(checker, 'entry-1', { unitId: 'unit-1', expectedVersion: 2 } as never),
+    ).rejects.toThrow(ForbiddenError);
+    expect(journalEntryRepo.casUpdate).not.toHaveBeenCalled();
+  });
+
+  it('RBAC: assertPermission is consulted for accounting.entry.approve on every approve', async () => {
+    const { service, accessControl } = build({ entry: pending });
+    await service.approveEntry(maker, 'entry-1', { unitId: 'unit-1', expectedVersion: 2 } as never);
+    expect(accessControl.assertPermission).toHaveBeenCalledWith(expect.anything(), 'accounting.entry.approve');
   });
 
   it('SoD OFF (single-user staging): the creator CAN approve their own entry and it posts (F3 re-ratified)', async () => {

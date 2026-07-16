@@ -57,6 +57,18 @@ export interface IAccountingPolicy {
   canApproveEntry(scope: AccountingScope): boolean;
 
   /**
+   * Can author RBAC roles/assignments (LGPD Fatia A, ADR-LGPD F1→a). OWNER-ONLY: only the scope owner
+   * (`ownerUserId === actorUserId`) manages access control in Fatia A — someone must author the first
+   * role and only the owner can (no bootstrap paradox). Delegated management via `accounting.rbac.manage`
+   * is a named future refinement (ADR §3 D2). Fine-grained ENFORCEMENT of individual permissions is a
+   * runtime lookup (AccessControlService.assertPermission), not this sync gate.
+   */
+  canManageAccessControl(scope: AccountingScope): boolean;
+
+  /** Can read the RBAC catalog (roles + assignments). Owner-only in Fatia A (admin surface). */
+  canReadAccessControl(scope: AccountingScope): boolean;
+
+  /**
    * Whether dynamic segregation of duties (approver ≠ creator/submitter) is ENFORCED for this
    * scope (ADR-INCR-APPROVAL F3, re-ratified fork-a-fork 2026-07-14). Today it is OFF while
    * `ownerUserId === actorUserId` (single-user reality): a lone operator gets a usable

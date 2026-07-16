@@ -3400,5 +3400,139 @@
  *         '200': { description: 'result buckets per dimension value with rollup' }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/access-control/roles:
+ *     get:
+ *       summary: List RBAC roles with their permissions (LGPD Fatia A)
+ *       description: >-
+ *         Returns each access role (owner-authored, per unit) with its granted permission keys.
+ *         Owner-only surface. RBAC extends the existing policy/approval gate, not a parallel one.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: includeArchived, required: false, schema: { type: boolean } }
+ *       responses:
+ *         '200': { description: 'roles each with their permission keys' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *     post:
+ *       summary: Create an RBAC role (optional initial permissions from the catalog)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, code, name]
+ *               properties:
+ *                 unitId:      { type: string }
+ *                 code:        { type: string }
+ *                 name:        { type: string }
+ *                 permissions: { type: array, items: { type: string } }
+ *       responses:
+ *         '201': { description: 'the created role' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/access-control/roles/{id}/permissions:
+ *     post:
+ *       summary: Replace a role's permission set (full desired set)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, permissions]
+ *               properties:
+ *                 unitId:      { type: string }
+ *                 permissions: { type: array, items: { type: string } }
+ *       responses:
+ *         '200': { description: 'the role' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/access-control/roles/{id}/archive:
+ *     post:
+ *       summary: Archive a role (its assignments go inert; trail preserved)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId]
+ *               properties:
+ *                 unitId: { type: string }
+ *       responses:
+ *         '200': { description: 'the archived role' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/access-control/assignments:
+ *     get:
+ *       summary: List live role assignments (optionally filtered by subject)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: subjectUserId, required: false, schema: { type: string } }
+ *       responses:
+ *         '200': { description: 'the live assignments' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *     post:
+ *       summary: Grant a role to a subject user
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, subjectUserId, roleId]
+ *               properties:
+ *                 unitId:        { type: string }
+ *                 subjectUserId: { type: string }
+ *                 roleId:        { type: string }
+ *       responses:
+ *         '201': { description: 'the created assignment' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/access-control/assignments/{id}/revoke:
+ *     post:
+ *       summary: Revoke a role grant (soft)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId]
+ *               properties:
+ *                 unitId: { type: string }
+ *       responses:
+ *         '200': { description: 'the revoked assignment' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
  */
 export {};
