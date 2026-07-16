@@ -68,6 +68,25 @@ OPEN+em-trânsito, por contraparte com drill por documento, `as_of` overridável
 follow-on** de 1 sessão — é a "prova" subledger↔razão, mas não bloqueia o aging básico. FE diferido
 (`FE-INCR-AGING`, clona o padrão dos outros reports).
 
+## 4.1 EMENDA 2026-07-15 — F-AG4→(b) ATIVADO como follow-on (`INCR-AGING-TIEOUT`)
+Sinal humano ("segue para o tie-out"). O fork F-AG4, ratificado como (a) no increment base, é **reaberto e
+promovido a (b)**: o relatório de aging passa a expor o **tie-out subledger↔razão**. É o que transforma o aging
+de "relatório" em **controle** — prova que a subrazão bate com o razão. Read-only, zero migração.
+
+- **Forma:** bloco `tieOut` no retorno do aging: `{ subledgerTotalCents, controlAccountBalanceCents,
+  differenceCents, tiesOut }`. Conta de controle por `kind`: AP → **`2.1.2 Fornecedores a Pagar`**;
+  AR → **`1.1.5 Clientes a Receber`** (a conta **dedicada** do INCR-AR F7 — é exatamente por ela ser dedicada,
+  e não a `1.1.2` do salão, que o tie-out fecha).
+- **Normalização de sinal (invariante):** `2.1.2` é passivo (saldo credor = crédito−débito); `1.1.5` é ativo
+  (saldo devedor = débito−crédito). O total do aging é positivo; comparar **magnitudes normalizadas pela
+  natureza**, nunca o sinal cru.
+- **⚠ Caveat de semântica (decisão desta emenda):** o outstanding do subledger é derivado do **status atual**,
+  não do status histórico na `as_of`. Logo o tie-out só é **válido quando `as_of` == hoje**. Para `as_of`
+  passada, o increment **NÃO** emite um número: retorna `tieOut: null` + motivo explícito. Reconstruir
+  outstanding histórico é outro problema (fora de escopo) — melhor omitir que mentir.
+- **Acoplamento aceito:** o aging passa a ler o saldo da conta de controle via o report service do ledger
+  (o custo que o fork (a) evitava). Conta de controle ausente no plano ⇒ `tieOut: null` + motivo.
+
 ## 5. Fora de escopo
 Pagamento parcial (o modelo é full-only — mudança seria outro ADR); cobrança/notificação; juros/multa por
 atraso; projeção de fluxo futuro (é o DFC, já existe); tie-out automático (F-AG4-b, follow-on).
