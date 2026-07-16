@@ -170,7 +170,12 @@ grep -n "res\.json\|Response" <arquivo>             # → HTTP no service
   ```
 - [ ] **`middleware/auth.ts` NÃO foi tocado** para "proteger" a rota — auth é deny-by-default, a rota nasce protegida ao ser montada e não há allowlist a atualizar. Um diff que adiciona a rota a um array de prefixos protegidos = FAIL (instrução obsoleta, anterior ao `RISK-SEC-AUTH-001`). Exceção: rota **pública**, que exige regra em `publicApiRoutes` **+ justificativa explícita no relatório** — endpoint sem auth é decisão de segurança, e a ausência da justificativa é FAIL.
   ```bash
-  git diff --name-only origin/main..HEAD | grep -c "middleware/auth.ts"   # deve ser 0 (rota nova não toca auth)
+  # O invariante NÃO é "auth.ts fora do diff" — rota pública legitimamente edita auth.ts.
+  # O invariante é: o diff não REINTRODUZ um allowlist de prefixos protegidos.
+  git diff origin/main..HEAD -- server/src/middleware/auth.ts | grep '^+' | grep -c 'protectedApiPaths'   # deve ser 0
+  # Se auth.ts mudou, leia o diff: só pode tocar `publicApiRoutes`, e o relatório TEM de justificar
+  # cada endpoint sem auth. Diff em auth.ts sem justificativa no relatório = FAIL.
+  git diff origin/main..HEAD -- server/src/middleware/auth.ts
   ```
 - [ ] `routes/docs.paths.ts` tem bloco OpenAPI para cada endpoint novo
 - [ ] Router exportado como `export default router`

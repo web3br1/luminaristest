@@ -299,6 +299,28 @@ describe('authMiddleware', () => {
       expect(ctx.statusCode).toBe(403);
     });
 
+    it.each([
+      ['/api/users'],
+      ['/api/users/other-id'],
+    ])('returns 403 for HEAD %s with a USER token — HEAD must not skip the admin gate', (path) => {
+      // Express serves HEAD from the GET handler, so a raw `rule.method === method` check let
+      // HEAD sail past isAdminOnly and run the ADMIN-only handler for a non-admin (content-length
+      // then leaks as a user-enumeration oracle). isAdminOnly folds HEAD→GET like isPublic does.
+      const token = signToken({ id: 'user-789', username: 'carol', role: 'USER' });
+      const { ctx, next } = run(makeReq(path, 'HEAD', `Bearer ${token}`));
+
+      expect(next).not.toHaveBeenCalled();
+      expect(ctx.statusCode).toBe(403);
+    });
+
+    it('allows HEAD /api/users with an ADMIN token', () => {
+      const token = signToken({ id: 'admin-001', username: 'admin', role: 'ADMIN' });
+      const { ctx, next } = run(makeReq('/api/users', 'HEAD', `Bearer ${token}`));
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(ctx.statusCode).toBeUndefined();
+    });
+
     it('admin-only matching is case-folded too', () => {
       const token = signToken({ id: 'user-789', username: 'carol', role: 'USER' });
       const { ctx, next } = run(makeReq('/api/USERS', 'GET', `Bearer ${token}`));

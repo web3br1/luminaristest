@@ -65,11 +65,19 @@ function isApiPath(pathname: string): boolean {
   return matchesSegmentPrefix(pathname, '/api');
 }
 
+/**
+ * The method the router will actually dispatch on. Express serves HEAD from a GET handler
+ * (verified: HEAD on a GET-only route returns 200; no other verb is derived), so every rule
+ * keyed by method must fold it — a rule that reads the raw method sees `HEAD !== 'GET'` and
+ * silently stops applying. Mirroring the router is the rule, and each function that matches a
+ * method must use this: divergence from the router is what RISK-SEC-AUTH-001 was made of.
+ */
+function routedMethod(method: string): string {
+  return method === 'HEAD' ? 'GET' : method;
+}
+
 function isPublic(pathname: string, method: string): boolean {
-  // Express serves HEAD from a GET handler, so a HEAD to a public GET must stay public —
-  // otherwise `HEAD /api/docs/openapi.json` 401s while the GET succeeds. Mirroring the
-  // router is the rule; every divergence from it is what RISK-SEC-AUTH-001 was made of.
-  const effectiveMethod = method === 'HEAD' ? 'GET' : method;
+  const effectiveMethod = routedMethod(method);
   return publicApiRoutes.some(
     (rule) =>
       rule.method === effectiveMethod &&
@@ -78,8 +86,12 @@ function isPublic(pathname: string, method: string): boolean {
 }
 
 function isAdminOnly(pathname: string, method: string): boolean {
+  // Folded for the same reason as isPublic: without it, `HEAD /api/users` skipped this gate
+  // entirely and the ADMIN-only handler ran for a USER token (200, with content-length as an
+  // enumeration oracle). Same rule, both matchers — that symmetry is the invariant.
+  const effectiveMethod = routedMethod(method);
   return adminOnlyApiPaths.some(
-    (rule) => rule.method === method && matchesSegmentPrefix(pathname, rule.path)
+    (rule) => rule.method === effectiveMethod && matchesSegmentPrefix(pathname, rule.path)
   );
 }
 
