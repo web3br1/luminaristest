@@ -29,6 +29,7 @@ const dateOnly = (field: string) =>
  *         unitId:           { type: string }
  *         customerName:     { type: string, description: "Snapshot do nome do cliente (F1)" }
  *         customerRef:      { type: string, description: "Ref escopada a uma linha de cliente em DynamicTable (F1 rota c) — não é FK" }
+ *         counterpartyId:   { type: string, description: "FK opcional a uma Counterparty(CUSTOMER) desta unidade (INCR-COUNTERPARTY / A1); re-escopada no service (SEC-A1-1)" }
  *         documentNumber:   { type: string, description: "Nº da fatura/duplicata; parte da chave de negócio" }
  *         description:      { type: string }
  *         issueDate:        { type: string, description: "Data-only YYYY-MM-DD — competência do reconhecimento" }
@@ -42,6 +43,7 @@ export const CreateReceivableSchema = z
     unitId: z.string().min(1),
     customerName: z.string().min(1),
     customerRef: z.string().min(1).optional(),
+    counterpartyId: z.string().min(1).optional(),
     documentNumber: z.string().min(1).optional(),
     description: z.string().min(1),
     issueDate: dateOnly('issueDate'),

@@ -42,6 +42,7 @@ model User {
   payables                Payable[] // Relation to Payable (accounts payable / contas a pagar, INCR-AP)
   receivables             Receivable[] // Relation to Receivable (accounts receivable / contas a receber, INCR-AR)
   dimensionDefinitions    DimensionDefinition[] // Relation to DimensionDefinition (cost-center/project dimensions, INCR-DIM)
+  counterparties          Counterparty[] // Relation to Counterparty (supplier/customer catalog, INCR-COUNTERPARTY)
 }
 
 // Per-user saved table views (query/filters/sort) for the canonical table stack.
@@ -400,6 +401,12 @@ model Account {
   name                String
   nature              String // Asset | Liability | Equity | Revenue | Expense
   acceptsEntries      Boolean              @default(true)
+  // INCR-DIM-COMPLETENESS (B1, ADR-INCR-DIM-COMPLETENESS — EMENDA a ADR-INCR-DIM F5): quando true,
+  // toda partida a esta conta EXIGE ≥1 etiqueta de dimensão (qualquer eixo — MVP booleano simples,
+  // não por-eixo). Default false ⇒ contas seguem 100% opcionais (F5 permanece o default). Gate
+  // prospectivo (SEC-B1-5): re-checado in-tx nos escritores de conteúdo original (postEntry/approve);
+  // NUNCA retro-rejeita histórico. Toggle audita + canManage (SEC-B1-4). Zero mudança de dado (ADD COLUMN).
+  requiresDimension   Boolean              @default(false)
   postings            Posting[]
   bankStatements      BankStatement[]      @relation("AccountBankStatements")
   referentialMappings ReferentialMapping[] // conta-folha → conta referencial RFB, versionado (INCR-9)
@@ -844,6 +851,8 @@ model Payable {
   amountCents      Int // integer cents (Contract §2.1); MAX_CENTS guarded at the DTO (ACC-014)
   expenseAccountId String // FK Account — contrapartida do reconhecimento, folha nature='Expense' (gate D4, re-checked in the service)
   expenseAccount   Account          @relation("PayableExpenseAccount", fields: [expenseAccountId], references: [id])
+  counterpartyId   String? // FK Counterparty (INCR-COUNTERPARTY / A1) — NULLABLE (SEC-A1-5: NOT NULL deferred to a 2nd migration after backfill proves coverage). Resolved RE-SCOPED inside createPayable (SEC-A1-1); supplierName stays the snapshot.
+  counterparty     Counterparty?    @relation(fields: [counterpartyId], references: [id])
   status           String // OPEN | PAYING | PAID | CANCELLED (see PAYABLE_STATUSES)
   createdById      String? // actor who created (AccountingScope.actorUserId); plain string
   cancelledById    String? // actor who cancelled; plain string
@@ -912,6 +921,8 @@ model Receivable {
   amountCents      Int // integer cents (Contract §2.1); MAX_CENTS guarded at the DTO (ACC-014)
   revenueAccountId String // FK Account — contrapartida do reconhecimento, folha nature='Revenue' (gate D4, re-checked in the service)
   revenueAccount   Account             @relation("ReceivableRevenueAccount", fields: [revenueAccountId], references: [id])
+  counterpartyId   String? // FK Counterparty (INCR-COUNTERPARTY / A1) — NULLABLE (SEC-A1-5: NOT NULL deferred to a 2nd migration after backfill proves coverage). Resolved RE-SCOPED inside createReceivable (SEC-A1-1); customerName stays the snapshot.
+  counterparty     Counterparty?       @relation(fields: [counterpartyId], references: [id])
   status           String // OPEN | RECEIVING | RECEIVED | CANCELLED (see RECEIVABLE_STATUSES)
   createdById      String? // actor who created (AccountingScope.actorUserId); plain string
   cancelledById    String? // actor who cancelled; plain string
@@ -1039,4 +1050,43 @@ model PostingDimension {
   @@index([userId, unitId, definitionId, valueId])
   @@index([postingId])
   @@map("posting_dimensions")
+}
+
+// ── Contraparte (fornecedor/cliente) — INCR-COUNTERPARTY / ADR-INCR-COUNTERPARTY (F-CP1 → A1) ──
+// First-class Prisma catalog promoting the AP/AR counterparty from a display-name SNAPSHOT
+// (supplierName/customerName string) to a STABLE, integral identity (FK). The value: aging/posição
+// por contraparte groups by the stable counterpartyId, rename-safe and referentially intact, instead
+// of the fragile name-key it grouped by before. NOT the multi-company tower §4 (a counterparty is the
+// same class of entity `unit`/customer already are). Tenancy = AccountingScope (userId + unitId).
+//
+// - Business key (SEC-A1-2): @@unique([userId, unitId, type, name]) — dedupe is per SCOPE, never by
+//   name alone, so two tenants named "ACME" NEVER collapse into one counterparty.
+// - Soft-delete + rename-on-key (SEC-A1-4): archive rewrites name → `deleted:<id>:<name>` in the same
+//   tx so the unique key is freed and an archive+recreate of the same name does not trip P2002
+//   (memória unique-de-idempotencia-x-soft-delete). Payable/Receivable keep their own name snapshot,
+//   so the archived counterparty's mangled name never leaks into a subledger row.
+// - `ref` = OPTIONAL scoped link to a DynamicTable row (plain string, NOT a FK — precedent
+//   Payable.supplierRef); it never gets resolved at read time.
+// - User FK cascade: a counterparty is OPERATIONAL data, not the audit trail (T8 exception is the
+//   AuditEvent), so deleting a user removes their counterparties. The linked payables/receivables
+//   carry counterpartyId NULLABLE (SEC-A1-5: NOT NULL deferred to a 2nd migration).
+model Counterparty {
+  id          String       @id @default(cuid())
+  userId      String // scope owner (AccountingScope.ownerUserId); FK User — cascade (operational data; trail = AuditEvent, T8)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId      String // business unit (scoped string, not a FK)
+  type        String // SUPPLIER | CUSTOMER (see COUNTERPARTY_TYPES)
+  name        String // display name; the varying part of the business key (rename-on-delete frees it, SEC-A1-4)
+  ref         String? // OPTIONAL scoped ref to a DynamicTable row (plain string, NOT a FK — precedent Payable.supplierRef)
+  createdById String? // actor (AccountingScope.actorUserId); plain string
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime? // set when archived (soft)
+  payables    Payable[] // linked AP rows (FK counterpartyId, nullable)
+  receivables Receivable[] // linked AR rows (FK counterpartyId, nullable)
+
+  @@unique([userId, unitId, type, name]) // one live counterparty per (scope, type, name) — dedupe by SCOPE (SEC-A1-2)
+  @@index([userId, unitId, type])
+  @@index([deletedAt])
+  @@map("counterparties")
 }

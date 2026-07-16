@@ -18,8 +18,10 @@ import type {
 import type { IPostingRepository } from '../repositories/IPostingRepository';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
 import type { IAccountingPeriodRepository } from '../repositories/IAccountingPeriodRepository';
+import type { IDimensionRepository } from '../repositories/IDimensionRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { AuditService } from './AuditService';
+import { assertLegDimensions, resolveLineDimensions, type ResolvedDimensionTag } from './dimensionTagging';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { accountingScopeWhere } from '../scope/AccountingScope';
 
@@ -27,6 +29,9 @@ interface ResolvedLine {
   accountId: string;
   debitCents: number;
   creditCents: number;
+  // INCR-DIM-COMPLETENESS SEC-B1-3 — approval must accept+persist dimension tags, else a
+  // `requiresDimension` account is unsatisfiable via the approval route (DoS). Metadata (ACC-024).
+  dimensions: ResolvedDimensionTag[];
 }
 
 /**
@@ -62,6 +67,7 @@ export class EntryApprovalService {
     private readonly periodRepo: IAccountingPeriodRepository,
     private readonly auditService: AuditService,
     private readonly policy: IAccountingPolicy,
+    private readonly dimensionRepo: IDimensionRepository,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -252,6 +258,23 @@ export class EntryApprovalService {
         throw new ValidationError('O conteúdo do lançamento mudou após a submissão — reenvie para aprovação.');
       }
 
+      // MANDATORY-DIMENSION GATE (SEC-B1-1/SEC-B1-3) — approve == post, so this is a writer of NEW
+      // original economic content and MUST enforce the same completeness gate as postEntry, else a
+      // `requiresDimension` account is bypassable through the approval route. Authoritative in-tx
+      // (T6): each leg's account flag and its persisted tag count are re-read from the DB HERE, not
+      // trusted from the draft snapshot. PROSPECTIVE (SEC-B1-5) — only fires at the approve write.
+      const legChecks = [];
+      for (const p of currentPostings) {
+        const account = await this.accountRepo.findById(scope, p.accountId, tx);
+        const tags = await this.dimensionRepo.findPostingDimensions(scope, p.id, tx);
+        legChecks.push({
+          accountCode: account?.code ?? p.accountId,
+          requiresDimension: account?.requiresDimension ?? false,
+          dimensionCount: tags.length,
+        });
+      }
+      assertLegDimensions(legChecks);
+
       // Number is born HERE (ACC-015). If the CAS below loses, the tx rolls back and this
       // sequence increment is undone — gapless.
       const fiscalYear = this.fiscalYearFrom(entry.date);
@@ -373,12 +396,18 @@ export class EntryApprovalService {
    *  The chart must already be seeded (any prior listAccounts/postEntry seeds it). */
   private async resolveLines(
     scope: AccountingScope,
-    lines: Array<{ accountCode: string; debitCents: number; creditCents: number }>,
+    lines: Array<{ accountCode: string; debitCents: number; creditCents: number; dimensions?: string[] }>,
   ): Promise<ResolvedLine[]> {
     const resolved: ResolvedLine[] = [];
     for (const line of lines) {
       const account = await this.resolveLeafAccount(scope, line.accountCode);
-      resolved.push({ accountId: account.id, debitCents: line.debitCents, creditCents: line.creditCents });
+      // SEC-B1-3 — resolve the leg's dimension tags through the SAME validator as postEntry (leaf +
+      // active + one-per-axis). Persisted at draft time so a `requiresDimension` account is
+      // satisfiable via the approval route; the requirement itself is gated at APPROVE (== post).
+      const dimensions = line.dimensions?.length
+        ? await resolveLineDimensions(this.dimensionRepo, scope, line.dimensions)
+        : [];
+      resolved.push({ accountId: account.id, debitCents: line.debitCents, creditCents: line.creditCents, dimensions });
     }
     return resolved;
   }
@@ -402,10 +431,18 @@ export class EntryApprovalService {
   ): Promise<void> {
     const { userId, unitId } = accountingScopeWhere(scope);
     for (const line of lines) {
-      await this.postingRepo.create(
+      const posting = await this.postingRepo.create(
         { userId, unitId, entryId, accountId: line.accountId, debitCents: line.debitCents, creditCents: line.creditCents },
         tx,
       );
+      // SEC-B1-3 — persist the leg's dimension tags in the SAME tx (T6/ACC-024). The
+      // @@unique([postingId,definitionId]) is the one-value-per-axis backstop.
+      for (const tag of line.dimensions) {
+        await this.dimensionRepo.createPostingDimension(
+          { userId, unitId, postingId: posting.id, definitionId: tag.definitionId, valueId: tag.valueId },
+          tx,
+        );
+      }
     }
   }
 

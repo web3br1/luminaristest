@@ -52,4 +52,15 @@ export interface IAccountRepository {
 
   /** Soft-deletes an account (sets deletedAt). */
   softDelete(scope: AccountingScope, id: string, tx?: Prisma.TransactionClient): Promise<Account>;
+
+  /**
+   * Sets the `requiresDimension` flag on an account (INCR-DIM-COMPLETENESS SEC-B1-4). Scoped by
+   * (ownerUserId + unitId + id). tx-aware so the flip + its mandatory AuditEvent commit atomically.
+   */
+  setRequiresDimension(
+    scope: AccountingScope,
+    id: string,
+    requiresDimension: boolean,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Account>;
 }

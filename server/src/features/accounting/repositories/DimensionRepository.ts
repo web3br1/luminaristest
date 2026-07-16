@@ -125,6 +125,17 @@ export class DimensionRepository implements IDimensionRepository {
     return (tx ?? prisma).postingDimension.create({ data });
   }
 
+  public async findPostingDimensions(
+    scope: AccountingScope,
+    postingId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<PostingDimension[]> {
+    return (tx ?? prisma).postingDimension.findMany({
+      where: { ...accountingScopeWhere(scope), postingId },
+      orderBy: [{ definitionId: 'asc' }],
+    });
+  }
+
   public async runTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     return prisma.$transaction(fn);
   }

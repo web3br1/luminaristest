@@ -18,6 +18,7 @@ import type {
 } from '../dtos/ReceivableDto';
 import type { IReceivableRepository, ReceivableWithReceipts } from '../repositories/IReceivableRepository';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
+import type { ICounterpartyRepository } from '../repositories/ICounterpartyRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { PostEntryInput } from '../dtos/PostingDto';
 import type { AuditService } from './AuditService';
@@ -56,6 +57,7 @@ export class ReceivableService {
     private readonly posting: PostingService,
     private readonly auditService: AuditService,
     private readonly policy: IAccountingPolicy,
+    private readonly counterpartyRepo: ICounterpartyRepository,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -102,6 +104,10 @@ export class ReceivableService {
     // Revenue-account gate (D4): must be an existing, active, LEAF Revenue account of this scope.
     const revenueAccount = await this.resolveRevenueAccount(scope, dto.revenueAccountId);
 
+    // Counterparty gate (SEC-A1-1 — IDOR #1): if a counterpartyId is supplied, RE-SCOPE it here so an
+    // AR row can never link to another tenant's counterparty. Nullable this increment (SEC-A1-5).
+    const counterpartyId = await this.resolveCounterpartyId(scope, dto.counterpartyId);
+
     // tx1 — create the row (OPEN) + receivable.created audit atomically (ACC-019). Mints receivableId.
     let receivable: Receivable;
     try {
@@ -112,6 +118,7 @@ export class ReceivableService {
             unitId,
             customerName: dto.customerName,
             customerRef: dto.customerRef ?? null,
+            counterpartyId,
             documentNumber: dto.documentNumber ?? null,
             description: dto.description,
             issueDate: new Date(dto.issueDate),
@@ -483,6 +490,26 @@ export class ReceivableService {
     return receivable.receipts
       .filter((r) => r.status === 'ACTIVE')
       .reduce((acc, r) => acc + r.amountCents, 0);
+  }
+
+  /**
+   * Re-scope a body-supplied counterpartyId (SEC-A1-1). Returns null when none was supplied (nullable
+   * this increment, SEC-A1-5); otherwise the counterparty MUST exist IN THIS SCOPE and be a CUSTOMER
+   * — a cross-tenant id resolves to null via the scoped findById and is rejected here.
+   */
+  private async resolveCounterpartyId(
+    scope: AccountingScope,
+    counterpartyId: string | undefined,
+  ): Promise<string | null> {
+    if (!counterpartyId) return null;
+    const counterparty = await this.counterpartyRepo.findById(scope, counterpartyId);
+    if (!counterparty) {
+      throw new ValidationError('Contraparte informada não existe nesta unidade.');
+    }
+    if (counterparty.type !== 'CUSTOMER') {
+      throw new ValidationError('A contraparte de uma conta a receber deve ser um cliente (CUSTOMER).');
+    }
+    return counterparty.id;
   }
 
   private async resolveRevenueAccount(scope: AccountingScope, accountId: string): Promise<Account> {

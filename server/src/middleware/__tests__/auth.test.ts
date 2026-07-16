@@ -29,7 +29,8 @@ function makeReq(
   extraHeaders: Record<string, string> = {}
 ): Partial<Request> {
   return {
-    path,
+    // Express derives `req.path` (query-stripped) from the URL; the middleware matches on it.
+    path: path.split('?')[0],
     originalUrl: path,
     method,
     headers: { ...(authHeader ? { authorization: authHeader } : {}), ...extraHeaders },
@@ -134,6 +135,24 @@ describe('authMiddleware', () => {
 
     it('returns 401 despite a trailing slash', () => {
       const { ctx, next } = run(makeReq('/api/accounting/', 'POST'));
+
+      expect(next).not.toHaveBeenCalled();
+      expect(ctx.statusCode).toBe(401);
+    });
+
+    it('returns 401 for a percent-encoded protected path', () => {
+      // Kept from the #118 hardening. Under deny-by-default it passes for a different reason:
+      // this guard does NOT decode (Express does not decode when matching a mount path, so
+      // /api/%61ccounting/post 404s rather than reaching the router). The encoded path simply
+      // matches no public rule and is denied. The property holds either way — pin it.
+      const { ctx, next } = run(makeReq('/api/%61ccounting/post', 'POST'));
+
+      expect(next).not.toHaveBeenCalled();
+      expect(ctx.statusCode).toBe(401);
+    });
+
+    it('a query string never affects the routing decision', () => {
+      const { ctx, next } = run(makeReq('/api/accounting/post?unit=1', 'POST'));
 
       expect(next).not.toHaveBeenCalled();
       expect(ctx.statusCode).toBe(401);

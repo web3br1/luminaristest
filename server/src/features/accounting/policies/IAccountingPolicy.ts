@@ -46,6 +46,12 @@ export interface IAccountingPolicy {
   /** Can read the dimension catalog and dimension-sliced reports (INCR-DIM). */
   canReadDimension(scope: AccountingScope): boolean;
 
+  /** Can create/archive counterparties (supplier/customer catalog, INCR-COUNTERPARTY). */
+  canManageCounterparty(scope: AccountingScope): boolean;
+
+  /** Can list/read the counterparty catalog (INCR-COUNTERPARTY). */
+  canReadCounterparty(scope: AccountingScope): boolean;
+
   /**
    * Can author/submit/reject draft journal entries in the approval tower (maker actions,
    * ADR-INCR-APPROVAL). The dynamic SoD gate (approver ≠ creator) is enforced in the service,

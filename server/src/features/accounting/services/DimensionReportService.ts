@@ -236,9 +236,12 @@ export class DimensionReportService {
     const noneE = ownExpense.get(null) ?? 0;
     if (noneR !== 0 || noneE !== 0) {
       buckets.push({
+        // INCR-DIM-COMPLETENESS B0 — the "(Não alocado)" bucket: Σ of the result legs NOT tagged on
+        // this axis. Its presence makes Σ(recortes) + Não-alocado == DRE total explicit and honest
+        // even when part of the ledger is untagged (SEC-B1-5 keeps historical entries untagged).
         valueId: null,
         valueCode: null,
-        valueName: '(sem dimensão)',
+        valueName: '(Não alocado)',
         parentId: null,
         ownRevenueCents: noneR,
         ownExpenseCents: noneE,

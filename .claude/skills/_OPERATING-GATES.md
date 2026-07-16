@@ -92,6 +92,40 @@ Evidência própria do repo de que a classe existe: `tx-nao-propagado-ao-repo` (
 
 ---
 
+## [OPS-005] Gate de fila — não abrir frente nova sobre trabalho não-landado
+
+Trabalho feito e **não landado é passivo, não ativo**. Três custos que crescem sozinhos enquanto a fila
+não drena: (1) **superfície de conflito** — cada PR que toca um choke point (schema, factory, auth,
+rotas) multiplica os pares; (2) **review envelhece** — um PASS vale contra a árvore revisada; um rebase
+do pai o invalida **por transitividade** em toda a pilha; (3) **aposta empilhada** — construir sobre uma
+base cujo gate bloqueante nunca rodou aposta *todos* os PRs da pilha nesse gate.
+
+Procedimento executável, **antes de abrir qualquer frente nova de código**:
+
+1. Liste o trabalho não-landado: `gh pr list --state open` + branches locais não mergeadas.
+2. Para cada item, nomeie o **gate bloqueante ainda não executado** (smoke-migration-gate, merge, sign-off).
+3. Meça a **profundidade da pilha**: um PR empilhado herda **todos** os gates da base. Base com gate aberto
+   ⇒ o default é **NÃO** empilhar mais nada em cima.
+4. **≥3 itens não-landados com gate aberto ⇒ relate a fila em vez de rotear.** O default é não construir.
+5. **Exceção sempre permitida:** trabalho que **drena** a fila (rodar um gate, resolver conflito, consertar
+   um PR aberto, mergear). Isso é higiene, não frente nova.
+6. Escreva o **estado da fila** no relatório final (artefato — pareia com o gate 5 de OPS-001).
+
+**Evidência própria (n=1, sessão 2026-07-15).** O debate de personas do início da sessão já diagnosticou
+"o gargalo é validação humana, não falta de código" — e o diagnóstico virou **memória**. Nada o **gateou**:
+ao longo da sessão foram empilhados **5 PRs** em cima daquele diagnóstico, a pilha do A1 chegou a **4 níveis**
+(A1 → aging → tie-out, + FE-A1 em paralelo), apostando **4 PRs** num smoke-migration-gate **nunca rodado
+contra dados reais** — o padrão exato de `sintetico-nao-cobre-formato-de-dado-real`. Um fix de segurança
+**crítico e READY** (#118) ficou parado atrás de nada. **Memória descreve; só gate segura.**
+
+**Por que não é uma skill.** Skill só dispara quando invocada — e o modo de falha real foi *ninguém invocar
+nada*: o agente construía direto a cada "segue". Além disso a `luminaris-orchestrator` é **estruturalmente
+incapaz** de pegar isto: todo o vocabulário de saída dela é "quais skills geradoras rodar" (Phase 4 emite uma
+tabela de passos); ela não tem representação de fila, gate ou merge. Seu único freio (ORCH-006) é colisão com
+§1/§4 do master map — não saturação da fila. Por isso a regra vive aqui: camada **sempre-ativa**, sem invocação.
+
+---
+
 ## Mapa regra → enforcement
 
 | Regra | O que enforça hoje | Gap conhecido |
@@ -100,6 +134,7 @@ Evidência própria do repo de que a classe existe: `tx-nao-propagado-ao-repo` (
 | OPS-002 | disciplina do agente + revisor checa "pergunta aberta explícita" em relatórios | sinais são auto-reportados |
 | OPS-003 | CBM-001 já enforça a metade estrutural; revisor rejeita claim comportamental sem fonte | prosa livre não é lintável |
 | OPS-004 | item 5 vira artefato obrigatório do relatório (FAIL de forma se ausente) | passos 1–4 são processo, não gate |
+| OPS-005 | **probe objetivo** (`gh pr list --state open` — a única OPS com fonte externa, não auto-reportada); estado da fila vira artefato do relatório | o revisor independente **não** vê a fila (revisa um diff, não o estado de PRs do repo) — quem abre a frente é quem conta |
 
 Gaps declarados de propósito (OPS-001 gate 5 aplicado a este próprio doc): a metade auto-reportada
 dessas regras só fecha com **review independente** (`reviewer-independence-separate-agent`) — que já é

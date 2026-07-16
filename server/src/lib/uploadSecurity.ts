@@ -49,6 +49,11 @@ export function makeUploadMiddleware(
   allowedTypes: Set<string>,
   fieldName: string,
   maxFileSizeBytes: number,
+  // When true, validate the uploaded file's magic bytes against its declared MIME after
+  // multer buffers it (anti content-type spoofing). Import routes that don't run their own
+  // magic-bytes check pass true; attachment controllers keep their in-handler check.
+  // (SEC audit 2026-07-15)
+  enforceMagicBytes = false,
 ) {
   const instance = multer({
     storage: multer.memoryStorage(),
@@ -72,6 +77,26 @@ export function makeUploadMiddleware(
   return (req: Request, res: Response, next: NextFunction): void => {
     single(req, res, (err: unknown) => {
       if (!err) {
+        if (enforceMagicBytes) {
+          const f = (req as Request & { file?: Express.Multer.File }).file;
+          // Only enforce the signature when the DECLARED type is binary (XLSX/office/PDF):
+          // require it to really be a ZIP/PDF. Text-ish imports (CSV/OFX/CNAB, incl. the
+          // application/octet-stream some browsers send for them) have no reliable magic
+          // and are validated structurally by the parser — enforcing here would falsely
+          // reject legit bank statements. (SEC audit 2026-07-15)
+          const declaredBinary =
+            !!f &&
+            (f.mimetype.includes('officedocument') ||
+              f.mimetype.includes('spreadsheet') ||
+              f.mimetype === 'application/pdf');
+          if (declaredBinary && f.buffer && !validateMagicBytes(f.buffer, f.mimetype)) {
+            res.status(415).json({
+              success: false,
+              error: 'File content does not match its declared type.',
+            });
+            return;
+          }
+        }
         next();
         return;
       }

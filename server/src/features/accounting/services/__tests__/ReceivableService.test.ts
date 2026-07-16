@@ -41,6 +41,7 @@ interface Opts {
   markResults?: number[]; // successive markReceivedIfReceiving (RECEIVING→RECEIVED CAS) return values
   findEntryBySource?: (type: string, id: string) => unknown;
   revenueAccount?: Account | null;
+  counterparty?: { id: string; userId: string; unitId: string; type: string } | null;
 }
 
 function build(opts: Opts = {}) {
@@ -88,6 +89,11 @@ function build(opts: Opts = {}) {
     canManageReceivable: () => opts.canManage ?? true,
     canReadReceivable: () => opts.canRead ?? true,
   };
+  // Default: a CUSTOMER counterparty in THIS scope. `null` simulates a cross-scope/absent id.
+  const defaultCp = { id: 'cp-cus', userId: 'owner-1', unitId: 'unit-1', type: 'CUSTOMER' };
+  const counterpartyRepo = {
+    findById: jest.fn(async () => (opts.counterparty === undefined ? defaultCp : opts.counterparty)),
+  };
 
   const service = new ReceivableService(
     receivableRepo as never,
@@ -95,8 +101,9 @@ function build(opts: Opts = {}) {
     { postEntry, reverseEntry, findEntryBySource } as never,
     auditService as never,
     policy as never,
+    counterpartyRepo as never,
   );
-  return { service, receivableRepo, accountRepo, auditService, postEntry, reverseEntry, findEntryBySource };
+  return { service, receivableRepo, accountRepo, auditService, postEntry, reverseEntry, findEntryBySource, counterpartyRepo };
 }
 
 const createDto = {
@@ -146,6 +153,38 @@ describe('ReceivableService.createReceivable — recognition (D2)', () => {
   it('forbids without canManageReceivable', async () => {
     const { service } = build({ canManage: false });
     await expect(service.createReceivable(scope, createDto as never)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe('ReceivableService.createReceivable — counterparty link (INCR-COUNTERPARTY / SEC-A1-1)', () => {
+  const dtoWithCp = { ...createDto, counterpartyId: 'cp-cus' };
+
+  it('resolves counterpartyId RE-SCOPED and persists it on the row', async () => {
+    const { service, receivableRepo, counterpartyRepo } = build();
+    await service.createReceivable(scope, dtoWithCp as never);
+    expect(counterpartyRepo.findById).toHaveBeenCalledWith(scope, 'cp-cus');
+    const created = receivableRepo.create.mock.calls[0]![0] as Record<string, unknown>;
+    expect(created.counterpartyId).toBe('cp-cus');
+    expect(created.customerName).toBe('Cliente XPTO'); // snapshot preserved alongside the FK
+  });
+
+  it('rejects a counterpartyId of ANOTHER scope (findById → null ⇒ ValidationError, IDOR #1)', async () => {
+    const { service, receivableRepo } = build({ counterparty: null });
+    await expect(service.createReceivable(scope, dtoWithCp as never)).rejects.toBeInstanceOf(ValidationError);
+    expect(receivableRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects linking a receivable to a SUPPLIER counterparty', async () => {
+    const { service } = build({ counterparty: { id: 'cp-sup', userId: 'owner-1', unitId: 'unit-1', type: 'SUPPLIER' } });
+    await expect(service.createReceivable(scope, dtoWithCp as never)).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('leaves counterpartyId null when none is supplied (nullable this increment, SEC-A1-5)', async () => {
+    const { service, receivableRepo, counterpartyRepo } = build();
+    await service.createReceivable(scope, createDto as never);
+    expect(counterpartyRepo.findById).not.toHaveBeenCalled();
+    const created = receivableRepo.create.mock.calls[0]![0] as Record<string, unknown>;
+    expect(created.counterpartyId).toBeNull();
   });
 });
 

@@ -3,28 +3,33 @@ import { verifyToken, getAuthToken } from '@/lib/jwt';
 
 /**
  * Identity headers this middleware injects for downstream handlers (getUserContext,
- * authUtils, AnalyticsResolver). They carry authority, so they are stripped from every
- * incoming request before anything else runs — a client must never be able to forge them.
+ * authUtils, AnalyticsResolver). They carry authority, so any copy arriving on the inbound
+ * request is a client-supplied spoof and is dropped before routing (RISK-SEC-AUTH-001).
  *
  * `x-user-timezone` is deliberately NOT in this list: it is legitimately sent by the
- * frontend (my-app/lib/api/api-client.ts) and grants no authority.
+ * frontend (my-app/lib/api/api-client.ts), is never injected here, and grants no authority.
  */
-const INJECTED_IDENTITY_HEADERS = [
+const INBOUND_IDENTITY_HEADERS = [
   'x-user-id',
+  'x-user-username',
   'x-user-role',
   'x-user-email',
   'x-user-name',
-  'x-user-username',
   'x-user-created-at',
   'x-user-updated-at',
 ] as const;
 
 /**
  * Deny-by-default: every path under /api requires a valid JWT unless it is listed here.
- * Adding a route grants no access — forgetting to list it fails closed (401), never open.
+ * Mounting a route grants no access — forgetting to list it fails closed (401), never open.
  *
- * Matching mirrors how Express routes: case-insensitive, trailing slash ignored, and on
- * whole segments. If this ever diverges from Express's own matching, the gap is a bypass.
+ * Matching mirrors how Express matches: case-insensitive, trailing slash ignored, whole
+ * segments, and NOT percent-decoded. That last one is deliberate — Express does not decode
+ * when matching a mount path (verified against a live Express router: POST /api/ACCOUNTING/post
+ * reaches the accounting router, while POST /api/%61ccounting/post 404s and never reaches it).
+ * Decoding here would make this guard see a different path than the router does, and exactly
+ * that kind of divergence produced RISK-SEC-AUTH-001. An encoded path matches no public rule
+ * and is therefore denied.
  */
 type PublicRule = { path: string; method: string; match: 'exact' | 'prefix' };
 
@@ -75,10 +80,10 @@ function isAdminOnly(pathname: string, method: string): boolean {
 }
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
-  // Strip forgeable identity headers on ingress, before any routing decision. Runs for
-  // every request, including public and non-/api ones — nothing downstream may trust a
-  // header this middleware did not itself set.
-  for (const header of INJECTED_IDENTITY_HEADERS) {
+  // Strip spoofable identity headers up front, before any routing decision. Runs for every
+  // request, including public and non-/api ones — nothing downstream may trust a header this
+  // middleware did not itself set.
+  for (const header of INBOUND_IDENTITY_HEADERS) {
     delete req.headers[header];
   }
 

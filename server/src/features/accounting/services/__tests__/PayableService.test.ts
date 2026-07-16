@@ -41,6 +41,7 @@ interface Opts {
   markResults?: number[]; // successive markPaidIfPaying (PAYING→PAID CAS) return values
   findEntryBySource?: (type: string, id: string) => unknown;
   expenseAccount?: Account | null;
+  counterparty?: { id: string; userId: string; unitId: string; type: string } | null;
 }
 
 function build(opts: Opts = {}) {
@@ -88,6 +89,12 @@ function build(opts: Opts = {}) {
     canManagePayable: () => opts.canManage ?? true,
     canReadPayable: () => opts.canRead ?? true,
   };
+  // Default: a SUPPLIER counterparty in THIS scope. `null` simulates a cross-scope/absent id (findById
+  // returns null because it carries the scope where-clause — SEC-A1-1).
+  const defaultCp = { id: 'cp-sup', userId: 'owner-1', unitId: 'unit-1', type: 'SUPPLIER' };
+  const counterpartyRepo = {
+    findById: jest.fn(async () => (opts.counterparty === undefined ? defaultCp : opts.counterparty)),
+  };
 
   const service = new PayableService(
     payableRepo as never,
@@ -95,8 +102,9 @@ function build(opts: Opts = {}) {
     { postEntry, reverseEntry, findEntryBySource } as never,
     auditService as never,
     policy as never,
+    counterpartyRepo as never,
   );
-  return { service, payableRepo, accountRepo, auditService, postEntry, reverseEntry, findEntryBySource };
+  return { service, payableRepo, accountRepo, auditService, postEntry, reverseEntry, findEntryBySource, counterpartyRepo };
 }
 
 const createDto = {
@@ -146,6 +154,39 @@ describe('PayableService.createPayable — recognition (D2)', () => {
   it('forbids without canManagePayable', async () => {
     const { service } = build({ canManage: false });
     await expect(service.createPayable(scope, createDto as never)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe('PayableService.createPayable — counterparty link (INCR-COUNTERPARTY / SEC-A1-1)', () => {
+  const dtoWithCp = { ...createDto, counterpartyId: 'cp-sup' };
+
+  it('resolves counterpartyId RE-SCOPED and persists it on the row', async () => {
+    const { service, payableRepo, counterpartyRepo } = build();
+    await service.createPayable(scope, dtoWithCp as never);
+    // findById is the SCOPED resolver — proves the id was checked against this tenant, not trusted.
+    expect(counterpartyRepo.findById).toHaveBeenCalledWith(scope, 'cp-sup');
+    const created = payableRepo.create.mock.calls[0]![0] as Record<string, unknown>;
+    expect(created.counterpartyId).toBe('cp-sup');
+    expect(created.supplierName).toBe('ACME'); // snapshot preserved alongside the FK
+  });
+
+  it('rejects a counterpartyId of ANOTHER scope (findById → null ⇒ ValidationError, IDOR #1)', async () => {
+    const { service, payableRepo } = build({ counterparty: null });
+    await expect(service.createPayable(scope, dtoWithCp as never)).rejects.toBeInstanceOf(ValidationError);
+    expect(payableRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects linking a payable to a CUSTOMER counterparty', async () => {
+    const { service } = build({ counterparty: { id: 'cp-cus', userId: 'owner-1', unitId: 'unit-1', type: 'CUSTOMER' } });
+    await expect(service.createPayable(scope, dtoWithCp as never)).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('leaves counterpartyId null when none is supplied (nullable this increment, SEC-A1-5)', async () => {
+    const { service, payableRepo, counterpartyRepo } = build();
+    await service.createPayable(scope, createDto as never);
+    expect(counterpartyRepo.findById).not.toHaveBeenCalled();
+    const created = payableRepo.create.mock.calls[0]![0] as Record<string, unknown>;
+    expect(created.counterpartyId).toBeNull();
   });
 });
 
