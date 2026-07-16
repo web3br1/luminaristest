@@ -466,6 +466,8 @@ export class ApplicationFactory {
       agingReport: new AgingReportService(
         this.repositories.payable,
         this.repositories.receivable,
+        this.repositories.account,
+        accountingReportService,
         this.policies.accounting,
       ),
       reconciliation: new ReconciliationService(

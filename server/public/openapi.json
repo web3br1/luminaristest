@@ -477,7 +477,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Aging report (grupos por contraparte com totais por faixa)"
+            "description": "Aging report (grupos por contraparte com totais por faixa) + bloco tieOut — a prova subledger↔razão: total do aging vs saldo da conta de controle (2.1.2 p/ payable, 1.1.5 p/ receivable) normalizado pela natureza. tieOut é null quando não é emitível (asOf ≠ hoje, ou conta de controle ausente); nesse caso tieOutSkippedReason diz por quê."
           },
           "400": {
             "description": "Validation error"
