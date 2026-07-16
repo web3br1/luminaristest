@@ -2,6 +2,7 @@ import prisma from '../../../lib/prisma';
 import type { Payable, PayablePayment, Prisma } from 'generated/prisma';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { accountingScopeWhere } from '../scope/AccountingScope';
+import { PAYABLE_OUTSTANDING_STATUSES } from '../models/Payable.model';
 import type {
   CreatePayableData,
   CreatePaymentData,
@@ -62,6 +63,17 @@ export class PayableRepository implements IPayableRepository {
   public async findAllActive(scope: AccountingScope, tx?: Prisma.TransactionClient): Promise<Payable[]> {
     return (tx ?? prisma).payable.findMany({
       where: { ...accountingScopeWhere(scope), deletedAt: null },
+    });
+  }
+
+  public async findOutstanding(scope: AccountingScope, tx?: Prisma.TransactionClient): Promise<Payable[]> {
+    return (tx ?? prisma).payable.findMany({
+      where: {
+        ...accountingScopeWhere(scope),
+        deletedAt: null,
+        status: { in: [...PAYABLE_OUTSTANDING_STATUSES] },
+      },
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
     });
   }
 

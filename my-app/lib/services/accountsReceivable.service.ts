@@ -45,6 +45,8 @@ export interface Receivable {
   unitId: string;
   customerName: string;
   customerRef: string | null;
+  /** FK to a Counterparty(CUSTOMER) of this unit (INCR-COUNTERPARTY / A1); nullable. */
+  counterpartyId: string | null;
   documentNumber: string | null;
   description: string;
   issueDate: string;
@@ -86,6 +88,8 @@ export interface CreateReceivablePayload {
   amountCents: number;
   /** Chart-of-accounts account **id** (analytic, nature=Revenue). */
   revenueAccountId: string;
+  /** Optional FK to a Counterparty(CUSTOMER) of this unit (re-scoped on the backend). */
+  counterpartyId?: string;
   attachmentId?: string;
 }
 

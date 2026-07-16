@@ -10,6 +10,7 @@ import {
   type PaymentMethod,
 } from '../../../lib/services/accountsPayable.service';
 import { accountingService, type Account } from '../../../lib/services/accounting.service';
+import { counterpartiesService, type Counterparty } from '../../../lib/services/counterparties.service';
 import { Modal } from '../../../components/ui/Modal';
 import { CreatePayableModal } from './CreatePayableModal';
 import { formatCents } from '../lib/formatCents';
@@ -201,6 +202,8 @@ interface AccountsPayablePanelProps {
   onLedgerChange?: () => void;
   /** Navigate to the Períodos tab (period-closed guidance). */
   onNavigateToPeriods?: () => void;
+  /** Navigate to the Contrapartes tab (from the create modal when none is registered). */
+  onNavigateToCounterparties?: () => void;
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
@@ -210,7 +213,7 @@ interface AccountsPayablePanelProps {
  * the recognition posting; per-row commands (pay / cancel / undo payment) each post
  * to the ledger via the AP command endpoints and refetch the trial balance.
  */
-export function AccountsPayablePanel({ unitId, onLedgerChange, onNavigateToPeriods }: AccountsPayablePanelProps) {
+export function AccountsPayablePanel({ unitId, onLedgerChange, onNavigateToPeriods, onNavigateToCounterparties }: AccountsPayablePanelProps) {
   const { t } = useTranslation('accounting');
   const [payables, setPayables] = useState<PayableWithPayments[]>([]);
   const [loading, setLoading] = useState(false);
@@ -219,6 +222,7 @@ export function AccountsPayablePanel({ unitId, onLedgerChange, onNavigateToPerio
   // create modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [expenseAccounts, setExpenseAccounts] = useState<Account[]>([]);
+  const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
 
   // action modal (pay / cancel payable / cancel payment)
   const [action, setAction] = useState<ActionState>(null);
@@ -253,6 +257,11 @@ export function AccountsPayablePanel({ unitId, onLedgerChange, onNavigateToPerio
   // ── create ─────────────────────────────────────────────────────────────────
   function openCreate() {
     if (!unitId) return;
+    // Suppliers are a best-effort convenience list; a failed fetch must not block the create modal.
+    counterpartiesService
+      .listCounterparties({ unitId, type: 'SUPPLIER' })
+      .then(setCounterparties)
+      .catch(() => setCounterparties([]));
     accountingService
       .getAccounts(unitId)
       .then((r) => setExpenseAccounts(r.accounts.filter((a) => a.nature === 'Expense' && a.acceptsEntries)))
@@ -413,12 +422,14 @@ export function AccountsPayablePanel({ unitId, onLedgerChange, onNavigateToPerio
         onClose={() => setIsCreateOpen(false)}
         unitId={unitId}
         expenseAccounts={expenseAccounts}
+        counterparties={counterparties}
         onSuccess={() => {
           setIsCreateOpen(false);
           void fetchPayables();
           onLedgerChange?.();
         }}
         onNavigateToPeriods={onNavigateToPeriods}
+        onNavigateToCounterparties={onNavigateToCounterparties}
       />
 
       {/* Action modal (pay / cancel / undo) */}

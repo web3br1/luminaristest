@@ -26,7 +26,8 @@
       "importacaoExportacao": "Importação/Exportação",
       "conciliacao": "Conciliação",
       "compliance": "Compliance",
-      "dimensoes": "Dimensões"
+      "dimensoes": "Dimensões",
+      "contrapartes": "Contrapartes"
     },
     "error": {
       "units": "Falha ao carregar as unidades.",
@@ -93,12 +94,16 @@
         "issueDate": "Emissão",
         "dueDate": "Vencimento",
         "expenseAccount": "Conta de despesa (contrapartida)",
-        "selectAccount": "— selecione a conta de despesa —"
+        "selectAccount": "— selecione a conta de despesa —",
+        "counterparty": "Contraparte",
+        "noCounterparty": "— sem contraparte —"
       },
       "error": {
         "invalid": "Preencha fornecedor, descrição, datas, valor e conta de despesa.",
         "failed": "Erro ao registrar a conta a pagar."
-      }
+      },
+      "noCounterparties": "Nenhum fornecedor cadastrado.",
+      "manageCounterparties": "Cadastrar contrapartes"
     },
     "actionModal": {
       "cancel": "Voltar",
@@ -180,12 +185,16 @@
         "issueDate": "Emissão",
         "dueDate": "Vencimento",
         "revenueAccount": "Conta de receita (contrapartida)",
-        "selectAccount": "— selecione a conta de receita —"
+        "selectAccount": "— selecione a conta de receita —",
+        "counterparty": "Contraparte",
+        "noCounterparty": "— sem contraparte —"
       },
       "error": {
         "invalid": "Preencha cliente, descrição, datas, valor e conta de receita.",
         "failed": "Erro ao registrar a conta a receber."
-      }
+      },
+      "noCounterparties": "Nenhum cliente cadastrado.",
+      "manageCounterparties": "Cadastrar contrapartes"
     },
     "actionModal": {
       "cancel": "Voltar",
@@ -426,7 +435,13 @@
       "name": "Nome",
       "type": "Tipo",
       "acceptsEntries": "Aceita lançamentos",
+      "requiresDimension": "Exige dimensão",
       "actions": "Ações"
+    },
+    "requiresDimension": {
+      "on": "Obrigatória",
+      "off": "Opcional",
+      "naHint": "Só se aplica a contas que aceitam lançamentos."
     },
     "nature": {
       "asset": "Ativo",
@@ -443,7 +458,8 @@
     "error": {
       "load": "Erro ao carregar contas.",
       "create": "Erro ao criar conta.",
-      "delete": "Erro ao excluir conta."
+      "delete": "Erro ao excluir conta.",
+      "requiresDimension": "Erro ao atualizar a exigência de dimensão."
     }
   },
   "journalEntries": {
@@ -953,6 +969,66 @@
         "expense": "Despesa",
         "result": "Resultado"
       }
+    }
+  },
+  "contrapartes": {
+    "heading": "Contrapartes",
+    "new": "Nova Contraparte",
+    "loading": "Carregando contrapartes…",
+    "empty": "Nenhuma contraparte cadastrada nesta unidade ainda.",
+    "type": {
+      "SUPPLIER": "Fornecedor",
+      "CUSTOMER": "Cliente"
+    },
+    "status": {
+      "active": "Ativa",
+      "archived": "Arquivada"
+    },
+    "filter": {
+      "all": "Todas",
+      "suppliers": "Fornecedores",
+      "customers": "Clientes",
+      "includeArchived": "Incluir arquivadas"
+    },
+    "col": {
+      "name": "Nome",
+      "type": "Tipo",
+      "ref": "Referência",
+      "status": "Situação",
+      "actions": "Ações"
+    },
+    "action": {
+      "archive": "Arquivar",
+      "archiveTitle": "Arquivar contraparte"
+    },
+    "error": {
+      "load": "Erro ao carregar as contrapartes.",
+      "archive": "Não foi possível arquivar a contraparte."
+    },
+    "createModal": {
+      "title": "Nova Contraparte",
+      "cancel": "Cancelar",
+      "submit": "Cadastrar",
+      "saving": "Cadastrando…",
+      "optional": "(opcional)",
+      "field": {
+        "type": "Tipo",
+        "name": "Nome",
+        "namePlaceholder": "Nome da contraparte…",
+        "ref": "Referência",
+        "refPlaceholder": "CNPJ, código externo…"
+      },
+      "error": {
+        "invalid": "Informe o nome da contraparte.",
+        "failed": "Erro ao cadastrar a contraparte."
+      }
+    },
+    "archiveModal": {
+      "title": "Arquivar contraparte",
+      "cancel": "Voltar",
+      "confirm": "Confirmar arquivamento",
+      "archiving": "Arquivando…",
+      "note": "A contraparte deixa de aparecer na seleção de novas contas. Os lançamentos e contas já vinculados permanecem intactos."
     }
   }
 }

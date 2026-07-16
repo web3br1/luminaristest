@@ -11,6 +11,9 @@ interface Account {
   name: string;
   nature: 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
   acceptsEntries: boolean;
+  /** INCR-DIM-COMPLETENESS — when true, every leg posted to this leaf account must carry ≥1
+   *  dimension tag. Only meaningful on leaf accounts (acceptsEntries === true). */
+  requiresDimension?: boolean;
   isDefault?: boolean;
   deletedAt?: string | null;
 }
@@ -74,6 +77,8 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // INCR-DIM-COMPLETENESS — id of the account whose requiresDimension toggle is in flight.
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const fetchAccounts = useCallback(async () => {
@@ -140,6 +145,33 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
       setDeleteError(msg);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // INCR-DIM-COMPLETENESS — flip an account's mandatory-dimension flag. Optimistic: update the row
+  // immediately, roll back and surface the backend message on failure.
+  const handleToggleRequiresDimension = async (account: Account, next: boolean) => {
+    setError(null);
+    setTogglingId(account.id);
+    setAccounts((prev) => prev.map((a) => (a.id === account.id ? { ...a, requiresDimension: next } : a)));
+    try {
+      await (accountingService as unknown as {
+        setAccountRequiresDimension(
+          id: string,
+          unitId: string,
+          requiresDimension: boolean,
+        ): Promise<{ account: Account }>;
+      }).setAccountRequiresDimension(account.id, unitId, next);
+    } catch (err) {
+      // Roll the optimistic flip back to the previous value.
+      setAccounts((prev) => prev.map((a) => (a.id === account.id ? { ...a, requiresDimension: !next } : a)));
+      const msg =
+        err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+          ? (err as { message: string }).message
+          : t('chartOfAccounts.error.requiresDimension', 'Erro ao atualizar a exigência de dimensão.');
+      setError(msg);
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -305,6 +337,7 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
                 <th className="px-4 py-3 font-medium">{t('chartOfAccounts.col.name', 'Nome')}</th>
                 <th className="px-4 py-3 font-medium">{t('chartOfAccounts.col.type', 'Tipo')}</th>
                 <th className="px-4 py-3 font-medium">{t('chartOfAccounts.col.acceptsEntries', 'Aceita lançamentos')}</th>
+                <th className="px-4 py-3 font-medium">{t('chartOfAccounts.col.requiresDimension', 'Exige dimensão')}</th>
                 {canManage && <th className="px-4 py-3 font-medium">{t('chartOfAccounts.col.actions', 'Ações')}</th>}
               </tr>
             </thead>
@@ -330,6 +363,38 @@ export function ChartOfAccountsPanel({ unitId, canManage }: ChartOfAccountsPanel
                     ) : (
                       <span className="inline-flex items-center rounded-full bg-neutral-700/50 px-2 py-0.5 text-xs font-medium text-neutral-500">
                         {t('chartOfAccounts.no', 'Não')}
+                      </span>
+                    )}
+                  </td>
+                  {/* Exige dimensão — only meaningful on leaf accounts (acceptsEntries). Managers get
+                      an interactive toggle; others see a read-only state. Synthetic accounts show "—". */}
+                  <td className="px-4 py-2.5">
+                    {!account.acceptsEntries ? (
+                      <span className="text-neutral-600" title={t('chartOfAccounts.requiresDimension.naHint', 'Só se aplica a contas que aceitam lançamentos.')}>
+                        —
+                      </span>
+                    ) : canManage ? (
+                      <label className="inline-flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={!!account.requiresDimension}
+                          disabled={togglingId === account.id}
+                          onChange={(e) => void handleToggleRequiresDimension(account, e.target.checked)}
+                          className="h-4 w-4 rounded accent-emerald-500 disabled:opacity-50"
+                        />
+                        <span className="text-xs text-neutral-400">
+                          {account.requiresDimension
+                            ? t('chartOfAccounts.requiresDimension.on', 'Obrigatória')
+                            : t('chartOfAccounts.requiresDimension.off', 'Opcional')}
+                        </span>
+                      </label>
+                    ) : account.requiresDimension ? (
+                      <span className="inline-flex items-center rounded-full bg-amber-600/15 px-2 py-0.5 text-xs font-medium text-amber-400">
+                        {t('chartOfAccounts.requiresDimension.on', 'Obrigatória')}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-neutral-700/50 px-2 py-0.5 text-xs font-medium text-neutral-500">
+                        {t('chartOfAccounts.requiresDimension.off', 'Opcional')}
                       </span>
                     )}
                   </td>

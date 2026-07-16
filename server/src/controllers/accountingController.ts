@@ -23,6 +23,7 @@ import { ReceiptRequestSchema } from '../features/accounting/dtos/ReceiptDto';
 import { CashFlowStatementQuerySchema } from '../features/accounting/dtos/cashFlowReport.dto';
 import { PeriodComparisonSchema } from '../features/accounting/dtos/periodComparison.dto';
 import { DailyJournalRequestSchema } from '../features/accounting/dtos/dailyJournal.dto';
+import { AgingReportQuerySchema } from '../features/accounting/dtos/aging.dto';
 
 export const postEntry = async (req: Request, res: Response) => {
   try {
@@ -383,6 +384,36 @@ export const getDailyJournal = async (req: Request, res: Response) => {
     const data = await getFactory()
       .getDailyJournalReportService()
       .dailyJournal(scope, { from: parsed.data.from, to: parsed.data.to });
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+/** @openapi
+ * /api/accounting/reports/aging:
+ *   get:
+ *     summary: Aging — posição por contraparte × faixa de vencimento (AP ou AR), read-only
+ *     parameters:
+ *       - { in: query, name: unitId, required: true, schema: { type: string } }
+ *       - { in: query, name: kind,   required: true, schema: { type: string, enum: [payable, receivable] }, description: "Subrazão: contas a pagar ou a receber" }
+ *       - { in: query, name: asOf,   required: false, schema: { type: string, format: date }, description: "YYYY-MM-DD — data da posição (default hoje)" }
+ *     responses:
+ *       200: { description: Aging report (grupos por contraparte com totais por faixa) }
+ *       400: { description: Validation error }
+ */
+export const getAging = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = AgingReportQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const data = await getFactory()
+      .getAgingReportService()
+      .aging(scope, { kind: parsed.data.kind, asOf: parsed.data.asOf });
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
