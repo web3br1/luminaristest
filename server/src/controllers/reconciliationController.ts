@@ -35,6 +35,7 @@ export const bankStatementUpload = makeUploadMiddleware(
   SPREADSHEET_MIME_TYPES,
   'file',
   MAX_IMPORT_SIZE_BYTES,
+  true, // enforce magic bytes for declared-binary uploads (SEC audit 2026-07-15)
 );
 
 /**

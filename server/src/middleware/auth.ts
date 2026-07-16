@@ -41,9 +41,38 @@ function isAdminOnly(pathname: string, method: string): boolean {
   return adminOnlyApiPaths.some((rule) => pathname.startsWith(rule.path) && method === rule.method);
 }
 
+// Identity headers are injected ONLY from a verified token below. Any copy arriving on
+// the inbound request is a client-supplied spoof and must be dropped before routing —
+// otherwise a request that slips past the prefix guard (see RISK-SEC-AUTH-001) reaches a
+// handler that trusts these headers. This strip is the authoritative defense; the path
+// normalization below is the second layer.
+const INBOUND_IDENTITY_HEADERS = [
+  'x-user-id',
+  'x-user-username',
+  'x-user-role',
+  'x-user-email',
+  'x-user-name',
+  'x-user-created-at',
+  'x-user-updated-at',
+] as const;
+
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
-  const pathname = req.originalUrl;
+  // Strip spoofable identity headers up front (defense-in-depth, RISK-SEC-AUTH-001).
+  for (const h of INBOUND_IDENTITY_HEADERS) delete req.headers[h];
+
   const method = req.method;
+
+  // Match protected prefixes on the DECODED, lower-cased path. Express routes
+  // case-insensitively and decodes %-escapes, so a case-sensitive `originalUrl.startsWith`
+  // let `/api/ACCOUNTING/...` and `/api/%61ccounting/...` reach protected handlers while
+  // skipping this guard (RISK-SEC-AUTH-001). `req.path` also excludes the query string.
+  const rawPath = req.path;
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(rawPath).toLowerCase();
+  } catch {
+    pathname = rawPath.toLowerCase();
+  }
 
   // Allow public user creation (POST /api/users)
   if (pathname === '/api/users' && method === 'POST') {

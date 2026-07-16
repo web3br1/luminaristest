@@ -23,6 +23,7 @@ export const referentialCatalogUpload = makeUploadMiddleware(
   SPREADSHEET_MIME_TYPES,
   'file',
   MAX_CATALOG_SIZE_BYTES,
+  true, // enforce magic bytes for declared-binary uploads (SEC audit 2026-07-15)
 );
 
 /** POST /api/accounting/referential/catalog/import — import the official RFB layout for a version. */
@@ -30,6 +31,15 @@ export const importReferentialCatalog = async (req: Request, res: Response) => {
   try {
     const user = getUserContextFromRequest(req);
     if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    // ReferentialAccount is a GLOBAL catalog (no tenancy) shared by every tenant's ECD/ECF
+    // generation. Any authenticated user writing it can poison everyone's fiscal output, so
+    // the import is admin-only. Read (GET) stays open. (SEC audit 2026-07-15)
+    if (user.role !== 'ADMIN') {
+      return res
+        .status(403)
+        .json({ success: false, error: 'Admin role required to import the shared referential catalog' });
+    }
 
     const file = (req as Request & { file?: Express.Multer.File }).file;
     if (!file) {

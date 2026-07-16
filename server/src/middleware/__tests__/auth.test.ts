@@ -19,12 +19,15 @@ import { authMiddleware } from '../auth';
 function makeReq(
   path: string,
   method: string = 'GET',
-  authHeader?: string
+  authHeader?: string,
+  extraHeaders?: Record<string, string>
 ): Partial<Request> {
   return {
+    // Express derives `req.path` (query-stripped) from the URL; the middleware matches on it.
+    path: path.split('?')[0],
     originalUrl: path,
     method,
-    headers: authHeader ? { authorization: authHeader } : {},
+    headers: { ...(authHeader ? { authorization: authHeader } : {}), ...(extraHeaders ?? {}) },
   };
 }
 
@@ -152,6 +155,86 @@ describe('authMiddleware', () => {
 
       expect(next).toHaveBeenCalledTimes(1);
       expect(ctx.statusCode).toBeUndefined();
+    });
+  });
+
+  describe('RISK-SEC-AUTH-001 — case/encoding bypass + header spoofing', () => {
+    it('treats an UPPERCASE protected path as protected (401 without token)', () => {
+      // Before the fix, /api/ACCOUNTING/post skipped the guard (case-sensitive startsWith)
+      // while Express routed it case-insensitively → unauthenticated access.
+      const req = makeReq('/api/ACCOUNTING/post', 'POST');
+      const ctx = { statusCode: undefined as number | undefined, body: undefined as any };
+      const res: Partial<Response> = {
+        status(code: number) { ctx.statusCode = code; return this as Response; },
+        json(data: any) { ctx.body = data; return this as Response; },
+      };
+      const next: NextFunction = jest.fn();
+
+      authMiddleware(req as Request, res as Response, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(ctx.statusCode).toBe(401);
+    });
+
+    it('treats a percent-encoded protected path as protected (401 without token)', () => {
+      const req = makeReq('/api/%61ccounting/post', 'POST'); // %61 = 'a'
+      const ctx = { statusCode: undefined as number | undefined };
+      const res: Partial<Response> = {
+        status(code: number) { ctx.statusCode = code; return this as Response; },
+        json() { return this as Response; },
+      };
+      const next: NextFunction = jest.fn();
+
+      authMiddleware(req as Request, res as Response, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(ctx.statusCode).toBe(401);
+    });
+
+    it('strips client-supplied x-user-* identity headers even on an unprotected path', () => {
+      const req = makeReq('/api/healthz', 'GET', undefined, {
+        'x-user-id': 'attacker-victim-id',
+        'x-user-username': 'victim',
+        'x-user-role': 'ADMIN',
+      });
+      const ctx = { statusCode: undefined as number | undefined };
+      const res: Partial<Response> = {
+        status(code: number) { ctx.statusCode = code; return this as Response; },
+        json() { return this as Response; },
+      };
+      const next: NextFunction = jest.fn();
+
+      authMiddleware(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      // The spoofed identity must not survive to downstream handlers.
+      expect(req.headers!['x-user-id']).toBeUndefined();
+      expect(req.headers!['x-user-username']).toBeUndefined();
+      expect(req.headers!['x-user-role']).toBeUndefined();
+    });
+
+    it('overwrites spoofed x-user-* with the verified token identity on a protected route', () => {
+      const token = signToken({ id: 'real-user', username: 'real', role: 'USER' });
+      const req = makeReq('/api/accounting/post', 'POST', `Bearer ${token}`, {
+        'x-user-id': 'attacker-victim-id',
+        'x-user-role': 'ADMIN',
+        // The token flow never re-injects these two (payload has no created/updated), so
+        // if the strip were removed they would survive — this is what proves the strip,
+        // not the overwrite (id/role are overwritten regardless).
+        'x-user-created-at': '1999-01-01T00:00:00.000Z',
+        'x-user-updated-at': '1999-01-01T00:00:00.000Z',
+      });
+      const { res } = makeRes();
+      const next: NextFunction = jest.fn();
+
+      authMiddleware(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.headers!['x-user-id']).toBe('real-user'); // from token, not spoof
+      expect(req.headers!['x-user-role']).toBe('USER');
+      // Spoofed headers the token does NOT set must be gone (strip, not overwrite).
+      expect(req.headers!['x-user-created-at']).toBeUndefined();
+      expect(req.headers!['x-user-updated-at']).toBeUndefined();
     });
   });
 
