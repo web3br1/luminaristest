@@ -8,7 +8,7 @@
 > **O achado central — assimetria direcional de prescrição:**
 > - **Fable 5:** prompts/skills prescritivos demais *degradam* o output. Dê objetivo + restrições;
 >   deixe o modelo escolher os passos. Ao migrar PARA Fable, faça A/B removendo scaffolding
->   passo-a-passo.
+>   passo-a-passo — **mas só scaffolding, nunca contrato** (ver escopo do A/B na seção Fable 5).
 > - **Opus 4.8:** *sub-alcança* capacidades que exigem decisão explícita (subagentes, memória,
 >   busca, custom tools). Prescreva **gatilhos** — "chame isto quando…" na descrição de cada
 >   tool/skill dá ganho medido. Ao rodar em Opus, o sistema prescritivo deste repo está **certo** —
@@ -51,6 +51,17 @@ Snippets oficiais completos em "Prompting Claude Fable 5" (docs.claude.com). Os 
 - **Nunca** instruir o modelo a reproduzir o raciocínio interno no texto de resposta — dispara
   refusal `reasoning_extraction`. Auditar skills por instruções "mostre seu raciocínio" antes de
   migrar.
+- **Escopo do A/B de des-prescrição** — "prescrição" tem duas espécies que se comportam diferente
+  em Fable; só uma entra no A/B:
+
+  | Espécie | Exemplo neste repo | Ao rodar em Fable |
+  |---|---|---|
+  | **Contrato** (o quê / never / invariante) | STOP DynamicTable×Prisma, cadeia de camadas, gates binários OPS-001..004 | **Fica intocado** — restrição explícita não degrada; a doc oficial manda nunca simplificar o pedido explícito |
+  | **Scaffolding** (como / passo-a-passo) | generation contracts passo-a-passo, skills geradoras com steps numerados | **Entra no A/B** — é isto que degrada o output em Fable |
+
+  Fonte: migration guide → "Migrating to Claude Fable 5" ("de-prescribe migrated prompts and
+  skills") + política de nunca simplificar o explicitamente pedido. Grau: verificado nas docs
+  oficiais (2026-07-08).
 - Turnos longos por padrão (minutos): planejar timeouts/streaming/progresso antes de migrar.
 - Refusals de classifier (cyber/bio) retornam HTTP 200 + `stop_reason: "refusal"` — código de API
   deve checar `stop_reason` antes de ler `content` e opt-in em `fallbacks` para `claude-opus-4-8`.
