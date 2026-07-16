@@ -435,7 +435,13 @@
       "name": "Nome",
       "type": "Tipo",
       "acceptsEntries": "Aceita lançamentos",
+      "requiresDimension": "Exige dimensão",
       "actions": "Ações"
+    },
+    "requiresDimension": {
+      "on": "Obrigatória",
+      "off": "Opcional",
+      "naHint": "Só se aplica a contas que aceitam lançamentos."
     },
     "nature": {
       "asset": "Ativo",
@@ -452,7 +458,8 @@
     "error": {
       "load": "Erro ao carregar contas.",
       "create": "Erro ao criar conta.",
-      "delete": "Erro ao excluir conta."
+      "delete": "Erro ao excluir conta.",
+      "requiresDimension": "Erro ao atualizar a exigência de dimensão."
     }
   },
   "journalEntries": {
