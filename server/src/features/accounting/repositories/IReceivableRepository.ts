@@ -10,6 +10,7 @@ export interface CreateReceivableData {
   unitId: string;
   customerName: string;
   customerRef: string | null;
+  counterpartyId: string | null;
   documentNumber: string | null;
   description: string;
   issueDate: Date;

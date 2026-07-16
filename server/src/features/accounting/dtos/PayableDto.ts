@@ -30,6 +30,7 @@ const dateOnly = (field: string) =>
  *         unitId:           { type: string }
  *         supplierName:     { type: string, description: "Snapshot do nome do fornecedor (F1)" }
  *         supplierRef:      { type: string, description: "Ref escopada a uma linha de fornecedor em DynamicTable (F1 rota c) — não é FK" }
+ *         counterpartyId:   { type: string, description: "FK opcional a uma Counterparty(SUPPLIER) desta unidade (INCR-COUNTERPARTY / A1); re-escopada no service (SEC-A1-1)" }
  *         documentNumber:   { type: string, description: "Nº da NF/documento; parte da chave de negócio" }
  *         description:      { type: string }
  *         issueDate:        { type: string, description: "Data-only YYYY-MM-DD — competência do reconhecimento" }
@@ -43,6 +44,7 @@ export const CreatePayableSchema = z
     unitId: z.string().min(1),
     supplierName: z.string().min(1),
     supplierRef: z.string().min(1).optional(),
+    counterpartyId: z.string().min(1).optional(),
     documentNumber: z.string().min(1).optional(),
     description: z.string().min(1),
     issueDate: dateOnly('issueDate'),
