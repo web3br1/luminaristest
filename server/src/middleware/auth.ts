@@ -1,56 +1,94 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyToken, getAuthToken } from '@/lib/jwt';
 
-// Protected API paths (prefix-based matching)
-const protectedApiPaths = [
-  '/api/documents',
-  '/api/auth/me',
-  '/api/auth/logout',
-  '/api/chat',
-  '/api/users',
-  '/api/chat-instances',
-  '/api/chat-messages',
-  '/api/dashboard-layout',
-  '/api/dashboard',
-  '/api/dynamic-tables',
-  '/api/analytics',       // ← cobre /api/analytics e /api/analytics/definitions
-  '/api/reports',         // ← cobre /api/reports/generate-chart-data
-  '/api/structured-data', // ← cobre /api/structured-data/:documentId
-  '/api/crm',             // ← cobre /api/crm/pipeline/*
-  '/api/accounting',      // ← cobre /api/accounting/post e /reverse
-  '/api/payables',        // ← cobre Contas a Pagar (INCR-AP): create/pay/cancel/reconcile
-  '/api/receivables',     // ← cobre Contas a Receber (INCR-AR): create/receive/cancel/reconcile
-  '/api/dimensions',      // ← cobre Dimensões (INCR-DIM): catálogo (definitions/values) + reports
-  '/api/entry-approvals', // ← cobre a torre de aprovação (ADR-INCR-APPROVAL): draft/submit/approve/reject
-  '/api/sales',           // ← cobre /api/sales/cancel e /return (transições Incremento D)
-  '/api/saved-views',     // ← saved table views (per-user)
+/**
+ * Identity headers this middleware injects for downstream handlers (getUserContext,
+ * authUtils, AnalyticsResolver). They carry authority, so they are stripped from every
+ * incoming request before anything else runs — a client must never be able to forge them.
+ *
+ * `x-user-timezone` is deliberately NOT in this list: it is legitimately sent by the
+ * frontend (my-app/lib/api/api-client.ts) and grants no authority.
+ */
+const INJECTED_IDENTITY_HEADERS = [
+  'x-user-id',
+  'x-user-role',
+  'x-user-email',
+  'x-user-name',
+  'x-user-username',
+  'x-user-created-at',
+  'x-user-updated-at',
+] as const;
+
+/**
+ * Deny-by-default: every path under /api requires a valid JWT unless it is listed here.
+ * Adding a route grants no access — forgetting to list it fails closed (401), never open.
+ *
+ * Matching mirrors how Express routes: case-insensitive, trailing slash ignored, and on
+ * whole segments. If this ever diverges from Express's own matching, the gap is a bypass.
+ */
+type PublicRule = { path: string; method: string; match: 'exact' | 'prefix' };
+
+const publicApiRoutes: PublicRule[] = [
+  { path: '/api', method: 'GET', match: 'exact' }, // API info banner
+  { path: '/api/auth/login', method: 'POST', match: 'exact' },
+  { path: '/api/auth/register', method: 'POST', match: 'exact' },
+  { path: '/api/users', method: 'POST', match: 'exact' }, // public user registration
+  { path: '/api/docs', method: 'GET', match: 'prefix' }, // swagger UI + openapi.json + static
 ];
 
-// Admin-only API paths with method checks
+// Admin-only API paths with method checks (prefix match covers /api/users/:id).
 const adminOnlyApiPaths: { path: string; method: string }[] = [
   { path: '/api/users', method: 'GET' },
   { path: '/api/users', method: 'DELETE' },
-  { path: '/api/users/', method: 'DELETE' }, // /api/users/:id
 ];
 
-function isPathProtected(pathname: string): boolean {
-  return protectedApiPaths.some((p) => pathname.startsWith(p));
+/** Whole-segment prefix match: '/api/users' matches '/api/users/1' but never '/api/usersx'. */
+function matchesSegmentPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(prefix + '/');
+}
+
+/**
+ * Normalizes a request path for routing decisions the same way Express matches it:
+ * query string dropped, case folded, trailing slashes removed.
+ */
+function normalizeForMatch(rawPath: string): string {
+  const trimmed = rawPath.replace(/\/+$/, '');
+  return (trimmed === '' ? '/' : trimmed).toLowerCase();
+}
+
+function isApiPath(pathname: string): boolean {
+  return matchesSegmentPrefix(pathname, '/api');
+}
+
+function isPublic(pathname: string, method: string): boolean {
+  return publicApiRoutes.some(
+    (rule) =>
+      rule.method === method &&
+      (rule.match === 'exact' ? pathname === rule.path : matchesSegmentPrefix(pathname, rule.path))
+  );
 }
 
 function isAdminOnly(pathname: string, method: string): boolean {
-  return adminOnlyApiPaths.some((rule) => pathname.startsWith(rule.path) && method === rule.method);
+  return adminOnlyApiPaths.some(
+    (rule) => rule.method === method && matchesSegmentPrefix(pathname, rule.path)
+  );
 }
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
-  const pathname = req.originalUrl;
-  const method = req.method;
-
-  // Allow public user creation (POST /api/users)
-  if (pathname === '/api/users' && method === 'POST') {
-    return next();
+  // Strip forgeable identity headers on ingress, before any routing decision. Runs for
+  // every request, including public and non-/api ones — nothing downstream may trust a
+  // header this middleware did not itself set.
+  for (const header of INJECTED_IDENTITY_HEADERS) {
+    delete req.headers[header];
   }
 
-  if (!isPathProtected(pathname)) {
+  const method = req.method;
+  // Routing decisions use the folded path; the raw path is kept for the self-update
+  // check, where a user id must be compared byte-for-byte (folding would corrupt it).
+  const rawPath = req.path.replace(/\/+$/, '') || '/';
+  const pathname = normalizeForMatch(req.path);
+
+  if (!isApiPath(pathname) || isPublic(pathname, method)) {
     return next();
   }
 
@@ -78,12 +116,13 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     }
 
     // User update rule: only self can update when not admin
-    const isUserUpdateOperation = pathname.startsWith('/api/users/') && (method === 'PUT' || method === 'PATCH');
+    const isUserUpdateOperation =
+      matchesSegmentPrefix(pathname, '/api/users') && (method === 'PUT' || method === 'PATCH');
     if (isUserUpdateOperation && payload.role !== 'ADMIN') {
-      const pathParts = pathname.split('/');
+      const pathParts = rawPath.split('/');
       // If the route is /api/users/me/..., it's intrinsically a self-update
       const isMeRoute = pathParts.includes('me');
-      
+
       if (!isMeRoute) {
         const targetUserId = pathParts.pop();
         const currentUserId = String(payload.id || payload.userId || '');
