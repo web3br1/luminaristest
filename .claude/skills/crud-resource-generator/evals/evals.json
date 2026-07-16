@@ -60,10 +60,11 @@
         "CRUD-001",
         "CRUD-006"
       ],
-      "prompt": "Para o recurso Comment, gere apenas (a) o método de exclusão e o findAll do CommentRepository e (b) o registro da rota. Saída: o trecho do repository sob // server/src/features/comments/repositories/CommentRepository.ts e o registro em middleware/auth.ts sob // server/src/middleware/auth.ts.",
+      "prompt": "Para o recurso Comment, gere apenas (a) o método de exclusão e o findAll do CommentRepository e (b) o registro da rota. Saída: o trecho do repository sob // server/src/features/comments/repositories/CommentRepository.ts e o registro em routes/index.ts sob // server/src/routes/index.ts.",
       "assertions": [
-        "contains:// server/src/middleware/auth.ts",
-        "@auth.ts::contains:'/api/comments'",
+        "contains:// server/src/routes/index.ts",
+        "@index.ts::contains:/comments",
+        "absent:protectedApiPaths",
         "@CommentRepository.ts::regex:deletedAt:\\s*new Date\\(\\)",
         "@CommentRepository.ts::regex:where:\\s*\\{?\\s*[\\s\\S]*deletedAt:\\s*null",
         "@CommentRepository.ts::absent:.delete("

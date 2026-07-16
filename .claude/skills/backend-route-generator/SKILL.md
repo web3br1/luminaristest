@@ -1,6 +1,6 @@
 ---
 name: backend-route-generator
-description: Gera arquivo de rota Express (express.Router com handlers nomeados do controller) + o registro 3-toques (routes/index.ts, middleware/auth.ts protectedApiPaths, docs.paths.ts bloco @openapi) para um novo recurso backend. Use ao expor um novo endpoint REST, ao adicionar sub-rotas a um recurso existente, ou ao sincronizar a doc OpenAPI com uma rota nova. Termos-gatilho: rota, router, endpoint, REST, registrar rota, 401 com token válido, protectedApiPaths, @openapi path. Domínio/arquivos: server/src/routes/ e server/src/middleware/auth.ts.
+description: Gera arquivo de rota Express (express.Router com handlers nomeados do controller) + o registro 2-toques (routes/index.ts, docs.paths.ts bloco @openapi) para um novo recurso backend. Auth é deny-by-default — a rota nasce protegida e o gerador não edita middleware/auth.ts. Use ao expor um novo endpoint REST, ao adicionar sub-rotas a um recurso existente, ou ao sincronizar a doc OpenAPI com uma rota nova. Termos-gatilho: rota, router, endpoint, REST, registrar rota, rota pública, @openapi path. Domínio/arquivos: server/src/routes/.
 argument-hint: "[nome-do-recurso]"
 allowed-tools: Read, Grep, Glob, Write, Edit
 compatibility: Claude Code; requer o monorepo Luminaris (server/ com express + tsc). Sem efeitos externos — apenas gera/edita arquivos no repositório.
@@ -19,6 +19,7 @@ metadata:
 
 Gera `server/src/routes/<resource>.ts` seguindo o padrão Express Router do Luminaris.
 Registra a rota em `server/src/routes/index.ts` e adiciona bloco OpenAPI em `server/src/routes/docs.paths.ts`.
+A rota nasce autenticada — `middleware/auth.ts` é deny-by-default e não faz parte do registro.
 
 ## Contrato obrigatório
 
@@ -28,10 +29,10 @@ Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cr
 
 Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatamente isto na camada Route). Gere já em conformidade.
 
-- [ ] **Registro = 3 toques** (não 2). Faltar qualquer um quebra a rota:
+- [ ] **Registro = 2 toques.** Faltar qualquer um quebra a rota:
   1. **[ROUTE-001]** **`server/src/routes/index.ts`** — `import <resource>Router from './<resource>'` + `router.use('/<resource>', <resource>Router)`.
-  2. **[ROUTE-002]** **`server/src/middleware/auth.ts` → array `protectedApiPaths`** — adicionar `'/api/<resource>'`. ⚠️ **DESTAQUE:** sem isso `getUserContextFromRequest` retorna `null` e a rota dá **401 com token válido** — bug silencioso que o `tsc` NÃO pega (só runtime). Pular APENAS para rota 100% pública.
-  3. **[ROUTE-003]** **`server/src/routes/docs.paths.ts`** — bloco `@openapi paths: /<resource>:` com GET/POST/PUT/DELETE para CADA endpoint, na seção `paths:` ANTES de `* components:`. O component schema do DTO NÃO substitui o bloco de path. Valide: `grep -c "/api/<resource>" server/src/routes/docs.paths.ts` deve ser `> 0`.
+  2. **[ROUTE-003]** **`server/src/routes/docs.paths.ts`** — bloco `@openapi paths: /<resource>:` com GET/POST/PUT/DELETE para CADA endpoint, na seção `paths:` ANTES de `* components:`. O component schema do DTO NÃO substitui o bloco de path. Valide: `grep -c "/api/<resource>" server/src/routes/docs.paths.ts` deve ser `> 0`.
+- [ ] **[ROUTE-002] Não editar `server/src/middleware/auth.ts`.** Auth é **deny-by-default**: tudo sob `/api` exige JWT no instante em que a rota é montada, e o user context vem populado sozinho. Não existe allowlist de rotas protegidas — instruções antigas mandando adicionar `'/api/<resource>'` a um array de prefixos são anteriores ao `RISK-SEC-AUTH-001` e estão obsoletas. **Rota pública** é a exceção: exige regra em `publicApiRoutes` + justificativa (decisão de segurança, não scaffolding). Fonte única: [GENERATION_CONTRACTS.md](../../../docs/claude-skills/GENERATION_CONTRACTS.md) § Backend Route Contract.
 - [ ] **[ROUTE-004]** **`export default router`** — o arquivo de rota cria `const router = Router()` (de `express`) e exporta como default; `routes/index.ts` importa exatamente esse default.
 - [ ] **[ROUTE-005]** **Zero lógica no arquivo de rota** — só `router.get/post/put/delete('/path', handler)` com handlers nomeados importados do controller. Sem auth inline, sem validação, sem try/catch.
 - [ ] **[ROUTE-006]** Controller importado por funções nomeadas existentes (verifique que o controller existe antes de importar).
@@ -52,19 +53,20 @@ Cada item abaixo é uma REGRA DE GERAÇÃO (o `luminaris-reviewer` cobra exatame
 server/src/routes/users.ts
 server/src/routes/index.ts
 server/src/routes/docs.paths.ts
-server/src/middleware/auth.ts        ← array protectedApiPaths (allowlist de auth)
 ```
 
-## ⭐ Exemplo de referência canônico (espelhe estes arquivos — o 3-toques completo)
+## ⭐ Exemplo de referência canônico (espelhe estes arquivos — o 2-toques completo)
 
-O recurso `users` é o conjunto de referência perfeito do registro 3-toques (verificado: a rota está wired nos quatro arquivos):
+O recurso `users` é o conjunto de referência do registro 2-toques (verificado: a rota está wired nos três arquivos):
 
 - `server/src/routes/users.ts` — arquivo de rota perfeito: só `router.<verbo>('/path', handlerNomeado)` com handlers importados do controller, ZERO lógica/auth/try-catch, `export default router`.
 - `server/src/routes/index.ts` — toque 1: `import userRoutes from './users'` + `router.use('/users', userRoutes)`.
-- `server/src/middleware/auth.ts` — toque 2: `'/api/users'` no array `protectedApiPaths` (sem isso → 401 com token válido).
-- `server/src/routes/docs.paths.ts` — toque 3: bloco `@openapi paths:` para os endpoints `/users` na seção `paths:` ANTES de `* components:`.
+- `server/src/routes/docs.paths.ts` — toque 2: bloco `@openapi paths:` para os endpoints `/users` na seção `paths:` ANTES de `* components:`.
 
-Leia os quatro ANTES de gerar e replique exatamente os 3 toques (o arquivo de rota + os 3 registros).
+Leia os três ANTES de gerar e replique exatamente os 2 toques (o arquivo de rota + os 2 registros).
+
+> `users` é atípico num ponto: `POST /api/users` é **público** (registro de usuário), então tem regra em
+> `publicApiRoutes`. Isso é exceção do recurso, não parte do padrão — não copie esse detalhe.
 
 ## Generation contract
 
@@ -75,25 +77,29 @@ Leia os quatro ANTES de gerar e replique exatamente os 3 toques (o arquivo de ro
 5. Registra: `router.get('/', listX)`, `router.get('/:id', getXById)`, `router.post('/', createX)`, `router.put('/:id', updateX)`, `router.delete('/:id', deleteX)`
 6. `export default router`
 7. Em `routes/index.ts`: `import <resource>Router from './<resource>'` + `router.use('/<resource>', <resource>Router)`
-8. **Em `middleware/auth.ts`: adicionar `'/api/<resource>'` ao array `protectedApiPaths`** — **PASSO OBRIGATÓRIO.** O middleware de auth só popula o user context (`getUserContextFromRequest`) para prefixos nessa allowlist. Sem isso, a rota retorna **401 mesmo com token válido** (o controller recebe `user = null`). Erro silencioso que o `tsc` NÃO pega — só aparece em runtime.
-9. **Em `docs.paths.ts`: adicionar bloco de PATH `@openapi paths: /<resource>:` com GET/POST/PUT/DELETE para CADA endpoint** — **PASSO OBRIGATÓRIO.** O bloco vai DENTRO do grande comentário `@openapi` de `docs.paths.ts`, na seção `paths:`, **ANTES da linha `* components:`**. NÃO basta o `@openapi` de component schema declarado no DTO — component schema só define os *tipos* (request/response body); o bloco de path é o que registra o *endpoint* (método + URL) na documentação. Faltar o bloco de path é um **bug silencioso**: o `tsc` passa verde (é só um comentário JSDoc `@openapi`, não código tipado) mas a doc OpenAPI fica incompleta — o endpoint simplesmente não aparece. (Verificado no build do módulo CRM: os 4 endpoints tinham component schemas nos DTOs mas os blocos de path foram esquecidos.)
+8. **Em `docs.paths.ts`: adicionar bloco de PATH `@openapi paths: /<resource>:` com GET/POST/PUT/DELETE para CADA endpoint** — **PASSO OBRIGATÓRIO.** O bloco vai DENTRO do grande comentário `@openapi` de `docs.paths.ts`, na seção `paths:`, **ANTES da linha `* components:`**. NÃO basta o `@openapi` de component schema declarado no DTO — component schema só define os *tipos* (request/response body); o bloco de path é o que registra o *endpoint* (método + URL) na documentação. Faltar o bloco de path é um **bug silencioso**: o `tsc` passa verde (é só um comentário JSDoc `@openapi`, não código tipado) mas a doc OpenAPI fica incompleta — o endpoint simplesmente não aparece. (Verificado no build do módulo CRM: os 4 endpoints tinham component schemas nos DTOs mas os blocos de path foram esquecidos.)
 
-## Registro = 3 toques (não 2)
+## Registro = 2 toques
 
 ```
 1. routes/<resource>.ts           ← cria o router
 2. routes/index.ts                ← router.use('/<resource>', ...)
-3. middleware/auth.ts             ← '/api/<resource>' em protectedApiPaths  ← FÁCIL DE ESQUECER
+3. routes/docs.paths.ts           ← bloco @openapi de PATH  ← FÁCIL DE ESQUECER (tsc-cego)
 ```
 
-A exceção é rota 100% pública (sem auth) — aí NÃO adicione ao allowlist.
+**[ROUTE-002] Auth não é toque de registro — a rota nasce protegida.** `middleware/auth.ts` é
+deny-by-default: tudo sob `/api` exige JWT a partir do momento em que a rota é montada, e o user
+context vem populado sozinho. **Não** existe allowlist de rotas protegidas para atualizar; não edite
+`middleware/auth.ts` ao gerar uma rota. Rota **pública** é a exceção, é decisão de segurança (não
+scaffolding) e exige regra explícita em `publicApiRoutes` — contrato completo em
+[GENERATION_CONTRACTS.md](../../../docs/claude-skills/GENERATION_CONTRACTS.md) § Backend Route
+Contract, que é a fonte única desta regra.
 
 ## Files usually created or changed
 
 ```
 server/src/routes/<resource>.ts          ← NEW
 server/src/routes/index.ts               ← EDIT (add import + router.use)
-server/src/middleware/auth.ts            ← EDIT (add '/api/<resource>' to protectedApiPaths)
 server/src/routes/docs.paths.ts          ← EDIT (add OpenAPI PATH block p/ cada endpoint, na seção paths: antes de * components:)
 ```
 
@@ -112,10 +118,10 @@ grep -c "/api/<recurso>" server/src/routes/docs.paths.ts
 
 ## Anti-patterns
 
-- **Não esqueça de adicionar `/api/<resource>` ao `protectedApiPaths` em `middleware/auth.ts`** — o middleware NÃO autentica automaticamente rotas novas; sem o registro, `getUserContextFromRequest(req)` retorna `null` e a rota dá 401 com qualquer token. (Verificado em runtime no build do módulo CRM — `tsc` passou verde mas a rota dava 401.)
-- Não adicione lógica de autenticação dentro da rota — quem autentica é o middleware; seu papel é só registrar o prefixo na allowlist
+- **Não edite `middleware/auth.ts` para "proteger" a rota** — ela já nasce protegida (deny-by-default). Um array `protectedApiPaths` não existe mais; instruções antigas que mandam adicionar o prefixo lá estão obsoletas. Tocar nesse arquivo só se a rota for **pública**, e aí a regra vai em `publicApiRoutes`.
+- Não adicione lógica de autenticação dentro da rota — quem autentica é o middleware
 - Não use `express.Router` com `{ mergeParams: true }` a menos que necessário
-- Não crie rotas sem registrar em `routes/index.ts` E `middleware/auth.ts`
+- Não crie rotas sem registrar em `routes/index.ts` E `routes/docs.paths.ts`
 - Não invente nomes de controller — verifique se o controller existe antes de importar
 - **Não confie só no component schema do DTO para documentar o endpoint** — component schema (no DTO) define os *tipos*; o bloco de PATH em `docs.paths.ts` registra o *endpoint*. Sem o bloco de path, o endpoint NÃO aparece na doc OpenAPI. Bug silencioso: `tsc` verde, doc incompleta. Valide com `grep -c "/api/<recurso>" server/src/routes/docs.paths.ts` (deve ser > 0). (Verificado no build do CRM: os 4 endpoints tinham schema mas faltava o path.)
 

@@ -21,7 +21,7 @@ Gera o **serviço de orquestração de transições** de um fluxo de trabalho: m
 
 ## Contrato obrigatório
 
-Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (§2 backend: camadas, erros tipados, registro de rota = 3 toques, no-`any`; variante orquestração; §5 testes) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Workflow Transition Service**.
+Antes de gerar, leia `.claude/skills/_ARCHITECTURE-CONTRACT.md` — as regras cross-cutting (§2 backend: camadas, erros tipados, registro de rota = 2 toques, no-`any`; variante orquestração; §5 testes) são **gate** e não se repetem aqui. Esta skill adiciona apenas o checklist específico de **Workflow Transition Service**.
 
 ## When to use
 
@@ -62,7 +62,7 @@ server/src/features/dynamicTables/repositories/IDynamicTableRepository.ts ← fi
    - `logger.info('...', { context })` ao final.
 3. **DTO** `dtos/<Domain>Transition.dto.ts`: `@openapi`, `<Transition>Schema` (Zod), `z.infer` type, type guard. Datas com `z.coerce.date()`. Zero `z.any()`.
 4. **Controller** `controllers/<domain>Controller.ts`: `Schema.safeParse(req.body)` antes de tudo → `getUserContextFromRequest` → `getFactory().get<Domain>Service().transition(...)` → `{ success: true, data }` → `handleApiError(error, res)`. Zero `prisma.*`, zero regra.
-5. **Rota** `routes/<domain>.ts`: verbos + handlers; **registro = 3 toques** (`routes/index.ts` + `'/api/<domain>'` no `protectedApiPaths` de `middleware/auth.ts` + bloco `@openapi` em `routes/docs.paths.ts`).
+5. **Rota** `routes/<domain>.ts`: verbos + handlers; **registro = 2 toques** (`routes/index.ts` + bloco `@openapi` em `routes/docs.paths.ts`) — auth é deny-by-default, não se edita `middleware/auth.ts`.
 6. **Factory** `lib/factory.ts`: instanciar o serviço **após** `DynamicTableService` + repository; getter `get<Domain>Service()`.
 7. **Teste** `__tests__/<Domain>WorkflowService.test.ts`: `buildService(overrides?)`, mock de `runInTransaction` (invoca o callback com tx fake) e `findTableByInternalName`; assert atomicidade (`runInTransaction` chamado 1x), efeito colateral disparado só na etapa certa, e **cross-tenant `NotFoundError`** quando a tabela não está instalada.
 
@@ -74,7 +74,7 @@ server/src/features/dynamicTables/repositories/IDynamicTableRepository.ts ← fi
 - [ ] Efeitos colaterais condicionais ao tipo de etapa; guards quando aplicável
 - [ ] Sem policy redundante (delegada ao `DynamicTableService`); sem `prisma.*` direto; sem Express/`res.json` no service
 - [ ] Controller: `safeParse` + `getUserContextFromRequest` + `getFactory()` + `handleApiError`
-- [ ] Rota: 3 toques (index + `protectedApiPaths` + OpenAPI)
+- [ ] Rota: 2 toques (index + OpenAPI); `middleware/auth.ts` intocado
 - [ ] Factory: serviço registrado após deps; getter exposto
 - [ ] Teste: `buildService`, atomicidade (`runInTransaction` 1x), cross-tenant `NotFoundError`
 
@@ -87,7 +87,6 @@ server/src/features/<domain>/services/__tests__/<Domain>WorkflowService.test.ts 
 server/src/controllers/<domain>Controller.ts                                ← NEW/EDIT
 server/src/routes/<domain>.ts                                               ← NEW/EDIT
 server/src/routes/index.ts                                                  ← EDIT (mount)
-server/src/middleware/auth.ts                                              ← EDIT (protectedApiPaths)
 server/src/routes/docs.paths.ts                                            ← EDIT (OpenAPI)
 server/src/lib/factory.ts                                                  ← EDIT (registro + getter)
 ```
@@ -105,6 +104,6 @@ cd server && npx jest features/<domain> --passWithNoTests
 - **Não adicione policy própria** — a policy é aplicada pelo `DynamicTableService` (variante orquestração).
 - **Não resolva tabelas por índice `[0]`** — use `findTableByInternalName`.
 - **Não coloque HTTP/Express no service** — controller formata a resposta.
-- **Não esqueça o `protectedApiPaths`** — sem isso a rota dá 401 com token válido (tsc não pega).
+- **Não edite `middleware/auth.ts`** — a rota nasce protegida (deny-by-default); o `protectedApiPaths` não existe mais. O toque tsc-cego que sobrou é o `@openapi` em `docs.paths.ts`.
 - **Não duplique o engine** — leituras/escritas vão por `DynamicTableService`, não `prisma.*` direto.
 - **Não injete serviço Prisma first-class na transição** (`PostingService`, `PayrollService`…) — uma transição que precisa "também lançar na contabilidade" NÃO resolve isso dentro do `runInTransaction` do motor DynamicTable. A integração cross-módulo sobe a controller/serviço de integração; o módulo Prisma expõe a própria API. Ver `_ARCHITECTURE-CONTRACT.md §2.1`.

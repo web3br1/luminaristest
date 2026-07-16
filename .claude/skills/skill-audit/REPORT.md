@@ -148,7 +148,7 @@ Findings:
 | backend-policy-generator | Policy | `UserPolicy` vivo; 0 clones em policies |
 | backend-service-generator | Service | `UserService`/`CrmPipelineService` vivos; clones só frontend (já triados) |
 | backend-controller-generator | Controller | `chatInstancesController` vivo; jaccard alto = thin-controller sancionado |
-| backend-route-generator | Route | 4-toques (route+index+protectedApiPaths+OpenAPI) batem com `users` |
+| backend-route-generator | Route | 2-toques (index+OpenAPI) batem com `users`; auth deny-by-default não entra no registro |
 | backend-prisma-model-generator | Prisma | `DynamicTable`/`DynamicTableData` vivos; 0 clones em schema |
 | backend-workflow-transition-generator | Workflow Svc | `CrmPipelineService.advanceStage` vivo; factory 180/229/259 |
 | backend-test-suite-generator | Test | 7 golden suites vivas no source |

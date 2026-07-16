@@ -21,7 +21,7 @@ Atalho para o padrão mais comum do Luminaris: CRUD completo com soft-delete, pa
 
 ## Contrato obrigatório
 
-Esta skill gera múltiplas camadas — TODO arquivo gerado deve cumprir `.claude/skills/_ARCHITECTURE-CONTRACT.md` (camadas, DI, soft-delete, policy-first, registro de rota = 3 toques, no-`any`, frontend service layer, reuse de canônicos, design system, testes). O contrato é o gate final; as sub-skills herdam-no.
+Esta skill gera múltiplas camadas — TODO arquivo gerado deve cumprir `.claude/skills/_ARCHITECTURE-CONTRACT.md` (camadas, DI, soft-delete, policy-first, registro de rota = 2 toques, no-`any`, frontend service layer, reuse de canônicos, design system, testes). O contrato é o gate final; as sub-skills herdam-no.
 
 ## ⭐ Exemplo de referência canônico (espelhe este slice)
 
@@ -57,7 +57,7 @@ Por que é o par perfeito: camadas estritas + DI + policy-first + erros tipados,
 3. **[CRUD-001]** Repository: soft-delete em todos os finds (`where: { deletedAt: null }`) e no delete (`update({ data: { deletedAt: new Date() } })`) — nunca `prisma.<model>.delete()`
 4. Policy: ADMIN pode tudo, USER só o que é seu (ownership por `userId`)
 5. Service: métodos simples delegando para repository sem lógica complexa
-6. Controller + Route: GET list (paginado), GET by ID, POST create, PUT update, DELETE (soft) — **[CRUD-006]** registro em 3 toques: mount em `routes/index.ts` + `'/api/<resource>'` no `protectedApiPaths` de `middleware/auth.ts` (senão dá 401 com token válido) + bloco `@openapi` em `routes/docs.paths.ts`
+6. Controller + Route: GET list (paginado), GET by ID, POST create, PUT update, DELETE (soft) — **[CRUD-006]** registro em 2 toques: mount em `routes/index.ts` + bloco `@openapi` em `routes/docs.paths.ts`. **Não** edite `middleware/auth.ts`: a rota nasce protegida (deny-by-default)
 7. **[CRUD-003]** Frontend: wrapper tipado em `lib/services/` e, na tela, reuso dos canônicos (`GenericTable`/`StandardPagination`, `Modal`, `AnalyticsDashboard`/`ChartRenderer`/`DashboardKpiCard`) — não recriar tabela/modal/analytics bespoke
 
 ## Soft-delete pattern obrigatório — [CRUD-001]
@@ -91,7 +91,7 @@ Um item-chave por camada que NÃO pode faltar na geração ponta-a-ponta. Detalh
 - **Policy** — métodos `can*` retornam `boolean` (zero `throw`, zero acesso a dados); ownership por `actor.id === ownerId || ADMIN`.
 - **Service** — policy-first (`if (!this.policy.canX(actor)) throw new ForbiddenError()` antes de tocar dados); DI por construtor (sem `new Repository()`); `NotFoundError` (incl. cross-tenant); zero `prisma.*`/Express.
 - **Controller** — `Schema.safeParse(req.body)` + `getUserContextFromRequest(req)` + `getFactory().get<X>Service()` + `handleApiError(error, res)`.
-- **Route** — registro = **3 toques**: mount em `routes/index.ts` + `'/api/<resource>'` no `protectedApiPaths` de `middleware/auth.ts` + bloco `@openapi` em `routes/docs.paths.ts`.
+- **Route** — registro = **2 toques**: mount em `routes/index.ts` + bloco `@openapi` em `routes/docs.paths.ts`. Auth é deny-by-default e não entra no registro (fonte única: `docs/claude-skills/GENERATION_CONTRACTS.md` § Backend Route Contract).
 - **Frontend service** — `apiClient`, tipos de retorno explícitos e **locais** (não importar do backend); zero `any`.
 - **Page** — auth guard (`withAuth`/`useAuth`) + `serverSideTranslations` (i18n); detalhe de registro = **modal, não rota**.
 - **Reuse de canônicos** — `GenericTable`/`StandardPagination` (tabela+paginação), `Modal` (detalhe), `AnalyticsDashboard`/`ChartRenderer`/`DashboardKpiCard` (analytics). Não recriar.
@@ -112,7 +112,7 @@ cd my-app && npx tsc --noEmit
 ## Anti-patterns
 
 - **[CRUD-001]** Não use `prisma.model.delete()` — sempre soft-delete com `deletedAt`; não esqueça `where: { deletedAt: null }` em TODOS os finds.
-- **[CRUD-006] Bug silencioso do `protectedApiPaths`:** esquecer o 3º toque (`'/api/<resource>'` no array de `middleware/auth.ts`) faz a rota retornar **401 mesmo com token válido** — `getUserContextFromRequest` devolve `null`. O `tsc` NÃO pega; só aparece em runtime.
+- **[CRUD-006] Não reintroduza o toque morto em `middleware/auth.ts`:** a rota nasce protegida (deny-by-default) e o array `protectedApiPaths` não existe mais — instruções antigas mandando registrar o prefixo lá são anteriores ao `RISK-SEC-AUTH-001`. O toque tsc-cego que ainda importa é o `@openapi` em `docs.paths.ts`: pular = endpoint some da doc, com `tsc` verde.
 - **[CRUD-003] "Módulo ilha":** não recrie tabela/modal/analytics próprios (`RecordTable`/`CrmKpiCard`/`CrmBarChart` foram o erro do CRM) — reuse os canônicos (`GenericTable`, `Modal`, `AnalyticsDashboard`/`ChartRenderer`/`DashboardKpiCard`).
 - Registros soft-deleted devem ser limpos pelo job `PurgeDeletedRecords` após 90 dias.
 - **[CRUD-005] Nunca gere um recurso com invariante financeiro/legal como `dynamic-table`** — money em `data: Json` é float em SQLite e `unique()` de preset é scan TOCTOU (não constraint). Isso é Prisma first-class; ver `_ARCHITECTURE-CONTRACT.md §2.1`.

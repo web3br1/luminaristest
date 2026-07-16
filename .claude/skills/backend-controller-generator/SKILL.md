@@ -71,7 +71,7 @@ server/src/lib/factory.ts
 3. Schemas Zod inline: `const Create<Resource>Schema = z.object({ ... })`
 4. Cada função: `export const listX = async (req: Request, res: Response) => { try { ... } catch (error) { return handleApiError(error, res) } }`
 5. Validação: `const parse = Schema.safeParse(req.body); if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() })`
-6. Actor: `const actor = getUserContextFromRequest(req)` — **retorna `UserContext | null`**. Se o service espera um actor não-nulo, faça o guard: `if (!actor) throw new UnauthorizedError()` (importe `UnauthorizedError` de `../lib/errors`). Nota: o user context só é populado se o prefixo da rota estiver no `protectedApiPaths` de `middleware/auth.ts` — se a rota dá 401 com token válido, o registro do allowlist está faltando (ver `backend-route-generator`).
+6. Actor: `const actor = getUserContextFromRequest(req)` — **retorna `UserContext | null`**. Se o service espera um actor não-nulo, faça o guard: `if (!actor) throw new UnauthorizedError()` (importe `UnauthorizedError` de `../lib/errors`). Nota: o user context vem populado automaticamente — `middleware/auth.ts` é deny-by-default e injeta os headers de identidade a partir do token verificado em toda rota sob `/api`. Só volta `null` em rota **pública** (declarada em `publicApiRoutes`); nesse caso o guard acima é obrigatório.
 7. Service: `const service = getFactory().get<Resource>Service()`
 8. Resposta de sucesso: `return res.json({ success: true, data: result })`
 9. Criação: `return res.status(201).json({ success: true, data: created })`

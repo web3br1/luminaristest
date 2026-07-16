@@ -19,8 +19,6 @@ rules:
   ROUTE-002:
     gates:
       - type: eval
-        target: ./evals/evals.json#happy-1
-      - type: eval
         target: ./evals/evals.json#regression-1
   ROUTE-003:
     gates:
@@ -54,8 +52,8 @@ rules:
 Regras normativas da camada Route, cada uma coberta por um caso de eval comportamental:
 
 - `ROUTE-001` — toque 1: `import`/`router.use('/<resource>', ...)` em `routes/index.ts`.
-- `ROUTE-002` — toque 2: `'/api/<resource>'` no array `protectedApiPaths` de `middleware/auth.ts`. Regressão conhecida: rota wired em index.ts mas esquecida no allowlist → 401 com token válido → caso `regression-1`.
-- `ROUTE-003` — toque 3: bloco `@openapi paths:` por endpoint em `docs.paths.ts`, antes de `* components:` (component schema do DTO não substitui o bloco de path) — caso `edge-1`.
+- `ROUTE-002` — auth **não** é toque de registro: a rota nasce protegida (deny-by-default em `middleware/auth.ts`), logo o gerador não edita esse arquivo. Rota pública é exceção e vai em `publicApiRoutes`. Regressão guardada: reintroduzir o toque morto no extinto array `protectedApiPaths` → caso `regression-1`. Fonte única da regra: `GENERATION_CONTRACTS.md` § Backend Route Contract.
+- `ROUTE-003` — toque 2: bloco `@openapi paths:` por endpoint em `docs.paths.ts`, antes de `* components:` (component schema do DTO não substitui o bloco de path) — caso `edge-1`.
 - `ROUTE-004` — `export default router` sobre `Router()` de `express`.
 - `ROUTE-005` — zero lógica no arquivo de rota (sem auth inline, validação ou try/catch).
 - `ROUTE-006` — handlers importados por funções nomeadas existentes do controller.
