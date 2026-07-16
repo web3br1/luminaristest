@@ -67,4 +67,17 @@ export class AccountRepository implements IAccountRepository {
       data: { deletedAt: new Date() },
     });
   }
+
+  public async setRequiresDimension(
+    scope: AccountingScope,
+    id: string,
+    requiresDimension: boolean,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Account> {
+    const { userId, unitId } = accountingScopeWhere(scope);
+    return (tx ?? prisma).account.update({
+      where: { id, userId, unitId },
+      data: { requiresDimension },
+    });
+  }
 }

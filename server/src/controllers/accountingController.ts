@@ -12,6 +12,7 @@ import {
   ListEntriesQuerySchema,
   CreateAccountSchema,
   DeleteAccountQuerySchema,
+  SetAccountRequiresDimensionSchema,
   SeedYearSchema,
   ClosePeriodSchema,
   ReopenPeriodSchema,
@@ -191,6 +192,30 @@ export const deleteAccount = async (req: Request, res: Response) => {
     const scope = resolveAccountingScope(user, parsed.data.unitId);
     await getFactory().getPostingService().deleteAccount(scope, id);
     return res.json({ success: true });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+// INCR-DIM-COMPLETENESS SEC-B1-4 — toggle an account's mandatory-dimension flag (canManage +
+// audited in the service). Body carries unitId + requiresDimension; account id from the route param.
+export const setAccountRequiresDimension = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const { id } = req.params;
+    if (typeof id !== 'string' || id.length === 0) {
+      throw new ValidationError('id é obrigatório.');
+    }
+    const parsed = SetAccountRequiresDimensionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const account = await getFactory()
+      .getPostingService()
+      .setAccountRequiresDimension(scope, id, parsed.data.requiresDimension);
+    return res.json({ success: true, data: { account } });
   } catch (error) {
     return handleApiError(error, res);
   }

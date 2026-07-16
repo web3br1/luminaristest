@@ -363,6 +363,7 @@ export class ApplicationFactory {
       this.repositories.accountingPeriod,
       auditService,
       this.policies.accounting,
+      this.repositories.dimension,
     );
 
     const periodService = new PeriodService(
