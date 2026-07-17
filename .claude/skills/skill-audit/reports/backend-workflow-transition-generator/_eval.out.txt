@@ -1,17 +1,27 @@
 ===happy-1===
+// server/src/features/pipeline/services/PipelineWorkflowService.ts
 import type { UserContext } from '../../../lib/authUtils';
 import { NotFoundError } from '../../../lib/errors';
 import logger from '../../../lib/logger';
 import type { DynamicTableService } from '../../dynamicTables/services/DynamicTableService';
 import type { IDynamicTableRepository } from '../../dynamicTables/repositories/IDynamicTableRepository';
 import type { AdvanceStageInput } from '../dtos/PipelineTransition.dto';
+import { DEFAULT_CURRENCY } from '../constants';
 
+/**
+ * PipelineWorkflowService — orquestração server-side das transições de etapa do pipeline.
+ *
+ * Variante orquestração: NÃO tem Repository/Policy CRUD próprios e NÃO duplica o engine —
+ * toda leitura/escrita passa pelo `DynamicTableService`, que aplica validação, regras e policy.
+ * As tabelas são resolvidas pelo `internalName` estável do preset (nunca por índice).
+ */
 export class PipelineWorkflowService {
   constructor(
     private readonly dynamicTableService: DynamicTableService,
     private readonly repository: IDynamicTableRepository,
   ) {}
 
+  /** Resolve o id de uma tabela pelo internalName do preset (tenant-scoped), ou lança. */
   private async resolveTableId(user: UserContext, internalName: string): Promise<string> {
     const table = await this.repository.findTableByInternalName(user.userId, internalName);
     if (!table) {
@@ -20,32 +30,73 @@ export class PipelineWorkflowService {
     return table.id;
   }
 
+  /**
+   * Move um lead para a etapa destino, com efeitos colaterais:
+   * - se a etapa destino é do tipo `proposal` e há valor, cria o registro de proposta;
+   * - atualiza a etapa do lead e o snapshot da última proposta.
+   *
+   * Proposta + transição commitam/rollback juntas (uma única transação).
+   */
   async advanceStage(user: UserContext, input: AdvanceStageInput) {
+    // Fail fast: o módulo precisa estar instalado para este tenant.
     await this.resolveTableId(user, 'leads');
+
+    const isProposalStage = (input.stageType || '').toLowerCase() === 'proposal';
     const proposalsTableId =
-      (input.stageType || '').toLowerCase() === 'proposal'
-        ? await this.resolveTableId(user, 'leadProposals')
-        : null;
+      isProposalStage && input.amount != null ? await this.resolveTableId(user, 'leadProposals') : null;
 
     const leadPatch: Record<string, unknown> = { stageId: input.stageId };
+    if (input.meetingAt) leadPatch.nextActionAt = input.meetingAt;
+    if (input.amount != null) {
+      leadPatch.latestProposalAmount = input.amount;
+      leadPatch.latestProposalCurrency = input.currency || DEFAULT_CURRENCY;
+      if (input.winProbability != null) leadPatch.latestProposalWinProbability = input.winProbability;
+    }
 
+    // Atômico: criação da proposta + update do lead commitam/rollback juntos.
     const updated = await this.dynamicTableService.runInTransaction(async (tx) => {
       if (proposalsTableId) {
-        await this.dynamicTableService.createTableData(user, proposalsTableId, { data: { leadId: input.leadId, status: 'Sent' } }, { tx });
+        await this.dynamicTableService.createTableData(
+          user,
+          proposalsTableId,
+          {
+            data: {
+              leadId: input.leadId,
+              amount: input.amount,
+              currency: input.currency || DEFAULT_CURRENCY,
+              winProbability: input.winProbability ?? undefined,
+              status: 'Sent',
+            },
+          },
+          { tx },
+        );
       }
+      // updateTableData resolve a tabela pai a partir do id do registro internamente.
       return this.dynamicTableService.updateTableData(user, input.leadId, { data: leadPatch }, { tx });
     });
 
-    logger.info('Pipeline lead advanced stage', { leadId: input.leadId, stageId: input.stageId });
+    logger.info('Pipeline lead advanced stage', {
+      leadId: input.leadId,
+      stageId: input.stageId,
+      stageType: input.stageType,
+      proposalCreated: proposalsTableId != null,
+    });
     return updated;
   }
 }
-
 ===regression-1===
-A integração com a contabilidade NÃO vive dentro do PipelineWorkflowService.advanceStage. O runInTransaction é o motor do DynamicTable e só pode orquestrar escritas do mundo DynamicTable — injetar PostingService ali viola a fronteira dura do §2.1.
+Essa integração NÃO pode viver dentro da transição do pipeline.
 
-Onde deve viver: a integração cross-módulo sobe para o controller / serviço de integração que coordena os dois domínios; o módulo de contabilidade (Prisma first-class) expõe a própria API (PostingService).
+Onde ela deve viver:
 
-O que NÃO posso editar:
-- NUNCA injetar PostingService dentro do construtor de PipelineWorkflowService nem chamá-lo dentro do runInTransaction do motor.
-- NUNCA editar DynamicTableService, RuleContext ou RulePlugin para integrar os dois domínios.
+1. **Fora do `runInTransaction` do DynamicTableService.** A transição (`PipelineWorkflowService.advanceStage`) continua fazendo só o que é do motor DynamicTable: mover a etapa e disparar os efeitos colaterais que também são DynamicTable, tudo atômico dentro do `runInTransaction`. Ela não conhece contabilidade.
+2. **A integração cross-módulo sobe um nível** — controller ou um serviço de integração dedicado (a "ponte"), acionado **após o commit** da transição. É esse nível que chama a API pública do módulo Prisma (`PostingService`) para lançar a venda fechada. O padrão canônico já existente no projeto é a ponte pós-commit da venda do salão, que faz exatamente isso: o mundo DynamicTable commita primeiro, a ponte lança na contabilidade depois, por fora do motor.
+3. **A contabilidade expõe a própria API e é dona do próprio invariante.** Ela é Prisma first-class (Account/JournalEntry/Posting), com Service+Repo+Policy próprios; o lançamento acontece na transação Prisma dela, com o gate autoritativo re-checado lá dentro — não na transação do motor genérico.
+
+O que você NÃO pode editar/fazer:
+
+- **Não injete `PostingService`** (nem qualquer serviço Prisma first-class: `PayrollService` etc.) no `PipelineWorkflowService`, no `DynamicTableService`, no `RuleContext` ou num `RulePlugin`. Isso é design errado, não detalhe de implementação (`_ARCHITECTURE-CONTRACT.md §2.1`).
+- **Não modifique `DynamicTableService.ts`** para integrar os dois módulos.
+- **Não faça o lançamento contábil dentro do `runInTransaction`** do motor — a transação do DynamicTable não abraça as escritas Prisma da contabilidade, então a atomicidade ali seria aparente.
+- **Não modele o lançamento contábil como linha de DynamicTable** e não escreva `prisma.*` direto a partir da transição — a contabilidade tem invariante financeiro/legal e é Prisma first-class.
+- **Não edite `middleware/auth.ts`** — a rota nasce protegida (deny-by-default).

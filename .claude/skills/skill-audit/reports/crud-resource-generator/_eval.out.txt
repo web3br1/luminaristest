@@ -1,108 +1,760 @@
 ===happy-1===
 // server/src/features/comments/dtos/CommentDto.ts
-import { z } from 'zod'
+import { z } from 'zod';
+
 /**
+ * Schema for comment response
  * @openapi
  * components:
  *   schemas:
- *     Comment: { type: object }
+ *     Comment:
+ *       type: object
+ *       required: [id, body, authorId, createdAt, updatedAt]
+ *       properties:
+ *         id: { type: string, format: cuid }
+ *         body: { type: string, minLength: 1, maxLength: 5000 }
+ *         authorId: { type: string, format: cuid }
+ *         createdAt: { type: string, format: date-time }
+ *         updatedAt: { type: string, format: date-time }
  */
-export const CreateCommentSchema = z.object({ body: z.string().min(1), authorId: z.string().min(1) })
-export const UpdateCommentSchema = CreateCommentSchema.partial()
-export type CreateCommentInput = z.infer<typeof CreateCommentSchema>
-export function isCreateCommentInput(value: unknown): value is CreateCommentInput { return CreateCommentSchema.safeParse(value).success }
+export const CommentSchema = z.object({
+  id: z.string().cuid({ message: 'comment.validation.idInvalidCuid' }),
+  body: z.string().min(1, 'Body is required').max(5000, 'Body cannot exceed 5000 characters'),
+  authorId: z.string().cuid({ message: 'comment.validation.authorIdInvalidCuid' }),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+/**
+ * Schema for creating a comment
+ * @openapi
+ * components:
+ *   schemas:
+ *     CreateComment:
+ *       type: object
+ *       required: [body, authorId]
+ *       properties:
+ *         body: { type: string, minLength: 1, maxLength: 5000 }
+ *         authorId: { type: string, format: cuid }
+ */
+export const CreateCommentSchema = z.object({
+  body: z.string().min(1, 'Body is required').max(5000, 'Body cannot exceed 5000 characters'),
+  authorId: z.string().cuid({ message: 'comment.validation.authorIdInvalidCuid' }),
+});
+
+/**
+ * Schema for updating a comment
+ * @openapi
+ * components:
+ *   schemas:
+ *     UpdateComment:
+ *       type: object
+ *       properties:
+ *         body: { type: string, minLength: 1, maxLength: 5000 }
+ *         authorId: { type: string, format: cuid }
+ */
+export const UpdateCommentSchema = CreateCommentSchema.partial();
+
+export type CommentDto = z.infer<typeof CommentSchema>;
+export type CreateCommentInput = z.infer<typeof CreateCommentSchema>;
+export type UpdateCommentInput = z.infer<typeof UpdateCommentSchema>;
+
+/**
+ * Type guard for CommentDto
+ */
+export function isCommentDto(obj: unknown): obj is CommentDto {
+  return CommentSchema.safeParse(obj).success;
+}
+
+/**
+ * Type guard for CreateCommentInput
+ */
+export function isCreateCommentInput(obj: unknown): obj is CreateCommentInput {
+  return CreateCommentSchema.safeParse(obj).success;
+}
+
+/**
+ * Type guard for UpdateCommentInput
+ */
+export function isUpdateCommentInput(obj: unknown): obj is UpdateCommentInput {
+  return UpdateCommentSchema.safeParse(obj).success;
+}
+
+// server/src/features/comments/repositories/ICommentRepository.ts
+import type { Prisma } from 'generated/prisma';
+import type { CommentRecord } from './CommentRepository';
+
+export interface ICommentRepository {
+  create(data: Prisma.CommentCreateInput): Promise<CommentRecord>;
+  findAll(page?: number, limit?: number): Promise<{ comments: CommentRecord[]; totalCount: number }>;
+  findById(id: string): Promise<CommentRecord | null>;
+  update(id: string, data: Prisma.CommentUpdateInput): Promise<CommentRecord>;
+  softDelete(id: string): Promise<void>;
+}
 
 // server/src/features/comments/repositories/CommentRepository.ts
-import prisma from '../../../lib/prisma'
-export class CommentRepository {
-  async findAll(page = 1, limit = 10) {
-    const [items, total] = await prisma.$transaction([
-      prisma.comment.findMany({ where: { deletedAt: null }, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
-      prisma.comment.count({ where: { deletedAt: null } }),
-    ])
-    return { items, total }
+import prisma from '../../../lib/prisma';
+import type { Prisma, Comment } from 'generated/prisma';
+import type { ICommentRepository } from './ICommentRepository';
+
+export type CommentRecord = Comment;
+
+/**
+ * Repository implementation for Comment data access operations.
+ * Every find filters out soft-deleted rows; delete is a soft-delete.
+ */
+export class CommentRepository implements ICommentRepository {
+  /**
+   * Creates a new comment.
+   */
+  public async create(data: Prisma.CommentCreateInput): Promise<CommentRecord> {
+    return prisma.comment.create({ data });
   }
-  async findById(id: string) { return prisma.comment.findFirst({ where: { id, deletedAt: null } }) }
-  async create(data: any) { return prisma.comment.create({ data }) }
-  async update(id: string, data: any) { return prisma.comment.update({ where: { id }, data }) }
-  async softDelete(id: string) { await prisma.comment.update({ where: { id }, data: { deletedAt: new Date() } }) }
+
+  /**
+   * Retrieves a paginated list of comments.
+   */
+  public async findAll(page: number = 1, limit: number = 10): Promise<{ comments: CommentRecord[]; totalCount: number }> {
+    const skip = (page - 1) * limit;
+
+    const [comments, totalCount] = await prisma.$transaction([
+      prisma.comment.findMany({
+        where: { deletedAt: null },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.comment.count({ where: { deletedAt: null } }),
+    ]);
+
+    return { comments, totalCount };
+  }
+
+  /**
+   * Retrieves a comment by ID.
+   */
+  public async findById(id: string): Promise<CommentRecord | null> {
+    return prisma.comment.findFirst({
+      where: { id, deletedAt: null },
+    });
+  }
+
+  /**
+   * Updates a comment.
+   */
+  public async update(id: string, data: Prisma.CommentUpdateInput): Promise<CommentRecord> {
+    return prisma.comment.update({
+      where: { id },
+      data,
+    });
+  }
+
+  /**
+   * Soft-deletes a comment.
+   */
+  public async softDelete(id: string): Promise<void> {
+    await prisma.comment.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  }
+}
+
+// server/src/features/comments/policies/ICommentPolicy.ts
+import type { IUser } from '../../users/models/User.model';
+
+export interface ICommentPolicy {
+  canListAll(actor: IUser | null): boolean;
+  canView(actor: IUser | null, ownerId: string): boolean;
+  canCreate(actor: IUser | null): boolean;
+  canUpdate(actor: IUser | null, ownerId: string): boolean;
+  canDelete(actor: IUser | null, ownerId: string): boolean;
 }
 
 // server/src/features/comments/policies/CommentPolicy.ts
-export class CommentPolicy {
-  canView(actor: any, comment: any) { return actor.role === 'ADMIN' || comment.authorId === actor.id }
-  canCreate(actor: any) { return Boolean(actor?.id) }
-  canDelete(actor: any, comment: any) { return actor.role === 'ADMIN' || comment.authorId === actor.id }
+import type { IUser } from '../../users/models/User.model';
+import { Role } from '../../users/models/User.model';
+import type { ICommentPolicy } from './ICommentPolicy';
+
+/**
+ * Authorization rules for Comment actions.
+ * ADMIN can do everything; USER only what is theirs (ownership by authorId).
+ */
+export class CommentPolicy implements ICommentPolicy {
+  canListAll(actor: IUser | null): boolean {
+    return !!actor;
+  }
+
+  canView(actor: IUser | null, ownerId: string): boolean {
+    if (!actor) return false;
+    if (actor.role === Role.ADMIN) return true;
+    return actor.id === ownerId;
+  }
+
+  canCreate(actor: IUser | null): boolean {
+    return !!actor;
+  }
+
+  canUpdate(actor: IUser | null, ownerId: string): boolean {
+    if (!actor) return false;
+    if (actor.role === Role.ADMIN) return true;
+    return actor.id === ownerId;
+  }
+
+  canDelete(actor: IUser | null, ownerId: string): boolean {
+    if (!actor) return false;
+    if (actor.role === Role.ADMIN) return true;
+    return actor.id === ownerId;
+  }
 }
 
 // server/src/features/comments/services/CommentService.ts
-import { CommentRepository } from '../repositories/CommentRepository'
-import { CommentPolicy } from '../policies/CommentPolicy'
-import { ForbiddenError, NotFoundError } from '../../../errors'
+import type { ICommentRepository } from '../repositories/ICommentRepository';
+import type { CommentRecord } from '../repositories/CommentRepository';
+import type { ICommentPolicy } from '../policies/ICommentPolicy';
+import type { IUser } from '../../users/models/User.model';
+import { Role } from '../../users/models/User.model';
+import { CreateCommentInput, UpdateCommentInput, isCreateCommentInput, isUpdateCommentInput } from '../dtos/CommentDto';
+import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../../../lib/errors';
+
 export class CommentService {
-  constructor(private readonly repository: CommentRepository, private readonly policy: CommentPolicy) {}
-  async remove(actor: any, id: string) {
-    const comment = await this.repository.findById(id)
-    if (!comment) throw new NotFoundError('Comment not found')
-    if (!this.policy.canDelete(actor, comment)) throw new ForbiddenError()
-    await this.repository.softDelete(id)
+  constructor(
+    private commentRepository: ICommentRepository,
+    private commentPolicy: ICommentPolicy
+  ) { }
+
+  /**
+   * Creates a comment.
+   * @throws {UnauthorizedError} If not authenticated
+   * @throws {ForbiddenError} If actor is not authorized
+   * @throws {ValidationError} If data is invalid
+   */
+  public async createComment(data: CreateCommentInput, actor: IUser | null): Promise<CommentRecord> {
+    if (!actor) {
+      throw new UnauthorizedError('Authentication required to create a comment');
+    }
+    if (!this.commentPolicy.canCreate(actor)) {
+      throw new ForbiddenError('You are not authorized to create comments');
+    }
+    if (!isCreateCommentInput(data)) {
+      throw new ValidationError('Invalid comment creation data');
+    }
+
+    const authorId = actor.role === Role.ADMIN ? data.authorId : actor.id;
+
+    return this.commentRepository.create({
+      body: data.body,
+      author: { connect: { id: authorId } },
+    });
+  }
+
+  /**
+   * Retrieves a paginated list of comments.
+   * @throws {ForbiddenError} If actor is not authorized
+   */
+  public async getAllComments(actor: IUser | null, page?: number, limit?: number): Promise<{ comments: CommentRecord[]; totalCount: number }> {
+    if (!this.commentPolicy.canListAll(actor)) {
+      throw new ForbiddenError('You are not authorized to list comments');
+    }
+    return this.commentRepository.findAll(page, limit);
+  }
+
+  /**
+   * Retrieves a comment by ID.
+   * @throws {NotFoundError} If not found or not visible to the actor
+   */
+  public async getCommentById(id: string, actor: IUser | null): Promise<CommentRecord> {
+    const comment = await this.commentRepository.findById(id);
+    if (!comment) {
+      throw new NotFoundError('Comment not found');
+    }
+    if (!this.commentPolicy.canView(actor, comment.authorId)) {
+      throw new NotFoundError('Comment not found');
+    }
+    return comment;
+  }
+
+  /**
+   * Updates a comment.
+   * @throws {ForbiddenError} If actor is not authorized
+   * @throws {NotFoundError} If not found
+   */
+  public async updateComment(id: string, data: UpdateCommentInput, actor: IUser | null): Promise<CommentRecord> {
+    if (!actor) {
+      throw new UnauthorizedError('Authentication required to update a comment');
+    }
+    if (!isUpdateCommentInput(data)) {
+      throw new ValidationError('Invalid comment update data');
+    }
+
+    const existing = await this.commentRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundError('Comment not found');
+    }
+    if (!this.commentPolicy.canUpdate(actor, existing.authorId)) {
+      throw new ForbiddenError('You are not authorized to update this comment');
+    }
+    if (data.body === undefined) {
+      throw new ValidationError('No valid update fields provided');
+    }
+
+    return this.commentRepository.update(id, { body: data.body });
+  }
+
+  /**
+   * Soft-deletes a comment.
+   * @throws {ForbiddenError} If actor is not authorized
+   * @throws {NotFoundError} If not found
+   */
+  public async deleteComment(id: string, actor: IUser | null): Promise<void> {
+    if (!actor) {
+      throw new UnauthorizedError('Authentication required to delete a comment');
+    }
+
+    const existing = await this.commentRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundError('Comment not found');
+    }
+    if (!this.commentPolicy.canDelete(actor, existing.authorId)) {
+      throw new ForbiddenError('You are not authorized to delete this comment');
+    }
+
+    await this.commentRepository.softDelete(id);
   }
 }
 
 // server/src/controllers/commentController.ts
-import { CreateCommentSchema } from '../features/comments/dtos/CommentDto'
-import { getUserContextFromRequest } from '../utils/userContext'
-import { getFactory } from '../factory'
-import { handleApiError } from '../utils/handleApiError'
-export async function createComment(req: any, res: any) {
+import { Request, Response } from 'express';
+import { handleApiError } from '../lib/apiUtils';
+import { getFactory } from '@/lib/factory';
+import { getUserContextFromRequest } from '@/lib/authUtils';
+import { CreateCommentSchema, UpdateCommentSchema } from '@/features/comments/dtos/CommentDto';
+
+export const getComments = async (req: Request, res: Response) => {
   try {
-    const parsed = CreateCommentSchema.safeParse(req.body)
-    if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return }
-    const actor = getUserContextFromRequest(req)
-    const comment = await getFactory().getCommentService().create(actor, parsed.data)
-    res.status(201).json(comment)
-  } catch (error) { handleApiError(error, res) }
-}
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    const actor = getUserContextFromRequest(req);
+    const service = getFactory().getCommentService();
+    const { comments, totalCount } = await service.getAllComments(actor, page, limit);
+
+    return res.json({
+      success: true,
+      data: comments,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+      },
+    });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+export const getCommentById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const actor = getUserContextFromRequest(req);
+    const service = getFactory().getCommentService();
+    const comment = await service.getCommentById(id, actor);
+
+    return res.json({ success: true, data: comment });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+export const createComment = async (req: Request, res: Response) => {
+  try {
+    const parse = CreateCommentSchema.safeParse(req.body);
+    if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });
+
+    const actor = getUserContextFromRequest(req);
+    const service = getFactory().getCommentService();
+    const created = await service.createComment(parse.data, actor);
+
+    return res.status(201).json({ success: true, data: created });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+export const updateComment = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const parse = UpdateCommentSchema.safeParse(req.body);
+    if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });
+
+    const actor = getUserContextFromRequest(req);
+    const service = getFactory().getCommentService();
+    const updated = await service.updateComment(id, parse.data, actor);
+
+    return res.json({ success: true, data: updated });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+export const deleteComment = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const actor = getUserContextFromRequest(req);
+    const service = getFactory().getCommentService();
+    await service.deleteComment(id, actor);
+
+    return res.json({ success: true, message: 'Comment deleted successfully' });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
 
 // server/src/routes/comments.ts
-import { Router } from 'express'
-import { createComment } from '../controllers/commentController'
-const router = Router()
-router.post('/', createComment)
-export default router
+import { Router } from 'express';
+import { getComments, getCommentById, createComment, updateComment, deleteComment } from '../controllers/commentController';
+
+const router = Router();
+
+router.get('/', getComments);
+router.get('/:id', getCommentById);
+router.post('/', createComment);
+router.put('/:id', updateComment);
+router.delete('/:id', deleteComment);
+
+export default router;
+
+// server/src/routes/index.ts
+import commentRoutes from './comments';
+
+router.use('/comments', commentRoutes);
+
+// server/src/routes/docs.paths.ts
+/**
+ * @openapi
+ * tags:
+ *   - name: Comments
+ *     description: Comment management
+ *
+ * paths:
+ *
+ *   /api/comments:
+ *     get:
+ *       summary: List comments (paginated)
+ *       tags: [Comments]
+ *       parameters:
+ *         - in: query
+ *           name: page
+ *           schema: { type: integer, default: 1 }
+ *         - in: query
+ *           name: limit
+ *           schema: { type: integer, default: 10 }
+ *       responses:
+ *         200:
+ *           description: Paginated list of comments
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean }
+ *                   data:
+ *                     type: array
+ *                     items: { $ref: '#/components/schemas/Comment' }
+ *                   pagination:
+ *                     type: object
+ *                     properties:
+ *                       page: { type: integer }
+ *                       limit: { type: integer }
+ *                       totalCount: { type: integer }
+ *                       totalPages: { type: integer }
+ *         401: { description: Unauthorized }
+ *     post:
+ *       summary: Create a comment
+ *       tags: [Comments]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/CreateComment' }
+ *       responses:
+ *         201:
+ *           description: Created comment
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean }
+ *                   data: { $ref: '#/components/schemas/Comment' }
+ *         400: { description: Validation error }
+ *         401: { description: Unauthorized }
+ *
+ *   /api/comments/{id}:
+ *     get:
+ *       summary: Get a comment by ID
+ *       tags: [Comments]
+ *       parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema: { type: string }
+ *       responses:
+ *         200:
+ *           description: The comment
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean }
+ *                   data: { $ref: '#/components/schemas/Comment' }
+ *         404: { description: Not found }
+ *     put:
+ *       summary: Update a comment
+ *       tags: [Comments]
+ *       parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema: { type: string }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/UpdateComment' }
+ *       responses:
+ *         200:
+ *           description: Updated comment
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean }
+ *                   data: { $ref: '#/components/schemas/Comment' }
+ *         400: { description: Validation error }
+ *         403: { description: Forbidden }
+ *         404: { description: Not found }
+ *     delete:
+ *       summary: Delete a comment
+ *       tags: [Comments]
+ *       parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema: { type: string }
+ *       responses:
+ *         200:
+ *           description: Deletion confirmation
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean }
+ *                   message: { type: string }
+ *         403: { description: Forbidden }
+ *         404: { description: Not found }
+ */
 
 // my-app/lib/services/comment.service.ts
-import { apiClient } from '../apiClient'
-export interface Comment { id: string; body: string; authorId: string }
-export const commentService = {
-  async create(input: { body: string; authorId: string }): Promise<Comment> {
-    const { data } = await apiClient.post<Comment>('/api/comments', input)
-    return data
-  },
+import { apiClient } from '../api/api-client';
+
+export interface Comment {
+  id: string;
+  body: string;
+  authorId: string;
+  createdAt: string;
+  updatedAt: string;
 }
+
+export interface CreateCommentPayload {
+  body: string;
+  authorId: string;
+}
+
+export type UpdateCommentPayload = Partial<CreateCommentPayload>;
+
+interface PaginationMetadata {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+}
+
+/**
+ * Comment Service (Client-side).
+ */
+export const CommentService = {
+  /**
+   * Fetches a paginated list of comments.
+   */
+  async getComments(page: number, limit: number): Promise<{ data: Comment[]; pagination: PaginationMetadata }> {
+    return apiClient.get<{ data: Comment[]; pagination: PaginationMetadata }>(`/comments?page=${page}&limit=${limit}`);
+  },
+
+  /**
+   * Fetches a single comment by ID.
+   */
+  async getCommentById(id: string): Promise<Comment> {
+    const response = await apiClient.get<{ data: Comment }>(`/comments/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Creates a comment.
+   */
+  async createComment(payload: CreateCommentPayload): Promise<Comment> {
+    const response = await apiClient.post<{ data: Comment }>('/comments', payload);
+    return response.data;
+  },
+
+  /**
+   * Updates a comment.
+   */
+  async updateComment(id: string, payload: UpdateCommentPayload): Promise<Comment> {
+    const response = await apiClient.put<{ data: Comment }>(`/comments/${id}`, payload);
+    return response.data;
+  },
+
+  /**
+   * Deletes a comment.
+   */
+  async deleteComment(id: string): Promise<void> {
+    await apiClient.delete(`/comments/${id}`);
+  },
+};
 
 ===edge-1===
 // server/src/features/comments/repositories/CommentRepository.ts
-async findAll(page = 1, limit = 10) {
-  const [items, total] = await prisma.$transaction([
-    prisma.comment.findMany({ where: { deletedAt: null }, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
-    prisma.comment.count({ where: { deletedAt: null } }),
-  ])
-  return { items, total }
-}
-async softDelete(id: string) {
-  await prisma.comment.update({ where: { id }, data: { deletedAt: new Date() } })
-}
+  /**
+   * Retrieves a paginated list of comments.
+   */
+  public async findAll(page: number = 1, limit: number = 10): Promise<{ comments: CommentRecord[]; totalCount: number }> {
+    const skip = (page - 1) * limit;
 
-// server/src/middleware/auth.ts
-const protectedApiPaths = [
-  // ...existing entries...
-  '/api/comments',
-]
+    const [comments, totalCount] = await prisma.$transaction([
+      prisma.comment.findMany({
+        where: { deletedAt: null },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.comment.count({ where: { deletedAt: null } }),
+    ]);
+
+    return { comments, totalCount };
+  }
+
+  /**
+   * Soft-deletes a comment.
+   */
+  public async softDelete(id: string): Promise<void> {
+    await prisma.comment.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+// server/src/routes/index.ts
+import commentRoutes from './comments';
+
+router.use('/comments', commentRoutes);
+
+// server/src/routes/docs.paths.ts
+/**
+ * @openapi
+ * tags:
+ *   - name: Comments
+ *     description: Comment management
+ *
+ * paths:
+ *
+ *   /api/comments:
+ *     get:
+ *       summary: List comments (paginated)
+ *       tags: [Comments]
+ *       parameters:
+ *         - in: query
+ *           name: page
+ *           schema: { type: integer, default: 1 }
+ *         - in: query
+ *           name: limit
+ *           schema: { type: integer, default: 10 }
+ *       responses:
+ *         200: { description: Paginated list of comments }
+ *         401: { description: Unauthorized }
+ *     post:
+ *       summary: Create a comment
+ *       tags: [Comments]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/CreateComment' }
+ *       responses:
+ *         201: { description: Created comment }
+ *         400: { description: Validation error }
+ *
+ *   /api/comments/{id}:
+ *     get:
+ *       summary: Get a comment by ID
+ *       tags: [Comments]
+ *       parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema: { type: string }
+ *       responses:
+ *         200: { description: The comment }
+ *         404: { description: Not found }
+ *     put:
+ *       summary: Update a comment
+ *       tags: [Comments]
+ *       parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema: { type: string }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/UpdateComment' }
+ *       responses:
+ *         200: { description: Updated comment }
+ *         403: { description: Forbidden }
+ *         404: { description: Not found }
+ *     delete:
+ *       summary: Delete a comment
+ *       tags: [Comments]
+ *       parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema: { type: string }
+ *       responses:
+ *         200: { description: Deletion confirmation }
+ *         403: { description: Forbidden }
+ *         404: { description: Not found }
+ */
 
 ===regression-1===
-Tecnologia correta: prisma (first-class).
+Tecnologia correta: **prisma** (first-class).
 
-Invoice.amount é dinheiro que entra no saldo do cliente e dispara lançamento contábil — invariante financeiro. Pelo §2.1 (e CRUD-005), money como data: Json em DynamicTable vira float em SQLite e o unique() de preset é scan TOCTOU, não constraint. Logo Model + Service + Repository + Policy próprios em Prisma.
+Pelo teste do `_ARCHITECTURE-CONTRACT.md §2.1`:
 
-Onde a integração com PostingService vive: no controller / serviço de integração (nível de orquestração), NUNCA dentro de DynamicTableService, RuleContext ou RulePlugin. A fronteira dura CRUD-004/§2.1 proíbe injetar um serviço Prisma first-class no motor de plugins. O InvoiceService (ou serviço de integração dedicado) chama o PostingService na camada de serviço após persistir a invoice, com repositório transacional injetado e guardas de idempotência pré-tx.
+1. `amount` é dinheiro que entra no saldo do cliente — invariante financeiro. Em DynamicTable o valor viveria em `data: Json`, que no SQLite é float; centavos exigem inteiro real (Int).
+2. Saldo/fechamento exige integridade garantida pelo banco (`@@unique`, FK, tipos reais). O `unique()` de preset é scan em nível de aplicação (TOCTOU), não constraint.
+3. Invoice não é schema que o usuário configura em runtime — é entidade fixa do ERP com regra contábil.
+
+Logo: Model Prisma `Invoice` + `InvoiceRepository` + `InvoicePolicy` + `InvoiceService` próprios, `amount` em centavos (Int), soft-delete (`deletedAt: null` em todo find, delete via `update({ data: { deletedAt } })`).
+
+Onde a integração com `PostingService` deve viver:
+
+- **Nunca** dentro do motor de plugins: não injete `PostingService` em `DynamicTableService`, `RuleContext` ou `RulePlugin`, e não modifique `DynamicTableService.ts` para integrar os dois módulos. É a fronteira dura do §2.1.
+- A integração cross-módulo sobe de nível: quem chama `PostingService` é a camada de orquestração da própria feature — o `InvoiceService` (ou um serviço de integração dedicado) acionado a partir do controller/rota de invoices, depois de persistir a Invoice.
+- O gate autoritativo (período aberto, saldo, status) é re-checado **dentro** do `runTransaction`, com o `tx` propagado ao repositório, para que a escrita da Invoice e o lançamento contábil sejam atômicos — `@@unique` sozinho não fecha o TOCTOU.
+- A rota nasce protegida (deny-by-default); registro em 2 toques: mount em `routes/index.ts` + bloco `@openapi` em `routes/docs.paths.ts`. Nada em `middleware/auth.ts`.

@@ -749,7 +749,15 @@ function splitFiles(text) {
   if (cur.body.length) files.push({ path: cur.path, body: cur.body.join('\n') });
   return files;
 }
-// assertion com escopo opcional `@<substr-do-arquivo>::<kind>:<arg>` → roda só no chunk daquele arquivo
+// Escopo casa por FRONTEIRA DE CAMINHO, nunca por substring solta. `includes()` fazia
+// `@CommentRepository.ts` resolver para `ICommentRepository.ts` (a interface vem antes no
+// output) e `@index.ts` para `index.tsx` — a assertion validava o arquivo errado e reprovava
+// código correto. Um escopo é o path inteiro ou um sufixo terminado em `/`.
+function matchesScope(filePath, scope) {
+  if (!filePath) return false;
+  return filePath === scope || filePath.endsWith('/' + scope);
+}
+// assertion com escopo opcional `@<sufixo-do-caminho>::<kind>:<arg>` → roda só no chunk daquele arquivo
 function evalAssertion(a, sectionText, files) {
   let scope = null, body = a;
   const m = a.match(/^@([^:]+)::(.*)$/);
@@ -758,9 +766,12 @@ function evalAssertion(a, sectionText, files) {
   const kind = body.slice(0, i).trim(), arg = body.slice(i + 1).trim();
   let target = sectionText, fname = 'chunk.tsx';
   if (scope) {
-    const f = files.find((x) => x.path.includes(scope));
-    if (!f) return { a, ok: false, note: `arquivo-alvo '${scope}' ausente na seção` };
-    target = f.body; fname = f.path || fname;
+    const cands = files.filter((x) => matchesScope(x.path, scope));
+    if (!cands.length) return { a, ok: false, note: `arquivo-alvo '${scope}' ausente na seção` };
+    // Ambiguidade é FAIL explícito, não first-wins silencioso: escolher o primeiro em silêncio
+    // é como o escopo por substring passava despercebido. Desempate = escopo mais específico.
+    if (cands.length > 1) return { a, ok: false, note: `escopo '${scope}' ambíguo: ${cands.map((c) => c.path).join(', ')} — use um sufixo mais específico` };
+    target = cands[0].body; fname = cands[0].path || fname;
   }
   const r = applyKind(kind, arg, target, fname);
   return { a, ok: r.ok, note: r.note };
