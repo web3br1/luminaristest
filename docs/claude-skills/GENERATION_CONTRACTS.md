@@ -6,10 +6,30 @@
 
 - File: `server/src/routes/<resource>.ts`
 - Pattern: `import { Router } from 'express'`, named controller imports, `const router = Router()`, `router.get/post/put/patch/delete`, `export default router`
-- **Registration = 3 toques (não 2):**
+- **Registration = 2 toques:**
   1. Import + mount in `server/src/routes/index.ts` at `/api/<resource>`
-  2. **Add `'/api/<resource>'` to the `protectedApiPaths` array in `server/src/middleware/auth.ts`** — the auth middleware only populates the user context for prefixes in this allowlist. Miss it and the route returns **401 with a valid token** (`getUserContextFromRequest` returns `null`). Not caught by `tsc` — runtime-only. (Skip ONLY for fully public routes.)
-  3. OpenAPI: Add JSDoc `@openapi` blocks in `server/src/routes/docs.paths.ts`
+  2. OpenAPI: Add JSDoc `@openapi` blocks in `server/src/routes/docs.paths.ts`, then `npm run docs:generate`
+
+### Auth: deny-by-default (fonte única desta regra)
+
+`server/src/middleware/auth.ts` protege **tudo sob `/api`**: uma rota nasce autenticada no instante
+em que é montada. **Não existe allowlist de rotas protegidas para atualizar** — esquecer a rota falha
+fechado (401), nunca aberto. O middleware também remove os headers `x-user-*` de identidade na entrada
+e os reinjeta a partir do token verificado, então `getUserContext` / `getUserContextFromRequest` vêm
+populados sem nenhum registro extra.
+
+- **Rota pública é a exceção e precisa ser declarada:** adicione uma regra em `publicApiRoutes`
+  (`{ path, method, match: 'exact' | 'prefix' }`) no mesmo arquivo. Só para endpoints genuinamente
+  não-autenticados (login, register, docs). Isto é decisão de segurança — não é passo de scaffolding.
+- **Casamento espelha o Express:** case-folded, trailing slash ignorada, por segmento. Se um dia a
+  regra divergir de como o Express roteia, a fresta é um bypass — foi exatamente essa divergência que
+  originou `RISK-SEC-AUTH-001`.
+
+> **Nota histórica:** o registro de rota já foi "3 toques", com um array `protectedApiPaths` que
+> precisava ser lembrado a cada rota nova (pular = 401 silencioso com token válido). O desenho foi
+> invertido em `RISK-SEC-AUTH-001` porque a lista era a geradora do bug: falhava **aberto**. Docs, ADRs
+> e specs anteriores a essa inversão ainda dizem "3 toques" — são registro histórico; esta seção
+> prevalece.
 
 ## Backend Controller Contract
 
@@ -125,7 +145,7 @@ For DynamicTable-backed domains (leads, ERP, CRM) the service orchestrates `Dyna
 - Table resolution: `repository.findTableByInternalName(user.userId, internalName)` → `NotFoundError` se não instalada
 - Atomicidade: todas as escritas dentro de `dynamicTableService.runInTransaction(async (tx) => {...})` com `createTableData`/`updateTableData` recebendo `{ tx }`
 - Side effects: condicionais ao tipo de etapa de destino (ex.: criar proposta em etapa `proposal`); transição + efeitos commitam/rollback juntos
-- DTO: `dtos/<Domain>Transition.dto.ts` (Zod + `@openapi` + type guard); Controller fino (`safeParse` + factory + `handleApiError`); Route 3-toques (`index.ts` + `protectedApiPaths` + `docs.paths.ts`); Factory getter `get<Domain>Service()`
+- DTO: `dtos/<Domain>Transition.dto.ts` (Zod + `@openapi` + type guard); Controller fino (`safeParse` + factory + `handleApiError`); Route 2-toques (`index.ts` + `docs.paths.ts` — ver **Backend Route Contract**); Factory getter `get<Domain>Service()`
 - Test: `buildService` + mock `runInTransaction`/`findTableByInternalName`; assert atomicidade (1× `runInTransaction`) + cross-tenant `NotFoundError`
 - Golden ref: `server/src/features/crm/services/CrmPipelineService.ts` (`advanceStage`)
 - **Caminho de dinheiro (gate — ver Contrato §2.1):** valores em **centavos inteiros**; invariantes de fechamento (`Σdébito=Σcrédito`) = igualdade inteira exata; idempotência via `compositeUnique(sourceKey)` + check no service com **teto `ponytail:` nomeado** (não é constraint de DB); registro postado/terminal imutável exige **guarda de delete** na camada de serviço (soft-delete não consulta `immutableAfter`).

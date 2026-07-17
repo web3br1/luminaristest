@@ -5,10 +5,10 @@ argument-hint: "[lista de arquivos criados/editados — deixar vazio para auto-d
 allowed-tools: Read, Grep, Glob, Bash
 metadata:
   governance-skill-id: "SKL-REVIEWER"
-  governance-version: "1.1.0"
+  governance-version: "1.2.0"
   governance-status: "validated"
   governance-owner: "engineering"
-  governance-last-evaluated: "2026-06-25"
+  governance-last-evaluated: "2026-07-16"
   governance-eval-score: "1.00"
   governance-note: "1.1.0 adiciona REV-007 (choke point PAR-001 em slice de Fase A, condicional ao contexto de lote paralelo). change-set atômico: gate em governance.md + eval estrutural happy-3. eval-score 1.00 = última corrida comportamental (REPORT.md, SG-011); comportamental de REV-007 diferida p/ próxima corrida do harness fora do CI"
 ---
@@ -47,7 +47,7 @@ graves"/"seja conservador": o modelo as segue literalmente e o recall medido cai
 
 > **🧱 [REV-005] Fronteira §2.1 (DynamicTable × Prisma first-class) — check cross-cutting, FAIL direto.** Reprove se o diff: (a) injeta um serviço Prisma first-class (`PostingService`, `PayrollService`, `FiscalService`…) em `DynamicTableService`/`RuleContext`/`RulePlugin` **ou** numa orchestration service que opera DynamicTable; (b) modela entidade com invariante financeiro/legal (`JournalEntry`/`Posting`/`PayrollEntry`/`FiscalDocument`) como linha de DynamicTable/preset; (c) edita `DynamicTableService.ts` para integrar dois domínios; (d) confia em `unique`/`compositeUnique` de preset para idempotência financeira. Integração cross-módulo só é válida em **controller/route/serviço de integração** — nunca dentro do motor. Evidência objetiva: `grep -rn "PostingService\|PayrollService\|FiscalService" server/src/features/dynamicTables/` deve ser **vazio**. Ver `_ARCHITECTURE-CONTRACT.md §2.1`.
 >
-> **🔀 [REV-007] Choke point PAR-001 num slice de Fase A — FAIL CONDICIONAL ao contexto.** **Só quando a review é de um slice de Fase A** (lote paralelo — `_PARALLELIZATION-CONTRACT.md` PAR-003; o **chamador declara** o contexto): o diff NÃO pode tocar nenhum choke point de registro PAR-001 — `server/src/routes/index.ts`, `server/src/lib/factory.ts`, `server/prisma/schema.prisma`, `server/prisma/seed.ts`, `my-app/public/openapi.json`. Esses pertencem à **Fase B** (integração serial); tocá-los num slice paralelo reintroduz exatamente o conflito de commit que o fatiamento existe pra evitar. Evidência objetiva: `git diff --name-only main...<branch>` **não** intersecta a lista PAR-001 → PASS; interseção → **FAIL** (aponte o arquivo e mande a linha de registro pra Fase B). **Fora de contexto de lote paralelo esta regra é N/A** — numa feature regular, tocar `factory.ts`/`routes/index.ts` é o registro em 3-toques normal e obrigatório, não defeito. Ver `_PARALLELIZATION-CONTRACT.md` PAR-001/PAR-004.
+> **🔀 [REV-007] Choke point PAR-001 num slice de Fase A — FAIL CONDICIONAL ao contexto.** **Só quando a review é de um slice de Fase A** (lote paralelo — `_PARALLELIZATION-CONTRACT.md` PAR-003; o **chamador declara** o contexto): o diff NÃO pode tocar nenhum choke point de registro PAR-001 — `server/src/routes/index.ts`, `server/src/lib/factory.ts`, `server/prisma/schema.prisma`, `server/prisma/seed.ts`, `my-app/public/openapi.json`. Esses pertencem à **Fase B** (integração serial); tocá-los num slice paralelo reintroduz exatamente o conflito de commit que o fatiamento existe pra evitar. Evidência objetiva: `git diff --name-only main...<branch>` **não** intersecta a lista PAR-001 → PASS; interseção → **FAIL** (aponte o arquivo e mande a linha de registro pra Fase B). **Fora de contexto de lote paralelo esta regra é N/A** — numa feature regular, tocar `factory.ts`/`routes/index.ts` é o registro em 2-toques normal e obrigatório, não defeito. Ver `_PARALLELIZATION-CONTRACT.md` PAR-001/PAR-004.
 >
 > **⭐ Slice de referência (o que um "PASS" se parece):** a feature `server/src/features/users/` (DTO → `repositories/UserRepository.ts` → `policies/UserPolicy.ts` → `services/UserService.ts` → `controllers/userController.ts` → `routes/users.ts` → `my-app/lib/services/user.service.ts`) é o exemplar limpo — use-a como baseline ao avaliar camadas. **Ressalva:** o `users` é exceção LGPD ao soft-delete (delete HARD + `getAllUsers` sem `deletedAt`), então NÃO o use como prova de que "hard delete passa": para recursos com soft-delete, o checklist de Repository abaixo prevalece. Para orchestration-services que delegam ao `DynamicTableService`, o exemplar é `server/src/features/crm/services/CrmPipelineService.ts` (ver exceção na camada Service).
 
@@ -168,9 +168,14 @@ grep -n "res\.json\|Response" <arquivo>             # → HTTP no service
   ```typescript
   app.use('/api/<resource>', <resource>Router);
   ```
-- [ ] **`'/api/<resource>'` adicionado ao array `protectedApiPaths` em `server/src/middleware/auth.ts`** (a menos que a rota seja 100% pública) — sem isso o `getUserContextFromRequest` retorna `null` e a rota dá 401 com token válido. Bug silencioso que o `tsc` NÃO pega.
+- [ ] **`middleware/auth.ts` NÃO foi tocado** para "proteger" a rota — auth é deny-by-default, a rota nasce protegida ao ser montada e não há allowlist a atualizar. Um diff que adiciona a rota a um array de prefixos protegidos = FAIL (instrução obsoleta, anterior ao `RISK-SEC-AUTH-001`). Exceção: rota **pública**, que exige regra em `publicApiRoutes` **+ justificativa explícita no relatório** — endpoint sem auth é decisão de segurança, e a ausência da justificativa é FAIL.
   ```bash
-  grep -n "/api/<resource>" server/src/middleware/auth.ts   # deve existir
+  # O invariante NÃO é "auth.ts fora do diff" — rota pública legitimamente edita auth.ts.
+  # O invariante é: o diff não REINTRODUZ um allowlist de prefixos protegidos.
+  git diff origin/main..HEAD -- server/src/middleware/auth.ts | grep '^+' | grep -c 'protectedApiPaths'   # deve ser 0
+  # Se auth.ts mudou, leia o diff: só pode tocar `publicApiRoutes`, e o relatório TEM de justificar
+  # cada endpoint sem auth. Diff em auth.ts sem justificativa no relatório = FAIL.
+  git diff origin/main..HEAD -- server/src/middleware/auth.ts
   ```
 - [ ] `routes/docs.paths.ts` tem bloco OpenAPI para cada endpoint novo
 - [ ] Router exportado como `export default router`
@@ -433,7 +438,7 @@ Produzir um relatório estruturado:
 - **Seja específico** — toda FAIL deve ter arquivo:linha e correção sugerida
 - **[REV-002] Não aprove sem rodar tsc** — compilação é gate obrigatório
 - **[REV-006] Não aprove sem rodar o gate de wiring** — `tsc` verde não prova que o artefato foi registrado no índice central (rota/KPI/preset/i18n)
-- **[REV-007] Slice de Fase A não toca choke point PAR-001** — só em contexto de lote paralelo; interseção com a lista PAR-001 = FAIL (pertence à Fase B). N/A em feature regular (3-toques é normal)
+- **[REV-007] Slice de Fase A não toca choke point PAR-001** — só em contexto de lote paralelo; interseção com a lista PAR-001 = FAIL (pertence à Fase B). N/A em feature regular (2-toques é normal)
 - **[REV-003] Não aprove na confiança** — sem evidência do check (comando + exit code), o veredicto é BLOCKED/REPROVADO, nunca PASS
 - **OPS-001 é check de forma** — handoff sem a **seção rotulada** `Gates de envio OPS-001` (com caso adversarial tentado + checagem falseável) = FAIL de forma antes do mérito; artefatos avulsos em outras seções não substituem
 - **tsc sem deps resolvidas não é evidência** — worktree fresco com `Cannot find module` em massa = BLOCKED por ambiente, nunca PASS/FAIL; resolva deps e compare com a baseline do repo primário antes de atribuir erro ao diff

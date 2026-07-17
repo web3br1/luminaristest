@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { listInvoices, getInvoiceById, createInvoice, updateInvoice, deleteInvoice } from '../controllers/InvoiceController';
 
 const router = Router();
+
 router.get('/', listInvoices);
 router.get('/:id', getInvoiceById);
 router.post('/', createInvoice);
@@ -13,53 +14,250 @@ router.delete('/:id', deleteInvoice);
 export default router;
 
 // server/src/routes/index.ts
+import { Router } from 'express';
+import authRoutes from './auth';
+import userRoutes from './users';
+import documentRoutes from './documents';
+import dynamicTableRoutes from './dynamic-tables';
+import chatRoutes from './chat';
+import chatInstanceRoutes from './chat-instances';
+import chatMessageRoutes from './chat-messages';
+import dashboardRoutes from './dashboard';
+import dashboardLayoutRoutes from './dashboard-layout';
+import structuredDataRoutes from './structured-data';
+import reportRoutes from './reports';
+import docsRoutes from './docs';
+import analyticsRoutes from './analytics';
+import analyticsDefinitionsRoutes from './analyticsDefinitions';
+import crmRoutes from './crm';
+import accountingRoutes from './accounting';
+import payableRoutes from './payables';
+import receivableRoutes from './receivables';
+import dimensionRoutes from './dimensions';
+import counterpartyRoutes from './counterparties';
+import entryApprovalRoutes from './entryApprovals';
+import salesRoutes from './sales';
+import savedViewsRoutes from './saved-views';
+import packageBalanceRoutes from './packageBalances';
 import invoicesRouter from './invoices';
+
+const router = Router();
+
+// API info endpoint
+router.get('/', (req, res) => {
+  res.json({
+    name: 'Luminaris API',
+    version: '1.0.0',
+    description: 'Document Intelligence Platform API',
+    endpoints: {
+      health: 'GET /health',
+      auth: 'POST /api/auth/login, POST /api/auth/register, GET /api/auth/me, POST /api/auth/logout',
+      users: 'GET /api/users',
+      documents: 'GET/POST/PATCH/DELETE /api/documents/*',
+      dynamicTables: 'GET/POST/PUT/DELETE /api/dynamic-tables/*',
+      chat: 'POST /api/chat',
+      chatInstances: 'GET/POST /api/chat-instances',
+      chatMessages: 'GET/POST /api/chat-messages'
+    },
+  });
+});
+
+// Mount sub-routes
+router.use('/auth', authRoutes);
+router.use('/users', userRoutes);
+router.use('/documents', documentRoutes);
+router.use('/dynamic-tables', dynamicTableRoutes);
+router.use('/chat', chatRoutes);
+router.use('/chat-instances', chatInstanceRoutes);
+router.use('/chat-messages', chatMessageRoutes);
+router.use('/dashboard', dashboardRoutes);
+router.use('/dashboard-layout', dashboardLayoutRoutes);
+router.use('/structured-data', structuredDataRoutes);
+router.use('/reports', reportRoutes);
+router.use('/docs', docsRoutes);
+router.use('/analytics', analyticsRoutes);
+router.use('/analytics/definitions', analyticsDefinitionsRoutes);
+router.use('/crm', crmRoutes);
+router.use('/accounting', accountingRoutes);
+router.use('/payables', payableRoutes);
+router.use('/receivables', receivableRoutes);
+router.use('/dimensions', dimensionRoutes);
+router.use('/counterparties', counterpartyRoutes);
+router.use('/entry-approvals', entryApprovalRoutes);
+router.use('/sales', salesRoutes);
+router.use('/saved-views', savedViewsRoutes);
+router.use('/package-balances', packageBalanceRoutes);
 router.use('/invoices', invoicesRouter);
 
-// server/src/middleware/auth.ts
-const protectedApiPaths = [
-  '/api/invoices',
-];
+export { router };
 
 // server/src/routes/docs.paths.ts
-/**
- * @openapi
- * paths:
+ *   # ─── INVOICES ───────────────────────────────────────────────────────────
+ *
  *   /api/invoices:
  *     get:
+ *       summary: List invoices (paginated)
  *       tags: [Invoices]
- *       summary: List invoices
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - in: query
+ *           name: page
+ *           schema: { type: integer, default: 1, minimum: 1 }
+ *         - in: query
+ *           name: limit
+ *           schema: { type: integer, default: 10, minimum: 1, maximum: 100 }
+ *       responses:
+ *         '200':
+ *           description: Paginated invoice list
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean }
+ *                   data:
+ *                     type: array
+ *                     items: { type: object }
+ *                   pagination:
+ *                     type: object
+ *                     properties:
+ *                       page: { type: integer }
+ *                       limit: { type: integer }
+ *                       totalCount: { type: integer }
+ *                       totalPages: { type: integer }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '500': { $ref: '#/components/responses/InternalServerError' }
  *     post:
+ *       summary: Create a new invoice
  *       tags: [Invoices]
- *       summary: Create invoice
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { type: object }
+ *       responses:
+ *         '201': { description: Invoice created successfully }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '500': { $ref: '#/components/responses/InternalServerError' }
+ *
  *   /api/invoices/{id}:
  *     get:
- *       summary: Get invoice by id
+ *       summary: Get an invoice by ID
+ *       tags: [Invoices]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - name: id
+ *           in: path
+ *           required: true
+ *           schema: { type: string, format: cuid }
+ *       responses:
+ *         '200': { description: Invoice object }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *         '500': { $ref: '#/components/responses/InternalServerError' }
  *     put:
- *       summary: Update invoice
+ *       summary: Update an invoice by ID
+ *       tags: [Invoices]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - name: id
+ *           in: path
+ *           required: true
+ *           schema: { type: string, format: cuid }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { type: object }
+ *       responses:
+ *         '200': { description: Updated invoice }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
  *     delete:
- *       summary: Delete invoice
- * components:
- */
-
+ *       summary: Delete an invoice by ID (soft delete)
+ *       tags: [Invoices]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - name: id
+ *           in: path
+ *           required: true
+ *           schema: { type: string, format: cuid }
+ *       responses:
+ *         '200': { description: Invoice deleted successfully }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
 ===edge-1===
-// server/src/routes/docs.paths.ts
-/**
- * @openapi
- * paths:
+ *   # ─── INVOICES ───────────────────────────────────────────────────────────
+ *
  *   /api/invoices:
  *     get:
+ *       summary: List invoices (paginated)
  *       tags: [Invoices]
- *       summary: List invoices
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - in: query
+ *           name: page
+ *           schema: { type: integer, default: 1, minimum: 1 }
+ *         - in: query
+ *           name: limit
+ *           schema: { type: integer, default: 10, minimum: 1, maximum: 100 }
+ *       responses:
+ *         '200':
+ *           description: Paginated invoice list
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean }
+ *                   data:
+ *                     type: array
+ *                     items: { type: object }
+ *                   pagination:
+ *                     type: object
+ *                     properties:
+ *                       page: { type: integer }
+ *                       limit: { type: integer }
+ *                       totalCount: { type: integer }
+ *                       totalPages: { type: integer }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '500': { $ref: '#/components/responses/InternalServerError' }
  *     post:
+ *       summary: Create a new invoice
  *       tags: [Invoices]
- *       summary: Create invoice
- * components:
- */
-
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { type: object }
+ *       responses:
+ *         '201': { description: Invoice created successfully }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '500': { $ref: '#/components/responses/InternalServerError' }
+ *
 ===regression-1===
-// server/src/middleware/auth.ts
-const protectedApiPaths = [
-  // ...existing entries...
-  '/api/invoices',
-];
+Nenhuma edição em `server/src/middleware/auth.ts` é necessária — e editar esse arquivo aqui seria errado.
+
+`authMiddleware` é deny-by-default: ele intercepta tudo sob `/api` e exige JWT válido a menos que o path/método esteja listado em `publicApiRoutes`. Não existe nenhum array de "rotas protegidas" para preencher; a proteção não vem de uma allowlist, vem da ausência de exceção. No instante em que `router.use('/invoices', invoicesRouter)` entra em `routes/index.ts`, `POST /api/invoices` já cai no ramo de negação e responde 401 sem token, e o user context chega populado nos handlers sozinho.
+
+Verificação direta em `server/src/middleware/auth.ts`:
+
+1. `publicApiRoutes` contém apenas `GET /api` (banner), `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/users` (registro público) e `GET /api/docs` (prefixo). `/api/invoices` não está lá.
+2. `isPublic(pathname, method)` retorna `false` para qualquer path não listado → o middleware exige o JWT.
+3. Adicionar `/api/invoices` a `publicApiRoutes` produziria o efeito oposto do pedido: tornaria o endpoint público.
+
+A única situação que justifica tocar em `auth.ts` ao criar uma rota é o inverso — expor a rota publicamente. Isso é decisão de segurança (não scaffolding), exige regra explícita em `publicApiRoutes` com justificativa, e não é o caso aqui.
+
+Como confirmar sem editar nada (deve responder 401):
+
+```bash
+curl -i -X POST http://localhost:3001/api/invoices -H 'Content-Type: application/json' -d '{}'
+```

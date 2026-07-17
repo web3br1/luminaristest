@@ -148,7 +148,7 @@ Findings:
 | backend-policy-generator | Policy | `UserPolicy` vivo; 0 clones em policies |
 | backend-service-generator | Service | `UserService`/`CrmPipelineService` vivos; clones só frontend (já triados) |
 | backend-controller-generator | Controller | `chatInstancesController` vivo; jaccard alto = thin-controller sancionado |
-| backend-route-generator | Route | 4-toques (route+index+protectedApiPaths+OpenAPI) batem com `users` |
+| backend-route-generator | Route | 2-toques (index+OpenAPI) batem com `users`; auth deny-by-default não entra no registro |
 | backend-prisma-model-generator | Prisma | `DynamicTable`/`DynamicTableData` vivos; 0 clones em schema |
 | backend-workflow-transition-generator | Workflow Svc | `CrmPipelineService.advanceStage` vivo; factory 180/229/259 |
 | backend-test-suite-generator | Test | 7 golden suites vivas no source |
@@ -175,3 +175,48 @@ Findings:
 
 ## Nota de tooling
 O parser Cypher do cbm rejeita `<>`, e alguns agentes reportaram rejeição de `>=`/`<` em certas posições — contorno: filtro `CONTAINS` no `file_path` + `same_file = false` + `ORDER BY`, sem threshold inline. Vale embutir isso no SKILL.md do skill-audit como dica de query.
+
+---
+
+## Corrida de eval dirigida — 2026-07-16 (NÃO é um sweep)
+
+Escopo: re-execução comportamental das **6 skills** tocadas pelo esforço RISK-SEC-AUTH-001 + fonte única
+do contrato de rota (route, crud, fullstack, controller, workflow-transition, reviewer). **Não** re-roda os
+checks de grafo P1–P6 nem as outras 28 skills — o sweep de referência segue o de 2026-06-22, no topo.
+
+**Resultado: 20/20 casos de código PASS** nas 6. Casos de **trigger não re-executados** (exigem
+router-judge). Score 1.00 mantido em cada REPORT por-skill; `sync-metadata` verde.
+
+### Correções no harness (afetam as 34 skills)
+
+| Fix | Defeito | Prova |
+|---|---|---|
+| escopo de assertion casa **fronteira de caminho** (`path === scope` ou `endsWith('/'+scope)`), não substring | `@CommentRepository.ts::` resolvia para `ICommentRepository.ts` (`includes()`, e a interface vem antes no output) → a assertion validava o arquivo ERRADO e reprovava código impecável. Mesmo bug latente em `@index.ts` → `index.tsx` | unit-check 6/6; **A/B sobre os 33 outputs gravados: idêntico, zero regressão**; crud 2/3 → 3/3 |
+| ambiguidade de escopo virou **FAIL explícito** (antes: first-wins silencioso) | escolher o primeiro candidato em silêncio é o que fazia o bug acima passar despercebido | — |
+| novo kind `regex-i` (case-insensitive) | assertion de PROSA media **ortografia**: `n[aã]o` minúsculo reprovava "**Não** modifique `DynamicTableService.ts`" — o acerto — porque a frase começa com maiúscula | workflow regression-1: FAIL → PASS, com controle de negação 0/2 |
+
+### Achado metodológico — o prompt de geração é parte do instrumento
+
+A 1ª tentativa deu **7/20** e não media conformidade: media **estilo de prosa**. O prompt não proibia
+narração, e o modelo emitia o código correto **mais** auto-atestado (`ZERO prisma.*`, `[ROUTE-002]
+middleware/auth.ts NÃO é tocado`) — que `absent:<token>` reprova. Prova: o output de 2026-06-25 que ganhou
+o 1.00 é **código puro**; rodado contra as assertions de hoje dá PASS. O `MODEL-TUNING.md` já registrava
+que Opus 4.8 narra por padrão e que o fix é **default de silêncio explícito**.
+
+Trajetória com as MESMAS skills: **7/20** (prompt contaminado) → **15/20** (silêncio) → **16/20** (fix de
+escopo) → **20/20** (assertions por propriedade). **Um score de eval sem o prompt de geração registrado ao
+lado não é evidência de nada.** Corolário para a próxima corrida: fixar a regra de silêncio no harness, não
+no prompt ad-hoc de quem roda.
+
+### Política ratificada pelo dono (2026-07-16)
+
+**O eval crava a PROPRIEDADE, não a forma canônica.** 4 assertions mediam forma e foram reescritas (nome de
+variável `parse` vs `bodyResult`; `res.json` vs `res.status(200).json`; ortografia de `não`; moldura
+`@openapi`/`paths:` num fragmento que a própria SKILL.md manda inserir DENTRO da moldura existente). Cada
+uma com **controle de negação** provando que o gate ainda discrimina — detalhe nos REPORTs por-skill.
+
+### Aberto
+
+- `luminaris-orchestrator`: **3/5** contra o próprio output gravado, e já dava 3/5 **antes** de qualquer
+  mudança desta corrida. Drift pré-existente, não investigado, fora do escopo.
+- Casos de trigger das 6: não re-executados (router-judge fora do `batch-eval`).

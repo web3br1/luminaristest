@@ -6,10 +6,10 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 compatibility: Claude Code; requer o monorepo Luminaris (server/ com zod + tsc). Sem efeitos externos — apenas gera/edita arquivos no repositório.
 metadata:
   governance-skill-id: "SKL-BACKEND-CTRL"
-  governance-version: "1.0.0"
+  governance-version: "1.0.1"
   governance-status: "validated"
   governance-owner: "engineering"
-  governance-last-evaluated: "2026-06-25"
+  governance-last-evaluated: "2026-07-16"
   governance-eval-score: "1.00"
 ---
 
@@ -71,7 +71,7 @@ server/src/lib/factory.ts
 3. Schemas Zod inline: `const Create<Resource>Schema = z.object({ ... })`
 4. Cada função: `export const listX = async (req: Request, res: Response) => { try { ... } catch (error) { return handleApiError(error, res) } }`
 5. Validação: `const parse = Schema.safeParse(req.body); if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() })`
-6. Actor: `const actor = getUserContextFromRequest(req)` — **retorna `UserContext | null`**. Se o service espera um actor não-nulo, faça o guard: `if (!actor) throw new UnauthorizedError()` (importe `UnauthorizedError` de `../lib/errors`). Nota: o user context só é populado se o prefixo da rota estiver no `protectedApiPaths` de `middleware/auth.ts` — se a rota dá 401 com token válido, o registro do allowlist está faltando (ver `backend-route-generator`).
+6. Actor: `const actor = getUserContextFromRequest(req)` — **retorna `UserContext | null`**. Se o service espera um actor não-nulo, faça o guard: `if (!actor) throw new UnauthorizedError()` (importe `UnauthorizedError` de `../lib/errors`). Nota: o user context vem populado automaticamente — `middleware/auth.ts` é deny-by-default e injeta os headers de identidade a partir do token verificado em toda rota sob `/api`; não há allowlist a registrar. O guard continua **obrigatório** mesmo em rota protegida: `getUserContextFromRequest` exige `userId && username && role` (`lib/authUtils.ts`) e o middleware só injeta `username` se o token o trouxer — logo `null` é alcançável. Em rota **pública** (`publicApiRoutes`) é `null` por definição.
 7. Service: `const service = getFactory().get<Resource>Service()`
 8. Resposta de sucesso: `return res.json({ success: true, data: result })`
 9. Criação: `return res.status(201).json({ success: true, data: created })`

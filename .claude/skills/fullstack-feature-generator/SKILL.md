@@ -6,10 +6,10 @@ allowed-tools: Read, Grep, Glob, Write, Edit, Bash
 disable-model-invocation: true
 metadata:
   governance-skill-id: "SKL-FULLSTACK-FEATURE"
-  governance-version: "1.0.0"
+  governance-version: "1.1.0"
   governance-status: "validated"
   governance-owner: "engineering"
-  governance-last-evaluated: "2026-06-25"
+  governance-last-evaluated: "2026-07-16"
   governance-eval-score: "1.00"
 ---
 
@@ -25,7 +25,7 @@ Orquestra a geração de TODOS os átomos de um novo recurso, do Prisma ao front
 
 ## Contrato obrigatório
 
-Esta skill gera múltiplas camadas — TODO arquivo gerado deve cumprir `.claude/skills/_ARCHITECTURE-CONTRACT.md` (camadas, DI, soft-delete, policy-first, registro de rota = 3 toques, no-`any`, frontend service layer, reuse de canônicos, design system, testes). O contrato é o gate final; as sub-skills herdam-no.
+Esta skill gera múltiplas camadas — TODO arquivo gerado deve cumprir `.claude/skills/_ARCHITECTURE-CONTRACT.md` (camadas, DI, soft-delete, policy-first, registro de rota = 2 toques, no-`any`, frontend service layer, reuse de canônicos, design system, testes). O contrato é o gate final; as sub-skills herdam-no.
 
 ## Regras de composição (gated) — esta skill COMPÕE, não duplica os contratos-filhos
 
@@ -36,7 +36,7 @@ canônico nas sub-skills — aqui só garantimos a **costura** e as **fronteiras
 - **[FULL-002] Delegar, não copiar** — aplicar os **contratos das sub-skills** (`backend-*-generator`, `frontend-api-service-generator`, `frontend-page-generator`) por referência; não reescrever as instruções delas aqui, e reusar os canônicos (`GenericTable`/`Modal`/`StandardPagination`) em vez de recriar (anti "módulo ilha").
 - **[FULL-003] UI livre de Prisma/DB** — page e frontend service nunca importam `prisma`/`@/lib/prisma` nem acessam o banco; falam **só** com a service layer via `apiClient`.
 - **[FULL-004] Domínio/serviço livre de React e transporte** — `Service`/`Repository` nunca importam React/JSX nem usam `Request`/`Response`/`res.json`; o transporte (HTTP) fica no controller.
-- **[FULL-005] Rota = 3 toques** — mount em `routes/index.ts` + `'/api/<resource>'` em `protectedApiPaths` (`middleware/auth.ts`) + bloco `@openapi` em `routes/docs.paths.ts`.
+- **[FULL-005] Rota = 2 toques** — mount em `routes/index.ts` + bloco `@openapi` em `routes/docs.paths.ts`. Auth é deny-by-default: a rota nasce protegida, não se edita `middleware/auth.ts` (fonte única: `docs/claude-skills/GENERATION_CONTRACTS.md` § Backend Route Contract).
 - **[FULL-006] Contrato compatível ponta-a-ponta** — o **envelope** e os **nomes de campo** que o backend retorna (`res.json({ data, pagination })`, ex. `amountCents`) são **idênticos** aos que o frontend service tipa/consome. Cada lado válido isolado mas discordando = bug de runtime que o `tsc` não pega.
 - **[FULL-007] Testes dos dois lados** — backend (`jest` no Service: policy-first + not-found) **e** frontend, incluindo a compatibilidade de contrato (tipo do service espelha o envelope do backend).
 
@@ -80,7 +80,7 @@ Por que é o par perfeito: é a feature mais limpa do repositório — camadas e
 6. **Service** — criar `<Resource>Service.ts` com injeção de deps
 7. **Factory** — registrar repo, policy e service em `lib/factory.ts`
 8. **Controller** — criar `controllers/<resource>Controller.ts`
-9. **Route** — criar `routes/<resource>.ts` + registrar em `routes/index.ts` **+ adicionar `'/api/<resource>'` ao `protectedApiPaths` em `middleware/auth.ts`** (3º toque OBRIGATÓRIO — sem ele a rota dá 401 com token válido; `tsc` não pega)
+9. **Route** — criar `routes/<resource>.ts` + registrar em `routes/index.ts` **+ bloco `@openapi` em `routes/docs.paths.ts`** (2º toque OBRIGATÓRIO, tsc-cego — sem ele o endpoint some da doc). Não toque em `middleware/auth.ts`: a rota nasce protegida
 10. **OpenAPI** — adicionar bloco em `routes/docs.paths.ts`
 11. **Frontend service** — criar `my-app/lib/services/<resource>.service.ts`
 12. **Frontend page** — criar `my-app/pages/<resource>/index.tsx`
@@ -114,7 +114,6 @@ server/src/lib/factory.ts                                                ← EDI
 server/src/controllers/<resource>Controller.ts                          ← NEW
 server/src/routes/<resource>.ts                                         ← NEW
 server/src/routes/index.ts                                              ← EDIT
-server/src/middleware/auth.ts                                           ← EDIT (add '/api/<resource>' a protectedApiPaths)
 server/src/routes/docs.paths.ts                                         ← EDIT
 my-app/lib/services/<resource>.service.ts                               ← NEW
 my-app/pages/<resource>/index.tsx                                       ← NEW
@@ -129,7 +128,7 @@ Um item-chave por camada que NÃO pode faltar na geração ponta-a-ponta. Detalh
 - **Policy** — métodos `can*` retornam `boolean` (zero `throw`, zero acesso a dados); ownership por `actor.id === ownerId || ADMIN`.
 - **Service** — policy-first (`if (!this.policy.canX(actor)) throw new ForbiddenError()` antes de tocar dados); DI por construtor (sem `new Repository()`); `NotFoundError` (incl. cross-tenant); zero `prisma.*`/Express.
 - **Controller** — `Schema.safeParse(req.body)` + `getUserContextFromRequest(req)` + `getFactory().get<X>Service()` + `handleApiError(error, res)`.
-- **Route** — registro = **3 toques**: mount em `routes/index.ts` + `'/api/<resource>'` no `protectedApiPaths` de `middleware/auth.ts` + bloco `@openapi` em `routes/docs.paths.ts`.
+- **Route** — registro = **2 toques**: mount em `routes/index.ts` + bloco `@openapi` em `routes/docs.paths.ts`.
 - **Frontend service** — `apiClient`, tipos de retorno explícitos e **locais** (não importar do backend); zero `any`.
 - **Page** — auth guard (`withAuth`/`useAuth`) + `serverSideTranslations` (i18n); detalhe de registro = **modal, não rota**.
 - **Reuse de canônicos** — `GenericTable`/`StandardPagination` (tabela+paginação), `Modal` (detalhe), `AnalyticsDashboard`/`ChartRenderer`/`DashboardKpiCard` (analytics). Não recriar.
@@ -147,6 +146,6 @@ cd my-app && npx tsc --noEmit
 - Não pule o registro no factory — o controller não funciona sem isso
 - Não altere a ordem — Service depende de Repository e Policy existirem
 - Não misture lógica de negócio entre camadas
-- **Bug silencioso do `protectedApiPaths`:** esquecer o 3º toque (`'/api/<resource>'` no array de `middleware/auth.ts`) faz a rota retornar **401 mesmo com token válido** — `getUserContextFromRequest` devolve `null`. O `tsc` NÃO pega; só aparece em runtime.
+- **Não reintroduza o toque morto em `middleware/auth.ts`:** o array `protectedApiPaths` não existe mais (auth é deny-by-default desde o `RISK-SEC-AUTH-001`) — a rota nasce protegida ao ser montada. O toque tsc-cego que sobrou é o `@openapi` em `docs.paths.ts`.
 - **"Módulo ilha":** não recrie tabela/modal/analytics próprios (`RecordTable`/`CrmKpiCard`/`CrmBarChart` foram o erro do CRM) — reuse os canônicos (`GenericTable`, `Modal`, `AnalyticsDashboard`/`ChartRenderer`/`DashboardKpiCard`).
 - Esta é a skill de maior risco — use em branch separada e revise diff antes de commit

@@ -8,7 +8,7 @@ owner: engineering
 criticality: high
 evaluation:
   report: ../skill-audit/reports/luminaris-reviewer/REPORT.md
-  last_evaluated: 2026-06-25
+  last_evaluated: 2026-07-16
   score: 1.00
   minimum_score: 0.90
 rules:
@@ -61,7 +61,7 @@ Agente **revisor** — papel: verificar de forma independente e reportar evidên
 - `REV-004` — defeito encontrado ⇒ devolve ao implementador com `arquivo:linha` + correção sugerida; não conserta em silêncio.
 - `REV-005` — fronteira §2.1 (serviço Prisma first-class no motor DynamicTable) e veredicto de ilha (shape+posse) são FAIL-direto.
 - `REV-006` — não aprova sem rodar o gate de wiring (`skill-audit.mjs wiring`) — registro central tsc-cego (rota/KPI/preset/i18n); `exit≠0` = FAIL.
-- `REV-007` — **só em contexto de slice de Fase A** (lote paralelo, `_PARALLELIZATION-CONTRACT.md` PAR-003): o diff não pode tocar choke point PAR-001 (routes/index.ts, factory.ts, schema.prisma, seed.ts, openapi.json) — pertence à Fase B; interseção = FAIL. N/A em feature regular (3-toques normal). Gate: `happy-3`.
+- `REV-007` — **só em contexto de slice de Fase A** (lote paralelo, `_PARALLELIZATION-CONTRACT.md` PAR-003): o diff não pode tocar choke point PAR-001 (routes/index.ts, factory.ts, schema.prisma, seed.ts, openapi.json) — pertence à Fase B; interseção = FAIL. N/A em feature regular (2-toques normal). Gate: `happy-3`.
 
 Status `validated`: avaliado em 2026-06-25 (score 1.00 — ver `REPORT.md`). `governance-eval-score`/
 `governance-last-evaluated` no frontmatter são **projeção** do `REPORT.md` (SG-011); materializados na promoção (SG-048).

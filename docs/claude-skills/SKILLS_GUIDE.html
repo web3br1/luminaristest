@@ -120,7 +120,7 @@
   <p>Três ideias sustentam tudo:</p>
   <ul>
     <li><b>Reuse antes de recriar.</b> Antes de gerar "X novo", verifica-se se o canônico já existe (GenericTable, Modal, StandardPagination, AnalyticsDashboard…). Bespoke só com divergência sancionada de <i>shape</i> ou <i>posse</i> (critério em <code>.claude/skills/_REUSE-CRITERION.md</code>).</li>
-    <li><b>Camadas não são over-engineering.</b> A cadeia <code>Route → Controller → Service → Repository → Prisma</code> (+ Policy), injeção via Factory, DTO Zod, soft-delete e o registro de rota em 3 toques são <i>requisitos</i> — não se "enxuga" uma policy ou um DTO.</li>
+    <li><b>Camadas não são over-engineering.</b> A cadeia <code>Route → Controller → Service → Repository → Prisma</code> (+ Policy), injeção via Factory, DTO Zod, soft-delete e o registro de rota em 2 toques são <i>requisitos</i> — não se "enxuga" uma policy ou um DTO.</li>
     <li><b>O contrato é o gate final.</b> Toda skill herda <code>.claude/skills/_ARCHITECTURE-CONTRACT.md</code>; em conflito, o contrato prevalece.</li>
   </ul>
   <div class="note"><b>Fontes da verdade.</b> <i>skill define</i> (o que gerar) · <i>governance relaciona</i> (regra→gate→eval) · <i>cbm localiza</i> (codebase-memory, índice estrutural — não-autoritativo) · <i>código/testes confirmam</i> (verdade objetiva) · <i>skill-audit impede drift</i> (gate determinístico no CI).</div>
@@ -202,7 +202,7 @@
     <tr><td>Policy</td><td>Métodos <code>can*</code> retornam <code>boolean</code> (zero <code>throw</code>, zero acesso a dados); ownership por <code>actor.id === ownerId || ADMIN</code>.</td></tr>
     <tr><td>Service</td><td>Policy-first; DI por construtor (sem <code>new Repository()</code>); <code>NotFoundError</code> (incl. cross-tenant); zero <code>prisma.*</code>/Express.</td></tr>
     <tr><td>Controller</td><td><code>Schema.safeParse(req.body)</code> + <code>getUserContextFromRequest</code> + <code>getFactory().get&lt;X&gt;Service()</code> + <code>handleApiError</code>.</td></tr>
-    <tr><td>Route</td><td><b>3 toques:</b> mount em <code>routes/index.ts</code> + <code>'/api/&lt;resource&gt;'</code> em <code>protectedApiPaths</code> (<code>middleware/auth.ts</code>) + bloco <code>@openapi</code> em <code>docs.paths.ts</code>.</td></tr>
+    <tr><td>Route</td><td><b>2 toques:</b> mount em <code>routes/index.ts</code> + bloco <code>@openapi</code> em <code>docs.paths.ts</code>. Auth é <b>deny-by-default</b>: a rota nasce protegida, não se edita <code>middleware/auth.ts</code> — só para torná-la <i>pública</i> (regra em <code>publicApiRoutes</code>). Fonte única: <code>GENERATION_CONTRACTS.md</code> § Backend Route Contract.</td></tr>
     <tr><td>Frontend service</td><td><code>apiClient</code>, tipos de retorno explícitos e <b>locais</b>; zero <code>any</code>.</td></tr>
     <tr><td>Page / Component</td><td>auth guard + i18n; reusa canônicos; <code>neutral-*</code> (nunca <code>zinc-*</code>); cards <code>rounded-2xl/3xl</code>; detalhe = <b>modal, não rota</b>.</td></tr>
   </table>
@@ -265,7 +265,7 @@ const SKILLS = [
   ["backend-policy-generator","backend","Policy de autorização: métodos can* booleanos, ownership por actor.","regras de quem pode o quê"],
   ["backend-service-generator","backend","Service policy-first com DI por construtor e erros tipados.","lógica de negócio de um recurso"],
   ["backend-controller-generator","backend","Controller: safeParse + getFactory + handleApiError.","endpoint HTTP de um recurso"],
-  ["backend-route-generator","backend","Rota fina + registro em 3 toques (index, protectedApiPaths, docs).","expor um service via HTTP"],
+  ["backend-route-generator","backend","Rota fina + registro em 2 toques (index, docs). Auth é deny-by-default.","expor um service via HTTP"],
   ["backend-prisma-model-generator","backend","Model Prisma: id cuid, updatedAt, deletedAt, índices, @@map.","nova tabela first-class no schema"],
   ["backend-workflow-transition-generator","backend","Serviço de transição de etapa (máquina de estados) atômico sobre DynamicTable.","avançar etapa com efeitos colaterais (CrmPipelineService)"],
   ["backend-test-suite-generator","backend","Suíte Jest: clearAllMocks, toBeCloseTo, buildService, cross-tenant NotFound.","cobertura de service/processor/security"],

@@ -1,7 +1,7 @@
 # Skill Audit Report — fullstack-feature-generator
 
-- Skill: `fullstack-feature-generator` (id `SKL-FULLSTACK-FEATURE`, v1.0.0)
-- Executed at: 2026-06-25
+- Skill: `fullstack-feature-generator` (id `SKL-FULLSTACK-FEATURE`, v1.1.0)
+- Executed at: 2026-07-16
 - Overall score: 1.00
 - Minimum: 0.90
 - Overall result: PASS
@@ -19,7 +19,7 @@ verbatim: `./_eval.out.txt`.
 | Check | Status | Evidência |
 |---|---|---|
 | P1 golden refs vivos | PASS | slice `users` (DTO/Service/Controller/Route/auth/frontend service) existe no path |
-| happy-1 compõe a cadeia (8 arquivos) | PASS | 18/18 — DTO+@openapi, service policy-first sem prisma/React/transport, controller getFactory/safeParse/handleApiError, rota 3-toque, frontend apiClient, page withAuth+GenericTable sem prisma |
+| happy-1 compõe a cadeia (7 arquivos) | PASS | 18/18 — DTO+@openapi, service policy-first sem prisma/React/transport, controller getFactory/safeParse/handleApiError, rota 2-toque, frontend apiClient, page withAuth+GenericTable sem prisma |
 | happy-2 testes dos dois lados | PASS | 3/3 — jest service (ForbiddenError/NotFound cross-tenant) + teste de contrato frontend (envelope+amountCents) |
 | edge-1 fronteiras | PASS | 6/6 — service sem prisma/React/res.json; page sem prisma/@/lib/prisma, via apiClient |
 | regression-1 contrato compatível | PASS | 6/6 — backend `res.json({ data, pagination })` + `amountCents` ≡ frontend `{ data; pagination }` + `amountCents` |
@@ -32,8 +32,13 @@ quebra em runtime sem o `tsc` pegar. O gate exige o MESMO envelope + MESMO nome 
 os controles FULL-006a/006b provam que o par divergente FALHA.
 
 ## Correções de eval (de-brittle, com controle)
-- regression-1 `regex:res.json({…data:`→`…\bdata\b` (o canônico usa shorthand de objeto `{ data, pagination }`, sem `:`). Controle FULL-006a.
+- **2026-07-16** — `happy-1`: `FULL-005` inverteu (registro = 2 toques; auth é deny-by-default). `target_files` 8→7 (`middleware/auth.ts` fora), prompt pede os 2 toques, `+absent:protectedApiPaths`. Sem esta correção o eval exigiria o toque morto.
+- 2026-06-25 — regression-1 `regex:res.json({…data:`→`…\bdata\b` (o canônico usa shorthand de objeto `{ data, pagination }`, sem `:`). Controle FULL-006a.
 - Controles adicionais FULL-006b (campo casado nos dois lados), FULL-003 (UI sem prisma), FULL-004 (service sem `res.json`).
 
+## Corrida 2026-07-16
+4/4 casos de código PASS (`batch-eval`). Os **3 casos de trigger NÃO foram re-executados** — herdados de 2026-06-25 (router-judge). A 1ª tentativa deu 2/4 por contaminação de prosa no prompt de geração (o modelo rotulava cada elo com "zero prisma", e `absent-code:prisma` reprovava o acerto); refeita com silêncio explícito. Diagnóstico completo no REPORT de `backend-route-generator`.
+
 ## Skipped / blocked
-Nenhum. FULL-008 é gate **static** (determinístico) — dispensa eval comportamental (SG-035).
+- Casos de trigger: não re-executados nesta corrida (exigem router-judge).
+- FULL-008 é gate **static** (determinístico) — dispensa eval comportamental (SG-035).

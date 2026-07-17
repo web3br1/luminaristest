@@ -1,55 +1,100 @@
-Now I have all the canonical patterns internalized. Generating the snippets.
-
 ===happy-1===
 // server/src/features/invoices/dtos/InvoiceDto.ts
 import { z } from 'zod';
 
 /**
- * Schema for creating an invoice
  * @openapi
  * components:
  *   schemas:
+ *     Invoice:
+ *       type: object
+ *       required: [id, userId, unitId, customerName, issueDate, dueDate, amountCents, status, createdAt, updatedAt]
+ *       properties:
+ *         id: { type: string, format: cuid }
+ *         userId: { type: string, format: cuid }
+ *         unitId: { type: string }
+ *         customerName: { type: string, minLength: 1, maxLength: 200 }
+ *         documentNumber: { type: string, nullable: true, maxLength: 60 }
+ *         description: { type: string, maxLength: 500 }
+ *         issueDate: { type: string, format: date, description: 'YYYY-MM-DD' }
+ *         dueDate: { type: string, format: date, description: 'YYYY-MM-DD' }
+ *         amountCents: { type: integer, description: 'Valor em centavos inteiros' }
+ *         status: { type: string, enum: [OPEN, PAID, CANCELLED] }
+ *         createdAt: { type: string, format: date-time }
+ *         updatedAt: { type: string, format: date-time }
+ *         deletedAt: { type: string, format: date-time, nullable: true }
  *     CreateInvoice:
  *       type: object
- *       required: [customerName, amountCents, dueDate]
+ *       required: [unitId, customerName, description, issueDate, dueDate, amountCents]
  *       properties:
+ *         unitId: { type: string }
  *         customerName: { type: string, minLength: 1, maxLength: 200 }
- *         amountCents: { type: integer, minimum: 0, description: Amount in integer cents }
- *         currency: { type: string, enum: [BRL, USD, EUR] }
- *         dueDate: { type: string, format: date-time }
- *         status: { type: string, enum: [DRAFT, ISSUED, PAID, CANCELLED] }
- */
-export const CreateInvoiceSchema = z.object({
-  customerName: z.string().min(1, 'Customer name is required').max(200, 'Customer name cannot exceed 200 characters'),
-  amountCents: z.number().int('Amount must be integer cents').nonnegative('Amount cannot be negative'),
-  currency: z.enum(['BRL', 'USD', 'EUR']).default('BRL'),
-  dueDate: z.coerce.date(),
-  status: z.enum(['DRAFT', 'ISSUED', 'PAID', 'CANCELLED']).default('DRAFT'),
-});
-
-/**
- * Schema for updating an invoice (all fields optional)
- * @openapi
- * components:
- *   schemas:
+ *         documentNumber: { type: string, maxLength: 60 }
+ *         description: { type: string, maxLength: 500 }
+ *         issueDate: { type: string, format: date }
+ *         dueDate: { type: string, format: date }
+ *         amountCents: { type: integer, minimum: 1 }
  *     UpdateInvoice:
  *       type: object
- *       properties:
- *         customerName: { type: string, maxLength: 200 }
- *         amountCents: { type: integer, minimum: 0 }
- *         currency: { type: string, enum: [BRL, USD, EUR] }
- *         dueDate: { type: string, format: date-time }
- *         status: { type: string, enum: [DRAFT, ISSUED, PAID, CANCELLED] }
+ *       description: Todos os campos de CreateInvoice, opcionais (partial)
  */
+
+export const InvoiceStatusSchema = z.enum(['OPEN', 'PAID', 'CANCELLED']);
+export type InvoiceStatus = z.infer<typeof InvoiceStatusSchema>;
+
+/** `YYYY-MM-DD` com validação de calendário (round-trip), não só regex. */
+const DateOnlySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'invoice.validation.dateOnlyFormat')
+  .refine((value) => {
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  }, 'invoice.validation.dateOnlyCalendar');
+
+export const CreateInvoiceSchema = z.object({
+  unitId: z.string().min(1, 'invoice.validation.unitIdRequired'),
+  customerName: z
+    .string()
+    .min(1, 'invoice.validation.customerNameRequired')
+    .max(200, 'invoice.validation.customerNameTooLong'),
+  documentNumber: z.string().max(60, 'invoice.validation.documentNumberTooLong').optional(),
+  description: z.string().max(500, 'invoice.validation.descriptionTooLong'),
+  issueDate: DateOnlySchema,
+  dueDate: DateOnlySchema,
+  amountCents: z
+    .number()
+    .int('invoice.validation.amountCentsMustBeInteger')
+    .positive('invoice.validation.amountCentsMustBePositive'),
+});
+
 export const UpdateInvoiceSchema = CreateInvoiceSchema.partial();
 
+export const InvoiceSchema = z.object({
+  id: z.string().cuid({ message: 'invoice.validation.idInvalidCuid' }),
+  userId: z.string().cuid(),
+  unitId: z.string(),
+  customerName: z.string(),
+  documentNumber: z.string().nullable(),
+  description: z.string(),
+  issueDate: DateOnlySchema,
+  dueDate: DateOnlySchema,
+  amountCents: z.number().int(),
+  status: InvoiceStatusSchema,
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  deletedAt: z.date().nullable(),
+});
+
+export type InvoiceDto = z.infer<typeof InvoiceSchema>;
 export type CreateInvoiceDto = z.infer<typeof CreateInvoiceSchema>;
 export type UpdateInvoiceDto = z.infer<typeof UpdateInvoiceSchema>;
 
+/** Type guard para CreateInvoiceDto. */
 export function isCreateInvoiceInput(obj: unknown): obj is CreateInvoiceDto {
   return CreateInvoiceSchema.safeParse(obj).success;
 }
 
+/** Type guard para UpdateInvoiceDto. */
 export function isUpdateInvoiceInput(obj: unknown): obj is UpdateInvoiceDto {
   return UpdateInvoiceSchema.safeParse(obj).success;
 }
@@ -57,45 +102,120 @@ export function isUpdateInvoiceInput(obj: unknown): obj is UpdateInvoiceDto {
 // server/src/features/invoices/services/InvoiceService.ts
 import type { IInvoiceRepository } from '../repositories/IInvoiceRepository';
 import type { IInvoicePolicy } from '../policies/IInvoicePolicy';
-import { CreateInvoiceDto, isCreateInvoiceInput } from '../dtos/InvoiceDto';
-import type { IInvoice } from '../models/Invoice.model';
 import type { IUser } from '../../users/models/User.model';
+import type { IInvoice } from '../models/Invoice.model';
+import {
+  CreateInvoiceDto,
+  UpdateInvoiceDto,
+  isCreateInvoiceInput,
+  isUpdateInvoiceInput,
+} from '../dtos/InvoiceDto';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
+
+export interface ListInvoicesResult {
+  invoices: IInvoice[];
+  totalCount: number;
+}
 
 export class InvoiceService {
   constructor(
-    private invoiceRepository: IInvoiceRepository,
-    private invoicePolicy: IInvoicePolicy
+    private readonly invoiceRepository: IInvoiceRepository,
+    private readonly invoicePolicy: IInvoicePolicy,
   ) {}
 
-  public async createInvoice(data: CreateInvoiceDto, actor: IUser): Promise<IInvoice> {
-    // policy-first — authorize before touching any data
+  /**
+   * Lista faturas do tenant, paginado.
+   * @throws {ForbiddenError} Se a policy negar.
+   */
+  public async listInvoices(
+    actor: IUser | null,
+    unitId: string,
+    page = 1,
+    limit = 10,
+  ): Promise<ListInvoicesResult> {
+    if (!this.invoicePolicy.canList(actor)) {
+      throw new ForbiddenError('You are not authorized to list invoices');
+    }
+
+    return this.invoiceRepository.findAll({ userId: actor!.id, unitId, page, limit });
+  }
+
+  /**
+   * Busca uma fatura por id dentro do tenant do actor.
+   * @throws {ForbiddenError} Se a policy negar.
+   * @throws {NotFoundError} Se não existir, estiver soft-deleted ou for de outro tenant.
+   */
+  public async getInvoiceById(id: string, actor: IUser | null): Promise<IInvoice> {
+    if (!this.invoicePolicy.canView(actor)) {
+      throw new ForbiddenError('You are not authorized to view this invoice');
+    }
+
+    const invoice = await this.invoiceRepository.findById(id);
+    if (!invoice || invoice.userId !== actor!.id) {
+      throw new NotFoundError('Invoice not found');
+    }
+
+    return invoice;
+  }
+
+  /**
+   * Cria uma fatura.
+   * @throws {ForbiddenError} Se a policy negar.
+   * @throws {ValidationError} Se o payload não bater com o DTO.
+   */
+  public async createInvoice(data: CreateInvoiceDto, actor: IUser | null): Promise<IInvoice> {
     if (!this.invoicePolicy.canCreate(actor)) {
       throw new ForbiddenError('You are not authorized to create invoices');
     }
     if (!isCreateInvoiceInput(data)) {
       throw new ValidationError('Invalid invoice creation data');
     }
-    return this.invoiceRepository.create({ ...data, ownerUserId: actor.id });
+
+    return this.invoiceRepository.create({ ...data, userId: actor!.id, status: 'OPEN' });
   }
 
-  public async getInvoiceById(id: string, actor: IUser): Promise<IInvoice> {
-    if (!this.invoicePolicy.canView(actor, id)) {
-      throw new ForbiddenError('You are not authorized to view this invoice');
+  /**
+   * Atualiza uma fatura existente.
+   * @throws {ForbiddenError} Se a policy negar.
+   * @throws {ValidationError} Se o payload não bater com o DTO.
+   * @throws {NotFoundError} Se não existir ou for de outro tenant.
+   */
+  public async updateInvoice(
+    id: string,
+    data: UpdateInvoiceDto,
+    actor: IUser | null,
+  ): Promise<IInvoice> {
+    if (!this.invoicePolicy.canUpdate(actor)) {
+      throw new ForbiddenError('You are not authorized to update this invoice');
     }
-    // repo scopes by tenant + soft-delete; cross-tenant reads surface as NotFound
-    const invoice = await this.invoiceRepository.findById(id, actor.id);
-    if (!invoice) {
+    if (!isUpdateInvoiceInput(data)) {
+      throw new ValidationError('Invalid invoice update data');
+    }
+
+    const existing = await this.invoiceRepository.findById(id);
+    if (!existing || existing.userId !== actor!.id) {
       throw new NotFoundError('Invoice not found');
     }
-    return invoice;
+
+    return this.invoiceRepository.update(id, data);
   }
 
-  public async listInvoices(actor: IUser, page = 1, limit = 10) {
-    if (!this.invoicePolicy.canListAll(actor)) {
-      throw new ForbiddenError('You are not authorized to list invoices');
+  /**
+   * Remove logicamente uma fatura (soft-delete no repositório).
+   * @throws {ForbiddenError} Se a policy negar.
+   * @throws {NotFoundError} Se não existir ou for de outro tenant.
+   */
+  public async deleteInvoice(id: string, actor: IUser | null): Promise<void> {
+    if (!this.invoicePolicy.canDelete(actor)) {
+      throw new ForbiddenError('You are not authorized to delete this invoice');
     }
-    return this.invoiceRepository.findAll(actor.id, page, limit);
+
+    const existing = await this.invoiceRepository.findById(id);
+    if (!existing || existing.userId !== actor!.id) {
+      throw new NotFoundError('Invoice not found');
+    }
+
+    await this.invoiceRepository.softDelete(id);
   }
 }
 
@@ -104,18 +224,44 @@ import { Request, Response } from 'express';
 import { handleApiError } from '../lib/apiUtils';
 import { getFactory } from '@/lib/factory';
 import { getUserContextFromRequest } from '@/lib/authUtils';
-import { CreateInvoiceSchema } from '@/features/invoices/dtos/InvoiceDto';
+import { CreateInvoiceSchema, UpdateInvoiceSchema } from '@/features/invoices/dtos/InvoiceDto';
 
 export const getInvoices = async (req: Request, res: Response) => {
   try {
+    const unitId = String(req.query.unitId ?? '');
+    if (!unitId) {
+      return res.status(400).json({ success: false, error: 'unitId is required' });
+    }
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
+
     const actor = getUserContextFromRequest(req);
-
     const service = getFactory().getInvoiceService();
-    const { data, pagination } = await service.listInvoices(actor, page, limit);
+    const { invoices, totalCount } = await service.listInvoices(actor, unitId, page, limit);
 
-    return res.json({ data, pagination });
+    return res.json({
+      success: true,
+      data: invoices,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+      },
+    });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+export const getInvoiceById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const actor = getUserContextFromRequest(req);
+    const service = getFactory().getInvoiceService();
+    const invoice = await service.getInvoiceById(id, actor);
+
+    return res.json({ success: true, data: invoice });
   } catch (error) {
     return handleApiError(error, res);
   }
@@ -124,154 +270,388 @@ export const getInvoices = async (req: Request, res: Response) => {
 export const createInvoice = async (req: Request, res: Response) => {
   try {
     const parse = CreateInvoiceSchema.safeParse(req.body);
-    if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });
+    if (!parse.success) {
+      return res.status(400).json({ success: false, error: parse.error.flatten() });
+    }
 
     const actor = getUserContextFromRequest(req);
     const service = getFactory().getInvoiceService();
     const created = await service.createInvoice(parse.data, actor);
 
-    return res.status(201).json({ data: created });
+    return res.status(201).json({ success: true, data: created });
   } catch (error) {
     return handleApiError(error, res);
   }
 };
 
-// server/src/routes/index.ts
-import invoiceRoutes from './invoices';
-// ...
-router.use('/invoices', invoiceRoutes);
+export const updateInvoice = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const parse = UpdateInvoiceSchema.safeParse(req.body);
+    if (!parse.success) {
+      return res.status(400).json({ success: false, error: parse.error.flatten() });
+    }
 
-// server/src/middleware/auth.ts
-const protectedApiPaths = [
-  // ...existing entries...
-  '/api/invoices',        // ← invoices CRUD (tenant-scoped)
-];
+    const actor = getUserContextFromRequest(req);
+    const service = getFactory().getInvoiceService();
+    const updated = await service.updateInvoice(id, parse.data, actor);
+
+    return res.json({ success: true, data: updated });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+export const deleteInvoice = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const actor = getUserContextFromRequest(req);
+    const service = getFactory().getInvoiceService();
+    await service.deleteInvoice(id, actor);
+
+    return res.json({ success: true, message: 'Invoice deleted successfully' });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+// server/src/routes/invoices.ts
+import { Router } from 'express';
+import {
+  getInvoices,
+  getInvoiceById,
+  createInvoice,
+  updateInvoice,
+  deleteInvoice,
+} from '../controllers/invoiceController';
+
+const router = Router();
+
+router.get('/', getInvoices);
+router.get('/:id', getInvoiceById);
+router.post('/', createInvoice);
+router.put('/:id', updateInvoice);
+router.delete('/:id', deleteInvoice);
+
+export default router;
+
+// server/src/routes/index.ts
+import { Router } from 'express';
+import authRoutes from './auth';
+import userRoutes from './users';
+import invoiceRoutes from './invoices';
+import packageBalanceRoutes from './packageBalances';
+
+const router = Router();
+
+// Mount sub-routes
+router.use('/auth', authRoutes);
+router.use('/users', userRoutes);
+router.use('/invoices', invoiceRoutes);
+router.use('/package-balances', packageBalanceRoutes);
+
+export { router };
 
 // server/src/routes/docs.paths.ts
 /**
  * @openapi
- * /api/invoices:
- *   get:
- *     tags: [Invoices]
- *     summary: List invoices (paginated)
- *     parameters:
- *       - in: query
- *         name: page
- *         schema: { type: integer, default: 1 }
- *       - in: query
- *         name: limit
- *         schema: { type: integer, default: 10 }
- *     responses:
- *       200:
- *         description: Paginated invoice envelope
+ * tags:
+ *   - name: Invoices
+ *     description: Faturas (emissão, consulta e baixa lógica)
+ *
+ * paths:
+ *
+ *   # ─── INVOICES ──────────────────────────────────────────────────────────
+ *
+ *   /api/invoices:
+ *     get:
+ *       summary: Lista faturas da unidade (paginado)
+ *       tags: [Invoices]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: page, required: false, schema: { type: integer, default: 1 } }
+ *         - { in: query, name: limit, required: false, schema: { type: integer, default: 10 } }
+ *       responses:
+ *         '200':
+ *           description: Envelope { success, data, pagination }
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:
+ *                     type: array
+ *                     items: { $ref: '#/components/schemas/Invoice' }
+ *                   pagination:
+ *                     type: object
+ *                     properties:
+ *                       page: { type: integer }
+ *                       limit: { type: integer }
+ *                       totalCount: { type: integer }
+ *                       totalPages: { type: integer }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *     post:
+ *       summary: Cria uma fatura
+ *       tags: [Invoices]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
  *         content:
  *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items: { $ref: '#/components/schemas/Invoice' }
- *                 pagination: { $ref: '#/components/schemas/PaginationMetadata' }
- *   post:
- *     tags: [Invoices]
- *     summary: Create an invoice
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema: { $ref: '#/components/schemas/CreateInvoice' }
- *     responses:
- *       201:
- *         description: Created invoice
+ *             schema: { $ref: '#/components/schemas/CreateInvoice' }
+ *       responses:
+ *         '201': { description: 'Fatura criada — { success, data }' }
+ *         '400': { description: 'Payload inválido' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/invoices/{id}:
+ *     get:
+ *       summary: Obtém uma fatura por id
+ *       tags: [Invoices]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       responses:
+ *         '200': { description: '{ success, data }' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *     put:
+ *       summary: Atualiza uma fatura
+ *       tags: [Invoices]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
  *         content:
  *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data: { $ref: '#/components/schemas/Invoice' }
+ *             schema: { $ref: '#/components/schemas/UpdateInvoice' }
+ *       responses:
+ *         '200': { description: '{ success, data }' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *     delete:
+ *       summary: Remove logicamente uma fatura
+ *       tags: [Invoices]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       responses:
+ *         '200': { description: '{ success, message }' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
  */
+export {};
 
 // my-app/lib/services/invoice.service.ts
 import { apiClient } from '../api/api-client';
 
-interface PaginationMetadata { page: number; limit: number; total: number; hasMore?: boolean; totalPages?: number; totalCount?: number }
+export interface PaginationMetadata {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+}
+
+export type InvoiceStatus = 'OPEN' | 'PAID' | 'CANCELLED';
 
 export interface Invoice {
   id: string;
+  userId: string;
+  unitId: string;
   customerName: string;
-  amountCents: number;
-  currency: string;
+  documentNumber: string | null;
+  description: string;
+  /** YYYY-MM-DD */
+  issueDate: string;
+  /** YYYY-MM-DD */
   dueDate: string;
-  status: 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED';
+  /** Centavos inteiros. */
+  amountCents: number;
+  status: InvoiceStatus;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
+}
+
+export interface ListInvoicesQuery {
+  unitId: string;
+  page?: number;
+  limit?: number;
 }
 
 export interface CreateInvoicePayload {
+  unitId: string;
   customerName: string;
-  amountCents: number;
-  currency?: string;
+  documentNumber?: string;
+  description: string;
+  issueDate: string;
   dueDate: string;
-  status?: Invoice['status'];
+  amountCents: number;
+}
+
+export type UpdateInvoicePayload = Partial<CreateInvoicePayload>;
+
+function buildQuery(params: Record<string, string | undefined>): string {
+  const pairs = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`);
+  return pairs.length ? `?${pairs.join('&')}` : '';
 }
 
 export const invoiceService = {
-  async listInvoices(page: number, limit: number): Promise<{ data: Invoice[]; pagination: PaginationMetadata }> {
-    return apiClient.get<{ data: Invoice[]; pagination: PaginationMetadata }>(`/invoices?page=${page}&limit=${limit}`);
+  async listInvoices(
+    query: ListInvoicesQuery,
+  ): Promise<{ data: Invoice[]; pagination: PaginationMetadata }> {
+    const qs = buildQuery({
+      unitId: query.unitId,
+      page: query.page !== undefined ? String(query.page) : undefined,
+      limit: query.limit !== undefined ? String(query.limit) : undefined,
+    });
+    return apiClient.get<{ data: Invoice[]; pagination: PaginationMetadata }>(`/invoices${qs}`);
+  },
+
+  async getInvoiceById(id: string): Promise<Invoice> {
+    const res = await apiClient.get<{ success: boolean; data: Invoice }>(
+      `/invoices/${encodeURIComponent(id)}`,
+    );
+    return res.data;
   },
 
   async createInvoice(payload: CreateInvoicePayload): Promise<Invoice> {
-    const res = await apiClient.post<{ data: Invoice }>('/invoices', payload);
+    const res = await apiClient.post<{ success: boolean; data: Invoice }>('/invoices', payload);
     return res.data;
+  },
+
+  async updateInvoice(id: string, payload: UpdateInvoicePayload): Promise<Invoice> {
+    const res = await apiClient.put<{ success: boolean; data: Invoice }>(
+      `/invoices/${encodeURIComponent(id)}`,
+      payload,
+    );
+    return res.data;
+  },
+
+  async deleteInvoice(id: string): Promise<void> {
+    await apiClient.delete(`/invoices/${encodeURIComponent(id)}`);
   },
 };
 
 // my-app/pages/invoices/index.tsx
-import type { GetServerSideProps, NextPage } from 'next';
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { useTranslation } from 'next-i18next';
-import { withAuth } from '@/components/auth/withAuth';
-import { GenericTable } from '@/components/ui/GenericTable';
-import { StandardPagination } from '@/components/ui/StandardPagination';
-import { invoiceService, type Invoice } from '@/lib/services/invoice.service';
+import type { GetServerSideProps, GetServerSidePropsContext } from 'next';
+import withAuth from '../../lib/hoc/withAuth';
+import { GenericTable } from '../../features/dashboard/category-views/shared/components/GenericTable';
+import { StandardPagination } from '../../features/dashboard/shared/components/StandardPagination';
+import type { ITableSchema } from '../../features/dashboard/components/shared/dynamic-tables.client';
+import type { GenericRecord } from '../../features/dashboard/category-views/shared/hooks/useGenericData';
+import { invoiceService, type Invoice, type PaginationMetadata } from '../../lib/services/invoice.service';
 
-const InvoicesPage: NextPage = () => {
-  const { t } = useTranslation('invoices');
-  const [rows, setRows] = useState<Invoice[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+const PAGE_SIZE = 10;
 
-  const load = useCallback(async () => {
-    const { data, pagination } = await invoiceService.listInvoices(page, 10);
-    setRows(data);
-    setTotalPages(pagination.totalPages ?? 1);
-  }, [page]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold text-neutral-900">{t('title')}</h1>
-      {/* reuse the canonical table — never recreate a bespoke <table> */}
-      <GenericTable<Invoice>
-        rows={rows}
-        columns={[
-          { key: 'customerName', header: t('columns.customer') },
-          { key: 'amountCents', header: t('columns.amount'), render: (r) => (r.amountCents / 100).toFixed(2) },
-          { key: 'status', header: t('columns.status') },
-          { key: 'dueDate', header: t('columns.dueDate') },
-        ]}
-      />
-      <StandardPagination page={page} totalPages={totalPages} onPageChange={setPage} />
-    </div>
-  );
+const INVOICE_SCHEMA: ITableSchema = {
+  defaultDisplayField: 'customerName',
+  fields: [
+    { name: 'customerName', label: 'Cliente', type: 'text' },
+    { name: 'documentNumber', label: 'Documento', type: 'text' },
+    { name: 'issueDate', label: 'Emissão', type: 'date' },
+    { name: 'dueDate', label: 'Vencimento', type: 'date' },
+    { name: 'amountCents', label: 'Valor', type: 'number', numberFormat: 'currency' },
+    { name: 'status', label: 'Status', type: 'select', options: ['OPEN', 'PAID', 'CANCELLED'] },
+  ],
+  ui: { presentation: 'standalone' },
 };
 
-export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
-  props: { ...(await serverSideTranslations(locale ?? 'en', ['common', 'invoices'])) },
-});
+/** Adapta a Invoice tipada para a linha que a tabela canônica consome. */
+function toRecord(invoice: Invoice): GenericRecord {
+  return {
+    id: invoice.id,
+    data: {
+      customerName: invoice.customerName,
+      documentNumber: invoice.documentNumber,
+      issueDate: invoice.issueDate,
+      dueDate: invoice.dueDate,
+      amountCents: invoice.amountCents,
+      status: invoice.status,
+    },
+  };
+}
+
+interface InvoicesPageProps {
+  unitId: string;
+}
+
+function InvoicesPage({ unitId }: InvoicesPageProps) {
+  const { t } = useTranslation('invoices');
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [pagination, setPagination] = useState<PaginationMetadata | null>(null);
+  const [page, setPage] = useState(1);
+
+  const load = useCallback(async () => {
+    const res = await invoiceService.listInvoices({ unitId, page, limit: PAGE_SIZE });
+    setInvoices(res.data);
+    setPagination(res.pagination);
+  }, [unitId, page]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const records = useMemo(() => invoices.map(toRecord), [invoices]);
+
+  const handleDelete = useCallback(
+    async (record: GenericRecord) => {
+      await invoiceService.deleteInvoice(record.id);
+      await load();
+    },
+    [load],
+  );
+
+  return (
+    <div className="space-y-4 p-6">
+      <header>
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          {t('invoices.title', 'Faturas')}
+        </h1>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">
+          {t('invoices.subtitle', 'Faturas emitidas para a unidade')}
+        </p>
+      </header>
+
+      <div className="rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <GenericTable
+          records={records}
+          schema={INVOICE_SCHEMA}
+          tableId="invoices"
+          relationLookups={{}}
+          onEditSuccess={load}
+          onDeleteConfirm={handleDelete}
+        />
+      </div>
+
+      {pagination && (
+        <StandardPagination
+          currentPage={pagination.page}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalCount}
+          itemsPerPage={pagination.limit}
+          onPageChange={setPage}
+        />
+      )}
+    </div>
+  );
+}
+
+export const getServerSideProps: GetServerSideProps = async (context: GetServerSidePropsContext) => {
+  const { locale, query } = context;
+  return {
+    props: {
+      unitId: typeof query.unitId === 'string' ? query.unitId : '',
+      ...(await serverSideTranslations(locale ?? 'en', ['common', 'invoices', 'database'])),
+    },
+  };
+};
 
 export default withAuth(InvoicesPage);
 
@@ -281,94 +661,207 @@ import { InvoiceService } from './InvoiceService';
 import type { IInvoiceRepository } from '../repositories/IInvoiceRepository';
 import type { IInvoicePolicy } from '../policies/IInvoicePolicy';
 import type { IUser } from '../../users/models/User.model';
+import { Role } from '../../users/models/User.model';
 import { ForbiddenError, NotFoundError } from '../../../lib/errors';
 
-const actor = { id: 'user-1', role: 'USER' } as IUser;
+const actor: IUser = {
+  id: 'user_owner',
+  name: 'Owner',
+  username: 'owner',
+  email: 'owner@example.com',
+  role: Role.USER,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+} as IUser;
 
-function makeRepo(overrides: Partial<IInvoiceRepository> = {}): jest.Mocked<IInvoiceRepository> {
+const otherTenantInvoice = {
+  id: 'inv_1',
+  userId: 'user_someone_else',
+  unitId: 'unit_1',
+  customerName: 'Acme',
+  documentNumber: null,
+  description: 'Serviços',
+  issueDate: '2026-01-10',
+  dueDate: '2026-02-10',
+  amountCents: 15000,
+  status: 'OPEN' as const,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  deletedAt: null,
+};
+
+function makeRepository(): jest.Mocked<IInvoiceRepository> {
   return {
-    create: jest.fn(),
-    findById: jest.fn(),
     findAll: jest.fn(),
+    findById: jest.fn(),
+    create: jest.fn(),
     update: jest.fn(),
     softDelete: jest.fn(),
-    ...overrides,
   } as unknown as jest.Mocked<IInvoiceRepository>;
 }
 
-function makePolicy(overrides: Partial<IInvoicePolicy> = {}): jest.Mocked<IInvoicePolicy> {
+function makePolicy(allowed: boolean): jest.Mocked<IInvoicePolicy> {
   return {
-    canCreate: jest.fn().mockReturnValue(true),
-    canView: jest.fn().mockReturnValue(true),
-    canListAll: jest.fn().mockReturnValue(true),
-    canUpdate: jest.fn().mockReturnValue(true),
-    canDelete: jest.fn().mockReturnValue(true),
-    ...overrides,
+    canList: jest.fn().mockReturnValue(allowed),
+    canView: jest.fn().mockReturnValue(allowed),
+    canCreate: jest.fn().mockReturnValue(allowed),
+    canUpdate: jest.fn().mockReturnValue(allowed),
+    canDelete: jest.fn().mockReturnValue(allowed),
   } as unknown as jest.Mocked<IInvoicePolicy>;
 }
 
 describe('InvoiceService', () => {
-  describe('createInvoice (policy-first)', () => {
-    it('throws ForbiddenError and never touches the repo when policy denies', async () => {
-      const repo = makeRepo();
-      const policy = makePolicy({ canCreate: jest.fn().mockReturnValue(false) });
-      const service = new InvoiceService(repo, policy);
+  describe('policy-first', () => {
+    it('lança ForbiddenError em listInvoices quando a policy nega', async () => {
+      const repository = makeRepository();
+      const service = new InvoiceService(repository, makePolicy(false));
+
+      await expect(service.listInvoices(actor, 'unit_1')).rejects.toBeInstanceOf(ForbiddenError);
+      expect(repository.findAll).not.toHaveBeenCalled();
+    });
+
+    it('lança ForbiddenError em getInvoiceById antes de ler o repositório', async () => {
+      const repository = makeRepository();
+      const service = new InvoiceService(repository, makePolicy(false));
+
+      await expect(service.getInvoiceById('inv_1', actor)).rejects.toBeInstanceOf(ForbiddenError);
+      expect(repository.findById).not.toHaveBeenCalled();
+    });
+
+    it('lança ForbiddenError em createInvoice antes de escrever', async () => {
+      const repository = makeRepository();
+      const service = new InvoiceService(repository, makePolicy(false));
 
       await expect(
-        service.createInvoice({ customerName: 'Acme', amountCents: 1000, currency: 'BRL', dueDate: new Date(), status: 'DRAFT' }, actor)
+        service.createInvoice(
+          {
+            unitId: 'unit_1',
+            customerName: 'Acme',
+            description: 'Serviços',
+            issueDate: '2026-01-10',
+            dueDate: '2026-02-10',
+            amountCents: 15000,
+          },
+          actor,
+        ),
       ).rejects.toBeInstanceOf(ForbiddenError);
+      expect(repository.create).not.toHaveBeenCalled();
+    });
 
-      expect(policy.canCreate).toHaveBeenCalledWith(actor);
-      expect(repo.create).not.toHaveBeenCalled();
+    it('lança ForbiddenError em deleteInvoice antes do soft-delete', async () => {
+      const repository = makeRepository();
+      const service = new InvoiceService(repository, makePolicy(false));
+
+      await expect(service.deleteInvoice('inv_1', actor)).rejects.toBeInstanceOf(ForbiddenError);
+      expect(repository.softDelete).not.toHaveBeenCalled();
     });
   });
 
-  describe('getInvoiceById (not found)', () => {
-    it('throws NotFoundError when the invoice does not exist', async () => {
-      const repo = makeRepo({ findById: jest.fn().mockResolvedValue(null) });
-      const service = new InvoiceService(repo, makePolicy());
+  describe('NotFoundError', () => {
+    it('lança NotFoundError quando a fatura não existe', async () => {
+      const repository = makeRepository();
+      repository.findById.mockResolvedValue(null);
+      const service = new InvoiceService(repository, makePolicy(true));
 
-      await expect(service.getInvoiceById('missing', actor)).rejects.toBeInstanceOf(NotFoundError);
+      await expect(service.getInvoiceById('inv_missing', actor)).rejects.toBeInstanceOf(NotFoundError);
     });
 
-    it('throws NotFoundError for a cross-tenant invoice (repo scopes by actor.id)', async () => {
-      // repo returns null because the row belongs to another tenant
-      const repo = makeRepo({ findById: jest.fn().mockResolvedValue(null) });
-      const service = new InvoiceService(repo, makePolicy());
+    it('lança NotFoundError (não Forbidden) quando a fatura é de OUTRO tenant — cross-tenant', async () => {
+      const repository = makeRepository();
+      repository.findById.mockResolvedValue(otherTenantInvoice);
+      const service = new InvoiceService(repository, makePolicy(true));
 
-      await expect(service.getInvoiceById('other-tenant-invoice', actor)).rejects.toBeInstanceOf(NotFoundError);
-      expect(repo.findById).toHaveBeenCalledWith('other-tenant-invoice', actor.id);
+      await expect(service.getInvoiceById('inv_1', actor)).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('não faz soft-delete de fatura cross-tenant', async () => {
+      const repository = makeRepository();
+      repository.findById.mockResolvedValue(otherTenantInvoice);
+      const service = new InvoiceService(repository, makePolicy(true));
+
+      await expect(service.deleteInvoice('inv_1', actor)).rejects.toBeInstanceOf(NotFoundError);
+      expect(repository.softDelete).not.toHaveBeenCalled();
+    });
+
+    it('lança NotFoundError ao atualizar fatura cross-tenant, sem escrever', async () => {
+      const repository = makeRepository();
+      repository.findById.mockResolvedValue(otherTenantInvoice);
+      const service = new InvoiceService(repository, makePolicy(true));
+
+      await expect(
+        service.updateInvoice('inv_1', { customerName: 'Hijack' }, actor),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      expect(repository.update).not.toHaveBeenCalled();
     });
   });
 });
 
 // my-app/lib/services/invoice.service.test.ts
-import type { Invoice } from './invoice.service';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { invoiceService, type Invoice, type PaginationMetadata } from './invoice.service';
+import { apiClient } from '../api/api-client';
 
-interface PaginationMetadata { page: number; limit: number; total: number; totalPages?: number; totalCount?: number }
+vi.mock('../api/api-client', () => ({
+  apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
+}));
 
-describe('invoice.service contract', () => {
-  it('list return type mirrors the backend envelope { data: Invoice[]; pagination }', () => {
-    // compile-time mirror of what the controller returns via res.json({ data, pagination })
-    const envelope: { data: Invoice[]; pagination: PaginationMetadata } = {
-      data: [
-        {
-          id: 'inv-1',
-          customerName: 'Acme',
-          amountCents: 12500, // integer cents — same field name as the backend
-          currency: 'BRL',
-          dueDate: '2026-07-01T00:00:00.000Z',
-          status: 'ISSUED',
-          createdAt: '2026-06-25T00:00:00.000Z',
-          updatedAt: '2026-06-25T00:00:00.000Z',
-        },
-      ],
-      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
-    };
+/** Envelope EXATO que `getInvoices` devolve em `res.json({ success, data, pagination })`. */
+const backendEnvelope = {
+  success: true,
+  data: [
+    {
+      id: 'inv_1',
+      userId: 'user_owner',
+      unitId: 'unit_1',
+      customerName: 'Acme',
+      documentNumber: 'NF-001',
+      description: 'Serviços',
+      issueDate: '2026-01-10',
+      dueDate: '2026-02-10',
+      amountCents: 15000,
+      status: 'OPEN',
+      createdAt: '2026-01-10T00:00:00.000Z',
+      updatedAt: '2026-01-10T00:00:00.000Z',
+      deletedAt: null,
+    },
+  ],
+  pagination: { page: 1, limit: 10, totalCount: 1, totalPages: 1 },
+};
 
-    expect(envelope.data[0].amountCents).toBe(12500);
-    expect(Number.isInteger(envelope.data[0].amountCents)).toBe(true);
-    expect(envelope.pagination.page).toBe(1);
+describe('invoiceService.listInvoices — compatibilidade de contrato com o backend', () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+  });
+
+  it('devolve o mesmo envelope { data, pagination } que o controller emite', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(backendEnvelope);
+
+    const result: { data: Invoice[]; pagination: PaginationMetadata } =
+      await invoiceService.listInvoices({ unitId: 'unit_1', page: 1, limit: 10 });
+
+    expect(Array.isArray(result.data)).toBe(true);
+    expect(result.pagination).toEqual({ page: 1, limit: 10, totalCount: 1, totalPages: 1 });
+  });
+
+  it('usa o campo amountCents (centavos inteiros) com o MESMO nome do backend', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(backendEnvelope);
+
+    const { data } = await invoiceService.listInvoices({ unitId: 'unit_1' });
+    const invoice: Invoice = data[0];
+
+    expect(Object.keys(backendEnvelope.data[0])).toContain('amountCents');
+    expect(invoice.amountCents).toBe(15000);
+    expect(Number.isInteger(invoice.amountCents)).toBe(true);
+    expect(invoice).not.toHaveProperty('amount');
+    expect(invoice).not.toHaveProperty('valueCents');
+  });
+
+  it('propaga unitId/page/limit na query string do endpoint /invoices', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(backendEnvelope);
+
+    await invoiceService.listInvoices({ unitId: 'unit_1', page: 2, limit: 25 });
+
+    expect(apiClient.get).toHaveBeenCalledWith('/invoices?unitId=unit_1&page=2&limit=25');
   });
 });
 
@@ -376,57 +869,171 @@ describe('invoice.service contract', () => {
 // server/src/features/invoices/services/InvoiceService.ts
 import type { IInvoiceRepository } from '../repositories/IInvoiceRepository';
 import type { IInvoicePolicy } from '../policies/IInvoicePolicy';
-import type { IInvoice } from '../models/Invoice.model';
 import type { IUser } from '../../users/models/User.model';
-import { ForbiddenError, NotFoundError } from '../../../lib/errors';
-// NOTE: no `prisma` import, no React/JSX, no express Request/Response — pure backend domain.
+import type { IInvoice } from '../models/Invoice.model';
+import { CreateInvoiceDto, isCreateInvoiceInput } from '../dtos/InvoiceDto';
+import { ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
+
+export interface ListInvoicesResult {
+  invoices: IInvoice[];
+  totalCount: number;
+}
 
 export class InvoiceService {
   constructor(
-    private invoiceRepository: IInvoiceRepository,
-    private invoicePolicy: IInvoicePolicy
+    private readonly invoiceRepository: IInvoiceRepository,
+    private readonly invoicePolicy: IInvoicePolicy,
   ) {}
 
-  public async getInvoiceById(id: string, actor: IUser): Promise<IInvoice> {
-    if (!this.invoicePolicy.canView(actor, id)) {
+  public async listInvoices(
+    actor: IUser | null,
+    unitId: string,
+    page = 1,
+    limit = 10,
+  ): Promise<ListInvoicesResult> {
+    if (!this.invoicePolicy.canList(actor)) {
+      throw new ForbiddenError('You are not authorized to list invoices');
+    }
+
+    // Toda leitura passa pelo IInvoiceRepository injetado; a query e o filtro de
+    // soft-delete (deletedAt: null) vivem dentro da camada de repositório.
+    return this.invoiceRepository.findAll({ userId: actor!.id, unitId, page, limit });
+  }
+
+  public async getInvoiceById(id: string, actor: IUser | null): Promise<IInvoice> {
+    if (!this.invoicePolicy.canView(actor)) {
       throw new ForbiddenError('You are not authorized to view this invoice');
     }
-    // all data access goes through the repository — zero prisma.* here
-    const invoice = await this.invoiceRepository.findById(id, actor.id);
-    if (!invoice) {
+
+    const invoice = await this.invoiceRepository.findById(id);
+    if (!invoice || invoice.userId !== actor!.id) {
       throw new NotFoundError('Invoice not found');
     }
+
     return invoice;
+  }
+
+  public async createInvoice(data: CreateInvoiceDto, actor: IUser | null): Promise<IInvoice> {
+    if (!this.invoicePolicy.canCreate(actor)) {
+      throw new ForbiddenError('You are not authorized to create invoices');
+    }
+    if (!isCreateInvoiceInput(data)) {
+      throw new ValidationError('Invalid invoice creation data');
+    }
+
+    return this.invoiceRepository.create({ ...data, userId: actor!.id, status: 'OPEN' });
+  }
+
+  public async deleteInvoice(id: string, actor: IUser | null): Promise<void> {
+    if (!this.invoicePolicy.canDelete(actor)) {
+      throw new ForbiddenError('You are not authorized to delete this invoice');
+    }
+
+    const existing = await this.invoiceRepository.findById(id);
+    if (!existing || existing.userId !== actor!.id) {
+      throw new NotFoundError('Invoice not found');
+    }
+
+    // O resultado é sinalizado pelo tipo de retorno e por erro tipado de lib/errors.
+    // Quem traduz isso em status HTTP e corpo de resposta é o invoiceController,
+    // via handleApiError — esta camada não conhece o transporte.
+    await this.invoiceRepository.softDelete(id);
   }
 }
 
 // my-app/pages/invoices/index.tsx
-import type { GetServerSideProps, NextPage } from 'next';
-import { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import { withAuth } from '@/components/auth/withAuth';
-import { GenericTable } from '@/components/ui/GenericTable';
-import { invoiceService, type Invoice } from '@/lib/services/invoice.service';
-// NOTE: the page talks ONLY to invoiceService (apiClient) — never imports prisma / @/lib/prisma.
+import { useTranslation } from 'next-i18next';
+import type { GetServerSideProps, GetServerSidePropsContext } from 'next';
+import withAuth from '../../lib/hoc/withAuth';
+import { invoiceService, type Invoice, type PaginationMetadata } from '../../lib/services/invoice.service';
 
-const InvoicesPage: NextPage = () => {
-  const [rows, setRows] = useState<Invoice[]>([]);
+const PAGE_SIZE = 10;
+
+interface InvoicesPageProps {
+  unitId: string;
+}
+
+function InvoicesPage({ unitId }: InvoicesPageProps) {
+  const { t } = useTranslation('invoices');
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [pagination, setPagination] = useState<PaginationMetadata | null>(null);
+  const [page, setPage] = useState(1);
+
+  // A leitura sai daqui pelo invoiceService, que fala HTTP com /api/invoices
+  // através do apiClient. Nenhum acesso ao banco acontece neste arquivo — a
+  // lista de imports acima é a superfície inteira de dados da página.
+  const load = useCallback(async () => {
+    const res = await invoiceService.listInvoices({ unitId, page, limit: PAGE_SIZE });
+    setInvoices(res.data);
+    setPagination(res.pagination);
+  }, [unitId, page]);
 
   useEffect(() => {
-    void invoiceService.listInvoices(1, 10).then(({ data }) => setRows(data));
-  }, []);
+    void load();
+  }, [load]);
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      await invoiceService.deleteInvoice(id);
+      await load();
+    },
+    [load],
+  );
 
   return (
-    <GenericTable<Invoice>
-      rows={rows}
-      columns={[{ key: 'customerName', header: 'Customer' }, { key: 'amountCents', header: 'Amount' }]}
-    />
-  );
-};
+    <section className="space-y-4 p-6">
+      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+        {t('invoices.title', 'Faturas')}
+      </h1>
 
-export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
-  props: { ...(await serverSideTranslations(locale ?? 'en', ['common', 'invoices'])) },
-});
+      <ul className="space-y-2">
+        {invoices.map((invoice) => (
+          <li
+            key={invoice.id}
+            className="flex items-center justify-between rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800"
+          >
+            <span className="text-neutral-800 dark:text-neutral-200">{invoice.customerName}</span>
+            <span className="text-neutral-500 dark:text-neutral-400">
+              {(invoice.amountCents / 100).toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleDelete(invoice.id)}
+              className="text-sm text-neutral-600 hover:text-neutral-900 dark:text-neutral-400"
+            >
+              {t('invoices.delete', 'Excluir')}
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {pagination && (
+        <p className="text-sm text-neutral-500">
+          {t('invoices.page', 'Página')} {pagination.page} / {pagination.totalPages}
+        </p>
+      )}
+
+      <button type="button" onClick={() => setPage((p) => p + 1)} className="text-sm text-neutral-600">
+        {t('invoices.next', 'Próxima')}
+      </button>
+    </section>
+  );
+}
+
+export const getServerSideProps: GetServerSideProps = async (context: GetServerSidePropsContext) => {
+  const { locale, query } = context;
+  return {
+    props: {
+      unitId: typeof query.unitId === 'string' ? query.unitId : '',
+      ...(await serverSideTranslations(locale ?? 'en', ['common', 'invoices'])),
+    },
+  };
+};
 
 export default withAuth(InvoicesPage);
 
@@ -437,17 +1044,52 @@ import { handleApiError } from '../lib/apiUtils';
 import { getFactory } from '@/lib/factory';
 import { getUserContextFromRequest } from '@/lib/authUtils';
 
+/**
+ * GET /api/invoices?unitId=&page=&limit=
+ *
+ * Envelope de listagem: { success, data, pagination }.
+ * `data[].amountCents` é INTEIRO em centavos — este é o nome de campo que o
+ * frontend service (my-app/lib/services/invoice.service.ts) tipa e consome.
+ */
 export const getInvoices = async (req: Request, res: Response) => {
   try {
+    const unitId = String(req.query.unitId ?? '');
+    if (!unitId) {
+      return res.status(400).json({ success: false, error: 'unitId is required' });
+    }
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
+
     const actor = getUserContextFromRequest(req);
-
     const service = getFactory().getInvoiceService();
-    // service returns { data, pagination }; each invoice carries amountCents (integer cents)
-    const { data, pagination } = await service.listInvoices(actor, page, limit);
+    const { invoices, totalCount } = await service.listInvoices(actor, unitId, page, limit);
 
-    return res.json({ data, pagination });
+    const data = invoices.map((invoice) => ({
+      id: invoice.id,
+      userId: invoice.userId,
+      unitId: invoice.unitId,
+      customerName: invoice.customerName,
+      documentNumber: invoice.documentNumber,
+      description: invoice.description,
+      issueDate: invoice.issueDate,
+      dueDate: invoice.dueDate,
+      amountCents: invoice.amountCents,
+      status: invoice.status,
+      createdAt: invoice.createdAt,
+      updatedAt: invoice.updatedAt,
+      deletedAt: invoice.deletedAt,
+    }));
+
+    return res.json({
+      success: true,
+      data,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+      },
+    });
   } catch (error) {
     return handleApiError(error, res);
   }
@@ -456,22 +1098,59 @@ export const getInvoices = async (req: Request, res: Response) => {
 // my-app/lib/services/invoice.service.ts
 import { apiClient } from '../api/api-client';
 
-interface PaginationMetadata { page: number; limit: number; total: number; hasMore?: boolean; totalPages?: number; totalCount?: number }
+/** Espelha o objeto `pagination` que o controller emite em GET /api/invoices. */
+export interface PaginationMetadata {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+}
 
+export type InvoiceStatus = 'OPEN' | 'PAID' | 'CANCELLED';
+
+/** Espelha um item de `data[]` do envelope de listagem do backend. */
 export interface Invoice {
   id: string;
+  userId: string;
+  unitId: string;
   customerName: string;
-  amountCents: number; // SAME field name as the backend — integer cents
-  currency: string;
+  documentNumber: string | null;
+  description: string;
+  /** YYYY-MM-DD */
+  issueDate: string;
+  /** YYYY-MM-DD */
   dueDate: string;
-  status: 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED';
+  /** Mesmo nome e mesma unidade do backend: INTEIRO em centavos. */
+  amountCents: number;
+  status: InvoiceStatus;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
+}
+
+export interface ListInvoicesQuery {
+  unitId: string;
+  page?: number;
+  limit?: number;
+}
+
+function buildQuery(params: Record<string, string | undefined>): string {
+  const pairs = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`);
+  return pairs.length ? `?${pairs.join('&')}` : '';
 }
 
 export const invoiceService = {
-  // EXACT same envelope the controller returns: { data: Invoice[]; pagination }
-  async listInvoices(page: number, limit: number): Promise<{ data: Invoice[]; pagination: PaginationMetadata }> {
-    return apiClient.get<{ data: Invoice[]; pagination: PaginationMetadata }>(`/invoices?page=${page}&limit=${limit}`);
+  /** GET /api/invoices — devolve o envelope de listagem tal como o backend o emite. */
+  async listInvoices(
+    query: ListInvoicesQuery,
+  ): Promise<{ data: Invoice[]; pagination: PaginationMetadata }> {
+    const qs = buildQuery({
+      unitId: query.unitId,
+      page: query.page !== undefined ? String(query.page) : undefined,
+      limit: query.limit !== undefined ? String(query.limit) : undefined,
+    });
+    return apiClient.get<{ data: Invoice[]; pagination: PaginationMetadata }>(`/invoices${qs}`);
   },
 };

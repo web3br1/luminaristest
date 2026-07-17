@@ -32,13 +32,12 @@
       "id": "happy-1",
       "type": "happy",
       "rules": ["FULL-001", "FULL-002", "FULL-003", "FULL-004", "FULL-005"],
-      "prompt": "Componha a vertical slice de Invoices (faturas), na ordem canônica, espelhando a feature `users`. Gere um trecho representativo de CADA elo da cadeia, cada um com seu marcador de arquivo `// path` na primeira linha do trecho: (1) server/src/features/invoices/dtos/InvoiceDto.ts — `CreateInvoiceSchema`/`UpdateInvoiceSchema` (Update=.partial()) + bloco `@openapi`, sem z.any(); (2) server/src/features/invoices/services/InvoiceService.ts — policy-first (`if (!this.policy.canX) throw new ForbiddenError()`), DI por construtor, usa o repository (zero prisma.*), zero React/JSX, zero res.json/Express; (3) server/src/controllers/invoiceController.ts — `Schema.safeParse` + `getUserContextFromRequest` + `getFactory().getInvoiceService()` + `handleApiError`; (4) os 3 toques de rota: server/src/routes/index.ts (mount de invoices), server/src/middleware/auth.ts (`'/api/invoices'` em protectedApiPaths), server/src/routes/docs.paths.ts (bloco `@openapi`); (5) my-app/lib/services/invoice.service.ts — `apiClient`, tipos locais, zero prisma; (6) my-app/pages/invoices/index.tsx — `withAuth` + `serverSideTranslations`, reusa `GenericTable` (não recria tabela), zero prisma. Delegue os contratos às sub-skills; não reescreva as instruções delas.",
+      "prompt": "Componha a vertical slice de Invoices (faturas), na ordem canônica, espelhando a feature `users`. Gere um trecho representativo de CADA elo da cadeia, cada um com seu marcador de arquivo `// path` na primeira linha do trecho: (1) server/src/features/invoices/dtos/InvoiceDto.ts — `CreateInvoiceSchema`/`UpdateInvoiceSchema` (Update=.partial()) + bloco `@openapi`, sem z.any(); (2) server/src/features/invoices/services/InvoiceService.ts — policy-first (`if (!this.policy.canX) throw new ForbiddenError()`), DI por construtor, usa o repository (zero prisma.*), zero React/JSX, zero res.json/Express; (3) server/src/controllers/invoiceController.ts — `Schema.safeParse` + `getUserContextFromRequest` + `getFactory().getInvoiceService()` + `handleApiError`; (4) os 2 toques de rota: server/src/routes/index.ts (mount de invoices) e server/src/routes/docs.paths.ts (bloco `@openapi`) — auth é deny-by-default, NÃO edite middleware/auth.ts; (5) my-app/lib/services/invoice.service.ts — `apiClient`, tipos locais, zero prisma; (6) my-app/pages/invoices/index.tsx — `withAuth` + `serverSideTranslations`, reusa `GenericTable` (não recria tabela), zero prisma. Delegue os contratos às sub-skills; não reescreva as instruções delas.",
       "target_files": [
         "server/src/features/invoices/dtos/InvoiceDto.ts",
         "server/src/features/invoices/services/InvoiceService.ts",
         "server/src/controllers/invoiceController.ts",
         "server/src/routes/index.ts",
-        "server/src/middleware/auth.ts",
         "server/src/routes/docs.paths.ts",
         "my-app/lib/services/invoice.service.ts",
         "my-app/pages/invoices/index.tsx"
@@ -55,7 +54,7 @@
         "@invoiceController.ts::regex:safeParse",
         "@invoiceController.ts::regex:handleApiError",
         "@routes/index.ts::regex:invoice",
-        "@auth.ts::regex:/api/invoices",
+        "absent:protectedApiPaths",
         "@docs.paths.ts::regex:@openapi",
         "@invoice.service.ts::regex:apiClient",
         "@invoice.service.ts::absent-code:prisma",

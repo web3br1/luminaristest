@@ -1,83 +1,117 @@
-===HAPPY===
-import { Request, Response } from 'express';
-import { handleApiError } from '../lib/apiUtils';
-import { getFactory } from '@/lib/factory';
-import { getUserContextFromRequest } from '@/lib/authUtils';
-import { UnauthorizedError } from '../lib/errors';
+===happy-1===
+// server/src/controllers/invoiceController.ts
+import type { Request, Response } from 'express';
 import { z } from 'zod';
+import { getFactory } from '@/lib/factory';
+import { handleApiError } from '@/lib/apiUtils';
+import { getUserContextFromRequest } from '@/lib/authUtils';
 
-const CreateInvoiceSchema = z.object({ number: z.string(), amount: z.number(), status: z.string() });
-const UpdateInvoiceSchema = z.object({ number: z.string().optional(), amount: z.number().optional(), status: z.string().optional() });
+const ListInvoicesQuerySchema = z.object({
+  page: z.string().optional().transform(v => (v ? parseInt(v, 10) : 1)),
+  limit: z.string().optional().transform(v => (v ? parseInt(v, 10) : 10)),
+  status: z.string().min(1).optional(),
+});
 
-export const listInvoices = async (req: Request, res: Response) => {
+const CreateInvoiceSchema = z.object({
+  number: z.string().min(1),
+  amount: z.number(),
+  status: z.string().min(1),
+});
+
+const UpdateInvoiceSchema = z.object({
+  number: z.string().min(1).optional(),
+  amount: z.number().optional(),
+  status: z.string().min(1).optional(),
+});
+
+export async function listInvoices(req: Request, res: Response) {
   try {
-    const actor = getUserContextFromRequest(req);
-    if (!actor) throw new UnauthorizedError();
-    const service = getFactory().getInvoiceService();
-    const invoices = await service.list(actor);
-    return res.json({ success: true, data: invoices });
+    const ctx = getUserContextFromRequest(req);
+    if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const { page, limit, status } = ListInvoicesQuerySchema.parse(req.query);
+    const svc = getFactory().getInvoiceService();
+
+    const { invoices, totalCount } = await svc.getAllInvoices(ctx, page, limit, status);
+    return res.status(200).json({ success: true, data: invoices, totalCount });
   } catch (error) {
     return handleApiError(error, res);
   }
-};
+}
 
-export const createInvoice = async (req: Request, res: Response) => {
+export async function createInvoice(req: Request, res: Response) {
   try {
-    const parse = CreateInvoiceSchema.safeParse(req.body);
-    if (!parse.success) {
-      return res.status(400).json({ success: false, error: parse.error.flatten() });
-    }
-    const actor = getUserContextFromRequest(req);
-    if (!actor) throw new UnauthorizedError();
-    const service = getFactory().getInvoiceService();
-    const created = await service.create(parse.data, actor);
+    const bodyResult = CreateInvoiceSchema.safeParse(req.body);
+    if (!bodyResult.success) return res.status(400).json({ success: false, error: bodyResult.error.flatten() });
+
+    const ctx = getUserContextFromRequest(req);
+    if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const svc = getFactory().getInvoiceService();
+    const created = await svc.createInvoice(bodyResult.data, ctx);
     return res.status(201).json({ success: true, data: created });
   } catch (error) {
     return handleApiError(error, res);
   }
-};
+}
 
-export const updateInvoice = async (req: Request, res: Response) => {
+export async function updateInvoice(req: Request, res: Response) {
   try {
-    const parse = UpdateInvoiceSchema.safeParse(req.body);
-    if (!parse.success) { return res.status(400).json({ success: false, error: parse.error.flatten() }); }
-    const actor = getUserContextFromRequest(req);
-    if (!actor) throw new UnauthorizedError();
-    const service = getFactory().getInvoiceService();
-    const updated = await service.update(req.params.id, parse.data, actor);
-    return res.json({ success: true, data: updated });
+    const bodyResult = UpdateInvoiceSchema.safeParse(req.body);
+    if (!bodyResult.success) return res.status(400).json({ success: false, error: bodyResult.error.flatten() });
+
+    const ctx = getUserContextFromRequest(req);
+    if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ success: false, error: 'Invoice ID required' });
+
+    const svc = getFactory().getInvoiceService();
+    const updated = await svc.updateInvoice(id, bodyResult.data, ctx);
+    return res.status(200).json({ success: true, data: updated });
   } catch (error) {
     return handleApiError(error, res);
   }
-};
-===EDGE===
-export const getInvoiceById = async (req: Request, res: Response) => {
+}
+===edge-1===
+// server/src/controllers/invoiceController.ts
+export async function getInvoiceById(req: Request, res: Response) {
   try {
-    const actor = getUserContextFromRequest(req);
-    if (!actor) throw new UnauthorizedError();
-    const service = getFactory().getInvoiceService();
-    const invoice = await service.getById(req.params.id, actor);
-    if (!invoice) {
-      return res.status(404).json({ success: false, error: 'Invoice not found' });
-    }
-    return res.json({ success: true, data: invoice });
+    const ctx = getUserContextFromRequest(req);
+    if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ success: false, error: 'Invoice ID required' });
+
+    const svc = getFactory().getInvoiceService();
+    const invoice = await svc.getInvoiceById(id, ctx);
+    if (!invoice) return res.status(404).json({ success: false, error: 'Invoice not found' });
+
+    return res.status(200).json({ success: true, data: invoice });
   } catch (error) {
     return handleApiError(error, res);
   }
-};
-===REGRESSION===
-export const createInvoice = async (req: Request, res: Response) => {
+}
+===regression-1===
+// server/src/controllers/invoiceController.ts
+const CreateInvoiceSchema = z.object({
+  number: z.string().min(1),
+  amount: z.number(),
+  status: z.string().min(1),
+});
+
+export async function createInvoice(req: Request, res: Response) {
   try {
-    const parse = CreateInvoiceSchema.safeParse(req.body);
-    if (!parse.success) {
-      return res.status(400).json({ success: false, error: parse.error.flatten() });
-    }
-    const actor = getUserContextFromRequest(req);
-    if (!actor) throw new UnauthorizedError();
-    const service = getFactory().getInvoiceService();
-    const created = await service.create(parse.data, actor);
+    const bodyResult = CreateInvoiceSchema.safeParse(req.body);
+    if (!bodyResult.success) return res.status(400).json({ success: false, error: bodyResult.error.flatten() });
+
+    const ctx = getUserContextFromRequest(req);
+    if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const svc = getFactory().getInvoiceService();
+    const created = await svc.createInvoice(bodyResult.data, ctx);
     return res.status(201).json({ success: true, data: created });
   } catch (error) {
     return handleApiError(error, res);
   }
-};
+}

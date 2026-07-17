@@ -3,8 +3,8 @@ type: skill-governance
 governance-skill-id: SKL-WORKFLOW-TRANS
 skill-path: ./SKILL.md
 contract: ../_ARCHITECTURE-CONTRACT.md
-last-evaluated: "2026-06-25"
-status: validated
+last-evaluated: "2026-07-17"
+status: draft   # DEMOVIDO de validated em 2026-07-17: o eval de AC-2.1-B4 aceitava 0/6 respostas corretas e aprovava 2/10 erradas — o 1.00 era verdadeiro e vazio. Núcleo da regra virou `judge:` (BLOCKED até julgamento model-in-loop). A skill não regrediu; o selo é que não era merecido. Promoção só pelo skill-audit (SG-048).
 eval-score-source: ../skill-audit/reports/backend-workflow-transition-generator/REPORT.md   # projeção do relatório — NUNCA editar à mão
 governs-rules:
   - AC-2.1-B1

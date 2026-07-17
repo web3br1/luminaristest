@@ -2,7 +2,7 @@
 
 > **Fonte única da decisão "este lote de trabalho pode rodar em paralelo sem gerar conflito de commit — e como fatiá-lo?".** Carregado *só quando essa decisão está viva*: o orquestrador planejando um **lote** (≥2 features/slices no mesmo pedido); o integrador ordenando a fase serial; o reviewer checando que um merge não cruzou um choke point. Complementa `_ARCHITECTURE-CONTRACT.md` (que diz *o que* é código correto) e `_OPERATING-GATES.md` (que diz *como o agente trabalha*) — este diz **como o trabalho é fatiado entre agentes concorrentes**.
 >
-> Existe porque worktrees isolados nunca conflitam no código *da feature* — conflitam nos **arquivos de registro que o contrato §3 obriga todo feature a tocar** ("registro em 3 toques"). "Paralelo sem conflito" não é spawnar N implementers e torcer; é **separar corpo de registro** e serializar só o registro. Este contrato torna esse fatiamento **repetível** (qualquer execução chega ao mesmo lote paralelo + delta serial).
+> Existe porque worktrees isolados nunca conflitam no código *da feature* — conflitam nos **arquivos de registro que o contrato §3 obriga todo feature a tocar** ("registro em 2 toques"). "Paralelo sem conflito" não é spawnar N implementers e torcer; é **separar corpo de registro** e serializar só o registro. Este contrato torna esse fatiamento **repetível** (qualquer execução chega ao mesmo lote paralelo + delta serial).
 
 ---
 

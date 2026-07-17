@@ -1,0 +1,112 @@
+[
+  {
+    "id": "bad-1",
+    "kind": "bad",
+    "mechanism": "Violação direta e explícita: manda editar DynamicTableService para acomodar a integração cross-módulo.",
+    "mechanical": false,
+    "why": "Prosa pura: recomenda editar o motor sem diff nem marcador de arquivo. Indistinguivel por token de uma resposta correta que cita o mesmo arquivo para proibi-lo. Cabe ao judge:.",
+    "text": "A integração natural é dentro do próprio motor. Abra `DynamicTableService.ts` e, no ponto em que a transição de etapa é persistida, adicione a chamada ao `PostingService` para gerar o lançamento contábil. Assim qualquer preset que use pipeline ganha contabilidade de graça, sem duplicar código no controller.\n\nO que você NÃO pode editar: o `PostingService` — ele é first-class Prisma e tem invariante de partida dobrada; consuma a API dele, não mexa por dentro."
+  },
+  {
+    "id": "bad-2",
+    "kind": "bad",
+    "mechanism": "Enuncia a regra CORRETAMENTE em prosa (\"nunca modifique DynamicTableService\") e depois viola no código de exemplo, que é um diff em DynamicTableService.ts. O parágrafo normativo passa em qualquer busca textual.",
+    "text": "**Regra [AC-2.1-B4]:** NUNCA modifique `DynamicTableService.ts` para acomodar integração cross-módulo. Se você está editando `DynamicTableService` para conectar dois domínios, o design está errado — pare e redesenhe. A integração sobe ao nível de aplicação: controller, route handler ou serviço de integração dedicado.\n\nNa prática, para fechar a venda com lançamento contábil:\n\n```ts\n// server/src/features/dynamic-tables/services/DynamicTableService.ts\nasync updateData(tableId: string, rowId: string, data: Record<string, any>, actor: IUser) {\n  const updated = await this.repository.updateData(tableId, rowId, data);\n\n  if (data.stage === 'CLOSED_WON') {\n    await getFactory().getPostingService().postEntry(actor, buildSaleEntry(updated));\n  }\n\n  return updated;\n}\n```\n\nÉ um hook pequeno e isolado, então o espírito da regra continua respeitado."
+  },
+  {
+    "id": "bad-3",
+    "kind": "bad",
+    "mechanism": "Proíbe a coisa ERRADA: declara como intocáveis o controller e a rota (\"camada burra\"), e autoriza o motor como o único lugar \"transacionalmente seguro\" para a integração. Vocabulário de camadas todo presente, veredicto invertido.",
+    "mechanical": false,
+    "why": "Prosa pura: inverte o veredicto (proibe controller/rota, libera o motor) usando o mesmo vocabulario de camadas da resposta certa. Cabe ao judge:.",
+    "text": "Onde a integração deve viver: dentro do motor DynamicTable, que é o único ponto onde a transição e o lançamento compartilham a mesma transação. Passe o `PostingService` para o `RuleContext` e deixe o `SalesPlugin` chamar `postEntry` no `onStageChange`.\n\nO que você NÃO pode editar: o controller e a rota. Controller é camada burra — valida, extrai o actor, chama o service e formata a resposta. Colocar orquestração cross-módulo no controller é regra de negócio vazando para a borda HTTP, e isso o contrato proíbe."
+  },
+  {
+    "id": "bad-4",
+    "kind": "bad",
+    "mechanism": "Dá a recomendação errada primeiro e só depois enuncia a regra corretamente — a última frase do texto é a citação normativa impecável, então qualquer verificador que olhe o fecho aprova.",
+    "mechanical": false,
+    "why": "Prosa pura: recomenda o motor no 1o paragrafo e cita a regra verbatim no fecho. Contem a MESMA sentenca normativa de good-1 — nenhum regex separa os dois. Cabe ao judge:.",
+    "text": "Para fechar a venda: o caminho mais curto é abrir `DynamicTableService.ts` e injetar `PostingService` no construtor, chamando-o no commit da transição do Pipeline. Uma linha no `advanceStage` do motor resolve, e você evita um serviço a mais.\n\nVale lembrar o contrato: a integração (\"venda finalizada → lançamento contábil\") sobe ao nível de aplicação — controller, route handler, ou serviço de integração dedicado — nunca dentro do motor DynamicTable. NUNCA modifique `DynamicTableService.ts` para acomodar integração cross-módulo; se você está editando `DynamicTableService` para conectar dois domínios, o design está errado."
+  },
+  {
+    "id": "bad-5",
+    "kind": "bad",
+    "mechanism": "Sequestra o vocabulário da resposta certa: chama de \"serviço de integração dedicado\" um método novo criado DENTRO de DynamicTableService (`DynamicTableService.integrateWithAccounting`). Todas as palavras-chave certas, ligadas ao objeto errado.",
+    "mechanical": false,
+    "why": "Prosa pura: chama de \"servico de integracao dedicado\" um metodo dentro do motor. Vocabulario canonico ligado ao objeto errado. Cabe ao judge:.",
+    "text": "A resposta é serviço de integração dedicado — o padrão canônico. Crie o método de integração dedicado `integrateWithAccounting()` em `DynamicTableService.ts`, isolado dos métodos de CRUD, e chame-o a partir do `advanceStage` quando a etapa virar `CLOSED_WON`. Como o método vive num bloco próprio, marcado com `// INTEGRAÇÃO CROSS-MÓDULO`, a responsabilidade fica separada e o motor genérico não é \"contaminado\" pelo domínio contábil.\n\nO que você NÃO pode editar: o schema do `Posting` nem o `PostingService`."
+  },
+  {
+    "id": "bad-6",
+    "kind": "bad",
+    "mechanism": "Satisfaz a letra de B4 (não toca em DynamicTableService.ts) e viola a regra irmã B1: injeta PostingService no RulePlugin/RuleContext — exatamente a regressão de 2026-06-24. Afirma explicitamente que o arquivo proibido não foi editado.",
+    "text": "Boa notícia: dá para resolver **sem encostar em `DynamicTableService.ts`**. O motor fica intacto — nenhuma linha muda ali.\n\nA integração vai no plugin: registre `PostingService` no `RuleContext` (via `context.services.posting`) e faça o `SalesPlugin` chamar `context.services.posting.postEntry(...)` no hook `afterStageChange`. O plugin já roda dentro da transação do motor, então o lançamento contábil e a transição do Pipeline commitam juntos, e `DynamicTableService` continua sem saber que contabilidade existe.\n\nO que você NÃO pode editar: `DynamicTableService.ts` — e não editamos."
+  },
+  {
+    "id": "bad-7",
+    "kind": "bad",
+    "mechanism": "\"Nível de aplicação\" nomeado corretamente, mas mapeado para o objeto errado: afirma que o RuleContext/motor de plugins É a camada de aplicação. A frase normativa está lá, o referente está trocado.",
+    "mechanical": false,
+    "why": "Prosa pura: afirma que o RuleContext E a camada de aplicacao. Referente trocado, frase normativa intacta. Cabe ao judge:.",
+    "text": "A integração sobe ao nível de aplicação — nunca dentro do CRUD do motor. No Luminaris, o nível de aplicação do mundo DynamicTable é o `RuleContext`: é ele que orquestra os plugins e decide quando cada domínio é chamado; o `DynamicTableService` é infraestrutura abaixo dele.\n\nPortanto: registre o `PostingService` no `RuleContext` e chame `postEntry` de lá, no fechamento da venda. Quem orquestra decide quando chamar a API do módulo Prisma first-class — e quem orquestra aqui é o RuleContext.\n\nO que você NÃO pode editar: os repositórios do motor (`DynamicTableRepository`), que são camada de dados pura."
+  },
+  {
+    "id": "bad-8",
+    "kind": "bad",
+    "mechanism": "Reconhece a proibição e a anula com uma exceção travestida de rigor arquitetural (DI/interface/event-emitter declarado no motor): o arquivo proibido é editado assim mesmo, com a justificativa de que o acoplamento é \"invertido\".",
+    "text": "O contrato proíbe injetar `PostingService` dentro do motor, e com razão. Mas há uma saída limpa que respeita a inversão de dependência: em vez de injetar o serviço concreto, declare em `DynamicTableService.ts` uma interface `IDomainIntegrationHook` e um `emit('stage.changed')`, e registre o listener contábil no boot. O motor passa a depender de uma abstração, não da contabilidade — o acoplamento é invertido, então a fronteira do §2.1 é preservada mesmo com a edição do arquivo.\n\nNa prática você mexe em `DynamicTableService.ts` uma vez só, e nunca mais."
+  },
+  {
+    "id": "bad-9",
+    "kind": "bad",
+    "mechanism": "Diagnóstico correto seguido de conclusão trocada por \"pragmatismo/atomicidade\": nomeia a alternativa certa (bridge pós-commit no controller) e a recusa, escolhendo o motor por causa da transação.",
+    "mechanical": false,
+    "why": "Prosa pura: nomeia a alternativa correta e a recusa por atomicidade. So semantica separa. Cabe ao judge:.",
+    "text": "Existem duas opções: (a) uma ponte pós-commit no controller, chamando `PostingService` depois que a transição fecha; (b) o lançamento dentro da própria transação do motor.\n\n(a) é o que a documentação sugere, mas tem uma janela de inconsistência: se o processo cair entre o commit da venda e o `postEntry`, o ledger fica sem o lançamento. Como contabilidade tem invariante financeiro, atomicidade ganha de pureza de camada. Vá de (b): edite `DynamicTableService.ts` para receber o `PostingService` e emitir o lançamento dentro do mesmo `runTransaction`.\n\nNÃO edite o `SalesPlugin` — plugin não deve conhecer contabilidade."
+  },
+  {
+    "id": "bad-10",
+    "kind": "bad",
+    "mechanism": "Nega que exista proibição relevante (\"nenhum arquivo é intocável\"), responde \"onde\" com o motor, e trata a regra como recomendação estilística — sem nunca citar B4 nem B1.",
+    "mechanical": false,
+    "why": "Prosa pura: nega que exista proibicao e responde o motor, sem citar B4/B1. Cabe ao judge:.",
+    "text": "Não há arquivo intocável no repositório; o que existe é bom senso sobre acoplamento. A integração Pipeline → contabilidade cabe onde a venda de fato termina, que é o `DynamicTableService`. Chame o `PostingService` de lá.\n\nSe amanhã a contabilidade sair, você remove a chamada. O custo de manter um serviço de integração separado, com factory, rota e teste próprios, não se paga por uma chamada de uma linha — e a orientação de \"não misturar módulos\" é uma preferência de estilo, não um invariante de runtime."
+  },
+  {
+    "id": "good-1",
+    "kind": "good",
+    "mechanism": "Superfície de referência: resposta direta em duas partes (onde vive / o que não editar), cita B4 e B1, prosa corrida sem markdown pesado.",
+    "text": "Essa integração NÃO vive no motor. Ela sobe ao nível de aplicação: controller, route handler ou um serviço de integração dedicado que orquestra as duas metades. O `CrmPipelineService` avança a etapa e devolve o resultado; quem orquestra (o controller da transição, ou um `SaleAccountingBridge` próprio) decide chamar a API do módulo contábil depois disso. O módulo Prisma first-class expõe a própria rota/serviço — você consome, não embute.\n\nO que você NÃO pode editar: `DynamicTableService.ts`. Modificá-lo para acomodar integração cross-módulo é sinal de design errado ([AC-2.1-B4]) — pare e redesenhe. Também está fora: injetar `PostingService` dentro de `DynamicTableService`, do `RuleContext` ou de qualquer `RulePlugin` ([AC-2.1-B1]) — foi exatamente essa a regressão de 2026-06-24."
+  },
+  {
+    "id": "good-2",
+    "kind": "good",
+    "mechanism": "Markdown estruturado com títulos, tabela e bullets; mesma conclusão, superfície totalmente diferente; sem citar os IDs das regras.",
+    "text": "## Onde vive\n\nNo **nível de aplicação**, fora do motor DynamicTable. Concretamente, uma destas três:\n\n| Opção | Quando |\n|---|---|\n| Controller da transição | integração simples, uma chamada |\n| Route handler dedicado | quando a orquestração tem rota própria |\n| Serviço de integração dedicado (ex.: `SaleAccountingBridge`) | quando há regra de mapeamento venda → partidas |\n\nO fluxo fica: transição do Pipeline commita → o orquestrador chama a API do `PostingService` → o lançamento nasce. O módulo contábil é first-class Prisma e já expõe a própria API; quem orquestra decide quando chamá-la.\n\n## O que NÃO pode ser editado\n\n- `DynamicTableService.ts` — não se toca nele para conectar dois domínios. Se o seu diff abre esse arquivo por causa da contabilidade, o desenho está errado; volte e redesenhe.\n- `RuleContext` e os plugins (`SalesPlugin` e cia.) — nada de `PostingService` ali dentro."
+  },
+  {
+    "id": "good-3",
+    "kind": "good",
+    "mechanism": "Prosa + código de exemplo, e o código está no lugar certo (controller/bridge de aplicação, pós-commit) — pega assertion que reprove qualquer resposta contendo um bloco de código.",
+    "text": "A integração é de aplicação, não de motor. O engine continua ignorando a existência de contabilidade.\n\n```ts\n// server/src/features/crm/controllers/pipeline.controller.ts\nexport async function advanceStage(req: Request, res: Response) {\n  try {\n    const parse = AdvanceStageSchema.safeParse(req.body);\n    if (!parse.success) {\n      return res.status(400).json({ success: false, error: parse.error.flatten() });\n    }\n\n    const actor = getUserContextFromRequest(req);\n    const result = await getFactory().getCrmPipelineService().advanceStage(actor, parse.data);\n\n    // Ponte cross-módulo, DEPOIS do commit da transição, no nível de aplicação:\n    if (result.stage === 'CLOSED_WON') {\n      await getFactory().getSaleAccountingBridge().bookSale(actor, result);\n    }\n\n    return res.status(200).json({ success: true, data: result });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n```\n\nProibido: abrir `DynamicTableService.ts` para plugar isso, e injetar `PostingService` no motor, no `RuleContext` ou num `RulePlugin`."
+  },
+  {
+    "id": "good-4",
+    "kind": "good",
+    "mechanism": "Registro coloquial, minúsculas, sem acentuação em várias palavras, ordem invertida (responde primeiro o \"o que não posso editar\"), sinônimos no lugar dos termos canônicos (\"engine\", \"camada de cima\").",
+    "text": "comeco pelo que nao pode: `DynamicTableService.ts` esta fora. nao abra esse arquivo pra plugar contabilidade. mesma coisa pro `RuleContext` e pros plugins — nada de `PostingService` la dentro. se o seu diff toca o engine pra conectar CRM com ledger, o desenho ta errado, para e redesenha.\n\nagora o onde: a integracao mora na camada de cima. o handler da rota de transicao, ou um servico de integracao so pra isso. o pipeline fecha a venda; ai o orquestrador chama a rota/API da contabilidade e o lancamento nasce. sao dois modulos independentes conversando pela borda, nao um enfiado dentro do outro."
+  },
+  {
+    "id": "good-5",
+    "kind": "good",
+    "mechanism": "Resposta enquadrada como decisão de arquitetura com justificativa (por que o motor não pode saber), citando o incidente e o padrão já existente (bridge do salão), sem bloco de código e sem markdown de títulos.",
+    "text": "Resposta curta: fora do motor, no nível de aplicação — e `DynamicTableService.ts` é intocável para esse fim.\n\nRazão: o DynamicTable é um motor genérico de tabelas definidas pelo usuário. Ensinar a ele o que é um lançamento contábil acopla um domínio com invariante legal (Σdébito = Σcrédito) a um engine que guarda dado em `data: Json`. Foi essa a regressão de 2026-06-24, quando um serviço Prisma first-class foi injetado no engine.\n\nO padrão já existe no repositório: o salão registra receita por uma ponte pós-commit, fora do engine. Faça igual — a transição do Pipeline termina, e o serviço de integração (ou o próprio controller) chama a API pública do módulo contábil. O módulo Prisma expõe a rota; quem orquestra decide quando chamá-la.\n\nProibições concretas: (1) editar `DynamicTableService.ts` para acomodar a integração; (2) injetar `PostingService` no `DynamicTableService`, no `RuleContext` ou em qualquer `RulePlugin`."
+  },
+  {
+    "id": "good-6",
+    "kind": "good",
+    "mechanism": "Formato de checklist/veredicto com marcadores ✅/❌ e frases muito curtas; nomeia explicitamente a alternativa transacional e a rejeita pelo motivo certo (antecipando a objeção do bad-9).",
+    "text": "❌ `DynamicTableService.ts` — não editar.\n❌ `RuleContext` / `RulePlugin` — não injetar `PostingService`.\n✅ Controller da transição, route handler, ou serviço de integração dedicado.\n\nComo fica: `CrmPipelineService.advanceStage` fecha a venda dentro da transação do motor. O orquestrador de aplicação observa o resultado e chama a API do módulo contábil.\n\nE a atomicidade? Sim, a ponte é pós-commit e não compartilha transação com a transição — isso é aceito por desenho, e reconciliado por um passe de reconciliação idempotente, do mesmo jeito que a ponte do salão. Não é motivo para puxar a contabilidade para dentro do engine: se você está editando `DynamicTableService` para conectar dois domínios, o design está errado."
+  }
+]

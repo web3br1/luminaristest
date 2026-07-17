@@ -530,7 +530,27 @@ function cmdControls() {
   for (const f of files) {
     const skill = f.replace(/\.json$/, '');
     const entries = JSON.parse(fs.readFileSync(path.join(cdir, f), 'utf8'));
+    // DERIVA: `assertion` aqui é cópia à mão da string do evals.json. Quando o evals.json muda e a
+    // cópia não, o control continua verde provando que a assertion ANTIGA discrimina — foi assim que
+    // o CTL-001 passou com o `return` já removido do eval. A cópia tem de existir na fonte.
+    // Compara pela forma NORMALIZADA (sem o prefixo `@escopo::`): o control roda a assertion contra
+    // um snippet single-file e por isso guarda só `kind:arg`, enquanto o evals.json a embarca com
+    // escopo (`@invoice.service.ts::kind:arg`). Comparar cru acusaria 26 derivas falsas.
+    const strip = (x) => x.replace(/^@[^:]+::\s*/, '');
+    const evalsPath = path.join(SKILLS_DIR, skill, 'evals', 'evals.json');
+    let shipped = null;
+    if (fs.existsSync(evalsPath)) {
+      try {
+        const d = JSON.parse(fs.readFileSync(evalsPath, 'utf8'));
+        shipped = new Set((d.evals || d.cases || []).flatMap((c) => c.assertions || []).map(strip));
+      } catch { /* evals inválido já é pego por cmdEval */ }
+    }
     for (const e of entries) {
+      if (shipped && !shipped.has(strip(e.assertion))) {
+        findings.push({ code: 'CONTROL_DRIFT', skill, rule: e.rule, detail: `assertion do control não existe em evals.json (cópia derivou): ${e.assertion}` });
+        console.log(`  ❌ ${skill} [${e.rule}] CONTROL_DRIFT — control prova uma assertion que não é a embarcada`);
+        continue;
+      }
       const a = e.assertion.replace(/^@[^:]+::\s*/, ''); // controla a forma kind:arg (snippet single-file)
       const i = a.indexOf(':');
       const kind = a.slice(0, i).trim(), arg = a.slice(i + 1).trim();
@@ -545,6 +565,65 @@ function cmdControls() {
   }
   if (findings.length) console.log(`  ❌ CONTROL_FAILED: ${findings.length}`);
   else console.log('  ✅ todo controle discrimina (bom passa, ruim falha)');
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
+// adversarial — prova que as assertions de um CASO DISCRIMINAM, contra fixtures escritos por um
+// agente ADVERSÁRIO cego às assertions e ANTES delas.
+//
+// Por que este gate existe (achado de 2026-07-17): `controls` roda UMA assertion isolada, mas um
+// caso de eval é a CONJUNÇÃO das suas assertions — o grão estava errado, e um `bad` rejeitado pela
+// assertion 2 aparecia como "não discrimina" na assertion 1. Pior: o campo `assertion` do control é
+// uma CÓPIA À MÃO da string do evals.json, então ele derivava — o control do CTL-001 provava que o
+// regex ANTIGO discriminava enquanto o evals.json já embarcava outro. Verde provando a coisa errada.
+//
+// A regra de processo que este gate materializa: quem escreve a assertion NÃO escreve os negativos.
+// É a independência do reviewer aplicada um nível abaixo — no instrumento.
+//
+// Fixtures: <skill>/evals/adversarial/<caseId>.json = [{ id, kind: good|bad, mechanism, text,
+// mechanical?: false, why? }]. `good` DEVE passar; `bad` NÃO pode passar. `mechanical: false` marca
+// o `bad` que NÃO conta como escape — porque está fora do alcance mecânico (semântica de prosa: só
+// o `judge:` separa) ou fora do ESCOPO da regra deste caso (viola outra regra, coberta por outro
+// caso). Exige `why`; sem justificativa é ADVERSARIAL_FAILED. O teto é IMPRESSO em todo run — a
+// tag torna a lacuna visível, e é justamente a tag que um autor enviesado usaria para sumir com o
+// negativo inconveniente: ela existe para ser lida na revisão, não para absolver.
+function cmdAdversarial(skills) {
+  skills = skills || allSkills();
+  const findings = [];
+  let total = 0;
+  console.log('\n== adversarial (discriminação das assertions vs suite adversarial) ==');
+  for (const s of skills) {
+    const adir = path.join(SKILLS_DIR, s.dir, 'evals', 'adversarial');
+    if (!fs.existsSync(adir)) continue;
+    for (const f of fs.readdirSync(adir).filter((x) => x.endsWith('.json'))) {
+      const caseId = f.replace(/\.json$/, '');
+      const c = ((s.evals && (s.evals.evals || s.evals.cases)) || []).find((e) => e.id === caseId);
+      if (!c) { findings.push({ code: 'ADVERSARIAL_ORPHAN', skill: s.dir, detail: `fixture ${f} sem caso ${caseId} em evals.json` }); continue; }
+      let fixtures;
+      try { fixtures = JSON.parse(fs.readFileSync(path.join(adir, f), 'utf8')); }
+      catch { findings.push({ code: 'ADVERSARIAL_FAILED', skill: s.dir, detail: `${f} não é JSON válido` }); continue; }
+      const esc = [], falseRej = [], judgeOnly = [];
+      for (const fx of fixtures) {
+        total++;
+        const { res } = assertCase(c, fx.text);
+        // mecânico: qualitativas (ok === null) são ignoradas — o juiz não roda no CLI
+        const passed = res.filter((r) => r.ok === false).length === 0;
+        if (fx.kind === 'good' && !passed) falseRej.push(fx.id);
+        if (fx.kind === 'bad' && passed) { if (fx.mechanical === false) judgeOnly.push(fx); else esc.push(fx.id); }
+      }
+      const bad = fixtures.filter((x) => x.kind === 'bad').length, good = fixtures.length - bad;
+      const ok = !esc.length && !falseRej.length;
+      console.log(`  ${ok ? '✅' : '❌'} ${s.dir}#${caseId}: bad ${bad - esc.length - judgeOnly.length}/${bad} rejeitados, good ${good - falseRej.length}/${good} aceitos`);
+      if (esc.length) findings.push({ code: 'ADVERSARIAL_ESCAPE', skill: s.dir, detail: `${caseId}: bad passou nas assertions: ${esc.join(', ')}` });
+      if (falseRej.length) findings.push({ code: 'ADVERSARIAL_FALSE_REJECT', skill: s.dir, detail: `${caseId}: assertion reprovou saída CORRETA: ${falseRej.join(', ')}` });
+      // teto declarado — impresso sempre, nunca silencioso
+      for (const j of judgeOnly) console.log(`       ⏸ TETO ${j.id}: fora do alcance mecânico — ${j.why || 'sem justificativa declarada'}`);
+      if (judgeOnly.some((j) => !j.why)) findings.push({ code: 'ADVERSARIAL_FAILED', skill: s.dir, detail: `${caseId}: fixture com mechanical:false sem 'why'` });
+    }
+  }
+  if (!total) console.log('  (nenhum fixture adversarial)');
+  else if (!findings.length) console.log(`  ✅ ${total} fixture(s): toda saída correta passa e todo negativo mecânico é barrado`);
   return findings;
 }
 
@@ -657,6 +736,15 @@ function runKind(kind, arg, text) {
   if (kind === 'contains-code') return stripCodeComments(text).includes(arg);
   if (kind === 'absent-code') return !stripCodeComments(text).includes(arg);
   if (kind === 'regex') { try { return new RegExp(arg).test(text); } catch { return false; } }
+  // regex-i: case-insensitive. Obrigatório em assertion de PROSA — em português a frase começa
+  // com maiúscula ("Não modifique X"), e um `n[aã]o` minúsculo reprova a resposta certa por
+  // ortografia. Assertion mede a PROPRIEDADE, nunca a grafia.
+  if (kind === 'regex-i') { try { return new RegExp(arg, 'i').test(text); } catch { return false; } }
+  // absent-regex: negativa por padrão (case-insensitive). `absent:` só faz substring, e a forma
+  // proibida que importa é variável (um diff/patch que edita um arquivo intocável aparece como
+  // `--- a/…`, `+++ b/…`, `@@`, `diff --git`, ou como um método novo na classe). Regex inválido
+  // → false (nunca PASS sob incerteza), coerente com o AST.
+  if (kind === 'absent-regex') { try { return !new RegExp(arg, 'i').test(text); } catch { return false; } }
   return null; // qualitativa (model-judged)
 }
 
@@ -749,7 +837,15 @@ function splitFiles(text) {
   if (cur.body.length) files.push({ path: cur.path, body: cur.body.join('\n') });
   return files;
 }
-// assertion com escopo opcional `@<substr-do-arquivo>::<kind>:<arg>` → roda só no chunk daquele arquivo
+// Escopo casa por FRONTEIRA DE CAMINHO, nunca por substring solta. `includes()` fazia
+// `@CommentRepository.ts` resolver para `ICommentRepository.ts` (a interface vem antes no
+// output) e `@index.ts` para `index.tsx` — a assertion validava o arquivo errado e reprovava
+// código correto. Um escopo é o path inteiro ou um sufixo terminado em `/`.
+function matchesScope(filePath, scope) {
+  if (!filePath) return false;
+  return filePath === scope || filePath.endsWith('/' + scope);
+}
+// assertion com escopo opcional `@<sufixo-do-caminho>::<kind>:<arg>` → roda só no chunk daquele arquivo
 function evalAssertion(a, sectionText, files) {
   let scope = null, body = a;
   const m = a.match(/^@([^:]+)::(.*)$/);
@@ -758,9 +854,12 @@ function evalAssertion(a, sectionText, files) {
   const kind = body.slice(0, i).trim(), arg = body.slice(i + 1).trim();
   let target = sectionText, fname = 'chunk.tsx';
   if (scope) {
-    const f = files.find((x) => x.path.includes(scope));
-    if (!f) return { a, ok: false, note: `arquivo-alvo '${scope}' ausente na seção` };
-    target = f.body; fname = f.path || fname;
+    const cands = files.filter((x) => matchesScope(x.path, scope));
+    if (!cands.length) return { a, ok: false, note: `arquivo-alvo '${scope}' ausente na seção` };
+    // Ambiguidade é FAIL explícito, não first-wins silencioso: escolher o primeiro em silêncio
+    // é como o escopo por substring passava despercebido. Desempate = escopo mais específico.
+    if (cands.length > 1) return { a, ok: false, note: `escopo '${scope}' ambíguo: ${cands.map((c) => c.path).join(', ')} — use um sufixo mais específico` };
+    target = cands[0].body; fname = cands[0].path || fname;
   }
   const r = applyKind(kind, arg, target, fname);
   return { a, ok: r.ok, note: r.note };
@@ -785,19 +884,30 @@ function cmdBatchEval(skill, file) {
     return null;
   };
   const codeCaseList = cases.filter((c) => !String(c.type).startsWith('trigger'));
-  let passCases = 0, codeCases = 0;
+  let passCases = 0, codeCases = 0, failCases = 0, blockedCases = 0;
   console.log(`\nbatch-eval ${skill}:`);
   for (const c of codeCaseList) {
     codeCases++;
     const text = sec(c.id);
-    if (text == null) { console.log(`  ⏸ ${c.id}: seção ausente no output`); continue; }
+    if (text == null) { blockedCases++; console.log(`  ⏸ ${c.id}: seção ausente no output`); continue; }
     const { res, fail } = assertCase(c, text);
-    if (!fail) passCases++;
-    console.log(`  ${fail ? '❌' : '✅'} ${c.id} (${res.filter((r) => r.ok).length}/${res.filter((r) => r.ok !== null).length})`);
+    const mech = res.filter((r) => r.ok !== null).length;
+    const qual = res.length - mech;
+    // BLOCKED ≠ PASS. Um caso cujas assertions são (todas ou em parte) qualitativas não pode ser
+    // certificado aqui: o juiz é model-in-loop e não roda no CLI. Sem esta trava, `fail` conta só
+    // `ok === false` e uma qualitativa (ok === null) some da conta — um caso 100% qualitativo
+    // imprimia `✅ (0/0)` e contava como PASS sem ninguém julgar nada. Mesma classe do 1.00
+    // verdadeiro-e-vazio: verde que mede a ausência de medição.
+    const blocked = qual > 0 || mech === 0;
+    if (fail) failCases++; else if (blocked) blockedCases++; else passCases++;
+    const mark = fail ? '❌' : blocked ? '⏸' : '✅';
+    const why = blocked && !fail ? ` — BLOCKED: ${mech === 0 ? 'nenhuma assertion mecânica' : `${qual} qualitativa(s)`}, julgamento model-in-loop pendente` : '';
+    console.log(`  ${mark} ${c.id} (${res.filter((r) => r.ok).length}/${mech})${why}`);
     for (const r of res) if (r.ok === false) console.log(`       FAIL ${r.a}${r.note ? ' — ' + r.note : ''}`);
+    for (const r of res) if (r.ok === null) console.log(`       ⏸ JUIZ ${r.a}`);
   }
-  console.log(`  => ${passCases}/${codeCases} casos de código PASS`);
-  return passCases === codeCases ? 0 : 1;
+  console.log(`  => ${passCases}/${codeCases} casos de código PASS${failCases ? `, ${failCases} FAIL` : ''}${blockedCases ? `, ${blockedCases} BLOCKED (não conta como PASS)` : ''}`);
+  return failCases ? 1 : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -849,6 +959,7 @@ switch (cmd) {
   case 'eval-assert': cmdEvalAssert(process.argv[3], process.argv[4], process.argv[5]); break;
   case 'batch-eval': process.exit(cmdBatchEval(process.argv[3], process.argv[4])); break;
   case 'controls': exit(cmdControls()); break;
+  case 'adversarial': exit(cmdAdversarial()); break;
   case 'self-check': exit(cmdSelfCheck()); break;
   case 'wiring': exit(cmdWiring()); break;
   case 'run': {
@@ -860,6 +971,7 @@ switch (cmd) {
       ...cmdCoverage(skills),
       ...cmdEval(false),
       ...cmdControls(),
+      ...cmdAdversarial(skills),
       ...cmdSelfCheck(),
       ...cmdWiring(),
     ];
