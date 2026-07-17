@@ -1,9 +1,9 @@
 [
   {
     "rule": "CTL-001",
-    "corrected": "regression-1: regex passou a aceitar `if (...) { return }` com chave (antes assumia braceless)",
-    "assertion": "regex:if\\s*\\(!parse\\.success\\)\\s*\\{?\\s*return\\s+res\\.status\\(400\\)",
-    "good": "const parse = S.safeParse(req.body);\n  if (!parse.success) {\n    return res.status(400).json({});\n  }\n  const service = getFactory().getInvoiceService();",
-    "bad": "const data = req.body;\n  const service = getFactory().getInvoiceService();\n  const created = await service.create(data);"
+    "corrected": "regression-1 assertion[1]: guard precisa ser a instrução IMEDIATAMENTE seguinte ao safeParse E retornar. String copiada DA FONTE por script (evals.json) — cópia à mão foi o que produziu o CONTROL_DRIFT que este arquivo carregava: provava o regex antigo (com return) enquanto o eval já embarcava um sem return.",
+    "assertion": "regex:\\.safeParse\\(\\s*req\\.body\\s*\\)\\s*;?\\s*(?:\\/\\/[^\\n]*\\n\\s*)*if\\s*\\(\\s*(?:!\\s*[\\w.]+|[\\w.]+\\.success\\s*===\\s*false)\\s*\\)\\s*\\{?\\s*(?:\\/\\/[^\\n]*\\n\\s*)*return\\s+res\\s*\\.\\s*status\\(\\s*400\\s*\\)",
+    "good": "const parse = CreateInvoiceSchema.safeParse(req.body);\n  if (!parse.success) {\n    return res.status(400).json({ success: false, error: parse.error.flatten() });\n  }\n  const service = getFactory().getInvoiceService();",
+    "bad": "const parse = CreateInvoiceSchema.safeParse(req.body);\n  if (!parse.success) {\n    res.status(400).json({ success: false, error: parse.error.flatten() });\n  }\n  const service = getFactory().getInvoiceService();"
   }
 ]

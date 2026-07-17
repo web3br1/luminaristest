@@ -176,6 +176,12 @@ governance-check   # malha regra↔gate↔target↔eval (aceita dialeto-piloto E
 sync-metadata      # status/eval-score do SKILL.md == projeção do REPORT.md
 coverage           # materializa governance/coverage-auto.md + verifica gates
 eval [--changed]   # valida ESTRUTURA dos evals; execução comportamental é BLOCKED (model-in-loop)
+controls           # prova que UMA assertion (isolada) discrimina: variante boa passa, ruim falha.
+                   #   A cópia da assertion tem de existir no evals.json → CONTROL_DRIFT
+adversarial        # prova que as assertions do CASO (conjunção — o grão certo) discriminam contra
+                   #   fixtures escritos por um agente ADVERSÁRIO, cego às assertions e ANTES delas.
+                   #   Exige: toda saída correta passa; todo negativo mecânico é barrado.
+                   #   Fixtures: <skill>/evals/adversarial/<caseId>.json (versionados)
 self-check         # prova contra fixtures que o auditor detecta cada código de falha
 wiring             # membership em registro central do APP gerado (tsc-cego): rota montada,
                    #   categoria KPI/preset órfã, paridade i18n en↔pt → check-registries.mjs + check-i18n-keys.mjs
@@ -188,7 +194,25 @@ materializados (mapeiam 1:1 com `governance/MIGRATION.md`): `INVALID_SKILL_STRUC
 `BROKEN_REFERENCE`, `SKILL_TOO_LARGE`, `RULE_WITHOUT_GATE`, `GATE_WITHOUT_RULE`,
 `GATE_TARGET_NOT_FOUND`, `RULE_WITHOUT_EVAL_COVERAGE`, `MISSING_TRIGGER_EVAL`,
 `UNSAFE_AUTO_INVOCATION`, `EVAL_FAILED`, `STALE_EVALUATION`, `METADATA_REPORT_MISMATCH`,
-`AUDITOR_SELF_CHECK_FAILED`, `DUPLICATE_RULE_ID`.
+`AUDITOR_SELF_CHECK_FAILED`, `DUPLICATE_RULE_ID`, `CONTROL_FAILED`, `CONTROL_DRIFT`,
+`ADVERSARIAL_ESCAPE`, `ADVERSARIAL_FALSE_REJECT`, `ADVERSARIAL_ORPHAN`, `ADVERSARIAL_FAILED`.
+
+> **Quem escreve a assertion NÃO escreve os negativos** (regra de processo, 2026-07-17). É a
+> independência do reviewer aplicada um nível abaixo — no **instrumento**. Um negativo autorado por
+> quem escreveu a assertion converge para o que ela já pega, e o eval fica verde medindo a própria
+> sombra: em `AC-2.1-B4` a assertion aceitava **0 de 6** respostas corretas e aprovava 2 de 10 erradas,
+> com 5 gates verdes por cima. Declarar o viés não o remove — só permite que outro o explore. Por isso
+> os fixtures de `adversarial` são escritos por um agente cego às assertions, **antes** delas.
+>
+> **`controls` × `adversarial`:** `controls` roda UMA assertion isolada; um caso de eval é a
+> **conjunção** das suas assertions. O grão errado esconde discriminação real (um negativo barrado pela
+> assertion 2 parece "escapar" da 1) e, pior, o campo `assertion` do control é **cópia à mão** — o do
+> `CTL-001` derivou e provava o regex antigo enquanto o `evals.json` embarcava outro. Daí `CONTROL_DRIFT`.
+>
+> **`mechanical: false` + `why`** num fixture marca o negativo que não conta como escape: fora do alcance
+> mecânico (semântica de prosa — só `judge:` separa) ou fora do escopo da regra daquele caso. É impresso
+> em **todo** run: é a tag que um autor enviesado usaria para sumir com o negativo inconveniente, então
+> ela existe para ser lida na revisão, não para absolver.
 
 > **`self-check` é a trava do auditor (SG/“auditar o auditor”).** As fixtures vivem em
 > `fixtures/` (geradas por `make-fixtures.mjs`): uma válida que passa limpa + uma quebrada por

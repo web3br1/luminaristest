@@ -1,0 +1,106 @@
+[
+  {
+    "id": "bad-1",
+    "kind": "bad",
+    "mechanism": "Ordem invertida com todos os tokens corretos presentes: getFactory() e a chamada ao service acontecem ANTES do safeParse; o bloco de validacao esta impecavel, so esta no lugar errado.",
+    "text": "export async function createInvoice(req: Request, res: Response) {\n  try {\n    const actor = getUserContextFromRequest(req);\n    const service = getFactory().getInvoiceService();\n    const draft = await service.prepareDraft(actor, req.body);\n\n    const parse = CreateInvoiceSchema.safeParse(req.body);\n    if (!parse.success) {\n      return res.status(400).json({ success: false, error: parse.error.flatten() });\n    }\n\n    const invoice = await service.create(actor, parse.data, draft.id);\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "bad-2",
+    "kind": "bad",
+    "mechanism": "Falta exatamente UM elemento com consequencia de runtime: o `return` antes do res.status(400). O handler responde 400 e SEGUE executando o service (ERR_HTTP_HEADERS_SENT). Todo o resto e canonico e a validacao e literalmente a primeira coisa.",
+    "text": "export async function createInvoice(req: Request, res: Response) {\n  try {\n    const parse = CreateInvoiceSchema.safeParse(req.body);\n    if (!parse.success) {\n      res.status(400).json({ success: false, error: parse.error.flatten() });\n    }\n\n    const actor = getUserContextFromRequest(req);\n    const service = getFactory().getInvoiceService();\n    const invoice = await service.create(actor, parse.data!);\n\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "bad-3",
+    "kind": "bad",
+    "mechanism": "Palavra certa ligada ao OBJETO ERRADO: safeParse é a primeira linha e retorna 400, mas valida `req.params`/`req.query` — o body entra cru no service. Satisfaz qualquer busca por safeParse+400 no topo.",
+    "text": "export async function createInvoice(req: Request, res: Response) {\n  try {\n    const parse = CreateInvoiceQuerySchema.safeParse(req.query);\n    if (!parse.success) {\n      return res.status(400).json({ success: false, error: parse.error.flatten() });\n    }\n\n    const actor = getUserContextFromRequest(req);\n    const service = getFactory().getInvoiceService();\n    const invoice = await service.create(actor, req.body);\n\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "bad-4",
+    "kind": "bad",
+    "mechanism": "safeParse(req.body) é a primeira instrução e o literal `res.status(400)` existe no arquivo, mas o resultado NUNCA é checado — o 400 mora num branch morto depois do service. Validação vira decoração.",
+    "text": "export async function createInvoice(req: Request, res: Response) {\n  try {\n    const parse = CreateInvoiceSchema.safeParse(req.body);\n    const actor = getUserContextFromRequest(req);\n    const service = getFactory().getInvoiceService();\n\n    const invoice = await service.create(actor, req.body as CreateInvoiceInput);\n    if (!invoice) {\n      return res.status(400).json({ success: false, error: parse.error?.flatten() });\n    }\n\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "bad-5",
+    "kind": "bad",
+    "mechanism": "Usa Schema.parse (throw) em vez de safeParse: a validação É a primeira coisa e o vocabulário Zod está lá, mas o erro cai no catch/handleApiError — nunca existe `return res.status(400)` no handler. Sem 400 determinístico.",
+    "text": "export async function createInvoice(req: Request, res: Response) {\n  try {\n    const data = CreateInvoiceSchema.parse(req.body);\n\n    const actor = getUserContextFromRequest(req);\n    const service = getFactory().getInvoiceService();\n    const invoice = await service.create(actor, data);\n\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "bad-6",
+    "kind": "bad",
+    "mechanism": "Validação delegada ao service: o handler afirma em comentário que a validação vem primeiro e o service faz safeParse com 400 — a regra é de camada e o controller entra sem validar nada.",
+    "text": "export async function createInvoice(req: Request, res: Response) {\n  try {\n    // Validação Zod do body acontece ANTES de qualquer lógica, dentro de InvoiceService.create\n    const actor = getUserContextFromRequest(req);\n    const service = getFactory().getInvoiceService();\n\n    const result = await service.create(actor, req.body);\n    if (!result.valid) {\n      return res.status(400).json({ success: false, error: result.errors });\n    }\n\n    return res.status(201).json({ success: true, data: result.invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "bad-7",
+    "kind": "bad",
+    "mechanism": "safeParse(req.body) é a primeira linha e o early-return existe, mas o status é 422 — falha o contrato do 400 mantendo o formato e a ordem perfeitos.",
+    "text": "export async function createInvoice(req: Request, res: Response) {\n  try {\n    const parse = CreateInvoiceSchema.safeParse(req.body);\n    if (!parse.success) {\n      return res.status(422).json({ success: false, error: parse.error.flatten() });\n    }\n\n    const actor = getUserContextFromRequest(req);\n    const service = getFactory().getInvoiceService();\n    const invoice = await service.create(actor, parse.data);\n\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "bad-8",
+    "kind": "bad",
+    "mechanism": "Lógica com efeito colateral (auditoria/mutação) roda ANTES do bloco de validação, que continua sintaticamente perfeito. A distância textual entre o topo do handler e o safeParse é mínima (3 linhas) — derrota checagem por proximidade.",
+    "text": "export async function createInvoice(req: Request, res: Response) {\n  try {\n    const actor = getUserContextFromRequest(req);\n    await getFactory().getAuditService().recordAttempt(actor, 'invoice.create', req.body);\n\n    const parse = CreateInvoiceSchema.safeParse(req.body);\n    if (!parse.success) {\n      return res.status(400).json({ success: false, error: parse.error.flatten() });\n    }\n\n    const invoice = await getFactory().getInvoiceService().create(actor, parse.data);\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "bad-9",
+    "kind": "bad",
+    "mechanism": "Validação primeira e correta, MAS instancia o service com `new InvoiceService(` e toca `prisma.` — viola a proibição explícita de camada declarada no contexto do prompt, mantendo CTL-001 aparentemente satisfeito.",
+    "mechanical": false,
+    "why": "FORA DO ESCOPO da regra deste caso: valida corretamente (CTL-001 satisfeito) e viola CTL-003/prisma. Verificado que o caso happy-1 o reprova via absent:new InvoiceService( e o regex getFactory().getInvoiceService(). Cobrir aqui misturaria regras e sujaria o mapa regra->gate.",
+    "text": "export async function createInvoice(req: Request, res: Response) {\n  try {\n    const parse = CreateInvoiceSchema.safeParse(req.body);\n    if (!parse.success) {\n      return res.status(400).json({ success: false, error: parse.error.flatten() });\n    }\n\n    const actor = getUserContextFromRequest(req);\n    const service = new InvoiceService(new InvoiceRepository(prisma), new InvoicePolicy());\n    const invoice = await service.create(actor, parse.data);\n\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "bad-10",
+    "kind": "bad",
+    "mechanism": "Guard-clause condicional: o safeParse+400 é a primeira coisa mas só roda quando um header/flag está presente — em produção a rota aceita body não validado. Todos os tokens, na ordem certa, com um `if` por fora.",
+    "text": "export async function createInvoice(req: Request, res: Response) {\n  try {\n    if (process.env.NODE_ENV !== 'production') {\n      const parse = CreateInvoiceSchema.safeParse(req.body);\n      if (!parse.success) {\n        return res.status(400).json({ success: false, error: parse.error.flatten() });\n      }\n    }\n\n    const actor = getUserContextFromRequest(req);\n    const service = getFactory().getInvoiceService();\n    const invoice = await service.create(actor, req.body);\n\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "good-1",
+    "kind": "good",
+    "mechanism": "Superfície canônica de referência: const `parse`, chaves, aspas simples, 201 + { success: true, data }.",
+    "text": "export async function createInvoice(req: Request, res: Response) {\n  try {\n    const parse = CreateInvoiceSchema.safeParse(req.body);\n    if (!parse.success) {\n      return res.status(400).json({ success: false, error: parse.error.flatten() });\n    }\n\n    const actor = getUserContextFromRequest(req);\n    const service = getFactory().getInvoiceService();\n    const invoice = await service.create(actor, parse.data);\n\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "good-2",
+    "kind": "good",
+    "mechanism": "Sem chaves no if (early return numa linha só), nome de variável diferente (`validation`), arrow function exportada como const, aspas duplas.",
+    "text": "export const createInvoice = async (req: Request, res: Response) => {\n  try {\n    const validation = CreateInvoiceSchema.safeParse(req.body);\n    if (!validation.success) return res.status(400).json({ success: false, error: validation.error.flatten() });\n\n    const actor = getUserContextFromRequest(req);\n    const invoice = await getFactory().getInvoiceService().create(actor, validation.data);\n\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n};\n"
+  },
+  {
+    "id": "good-3",
+    "kind": "good",
+    "mechanism": "Destructuring do resultado do safeParse (`const { success, data, error }`) — o token `parse.success` some, mas a semântica é idêntica e a validação continua sendo a primeira coisa.",
+    "text": "export async function createInvoice(req: Request, res: Response) {\n  try {\n    const { success, data, error: zodError } = CreateInvoiceSchema.safeParse(req.body);\n\n    if (!success) {\n      return res.status(400).json({ success: false, error: zodError.flatten() });\n    }\n\n    const actor = getUserContextFromRequest(req);\n    const service = getFactory().getInvoiceService();\n    const created = await service.create(actor, data);\n\n    return res.status(201).json({ success: true, data: created });\n  } catch (err) {\n    return handleApiError(err, res);\n  }\n}\n"
+  },
+  {
+    "id": "good-4",
+    "kind": "good",
+    "mechanism": "Validação ANTES do try/catch (fora do bloco), comentários em português com acento, schema com alias de import, res.status(400).json em múltiplas linhas quebradas.",
+    "text": "import { CreateInvoiceSchema as InvoiceDto } from '../dtos/invoice.dto';\n\nexport async function createInvoice(req: Request, res: Response) {\n  // Validação Zod do body é a primeira coisa do handler — nada roda antes disso.\n  const parsed = InvoiceDto.safeParse(req.body);\n  if (!parsed.success) {\n    return res\n      .status(400)\n      .json({\n        success: false,\n        error: parsed.error.flatten(),\n      });\n  }\n\n  try {\n    const actor = getUserContextFromRequest(req);\n    const service = getFactory().getInvoiceService();\n    const invoice = await service.create(actor, parsed.data);\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "good-5",
+    "kind": "good",
+    "mechanism": "Ternário/variável intermediária: guarda `if (parseResult.success === false)`, ordem de campos do payload invertida (error antes de success), tipagem explícita de retorno Promise<Response | void>.",
+    "text": "export async function createInvoice(req: Request, res: Response): Promise<Response> {\n  try {\n    const parseResult = createInvoiceSchema.safeParse(req.body);\n\n    if (parseResult.success === false) {\n      return res.status(400).json({ error: parseResult.error.flatten(), success: false });\n    }\n\n    const payload = parseResult.data;\n    const actor = getUserContextFromRequest(req);\n    const invoiceService = getFactory().getInvoiceService();\n    const invoice = await invoiceService.create(actor, payload);\n\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n"
+  },
+  {
+    "id": "good-6",
+    "kind": "good",
+    "mechanism": "Handler numa classe (método de InvoiceController) com `public async`, `this` e nome de variável em inglês abreviado (`vr`); validação segue sendo a primeira instrução.",
+    "text": "export class InvoiceController {\n  public async createInvoice(req: Request, res: Response) {\n    try {\n      const vr = CreateInvoiceSchema.safeParse(req.body);\n      if (!vr.success) {\n        return res.status(400).json({ success: false, error: vr.error.flatten() });\n      }\n\n      const actor = getUserContextFromRequest(req);\n      const service = getFactory().getInvoiceService();\n      const data = await service.create(actor, vr.data);\n\n      return res.status(201).json({ success: true, data });\n    } catch (error) {\n      return handleApiError(error, res);\n    }\n  }\n}\n"
+  },
+  {
+    "id": "good-7",
+    "kind": "good",
+    "mechanism": "Prosa curta em markdown ANTES do bloco de código (formato misto explicação+código), fence ts, e o handler correto embaixo — pega assertion que exige que o texto comece com `export`.",
+    "text": "A validação do body vem primeiro: se `safeParse` falhar, o handler devolve **400** e encerra ali — o factory nem chega a ser tocado.\n\n```ts\nexport async function createInvoice(req: Request, res: Response) {\n  try {\n    const body = CreateInvoiceSchema.safeParse(req.body);\n    if (!body.success) {\n      return res.status(400).json({ success: false, error: body.error.flatten() });\n    }\n\n    const actor = getUserContextFromRequest(req);\n    const service = getFactory().getInvoiceService();\n    const invoice = await service.create(actor, body.data);\n\n    return res.status(201).json({ success: true, data: invoice });\n  } catch (error) {\n    return handleApiError(error, res);\n  }\n}\n```\n"
+  }
+]

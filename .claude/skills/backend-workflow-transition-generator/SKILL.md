@@ -6,10 +6,10 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 metadata:
   governance-skill-id: SKL-WORKFLOW-TRANS
   governance-version: "1.0.1"
-  governance-status: validated
+  governance-status: draft
   governance-owner: engineering
-  governance-last-evaluated: "2026-07-16"
-  governance-eval-score: "1.00"
+  governance-last-evaluated: "2026-07-17"
+  governance-eval-score: "0.50"
   governance-doc: ./governance.md
 ---
 
