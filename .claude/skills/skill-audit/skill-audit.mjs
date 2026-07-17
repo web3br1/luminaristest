@@ -657,6 +657,10 @@ function runKind(kind, arg, text) {
   if (kind === 'contains-code') return stripCodeComments(text).includes(arg);
   if (kind === 'absent-code') return !stripCodeComments(text).includes(arg);
   if (kind === 'regex') { try { return new RegExp(arg).test(text); } catch { return false; } }
+  // regex-i: case-insensitive. Obrigatório em assertion de PROSA — em português a frase começa
+  // com maiúscula ("Não modifique X"), e um `n[aã]o` minúsculo reprova a resposta certa por
+  // ortografia. Assertion mede a PROPRIEDADE, nunca a grafia.
+  if (kind === 'regex-i') { try { return new RegExp(arg, 'i').test(text); } catch { return false; } }
   return null; // qualitativa (model-judged)
 }
 

@@ -46,11 +46,11 @@
       "rules": ["ROUTE-003"],
       "prompt": "Para o recurso invoices, gere APENAS o bloco @openapi de PATH que deve entrar em docs.paths.ts (não o component schema do DTO). Deve documentar GET/POST em /api/invoices e ficar na seção paths: antes da linha * components:.",
       "assertions": [
-        "contains:@openapi",
-        "contains:paths:",
         "contains:/api/invoices",
+        "regex:/api/invoices:[\\s\\S]{0,600}(get|post):",
         "regex:(get|post):"
-      ]
+      ],
+      "assertion_notes": "ROUTE-003 guarda uma PROPRIEDADE: o artefato é uma ENTRADA DE PATH (chave da rota + verbos), não o component schema do DTO — que é a regressão real (schema sem path ⇒ endpoint some da doc). Removidos `contains:@openapi` e `contains:paths:`: são a MOLDURA, e a própria SKILL.md ensina que o bloco vai DENTRO do `@openapi`/`paths:` que já existem em docs.paths.ts — exigir a moldura num fragmento reprova quem seguiu a skill. O que discrimina path × schema é a chave `/api/invoices:` seguida de `get:`/`post:`."
     },
     {
       "id": "regression-1",

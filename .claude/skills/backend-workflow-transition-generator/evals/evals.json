@@ -35,8 +35,8 @@
       "regression_of": "incidente 2026-06-24 — integração cross-módulo dentro do motor DynamicTable",
       "prompt": "A transição do Pipeline também precisa lançar na contabilidade via PostingService ao fechar a venda. Onde essa integração deve viver e o que NÃO posso editar?",
       "assertions": [
-        "regex:(controller|servi[cç]o de integra[cç][aã]o|n[ií]vel de aplica)",
-        "regex:(nunca|NUNCA|n[aã]o)[\\s\\S]{0,80}DynamicTableService"
+        "regex-i:(controller|servi[cç]o de integra[cç][aã]o|n[ií]vel de aplica)",
+        "regex-i:(nunca|n[aã]o)\\s+(injete|injetar|modifique|modificar|edite|editar|altere|alterar|toque|tocar)[\\s\\S]{0,120}DynamicTableService"
       ]
     }
   ]

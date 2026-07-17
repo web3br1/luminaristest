@@ -54,8 +54,8 @@
       ],
       "prompt": "No controller de Invoice, gere o handler getInvoiceById que retorna 404 quando não encontra e 200 com o registro quando encontra. Garanta que nenhum res.json possa rodar depois de outro (sem 'headers already sent').",
       "assertions": [
-        "regex:return\\s+res\\.(status\\(404\\)|json)",
-        "regex:return\\s+res\\.json\\(\\{\\s*success:\\s*true",
+        "regex:return\\s+res\\.(status\\(404\\)|status\\(200\\)|json)",
+        "regex:return\\s+res(\\.status\\(200\\))?\\.json\\(\\{\\s*success:\\s*true",
         "absent:res.send("
       ]
     },
@@ -69,8 +69,9 @@
       "prompt": "Gere o handler createInvoice. A validação Zod do body deve acontecer ANTES de obter o service ou chamar qualquer lógica.",
       "assertions": [
         "regex:safeParse\\(req\\.body\\)[\\s\\S]*getFactory\\(\\)",
-        "regex:if\\s*\\(!parse\\.success\\)\\s*\\{?\\s*return\\s+res\\.status\\(400\\)"
-      ]
+        "regex:if\\s*\\(\\s*!\\w+\\.success\\s*\\)[\\s\\S]{0,80}res\\.status\\(400\\)"
+      ],
+      "assertion_notes": "CTL-001 é uma PROPRIEDADE — validar antes de tocar o service — não a grafia do contrato. A 1ª assertion mede a ORDEM (safeParse antes de getFactory), que é a regra. A 2ª mede o guard: qualquer `!<var>.success` seguido de 400. Antes exigia o nome `parse` e reprovava um handler correto que chamou a variável de `bodyResult`. Nome de variável não tem consequência de runtime."
     }
   ]
 }
