@@ -3,7 +3,7 @@ type: skill-governance
 governance-skill-id: SKL-WORKFLOW-TRANS
 skill-path: ./SKILL.md
 contract: ../_ARCHITECTURE-CONTRACT.md
-last-evaluated: "2026-06-25"
+last-evaluated: "2026-07-16"
 status: validated
 eval-score-source: ../skill-audit/reports/backend-workflow-transition-generator/REPORT.md   # projeção do relatório — NUNCA editar à mão
 governs-rules:

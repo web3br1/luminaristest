@@ -8,7 +8,7 @@ owner: engineering
 criticality: normal
 evaluation:
   report: ../skill-audit/reports/crud-resource-generator/REPORT.md
-  last_evaluated: 2026-06-25
+  last_evaluated: 2026-07-16
   score: 1.00
   minimum_score: 0.90
 rules:

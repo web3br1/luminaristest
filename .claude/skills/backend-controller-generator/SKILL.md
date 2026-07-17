@@ -9,7 +9,7 @@ metadata:
   governance-version: "1.0.1"
   governance-status: "validated"
   governance-owner: "engineering"
-  governance-last-evaluated: "2026-06-25"
+  governance-last-evaluated: "2026-07-16"
   governance-eval-score: "1.00"
 ---
 

@@ -8,7 +8,7 @@ metadata:
   governance-version: "1.2.0"
   governance-status: "validated"
   governance-owner: "engineering"
-  governance-last-evaluated: "2026-06-25"
+  governance-last-evaluated: "2026-07-16"
   governance-eval-score: "1.00"
   governance-note: "1.1.0 adiciona REV-007 (choke point PAR-001 em slice de Fase A, condicional ao contexto de lote paralelo). change-set atômico: gate em governance.md + eval estrutural happy-3. eval-score 1.00 = última corrida comportamental (REPORT.md, SG-011); comportamental de REV-007 diferida p/ próxima corrida do harness fora do CI"
 ---
