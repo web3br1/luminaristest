@@ -39,7 +39,15 @@ export class CrmPipelineService {
    */
   async advanceStage(user: UserContext, input: AdvanceStageInput) {
     // Fail fast if the CRM module is not installed for this user.
-    await this.resolveTableId(user, 'leads');
+    const leadsTableId = await this.resolveTableId(user, 'leads');
+
+    // Cross-tenant read guard (mirrors convertLead's FIX 1, contract §2): findDataById is NOT
+    // tenant-scoped, so a foreign/other-table leadId would otherwise reach updateTableData and
+    // throw ForbiddenError (mild enumeration). Treat a missing/foreign row as non-existent.
+    const leadRow = await this.repository.findDataById(input.leadId);
+    if (!leadRow || leadRow.dynamicTableId !== leadsTableId) {
+      throw new NotFoundError(`Lead '${input.leadId}' não foi encontrado.`);
+    }
 
     const proposalsTableId =
       (input.stageType || '').toLowerCase() === 'proposal' && input.amount != null
@@ -210,7 +218,16 @@ export class CrmPipelineService {
 
   /** Create a standalone proposal and refresh the lead's latest-proposal snapshot. */
   async createProposal(user: UserContext, input: CreateProposalInput) {
+    const leadsTableId = await this.resolveTableId(user, 'leads');
     const proposalsTableId = await this.resolveTableId(user, 'leadProposals');
+
+    // Cross-tenant read guard (mirrors convertLead's FIX 1, contract §2): the lead snapshot
+    // update targets input.leadId. findDataById is NOT tenant-scoped, so assert the row
+    // belongs to THIS tenant's leads table BEFORE any write; else NotFoundError.
+    const leadRow = await this.repository.findDataById(input.leadId);
+    if (!leadRow || leadRow.dynamicTableId !== leadsTableId) {
+      throw new NotFoundError(`Lead '${input.leadId}' não foi encontrado.`);
+    }
 
     // Atomic: proposal create + lead snapshot update commit/rollback together.
     return this.dynamicTableService.runInTransaction(async (tx) => {
@@ -238,7 +255,16 @@ export class CrmPipelineService {
 
   /** Record a no-show: log an activity and either reschedule or revert the lead's stage. */
   async recordNoShow(user: UserContext, input: RecordNoShowInput) {
+    const leadsTableId = await this.resolveTableId(user, 'leads');
     const activitiesTableId = await this.resolveTableId(user, 'leadActivities');
+
+    // Cross-tenant read guard (mirrors convertLead's FIX 1, contract §2): the activity log and
+    // the optional stage/schedule update both reference input.leadId. findDataById is NOT
+    // tenant-scoped, so assert the row belongs to THIS tenant's leads table BEFORE any write.
+    const leadRow = await this.repository.findDataById(input.leadId);
+    if (!leadRow || leadRow.dynamicTableId !== leadsTableId) {
+      throw new NotFoundError(`Lead '${input.leadId}' não foi encontrado.`);
+    }
 
     // Atomic: activity log + optional lead stage/schedule update commit/rollback together.
     await this.dynamicTableService.runInTransaction(async (tx) => {
