@@ -402,6 +402,11 @@ export class PayableService {
       if (payable.status === 'CANCELLED') continue;
       const recognition = await this.posting.findEntryBySource(scope, AP_PAYABLE_SOURCE_TYPE, payable.id);
       if (recognition) continue;
+      // INCR-INVENTORY Fase 0 (schema-only): an inventory PURCHASE (ADR D3(b)) carries
+      // expenseAccountId=null and debits 1.1.6 Estoques instead of an expense leaf. Its recognition
+      // re-drive is the inventory branch of reconcilePayables, owned by A2c-2 (Body 3). Until that lands,
+      // keep the pre-existing behavior (null/missing expense account → skip) type-safely.
+      if (!payable.expenseAccountId) continue;
       try {
         const expenseAccount = await this.accountRepo.findById(scope, payable.expenseAccountId);
         if (!expenseAccount) {
