@@ -44,12 +44,18 @@ dado**: ler o **XML autorizado da NF-e** do fornecedor e **pré-preencher** essa
 fornecedor, número/série, data de emissão, itens, quantidades e **custo de aquisição** — em vez de o operador
 redigitar a nota.
 
-**Classificação (STOP block do CLAUDE.md):** a NF-e **não é uma entidade/módulo com invariante próprio** — é
-**ingestão de documento** que *alimenta* entidades que já existem (`Payable`, estoque, `Counterparty`,
-`SourceDocument`, todas Prisma first-class). Portanto **não** cria subrazão contábil novo, **não** é
-DynamicTable, e o parser é uma **biblioteca pura** (não passa por camada Route→Service). A integração
+**Classificação (STOP block do CLAUDE.md):** a NF-e carrega invariantes fiscais (Σ itens+impostos == `vNF`;
+autorização `cStat`) — e o Contrato §2.1 nomeia **Fiscal/NF-e** como domínio first-class-Prisma (o exemplar
+`FiscalDocument`). **Este ADR faz a escolha de §0 (reuse antes de recriar): a ingestão de NF-e do MVP
+*reaproveita* entidades first-class que já existem** (`Payable`, estoque, `Counterparty`, `SourceDocument`,
+todas Prisma) **em vez de criar um `FiscalDocument` bespoke** — os invariantes fiscais são enforçados pelo
+tie-out de custo (D3) e pelo gate `cStat` (D5), não relaxados. Portanto **não** cria subrazão contábil novo,
+**não** é DynamicTable, e o parser é uma **biblioteca pura** (não passa por camada Route→Service). A integração
 (resolver produto/emitente, computar custo, chamar `createPayable`) vive no **controller/serviço de
-integração**, pós-parse — nunca dentro do motor DynamicTable (§2.1, T10).
+integração**, pós-parse — nunca dentro do motor DynamicTable (§2.1, T10). **Limite honesto (review #1):** se a
+volumetria fiscal crescer (NFS-e/NFC-e/CT-e, item-a-item), o `FiscalDocument` first-class do §2.1 passa a ser
+a casa natural — o reuso do `Payable` é a resposta certa **para o MVP compra+venda**, não licença para
+espalhar estado fiscal no `Payable` indefinidamente.
 
 **Escopo MVP (ratificado em §5, F-NFE1 → (b) COMPRA + VENDA):**
 - **Compra:** parser `lib/nfe.ts` + serviço de integração que **pré-preenche** a `Payable` de mercadoria a
@@ -57,7 +63,7 @@ integração**, pós-parse — nunca dentro do motor DynamicTable (§2.1, T10).
 - **Venda:** ingerir o XML da NF-e de venda e **cruzá-lo com a venda de salão já lançada** (receita + CMV via
   bridge do INVENTORY), **anexando proveniência** (`SourceDocument`) e sinalizando divergência — **sem
   re-lançar receita nem CMV** (a venda de salão é a fonte-de-verdade contábil; a NF-e de venda é o documento
-  fiscal dela). Ver D2b e o risco de duplo-lançamento (§6.5).
+  fiscal dela). Ver D2b e o risco de duplo-lançamento (§6 item 5).
 
 **FORA deste MVP (declarado):** processamento de **eventos** de NF-e (CC-e, cancelamento posterior por evento,
 manifestação do destinatário), **outros modelos** (NFS-e serviço, NFC-e consumidor, CT-e transporte),
@@ -119,7 +125,7 @@ A venda de salão **já é a fonte-de-verdade contábil**: o bridge pós-commit 
 2. **sinaliza divergência** se o total/itens da NF-e não batem com a venda lançada (relatório de conciliação
    fiscal, read-only) — **sem postar nada**.
 
-**Guard-rail crítico (§6.5):** a NF-e de venda **NÃO** chama `postEntry` nem `createPayable` — se o fizesse,
+**Guard-rail crítico (§6 item 5):** a NF-e de venda **NÃO** chama `postEntry` nem `createPayable` — se o fizesse,
 duplicaria receita/CMV. Uma NF-e de venda **sem** venda de salão correspondente (venda avulsa faturada, não-PDV)
 fica **FORA do MVP** (é o território do AR-formal / faturas avulsas — declarado em §4); no MVP a NF-e de venda
 **exige** a venda de salão âncora, senão rejeita loud. Este é o ponto onde a divergência ratificada (compra +
@@ -137,6 +143,13 @@ adquirente não-industrial. **Rateio** de `vDesc`/`vFrete`/`vOutro` de header en
 `splitCredit` (proporcional a `vProd` da linha, resíduo de centavo na última linha, `Σ == custo total`).
 **Este é o ponto sem espelho mecânico de AP/AR — gate de review obrigatório (§7).** Usar `vNF` cego
 super/subvaloriza o estoque; é a decisão de dinheiro mais perigosa da NF-e, por isso é fork explícito.
+
+**A fórmula é uma ASSUNÇÃO DE REGIME do MVP, não uma constante universal (review #2).** O tie-out do §7 valida
+a *distribuição* (Σ itens == total), **não a correção de regime** — um tenant **contribuinte pleno de ICMS**
+capitalizaria ICMS recuperável no custo sem que o gate acuse. Sob a tese de geração de ERPs (moldes → ERPs
+setoriais), **antes de qualquer molde não-salão reusar `lib/nfe.ts`** é obrigatório introduzir um
+**flag/guarda de regime** (recuperabilidade de ICMS por tenant) que troque a fórmula — a reutilização cega da
+regra salão em setor de revenda pura é um erro silencioso nomeado (§6 item 1).
 
 ### D4 — Idempotência liga na IDENTIDADE DO EVENTO; chave de acesso = `externalRef` HUMANO (T7)
 A **chave de acesso** da NF-e (44 dígitos) entra como **`externalRef` do `SourceDocument`** — referência
@@ -204,11 +217,11 @@ hand-rolled = mais código frágil, rejeitada pelo arquiteto.
 
 | Fork | Pernas | **RATIFICADO** | Grau de abertura |
 |---|---|---|---|
-| **F-NFE1 — escopo MVP** | (a) só NF-e de COMPRA · (b) compra **+** venda (venda cruza a venda de salão) | ✅ **(b) COMPRA + VENDA** — **divergiu** da recomendação (a); o dono incluiu a NF-e de venda. Consequência: D2b (cruza sem re-lançar) + risco §6.5 | médio |
+| **F-NFE1 — escopo MVP** | (a) só NF-e de COMPRA · (b) compra **+** venda (venda cruza a venda de salão) | ✅ **(b) COMPRA + VENDA** — **divergiu** da recomendação (a); o dono incluiu a NF-e de venda. Consequência: D2b (cruza sem re-lançar) + risco §6 item 5 | médio |
 | **F-NFE5 — dependência do #130** | (a) ADR+ratif. JÁ; impl bloqueada até #130 · (b) esperar #130 até para escrever | ✅ **(a)** — desenho maduro; bloquear só a impl adianta a ratificação sem custo | baixo (ordering, não design) |
-| **F-NFE6 — custo de estoque na NF-e** | (a) `vProd−vDesc+vFrete+vOutro+vIPI+vICMS-ST`, ICMS próprio incluso · (b) `vNF` cego · (c) só `vProd` líquido | ✅ **(a)** — fiel ao custo de aquisição do regime alvo (não-contribuinte pleno de ICMS); (b)/(c) super/subvalorizam. **Ressalva viva:** errado p/ contribuinte pleno (§6.1) | **ALTO — invariante de dinheiro** |
+| **F-NFE6 — custo de estoque na NF-e** | (a) `vProd−vDesc+vFrete+vOutro+vIPI+vICMS-ST`, ICMS próprio incluso · (b) `vNF` cego · (c) só `vProd` líquido | ✅ **(a)** — fiel ao custo de aquisição do regime alvo (não-contribuinte pleno de ICMS); (b)/(c) super/subvalorizam. **Ressalva viva:** errado p/ contribuinte pleno (§6 item 1) | **ALTO — invariante de dinheiro** |
 | **F-NFE2 — parse do XML** | (a) `lib/nfe.ts` puro + `fast-xml-parser` · (b) puro + hand-rolled (sem dep) | ✅ **(a)** — XML aninhado/namespace/assinatura; hand-rolled = classe de bug I052; dep mínima justificada (rung 4) | médio (dep nova) |
-| **F-NFE3 — fronteira §2.1** | (a) ingestão que pré-preenche Payable/evento · (b) subrazão fiscal próprio | ✅ **(a)** — NF-e não tem invariante próprio; (b) reabriria motor/torre | baixo (confirmação) |
+| **F-NFE3 — fronteira §2.1** | (a) ingestão que pré-preenche Payable/evento · (b) subrazão fiscal próprio | ✅ **(a)** — reuso §0 de entidades first-class existentes (não bespoke `FiscalDocument`) para o MVP; invariantes fiscais enforçados por tie-out/`cStat`, não relaxados. `FiscalDocument` do §2.1 é a casa se a volumetria crescer (§1) | baixo (confirmação) |
 | **F-NFE4 — proveniência** | (a) `SourceDocument` (INCR-8) · (b) model de proveniência novo | ✅ **(a)** — consumidor orgânico natural; (b) recria o que o INCR-8 formalizou | baixo (confirmação) |
 
 ## 6. Riscos e vieses nomeados (T8)
@@ -261,7 +274,7 @@ hand-rolled = mais código frágil, rejeitada pelo arquiteto.
 ## 8. Sinal humano — estado do gate
 
 **RATIFICADO (2026-07-20, via AskUserQuestion — fork-a-fork COMPLETO):** F-NFE1 → **(b) COMPRA + VENDA**
-(divergiu da recomendação compra-only; consequência D2b/§6.5); F-NFE5 → (a) ADR já, impl bloqueada até #130;
+(divergiu da recomendação compra-only; consequência D2b/§6 item 5); F-NFE5 → (a) ADR já, impl bloqueada até #130;
 F-NFE6 → (a) `vProd−vDesc+vFrete+vOutro+vIPI+vICMS-ST` com ICMS próprio incluso; F-NFE2 → (a) `lib/nfe.ts` +
 `fast-xml-parser`; F-NFE3 → (a) ingestão (fronteira §2.1 confirmada); F-NFE4 → (a) `SourceDocument`.
 **Nenhum bloqueador de DECISÃO restante.**
