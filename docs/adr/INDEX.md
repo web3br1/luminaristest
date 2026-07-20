@@ -6,7 +6,7 @@
 >
 > **Convenção:** `ADR-<trilho><n>` = decisão; `D0-*` = registro de ratificação humana (gate G0) de uma fase.
 > Onde uma decisão de módulo **não** tem ADR próprio, o ponteiro para onde ela vive está em §Fora-de-ADR.
-> Última atualização: **2026-07-15**.
+> Última atualização: **2026-07-20**.
 
 ## Buildout contábil (INCR-*)
 
@@ -27,6 +27,7 @@
 | [COUNTERPARTY](ADR-INCR-COUNTERPARTY-first-class.md) | Contraparte (Fornecedor/Cliente) first-class × ref DynamicTable — identidade do subledger p/ aging | **Accepted — RATIFICADO FORK-A-FORK 2026-07-15** (F-CP0→(a) sim; **F-CP1→A1** `Counterparty` Prisma first-class + FK — dono escolheu integridade máxima sobre a rec. A2 do par); impl. NÃO iniciada | 2026-07-15 | DECISÃO ARQUITETURAL |
 | [AGING](ADR-INCR-AP-AR-AGING.md) | Aging / posição por contraparte (AP+AR) — report read-only por faixa de vencimento | **Accepted — RATIFICADO (F-AG0 humano + F-AG1..4 delegação) + IMPLEMENTADO + REVIEW PASS 2026-07-15** (branch `claude/incr-aging` @ `083ad5c`, PR #127 draft, empilhado sobre A1 #119); read-time, buckets fixos, OPEN+trânsito, só-aging (tie-out follow-on); read-only, SEM migração/smoke-gate; FE diferido | 2026-07-15 | READ_ONLY_REPORT |
 | [DIM-COMPLETENESS](ADR-INCR-DIM-COMPLETENESS-mandatory-axis.md) | Completude da DRE por dimensão (opcional × obrigatório × bucket "Não alocado") — **EMENDA INCR-DIM F5** | **Accepted — RATIFICADO FORK-A-FORK 2026-07-15** (**F-DC0→B1** etiqueta obrigatória por classe de conta = flag `requiresDimension` por `Account` + gate no `postEntry`; inclui B0 bucket; NÃO reintroduz §4 — é gate de validação, não motor); impl. NÃO iniciada | 2026-07-15 | DECISÃO ARQUITETURAL |
+| [INCR-NFE](ADR-INCR-NFE-fiscal-ingestion.md) | Ingestão fiscal de NF-e — parser puro `lib/nfe.ts` (XML→`ParsedNfe`) que pré-preenche a `Payable`/entrada de estoque (compra) e cruza com a venda de salão (venda), sem subrazão fiscal novo | **Accepted — RATIFICADO FORK-A-FORK 2026-07-20** (**F-NFE1→(b) COMPRA+VENDA** divergiu da rec. compra-only; F-NFE5→(a) impl bloqueada até PR #130 mergear; F-NFE6→(a) custo = `vProd−vDesc+vFrete+vOutro+vIPI+vICMS-ST`; F-NFE2→(a) `fast-xml-parser`; F-NFE3→(a) ingestão; F-NFE4→(a) `SourceDocument`); impl. NÃO iniciada (bloqueada por #130) | 2026-07-20 | INGESTÃO (reusa Payable/estoque/SourceDocument) |
 
 ## Bridges de integração (venda DynamicTable → ledger Prisma)
 
