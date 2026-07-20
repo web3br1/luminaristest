@@ -64,10 +64,10 @@ Route → Controller → Service → Repository → Prisma
 - [ ] **Actor:** `getUserContextFromRequest(req)` no controller; services aceitam `actor: IUser | null` (importar `IUser` de `features/users/models/User.model`, **NÃO** de `@prisma/client`).
 - [ ] **Tipos Prisma importam de `'generated/prisma'`, NUNCA `@prisma/client`** (output path customizado).
 - [ ] **Resposta padrão:** `{ success: true, data }` (200) ou `.status(201)` em criação. Erro via `handleApiError(error, res)`.
-- [ ] **Registro de rota = 3 toques** (senão 401 com token válido — bug silencioso que o `tsc` NÃO pega):
+- [ ] **Registro de rota = 2 toques** (auth é **deny-by-default**: toda rota sob `/api/*` já nasce exigindo JWT — montar não concede acesso; esquecer registro falha **fechado** em 401, nunca aberto):
   1. mount em `server/src/routes/index.ts` (`app.use('/api/<resource>', router)`)
-  2. `'/api/<resource>'` no array `protectedApiPaths` de `server/src/middleware/auth.ts` (exceto rota 100% pública)
-  3. bloco `@openapi` em `server/src/routes/docs.paths.ts`
+  2. bloco `@openapi` em `server/src/routes/docs.paths.ts`
+  - **NÃO edite `middleware/auth.ts` para proteger rota** — o array `protectedApiPaths` não existe mais. Rota **pública** é exceção explícita: regra `{ path, method, match }` no array `publicApiRoutes` do próprio `server/src/middleware/auth.ts` (matching espelha o Express: case-insensitive, whole-segment, SEM percent-decode, HEAD→GET).
 - [ ] **Exclusão de campos sensíveis** (password etc.) via `select` explícito em queries públicas.
 - [ ] **Domínios DynamicTable (leads/ERP/CRM):** service orquestra `DynamicTableService` (não Repository/Policy próprios); resolve tabelas por `internalName` (preset key), nunca por índice `[0]`; o `DynamicTableService` já força `canManageData` em toda escrita.
 - [ ] **Money:** acumular com `addMoney()` (nunca `+=` — float drift); excluir negativos e status configurados; `previousValue = count>0 ? total/count : undefined` (**undefined quando sem dados, nunca 0**). Single-pass: iterar `rows` uma vez só.

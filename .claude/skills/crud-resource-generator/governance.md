@@ -56,7 +56,7 @@ Regras normativas do slice CRUD, cada uma coberta por um caso de eval comportame
 - `CRUD-003` — reuso dos canônicos (`GenericTable`/`StandardPagination`, `Modal`, `AnalyticsDashboard`/`ChartRenderer`/`DashboardKpiCard`) em vez de tabela/modal/analytics bespoke ("módulo ilha").
 - `CRUD-004` — fronteira dura: nenhum serviço Prisma first-class injetado em `DynamicTableService`/`RuleContext`/`RulePlugin`; integração cross-módulo sobe ao controller/route (regressão do §2.1).
 - `CRUD-005` — routing pelo teste §2.1: recurso com invariante financeiro/legal vai para Prisma first-class, nunca `dynamic-table`.
-- `CRUD-006` — registro de rota em 3 toques, com destaque para `'/api/<resource>'` no `protectedApiPaths` de `middleware/auth.ts` (omissão = 401 silencioso).
+- `CRUD-006` — registro de rota em 2 toques (`routes/index.ts` + `@openapi` em `docs.paths.ts`); auth é deny-by-default — rota protegida NÃO edita `middleware/auth.ts` (não existe `protectedApiPaths`); rota pública = regra explícita em `publicApiRoutes`.
 
 `status: draft` — esta skill ainda NÃO foi validada; sem bloco de `score`/`governance-eval-score`
 até o `skill-audit` gerar o `REPORT.md` correspondente (SG-011). `eval-score`/`last-evaluated` no

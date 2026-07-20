@@ -6,10 +6,10 @@
 
 - File: `server/src/routes/<resource>.ts`
 - Pattern: `import { Router } from 'express'`, named controller imports, `const router = Router()`, `router.get/post/put/patch/delete`, `export default router`
-- **Registration = 3 toques (não 2):**
+- **Registration = 2 toques (auth is deny-by-default):**
   1. Import + mount in `server/src/routes/index.ts` at `/api/<resource>`
-  2. **Add `'/api/<resource>'` to the `protectedApiPaths` array in `server/src/middleware/auth.ts`** — the auth middleware only populates the user context for prefixes in this allowlist. Miss it and the route returns **401 with a valid token** (`getUserContextFromRequest` returns `null`). Not caught by `tsc` — runtime-only. (Skip ONLY for fully public routes.)
-  3. OpenAPI: Add JSDoc `@openapi` blocks in `server/src/routes/docs.paths.ts`
+  2. OpenAPI: Add JSDoc `@openapi` blocks in `server/src/routes/docs.paths.ts`
+  - **Do NOT touch `server/src/middleware/auth.ts` for protected routes** — the middleware denies any `/api/*` request without a valid JWT by default (the old `protectedApiPaths` array no longer exists; forgetting a registration fails closed with 401, never open). A **public** route is the explicit exception: add a `{ path, method, match: 'exact' | 'prefix' }` rule to the `publicApiRoutes` array inside the middleware itself.
 
 ## Backend Controller Contract
 
@@ -125,7 +125,7 @@ For DynamicTable-backed domains (leads, ERP, CRM) the service orchestrates `Dyna
 - Table resolution: `repository.findTableByInternalName(user.userId, internalName)` → `NotFoundError` se não instalada
 - Atomicidade: todas as escritas dentro de `dynamicTableService.runInTransaction(async (tx) => {...})` com `createTableData`/`updateTableData` recebendo `{ tx }`
 - Side effects: condicionais ao tipo de etapa de destino (ex.: criar proposta em etapa `proposal`); transição + efeitos commitam/rollback juntos
-- DTO: `dtos/<Domain>Transition.dto.ts` (Zod + `@openapi` + type guard); Controller fino (`safeParse` + factory + `handleApiError`); Route 3-toques (`index.ts` + `protectedApiPaths` + `docs.paths.ts`); Factory getter `get<Domain>Service()`
+- DTO: `dtos/<Domain>Transition.dto.ts` (Zod + `@openapi` + type guard); Controller fino (`safeParse` + factory + `handleApiError`); Route 2-toques (`index.ts` + `docs.paths.ts`; auth deny-by-default); Factory getter `get<Domain>Service()`
 - Test: `buildService` + mock `runInTransaction`/`findTableByInternalName`; assert atomicidade (1× `runInTransaction`) + cross-tenant `NotFoundError`
 - Golden ref: `server/src/features/crm/services/CrmPipelineService.ts` (`advanceStage`)
 - **Caminho de dinheiro (gate — ver Contrato §2.1):** valores em **centavos inteiros**; invariantes de fechamento (`Σdébito=Σcrédito`) = igualdade inteira exata; idempotência via `compositeUnique(sourceKey)` + check no service com **teto `ponytail:` nomeado** (não é constraint de DB); registro postado/terminal imutável exige **guarda de delete** na camada de serviço (soft-delete não consulta `immutableAfter`).
