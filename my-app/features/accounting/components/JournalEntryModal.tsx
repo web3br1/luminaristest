@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import { Modal } from '../../../components/ui/Modal';
+import { parseBrl } from '../lib/parseBrl';
+import { formatCents } from '../lib/formatCents';
 import { accountingService } from '../../../lib/services/accounting.service';
 import type { DimensionCatalogEntry } from '../../../lib/services/dimensions.service';
 
@@ -70,18 +72,6 @@ function resolveError(e: unknown, fallback: string): string {
     if (typeof o.error === 'string') return o.error;
   }
   return fallback;
-}
-
-/** Parse a BRL input string ("1.234,56" or "1234.56") to integer cents. */
-function parseBrl(s: string): number {
-  const normalised = s.replace(',', '.');
-  const parsed = parseFloat(normalised || '0');
-  return Math.round(parsed * 100);
-}
-
-/** Format integer cents to BRL display string (e.g. "R$ 1.234,56"). */
-function formatCents(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 let nextId = 3;
