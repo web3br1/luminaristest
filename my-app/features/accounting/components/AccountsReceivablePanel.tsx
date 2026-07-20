@@ -15,6 +15,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { CreateReceivableModal } from './CreateReceivableModal';
 import { formatCents } from '../lib/formatCents';
 import { formatDate } from '../lib/formatDate';
+import { resolveErrorWithCode } from '../lib/resolveError';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -22,17 +23,6 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Extract a human message + code from apiClient's thrown error object. */
-function resolveError(e: unknown, fallback: string): { message: string; code?: string } {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown; code?: unknown };
-    const code = typeof o.code === 'string' ? o.code : undefined;
-    if (typeof o.message === 'string') return { message: o.message, code };
-    if (typeof o.error === 'string') return { message: o.error, code };
-    return { message: fallback, code };
-  }
-  return { message: fallback };
-}
 
 /** Sum of the ACTIVE receipts on a receivable (in cents). */
 function sumActive(receipts: ReceivableReceipt[]): number {
@@ -244,7 +234,7 @@ export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPe
       const result = await accountsReceivableService.listReceivables({ unitId, limit: 200 });
       setReceivables(result.receivables);
     } catch (err: unknown) {
-      setError(resolveError(err, t('contasAReceber.error.load', 'Erro ao carregar as contas a receber.')).message);
+      setError(resolveErrorWithCode(err, t('contasAReceber.error.load', 'Erro ao carregar as contas a receber.')).message);
     } finally {
       setLoading(false);
     }
@@ -318,7 +308,7 @@ export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPe
       await fetchReceivables();
       onLedgerChange?.();
     } catch (err: unknown) {
-      const { message, code } = resolveError(err, t('contasAReceber.error.action', 'Não foi possível concluir a operação.'));
+      const { message, code } = resolveErrorWithCode(err, t('contasAReceber.error.action', 'Não foi possível concluir a operação.'));
       if (code === 'ACCOUNTING_PERIOD_NOT_OPEN') setActionPeriodError(true);
       setActionError(message);
     } finally {
