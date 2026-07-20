@@ -27,6 +27,7 @@ import { PayableRepository } from '../features/accounting/repositories/PayableRe
 import { ReceivableRepository } from '../features/accounting/repositories/ReceivableRepository';
 import { DimensionRepository } from '../features/accounting/repositories/DimensionRepository';
 import { CounterpartyRepository } from '../features/accounting/repositories/CounterpartyRepository';
+import { InventoryRepository } from '../features/accounting/repositories/InventoryRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
@@ -81,6 +82,7 @@ import { ReceivableService } from '../features/accounting/services/ReceivableSer
 import { DimensionService } from '../features/accounting/services/DimensionService';
 import { DimensionReportService } from '../features/accounting/services/DimensionReportService';
 import { CounterpartyService } from '../features/accounting/services/CounterpartyService';
+import { InventoryService } from '../features/accounting/services/InventoryService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
@@ -135,6 +137,7 @@ import type { IPayableRepository } from '../features/accounting/repositories/IPa
 import type { IReceivableRepository } from '../features/accounting/repositories/IReceivableRepository';
 import type { IDimensionRepository } from '../features/accounting/repositories/IDimensionRepository';
 import type { ICounterpartyRepository } from '../features/accounting/repositories/ICounterpartyRepository';
+import type { IInventoryRepository } from '../features/accounting/repositories/IInventoryRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
 import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
@@ -172,6 +175,7 @@ export class ApplicationFactory {
     receivable: IReceivableRepository;
     dimension: IDimensionRepository;
     counterparty: ICounterpartyRepository;
+    inventory: IInventoryRepository;
   };
 
   private readonly policies: {
@@ -228,6 +232,7 @@ export class ApplicationFactory {
     dimension: DimensionService;
     dimensionReport: DimensionReportService;
     counterparty: CounterpartyService;
+    inventory: InventoryService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
@@ -270,6 +275,7 @@ export class ApplicationFactory {
       receivable: new ReceivableRepository(),
       dimension: new DimensionRepository(),
       counterparty: new CounterpartyRepository(),
+      inventory: new InventoryRepository(),
     };
 
     // Policies
@@ -556,6 +562,13 @@ export class ApplicationFactory {
         auditService,
         this.policies.accounting,
       ),
+      inventory: new InventoryService(
+        this.repositories.inventory,
+        this.repositories.account,
+        postingService,
+        auditService,
+        this.policies.accounting,
+      ),
       packageBalance: packageBalanceService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
@@ -615,6 +628,7 @@ export class ApplicationFactory {
   public getDimensionService = (): DimensionService => this.services.dimension;
   public getDimensionReportService = (): DimensionReportService => this.services.dimensionReport;
   public getCounterpartyService = (): CounterpartyService => this.services.counterparty;
+  public getInventoryService = (): InventoryService => this.services.inventory;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;
