@@ -9,16 +9,8 @@ import {
 } from '../../../lib/services/accounting.service';
 import { formatCents } from '../lib/formatCents';
 import { formatDate } from '../lib/formatDate';
+import { resolveError } from '../lib/resolveError';
 
-/** Extract a human message from apiClient's thrown error object. */
-function resolveError(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown };
-    if (typeof o.error === 'string') return o.error;
-    if (typeof o.message === 'string') return o.message;
-  }
-  return fallback;
-}
 
 interface ReconciliationMatchModalProps {
   isOpen: boolean;

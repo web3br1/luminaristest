@@ -9,6 +9,7 @@ import {
   type ReferentialMappingItem,
   type UnmappedReferentialAccount,
 } from '../../../lib/services/referential.service';
+import { resolveError } from '../lib/resolveError';
 
 const inputClass =
   'rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 focus:border-emerald-500 focus:outline-none disabled:opacity-50';
@@ -16,14 +17,6 @@ const inputClass =
 /** Draft edits keyed by accountId: what the owner typed for each unmapped account. */
 export type MappingDraft = Record<string, { referentialCode: string; label: string }>;
 
-function resolveError(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown };
-    if (typeof o.error === 'string') return o.error;
-    if (typeof o.message === 'string') return o.message;
-  }
-  return fallback;
-}
 
 /**
  * Pure: turn the owner's drafts into a batch payload. Only rows with a non-blank
