@@ -19,9 +19,11 @@
  * cents happens in the mapper (the money boundary), never before.
  */
 export type AccountingEvent = {
-  /** Stable event-kind key. Also the JournalEntry.sourceType (idempotency axis 1). */
+  /** Stable event-kind key. Also the JournalEntry.sourceType (idempotency axis 1).
+   *  NOTE: 'crm.opportunity.won' was RETIRED from this union (ADR-CRM-AR-SEAM) — CRM Won deals
+   *  now create a Contas a Receber via CrmReceivableBridge instead of posting directly; the
+   *  string survives only as CRM_LEGACY_SOURCE_TYPE (legacy-era guard + old ledger entries). */
   sourceType:
-    | 'crm.opportunity.won'
     | 'salon.sale.finalized'
     | 'salon.sale.returned'
     | 'salon.sale.settled'
@@ -65,30 +67,6 @@ export interface SyncResult {
  */
 export interface AccountingSyncPort {
   sync(scope: import('../scope/AccountingScope').AccountingScope, event: AccountingEvent): Promise<SyncResult>;
-}
-
-/**
- * Pure builder for the CRM "opportunity won" event — shared by the controller
- * (live trigger) and the reconciliation job (re-drive) so both emit identical
- * events. Carries the raw float amount; the mapper converts to cents.
- */
-export function buildOpportunityWonEvent(fields: {
-  opportunityId: string;
-  unitId: string;
-  amount: number;
-  currency: string;
-  occurredAt: string;
-  label: string;
-}): AccountingEvent {
-  return {
-    sourceType: 'crm.opportunity.won',
-    sourceId: fields.opportunityId,
-    unitId: fields.unitId,
-    amount: fields.amount,
-    currency: fields.currency,
-    occurredAt: fields.occurredAt,
-    label: fields.label,
-  };
 }
 
 /**

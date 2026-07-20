@@ -1,5 +1,5 @@
 import {
-  reconcileAccountingSync,
+  reconcileCrmReceivables,
   reconcileSalonSales,
   reconcileSalonCancellations,
   reconcileSalonReturns,
@@ -7,7 +7,7 @@ import {
   reconcileSalonPackageOrigin,
   reconcileSalonPackageConsumption,
   reconcilePackageBalanceVsLiability,
-  type ReconcileDeps,
+  type CrmReceivableReconcileDeps,
   type SalonReconcileDeps,
   type SalonCancellationReconcileDeps,
   type SalonReturnReconcileDeps,
@@ -25,6 +25,7 @@ import {
 } from '../accountingSyncReconcile.job';
 import type { AccountingScope } from '../../features/accounting/scope/AccountingScope';
 import type { AccountingEvent } from '../../features/accounting/sync/AccountingSyncPort';
+import type { WonOpportunityFact } from '../../features/accounting/sync/bridges/CrmReceivableBridge';
 
 // Mock heavy/IO module-level imports — the CORE function under test uses none of them
 // (it operates purely over injected deps), but importing the job module loads them.
@@ -42,100 +43,104 @@ function opp(over: Partial<WonOpportunity> = {}): WonOpportunity {
     opportunityId: 'opp-1',
     unitId: 'unit-1',
     amount: 1000,
-    currency: 'BRL',
     occurredAt: '2026-06-25T00:00:00.000Z',
     label: 'Deal',
+    accountRef: 'acc-row-1',
     ...over,
   };
 }
 
-function buildDeps(over: Partial<ReconcileDeps> = {}): ReconcileDeps {
+function buildDeps(over: Partial<CrmReceivableReconcileDeps> = {}): CrmReceivableReconcileDeps {
   return {
     listWonOpportunities: jest.fn(async () => [opp()]),
-    hasExistingEntry: jest.fn(async () => false),
-    sync: jest.fn(async () => ({ entryId: 'entry-1' })),
+    book: jest.fn(async () => ({ outcome: 'created' as const, receivableId: 'recv-1' })),
     ...over,
   };
 }
 
-describe('reconcileAccountingSync', () => {
+describe('reconcileCrmReceivables', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('books a Won opportunity that has no journal entry yet', async () => {
+  it('creates the Contas a Receber for a Won opportunity not yet booked', async () => {
     const deps = buildDeps();
-    const summary = await reconcileAccountingSync(deps);
+    const summary = await reconcileCrmReceivables(deps);
 
-    expect(deps.sync).toHaveBeenCalledTimes(1);
+    expect(deps.book).toHaveBeenCalledTimes(1);
     expect(summary).toEqual({ total: 1, synced: 1, idempotentHits: 0, failed: 0 });
   });
 
-  it('treats an already-booked opportunity as an idempotent hit (does NOT call sync)', async () => {
-    const deps = buildDeps({ hasExistingEntry: jest.fn(async () => true) });
-    const summary = await reconcileAccountingSync(deps);
+  it('classifies already_booked (incl. user-cancelled tombstone) as an idempotent hit', async () => {
+    const deps = buildDeps({ book: jest.fn(async () => ({ outcome: 'already_booked' as const })) });
+    const summary = await reconcileCrmReceivables(deps);
 
-    expect(deps.sync).not.toHaveBeenCalled();
     expect(summary).toEqual({ total: 1, synced: 0, idempotentHits: 1, failed: 0 });
   });
 
-  it('derives owner=actor from the source record and never crosses unit/tenant', async () => {
-    const sync = jest.fn((_s: AccountingScope, _e: AccountingEvent) => Promise.resolve({ entryId: 'e' }));
+  it('classifies a legacy direct entry (retired crm.opportunity.won posting) as an idempotent hit', async () => {
+    const deps = buildDeps({ book: jest.fn(async () => ({ outcome: 'legacy_entry' as const })) });
+    const summary = await reconcileCrmReceivables(deps);
+
+    expect(summary).toEqual({ total: 1, synced: 0, idempotentHits: 1, failed: 0 });
+  });
+
+  it('derives owner=actor from the source record, never crosses unit/tenant, and passes the fact through', async () => {
+    const book = jest.fn((_s: AccountingScope, _f: WonOpportunityFact) =>
+      Promise.resolve({ outcome: 'created' as const, receivableId: 'recv-A' }),
+    );
     const deps = buildDeps({
       listWonOpportunities: jest.fn(async () => [
         opp({ ownerUserId: 'owner-A', unitId: 'unit-A', opportunityId: 'opp-A', amount: 250 }),
       ]),
-      sync,
+      book,
     });
 
-    await reconcileAccountingSync(deps);
+    await reconcileCrmReceivables(deps);
 
-    const [scope, event] = sync.mock.calls[0]!;
+    const [scope, fact] = book.mock.calls[0]!;
     expect(scope.ownerUserId).toBe('owner-A');
     expect(scope.actorUserId).toBe('owner-A'); // owner-as-actor in the system re-drive
     expect(scope.unitId).toBe('unit-A'); // unit of the SOURCE record, not crossed
-    expect(event.sourceType).toBe('crm.opportunity.won');
-    expect(event.sourceId).toBe('opp-A');
-    expect(event.amount).toBe(250);
+    expect(fact.opportunityId).toBe('opp-A');
+    expect(fact.amount).toBe(250);
+    expect(fact.accountRef).toBe('acc-row-1');
   });
 
   it('continues processing after an isolated failure', async () => {
-    const sync = jest
+    const book = jest
       .fn()
-      .mockResolvedValueOnce({ entryId: 'e1' })
+      .mockResolvedValueOnce({ outcome: 'created', receivableId: 'r1' })
       .mockRejectedValueOnce(new Error('boom')) // middle item fails
-      .mockResolvedValueOnce({ entryId: 'e3' });
+      .mockResolvedValueOnce({ outcome: 'created', receivableId: 'r3' });
     const deps = buildDeps({
       listWonOpportunities: jest.fn(async () => [
         opp({ opportunityId: 'opp-1' }),
         opp({ opportunityId: 'opp-2' }),
         opp({ opportunityId: 'opp-3' }),
       ]),
-      sync: sync as jest.Mock,
+      book: book as jest.Mock,
     });
 
-    const summary = await reconcileAccountingSync(deps);
+    const summary = await reconcileCrmReceivables(deps);
 
-    expect(sync).toHaveBeenCalledTimes(3); // did not stop at the failure
+    expect(book).toHaveBeenCalledTimes(3); // did not stop at the failure
     expect(summary).toEqual({ total: 3, synced: 2, idempotentHits: 0, failed: 1 });
   });
 
-  it('fails an opportunity with no unitId without calling hasExistingEntry/sync, and continues', async () => {
-    const hasExistingEntry = jest.fn(async () => false);
-    const sync = jest.fn(async () => ({ entryId: 'e' }));
+  it('fails an opportunity with no unitId without calling book, and continues', async () => {
+    const book = jest.fn(async () => ({ outcome: 'created' as const, receivableId: 'r' }));
     const deps = buildDeps({
       listWonOpportunities: jest.fn(async () => [
         opp({ opportunityId: 'bad', unitId: '' }),
         opp({ opportunityId: 'good', unitId: 'unit-1' }),
       ]),
-      hasExistingEntry,
-      sync,
+      book,
     });
 
-    const summary = await reconcileAccountingSync(deps);
+    const summary = await reconcileCrmReceivables(deps);
 
     expect(summary).toEqual({ total: 2, synced: 1, idempotentHits: 0, failed: 1 });
-    // the bad (unitless) opp never reached the entry check or sync
-    expect(hasExistingEntry).toHaveBeenCalledTimes(1);
-    expect(sync).toHaveBeenCalledTimes(1);
+    // the bad (unitless) opp never reached the bridge
+    expect(book).toHaveBeenCalledTimes(1);
   });
 });
 

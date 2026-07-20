@@ -5,7 +5,7 @@ import { UnauthorizedError } from '../lib/errors';
 import logger from '../lib/logger';
 import { getFactory } from '../lib/factory';
 import { resolveAccountingScope } from '../features/accounting/scope/AccountingScope';
-import { buildOpportunityWonEvent } from '../features/accounting/sync/AccountingSyncPort';
+import type { WonOpportunityFact } from '../features/accounting/sync/bridges/CrmReceivableBridge';
 import {
   AdvanceStageSchema,
   ConvertLeadSchema,
@@ -100,7 +100,8 @@ export const advanceOpportunity = async (req: Request, res: Response) => {
 };
 
 /**
- * If the advanced opportunity is now `Won`, book the revenue entry via AccountingSync.
+ * If the advanced opportunity is now `Won`, create its Contas a Receber via the CRM→AR bridge
+ * (ADR-CRM-AR-SEAM — recognition D 1.1.5 / C 3.1; settlement is the human-registered receipt).
  * Runs AFTER the CRM transition commits and swallows its own errors (non-fatal) — the
  * source fact stands regardless, and unbooked Won deals are caught by reconciliation.
  */
@@ -121,18 +122,18 @@ async function maybeSyncOpportunityWon(
   }
 
   try {
-    const event = buildOpportunityWonEvent({
+    const fact: WonOpportunityFact = {
       opportunityId: result.id,
       unitId,
       amount: typeof oppData.amount === 'number' ? oppData.amount : NaN,
-      currency: typeof oppData.currency === 'string' ? oppData.currency : 'BRL',
       occurredAt: typeof oppData.closedAt === 'string' ? oppData.closedAt : new Date().toISOString(),
       label: typeof oppData.name === 'string' ? oppData.name : 'Oportunidade',
-    });
+      accountRef: typeof oppData.accountId === 'string' ? oppData.accountId : undefined,
+    };
     const scope = resolveAccountingScope(user, unitId);
-    await getFactory().getAccountingSyncService().sync(scope, event);
+    await getFactory().getCrmReceivableBridge().bookWonOpportunity(scope, fact);
   } catch (syncError) {
-    logger.error('AccountingSync (opportunity won) failed — left for reconciliation', {
+    logger.error('CRM→AR bridge (opportunity won) failed — left for reconciliation', {
       opportunityId: result.id,
       error: syncError instanceof Error ? syncError.message : String(syncError),
     });

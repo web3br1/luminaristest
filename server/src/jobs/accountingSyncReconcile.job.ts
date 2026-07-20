@@ -1,13 +1,18 @@
 /**
  * accountingSyncReconcile — durability backbone for AccountingSync (Incremento B).
  *
- * The live trigger (CRM controller, post-commit) is best-effort: if the posting
- * fails after the source fact commits, the journal entry is missing. This job
- * re-drives every `Won` opportunity that has no journal entry yet, idempotently.
- * It is a HARD requirement for the increment — without it a failed post is lost.
+ * The live triggers (CRM controller / DynamicTable controllers, post-commit) are best-effort:
+ * if the accounting effect fails after the source fact commits, it is missing. This job
+ * re-drives every pending source fact idempotently. It is a HARD requirement — without it a
+ * failed post is lost.
  *
- * The core `reconcileAccountingSync(deps)` is pure over injected collaborators
- * (unit-tested); `runAccountingSyncReconcile()` is the thin production wiring.
+ * CRM pass (ADR-CRM-AR-SEAM): a `Won` opportunity no longer posts directly to the ledger — it
+ * creates a Contas a Receber via CrmReceivableBridge (recognition D 1.1.5 / C 3.1; settlement
+ * is the human-registered receipt in the AR module). The bridge owns both idempotency guards
+ * (legacy direct entry + tombstone-aware receivable lookup).
+ *
+ * Each core `reconcile*(deps)` is pure over injected collaborators (unit-tested);
+ * `runAccountingSyncReconcile()` is the thin production wiring.
  */
 
 import prisma from '../lib/prisma';
@@ -17,12 +22,15 @@ import { resolveAccountingScope } from '../features/accounting/scope/AccountingS
 import type { AccountingScope } from '../features/accounting/scope/AccountingScope';
 import { LEDGER_STATUSES } from '../features/accounting/models/ledgerStatus';
 import {
-  buildOpportunityWonEvent,
   buildSalonSaleFinalizedEvent,
   buildSalonSaleReturnedEvent,
   buildSalonSaleSettledEvent,
   buildSalonPackageSoldEvent,
 } from '../features/accounting/sync/AccountingSyncPort';
+import type {
+  CrmBridgeOutcome,
+  WonOpportunityFact,
+} from '../features/accounting/sync/bridges/CrmReceivableBridge';
 import type { AccountingEvent, SyncResult } from '../features/accounting/sync/AccountingSyncPort';
 import { JournalEntryRepository } from '../features/accounting/repositories/JournalEntryRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
@@ -35,19 +43,16 @@ export interface WonOpportunity {
   opportunityId: string;
   unitId: string;
   amount: number;
-  currency: string;
   occurredAt: string;
   label: string;
+  /** Scoped ref to the CRM account row (relation id), when present. */
+  accountRef?: string;
 }
 
-export interface ReconcileDeps {
+export interface CrmReceivableReconcileDeps {
   listWonOpportunities: () => Promise<WonOpportunity[]>;
-  hasExistingEntry: (
-    scope: AccountingScope,
-    sourceType: string,
-    sourceId: string,
-  ) => Promise<boolean>;
-  sync: (scope: AccountingScope, event: AccountingEvent) => Promise<SyncResult>;
+  /** CrmReceivableBridge.bookWonOpportunity — owns money guards + both idempotency guards. */
+  book: (scope: AccountingScope, fact: WonOpportunityFact) => Promise<CrmBridgeOutcome>;
 }
 
 export interface ReconcileSummary {
@@ -64,10 +69,13 @@ export interface ReconcileSummary {
 }
 
 /**
- * Re-drive every Won opportunity lacking a journal entry. Idempotent and
- * fault-isolated: an isolated failure is logged and the batch continues.
+ * Re-drive every Won opportunity lacking its Contas a Receber (ADR-CRM-AR-SEAM). The bridge is
+ * the idempotency authority (legacy direct entry / existing-or-tombstoned receivable both count
+ * as idempotent hits). Fault-isolated: an isolated failure is logged and the batch continues.
  */
-export async function reconcileAccountingSync(deps: ReconcileDeps): Promise<ReconcileSummary> {
+export async function reconcileCrmReceivables(
+  deps: CrmReceivableReconcileDeps,
+): Promise<ReconcileSummary> {
   const opportunities = await deps.listWonOpportunities();
   const summary: ReconcileSummary = {
     total: opportunities.length,
@@ -84,29 +92,25 @@ export async function reconcileAccountingSync(deps: ReconcileDeps): Promise<Reco
       // Owner-as-actor: no HTTP user in a job. The scope is built from the SOURCE
       // record's tenant + unit only — never crossing tenants or units.
       const scope = resolveAccountingScope({ userId: opp.ownerUserId }, opp.unitId);
-      const event = buildOpportunityWonEvent({
+      const result = await deps.book(scope, {
         opportunityId: opp.opportunityId,
         unitId: opp.unitId,
         amount: opp.amount,
-        currency: opp.currency,
         occurredAt: opp.occurredAt,
         label: opp.label,
+        accountRef: opp.accountRef,
       });
 
-      // Classify already-booked opportunities (idempotent hit). sync() remains the
-      // authority even if a race slips past this check — postEntry dedupes.
-      const exists = await deps.hasExistingEntry(scope, event.sourceType, event.sourceId);
-      if (exists) {
+      if (result.outcome === 'created') {
+        summary.synced++;
+        logger.info('Reconcile created CRM receivable', {
+          opportunityId: opp.opportunityId,
+          receivableId: result.receivableId,
+        });
+      } else {
+        // 'already_booked' (live or user-cancelled tombstone) or 'legacy_entry'.
         summary.idempotentHits++;
-        continue;
       }
-
-      const result = await deps.sync(scope, event);
-      summary.synced++;
-      logger.info('Reconcile booked opportunity', {
-        opportunityId: opp.opportunityId,
-        entryId: result.entryId,
-      });
     } catch (error) {
       // Isolated failure must NOT stop the batch.
       summary.failed++;
@@ -118,7 +122,7 @@ export async function reconcileAccountingSync(deps: ReconcileDeps): Promise<Reco
     }
   }
 
-  logger.info('Reconcile complete', { ...summary });
+  logger.info('CRM receivables reconcile complete', { ...summary });
   return summary;
 }
 
@@ -802,7 +806,7 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
     return out;
   })();
 
-  const crm = await reconcileAccountingSync({
+  const crm = await reconcileCrmReceivables({
     listWonOpportunities: async () => {
       // Cross-tenant discovery: every crmOpportunities table (each owned by a userId).
       const tables = await prisma.dynamicTable.findMany({
@@ -819,17 +823,16 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
             opportunityId: row.id,
             unitId: typeof data.unitId === 'string' ? data.unitId : '',
             amount: typeof data.amount === 'number' ? data.amount : NaN,
-            currency: typeof data.currency === 'string' ? data.currency : 'BRL',
             occurredAt:
               typeof data.closedAt === 'string' ? data.closedAt : new Date().toISOString(),
             label: typeof data.name === 'string' ? data.name : `Oportunidade ${row.id}`,
+            accountRef: typeof data.accountId === 'string' ? data.accountId : undefined,
           });
         }
       }
       return out;
     },
-    hasExistingEntry,
-    sync: doSync,
+    book: (scope, fact) => factory.getCrmReceivableBridge().bookWonOpportunity(scope, fact),
   });
 
   const salon = await reconcileSalonSales({

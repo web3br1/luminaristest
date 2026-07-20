@@ -60,6 +60,18 @@ export interface IReceivableRepository {
   findAllActive(scope: AccountingScope, tx?: Prisma.TransactionClient): Promise<Receivable[]>;
 
   /**
+   * Idempotency finder for externally-keyed receivables (CRM seam, ADR-CRM-AR-SEAM): matches the
+   * documentNumber EXACTLY or in its rename-on-delete tombstone form (`deleted:<id>:<doc>`), and
+   * deliberately does NOT filter deletedAt — a receivable the user cancelled must still count as
+   * "exists" so a reconcile pass never resurrects it.
+   */
+  findAnyByDocumentNumber(
+    scope: AccountingScope,
+    documentNumber: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Receivable | null>;
+
+  /**
    * All "em aberto" receivables in scope for the aging report (INCR-AGING): non-deleted rows whose
    * status ∈ RECEIVABLE_OUTSTANDING_STATUSES (`OPEN`/`RECEIVING`). Read-only; excludes RECEIVED/CANCELLED
    * and soft-deleted. Ordered by dueDate ASC for a deterministic drill. MIRROR of findOutstanding (AP).
