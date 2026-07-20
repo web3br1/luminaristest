@@ -9,6 +9,7 @@ import {
 } from '../models/Inventory.model';
 import type { IInventoryRepository } from '../repositories/IInventoryRepository';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
+import type { IInventoryService } from './IInventoryService';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { AuditService } from './AuditService';
 import type { PostingService } from './PostingService';
@@ -46,6 +47,18 @@ export interface ReverseStockForSaleParams {
   reversalDate: Date;
 }
 
+/** Reverse a receipt (INBOUND) — the cancel side of the AP→estoque purchase bridge (D3(b)). Re-removes
+ *  the stock a purchase had received, at the ORIGINAL receipt cost read off each INBOUND movement. */
+export interface ReverseStockForReceiptParams {
+  /** The INBOUND `sourceType` to reverse (e.g. `inventory.inbound`). */
+  sourceType: string;
+  /** The INBOUND `sourceId` — the payableId of the cancelled purchase. */
+  sourceId: string;
+  /** Idempotency key of THIS reversal (the cancel event id) — distinct from the receipt key. */
+  reversalEventId: string;
+  reversalDate: Date;
+}
+
 /**
  * InventoryService — perpetual inventory subledger (INCR-INVENTORY / ADR-INCR-INVENTORY). FIRST-CLASS
  * PRISMA, SUBLEDGER-ONLY.
@@ -75,7 +88,7 @@ export interface ReverseStockForSaleParams {
  * (plan A1-5): the subledger-only body does not use them, but the constructor arity is fixed so the
  * ledger-adjacent seam (mapper/reconcile) attaches without a signature change.
  */
-export class InventoryService {
+export class InventoryService implements IInventoryService {
   constructor(
     private readonly inventoryRepo: IInventoryRepository,
     private readonly accountRepo: IAccountRepository,
@@ -345,6 +358,107 @@ export class InventoryService {
           targetId: params.saleId,
           payload: {
             saleId: params.saleId,
+            reversalEventId: params.reversalEventId,
+            valueCents: String(totalReversedCents),
+          },
+        });
+      }
+
+      return { totalReversedCents };
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Reverse a receipt (INBOUND) — cancel side of the AP→estoque purchase bridge (D3(b))
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Re-remove the stock a purchase had received when that purchase is cancelled (INCR-INVENTORY
+   * D3(b), driven by `PayableService.cancelPayable`). Reads each ORIGINAL INBOUND movement for the
+   * receipt (`sourceType`+`sourceId=payableId`) and decrements the snapshot by its exact qty/value
+   * via the atomic CAS — so the reversal is at the ORIGINAL receipt cost, never the current average
+   * (mirror of `reverseStockForSale`/D8). Idempotent by `reversalEventId` (distinct from the receipt
+   * key): a replay finds the existing REVERSAL and reuses its cents without a second decrement.
+   *
+   * The CAS refuses to drive `qtyOnHand` negative: if the received goods were already sold, the
+   * decrement matches 0 rows and this throws — a purchase whose stock is gone cannot be un-received
+   * without first reversing the sale. Keeps the tie-out Σ`valueCentsDelta` == `totalValueCents` ==
+   * saldo(1.1.6) intact when a purchase is cancelled (ADR §7).
+   */
+  async reverseStockForReceipt(
+    scope: AccountingScope,
+    params: ReverseStockForReceiptParams,
+  ): Promise<{ totalReversedCents: number }> {
+    if (!this.policy.canManageInventory(scope)) {
+      throw new ForbiddenError('Você não tem permissão para estornar estoque.');
+    }
+
+    return this.inventoryRepo.runTransaction(async (tx) => {
+      const originals = await this.inventoryRepo.findMovementsBySource(
+        scope,
+        { kind: 'INBOUND', sourceType: params.sourceType, sourceId: params.sourceId },
+        tx,
+      );
+
+      let totalReversedCents = 0;
+      let mutated = false;
+      for (const original of originals) {
+        const existing = await this.inventoryRepo.findMovementBySource(
+          scope,
+          {
+            inventoryItemId: original.inventoryItemId,
+            kind: 'REVERSAL',
+            sourceType: params.sourceType,
+            sourceId: params.reversalEventId,
+          },
+          tx,
+        );
+        if (existing) {
+          // Replay — the REVERSAL is negative; report the (positive) cents removed.
+          totalReversedCents += -existing.valueCentsDelta;
+          continue;
+        }
+
+        // Original INBOUND is +qty / +value; undo exactly that amount (original cost).
+        const won = await this.inventoryRepo.decrementForCogs(
+          scope,
+          original.inventoryItemId,
+          original.qtyDelta,
+          original.valueCentsDelta,
+          tx,
+        );
+        if (won !== 1) {
+          throw new ValidationError(
+            'Não é possível estornar a compra: a mercadoria recebida já foi baixada (estoque insuficiente).',
+          );
+        }
+
+        await this.inventoryRepo.createMovement(
+          {
+            inventoryItemId: original.inventoryItemId,
+            kind: 'REVERSAL',
+            qtyDelta: -original.qtyDelta,
+            valueCentsDelta: -original.valueCentsDelta,
+            occurredAt: params.reversalDate,
+            sourceType: params.sourceType,
+            sourceId: params.reversalEventId,
+            entryId: null,
+          },
+          tx,
+        );
+        totalReversedCents += original.valueCentsDelta;
+        mutated = true;
+      }
+
+      if (mutated) {
+        await this.auditService.append(tx, scope, {
+          actorUserId: scope.actorUserId,
+          eventType: 'inventory.reversed',
+          targetType: 'inventory_receipt',
+          targetId: params.sourceId,
+          payload: {
+            sourceType: params.sourceType,
+            sourceId: params.sourceId,
             reversalEventId: params.reversalEventId,
             valueCents: String(totalReversedCents),
           },
