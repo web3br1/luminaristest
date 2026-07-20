@@ -8,11 +8,8 @@
  *
  * This module promotes the `resolveError` technique that was re-inlined in 14
  * accounting components (Council N7) into a single canonical helper — same
- * precedent as `formatDateNumericBR` (see `./formatDate.ts`). 13 of the 14
- * call sites were migrated in this change; the last clone lives in
- * `../components/JournalEntryModal.tsx`, deliberately left untouched because a
- * concurrent parseBrl fix owns that file — migrate it to this helper once that
- * fix lands (tracked as follow-up).
+ * precedent as `formatDateNumericBR` (see `./formatDate.ts`). All 14 call
+ * sites import from here; new accounting components must not re-inline it.
  *
  * Field precedence is `message` → `error` (the majority order among the former
  * clones): controller errors carry only `error`, while the global 500 handler
