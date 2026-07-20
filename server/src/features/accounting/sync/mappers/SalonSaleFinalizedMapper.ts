@@ -2,6 +2,7 @@ import { ValidationError } from '../../../../lib/errors';
 import type { PostEntryInput } from '../../dtos/PostingDto';
 import type { AccountingEvent } from '../AccountingSyncPort';
 import type { IAccountingEventMapper } from './IAccountingEventMapper';
+import { splitRevenueCredit } from './revenueSplit';
 
 /**
  * Maps `salon.sale.finalized` → revenue recognition entry (Incremento C):
@@ -17,10 +18,8 @@ import type { IAccountingEventMapper } from './IAccountingEventMapper';
 export class SalonSaleFinalizedMapper implements IAccountingEventMapper {
   public readonly sourceType = 'salon.sale.finalized' as const;
 
-  /** Leaf account codes (canonical chart). */
+  /** Leaf account code (canonical chart). Credit codes live in revenueSplit.ts. */
   private static readonly DEBIT_ACCOUNT = '1.1.2'; // A Receber
-  private static readonly SERVICE_ACCOUNT = '3.1'; // Receita de Serviços
-  private static readonly PRODUCT_ACCOUNT = '3.3'; // Receita de Revenda de Mercadorias
 
   public map(event: AccountingEvent): PostEntryInput {
     // MONEY BOUNDARY (Contract §2.1 / AC-2.2-1). The salon `totalAmount` is a JSON float
@@ -47,13 +46,9 @@ export class SalonSaleFinalizedMapper implements IAccountingEventMapper {
       );
     }
 
-    // Split the credit by nature (ADR-INCR-REVENUE-SPLIT D5). The proportion comes from the raw
-    // item subtotals; it is applied to amountCents (the actual booked total, already net of any
-    // header discount/tax) so the header discount rateia proportionally between natures. The
-    // rounding residue is absorbed by the product line (productCents = total − serviceCents),
-    // guaranteeing serviceCents + productCents === amountCents (no cent lost). Zero-value lines
-    // are omitted; with no breakdown (or base 0) it falls back to a single 3.1 credit.
-    const creditLines = this.splitCredit(amountCents, event.revenueByNature);
+    // Split the credit by nature (ADR-INCR-REVENUE-SPLIT D5) via the CANONICAL splitter
+    // (revenueSplit.ts — shared with the CRM mapper so the technique cannot drift per mapper).
+    const creditLines = splitRevenueCredit(amountCents, event.revenueByNature);
 
     return {
       unitId: event.unitId,
@@ -68,30 +63,4 @@ export class SalonSaleFinalizedMapper implements IAccountingEventMapper {
     };
   }
 
-  /** Build the balanced credit legs summing to `totalCents`. */
-  private splitCredit(
-    totalCents: number,
-    revenueByNature?: { serviceReais: number; productReais: number },
-  ): Array<{ accountCode: string; debitCents: number; creditCents: number }> {
-    const service = revenueByNature?.serviceReais ?? 0;
-    const product = revenueByNature?.productReais ?? 0;
-    const base = service + product;
-
-    // No usable breakdown → single services-account credit (backwards-compatible).
-    if (base <= 0) {
-      return [{ accountCode: SalonSaleFinalizedMapper.SERVICE_ACCOUNT, debitCents: 0, creditCents: totalCents }];
-    }
-
-    const serviceCents = Math.round(totalCents * (service / base));
-    const productCents = totalCents - serviceCents; // residue lands here → Σ === totalCents
-
-    const lines: Array<{ accountCode: string; debitCents: number; creditCents: number }> = [];
-    if (serviceCents > 0) {
-      lines.push({ accountCode: SalonSaleFinalizedMapper.SERVICE_ACCOUNT, debitCents: 0, creditCents: serviceCents });
-    }
-    if (productCents > 0) {
-      lines.push({ accountCode: SalonSaleFinalizedMapper.PRODUCT_ACCOUNT, debitCents: 0, creditCents: productCents });
-    }
-    return lines;
-  }
 }

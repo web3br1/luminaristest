@@ -5,7 +5,7 @@ import { UnauthorizedError } from '../lib/errors';
 import logger from '../lib/logger';
 import { getFactory } from '../lib/factory';
 import { resolveAccountingScope } from '../features/accounting/scope/AccountingScope';
-import { buildOpportunityWonEvent } from '../features/accounting/sync/AccountingSyncPort';
+import { buildOpportunityWonEvent, syncSkipErrorCode } from '../features/accounting/sync/AccountingSyncPort';
 import {
   AdvanceStageSchema,
   ConvertLeadSchema,
@@ -132,6 +132,17 @@ async function maybeSyncOpportunityWon(
     const scope = resolveAccountingScope(user, unitId);
     await getFactory().getAccountingSyncService().sync(scope, event);
   } catch (syncError) {
+    // Same specific-code skip-list as the salon bridges (period-closed / MAX_CENTS poison) —
+    // never a base-class catch. Anything else stays a loud error left for reconciliation.
+    const skipCode = syncSkipErrorCode(syncError);
+    if (skipCode) {
+      logger.warn('AccountingSync skipped — erro determinístico não-retriável', {
+        opportunityId: result.id,
+        code: skipCode,
+        error: syncError instanceof Error ? syncError.message : String(syncError),
+      });
+      return;
+    }
     logger.error('AccountingSync (opportunity won) failed — left for reconciliation', {
       opportunityId: result.id,
       error: syncError instanceof Error ? syncError.message : String(syncError),
