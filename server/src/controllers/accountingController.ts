@@ -24,6 +24,34 @@ import { CashFlowStatementQuerySchema } from '../features/accounting/dtos/cashFl
 import { PeriodComparisonSchema } from '../features/accounting/dtos/periodComparison.dto';
 import { DailyJournalRequestSchema } from '../features/accounting/dtos/dailyJournal.dto';
 import { AgingReportQuerySchema } from '../features/accounting/dtos/aging.dto';
+import { TieOutDiagnosticQuerySchema } from '../features/accounting/dtos/tieOutDiagnostic.dto';
+import { TieOutDiagnosticService } from '../features/accounting/services/TieOutDiagnosticService';
+import { AccountRepository } from '../features/accounting/repositories/AccountRepository';
+import { PostingRepository } from '../features/accounting/repositories/PostingRepository';
+import { ReceivableRepository } from '../features/accounting/repositories/ReceivableRepository';
+import { PayableRepository } from '../features/accounting/repositories/PayableRepository';
+import { AccountingPolicy } from '../features/accounting/policies/AccountingPolicy';
+
+/**
+ * ponytail: seam da Fase A (PAR-003) — `lib/factory.ts` é choke point PAR-001 (só o integrador da
+ * Fase B o toca). Este resolver local monta o MESMO grafo que o factory montaria (repos/policy
+ * zero-arg e stateless; o prisma singleton vem por import nos próprios repos). Fase B: registrar
+ * TieOutDiagnosticService no factory + getter `getTieOutDiagnosticService()`, trocar a chamada em
+ * `getTieOutDiagnostic` por `getFactory().getTieOutDiagnosticService()` e DELETAR este resolver.
+ */
+let tieOutDiagnosticSingleton: TieOutDiagnosticService | null = null;
+function resolveTieOutDiagnosticService(): TieOutDiagnosticService {
+  if (!tieOutDiagnosticSingleton) {
+    tieOutDiagnosticSingleton = new TieOutDiagnosticService(
+      new AccountRepository(),
+      new PostingRepository(),
+      new ReceivableRepository(),
+      new PayableRepository(),
+      new AccountingPolicy(),
+    );
+  }
+  return tieOutDiagnosticSingleton;
+}
 
 export const postEntry = async (req: Request, res: Response) => {
   try {
@@ -414,6 +442,32 @@ export const getAging = async (req: Request, res: Response) => {
     const data = await getFactory()
       .getAgingReportService()
       .aging(scope, { kind: parsed.data.kind, asOf: parsed.data.asOf });
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+/** @openapi
+ * /api/accounting/reports/tie-out:
+ *   get:
+ *     summary: "Diagnóstico de tie-out subrazão-razão (AR vs 1.1.5, AP vs 2.1.2, salão+CRM vs 1.1.2), read-only"
+ *     parameters:
+ *       - { in: query, name: unitId, required: true, schema: { type: string } }
+ *     responses:
+ *       200: { description: "Tie-out report (3 checks com differenceCents inteiro exato e status OK/DIVERGENT)" }
+ *       400: { description: "Validation error" }
+ */
+export const getTieOutDiagnostic = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = TieOutDiagnosticQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const data = await resolveTieOutDiagnosticService().tieOut(scope);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
