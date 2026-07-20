@@ -63,6 +63,12 @@ const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   'dimension.definition_archived': ['definitionId', 'code'],
   'dimension.value_created':       ['definitionId', 'valueId', 'code', 'name', 'parentId'],
   'dimension.value_archived':      ['definitionId', 'valueId', 'code'],
+  // INCR-INVENTORY — stock subledger. Ids + qty + money-as-string only; `productRef` is the raw
+  // product reference id (NEVER resolved to a product name) and there is no float cost (D6, PII-safe).
+  // The CMV baixa (recordSaleCogs) emits NO audit event of its own — its razão post is captured by
+  // the mapper's `entry.posted`; only inbound receipts and stock reversals are audited here.
+  'inventory.received': ['inventoryItemId', 'productRef', 'qty', 'valueCents', 'sourceType', 'sourceId'],
+  'inventory.reversed': ['saleId', 'reversalEventId', 'valueCents'],
 };
 
 /**

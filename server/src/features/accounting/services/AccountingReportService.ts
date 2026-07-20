@@ -120,6 +120,9 @@ export interface IncomeStatementReport {
   mappingVersion: string;
   grossRevenue: StatementSection;
   revenueDeductions: StatementSection;
+  /** Custo das Mercadorias Vendidas (4.2, INCR-INVENTORY Body 2) — segregated from `expenses`
+   *  so the DRE reports gross profit; negative (a cost). Rows route here via the dre.cogs rule. */
+  costOfGoodsSold: StatementSection;
   expenses: StatementSection;
   netResult: {
     amountCents: string;
@@ -195,11 +198,13 @@ export class AccountingReportService {
   private computeDreNet(rows: TrialBalanceRow[]): {
     grossRevenueCents: number;
     deductionsCents: number;
+    cogsCents: number;
     expensesCents: number;
     netCents: number;
   } {
     let grossRevenueCents = 0;
     let deductionsCents = 0;
+    let cogsCents = 0;
     let expensesCents = 0;
 
     for (const row of rows) {
@@ -208,14 +213,16 @@ export class AccountingReportService {
       const signed = applySign(row.balanceCents, rule.sign);
       if (rule.section === 'grossRevenue') grossRevenueCents += signed;
       else if (rule.section === 'revenueDeductions') deductionsCents += signed;
+      else if (rule.section === 'costOfGoodsSold') cogsCents += signed;
       else if (rule.section === 'expenses') expensesCents += signed;
     }
 
     return {
       grossRevenueCents,
       deductionsCents,
+      cogsCents,
       expensesCents,
-      netCents: grossRevenueCents + deductionsCents + expensesCents,
+      netCents: grossRevenueCents + deductionsCents + cogsCents + expensesCents,
     };
   }
 
@@ -511,6 +518,7 @@ export class AccountingReportService {
 
     const grossRevenue = this.buildSection(dreRows, 'DRE', 'grossRevenue');
     const revenueDeductions = this.buildSection(dreRows, 'DRE', 'revenueDeductions');
+    const costOfGoodsSold = this.buildSection(dreRows, 'DRE', 'costOfGoodsSold');
     const expenses = this.buildSection(dreRows, 'DRE', 'expenses');
 
     const { netCents: dreNetCents } = this.computeDreNet(dreRows);
@@ -526,6 +534,7 @@ export class AccountingReportService {
       mappingVersion: STATEMENT_MAPPING_VERSION,
       grossRevenue,
       revenueDeductions,
+      costOfGoodsSold,
       expenses,
       netResult: {
         amountCents: String(dreNetCents),

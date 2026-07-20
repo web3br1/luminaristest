@@ -87,6 +87,7 @@ import { PackageBalanceService } from '../features/packages/services/PackageBala
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
 import { SalonSaleFinalizedMapper } from '../features/accounting/sync/mappers/SalonSaleFinalizedMapper';
+import { SalonSaleCogsMapper } from '../features/accounting/sync/mappers/SalonSaleCogsMapper';
 import { SalonSaleReturnedMapper } from '../features/accounting/sync/mappers/SalonSaleReturnedMapper';
 import { SalonSaleSettledMapper } from '../features/accounting/sync/mappers/SalonSaleSettledMapper';
 import { SalonPackageSoldMapper } from '../features/accounting/sync/mappers/SalonPackageSoldMapper';
@@ -386,6 +387,7 @@ export class ApplicationFactory {
     const accountingSyncService = new AccountingSyncService(postingService, [
       new CrmOpportunityWonMapper(),
       new SalonSaleFinalizedMapper(),
+      new SalonSaleCogsMapper(),
       new SalonSaleReturnedMapper(),
       new SalonSaleSettledMapper(),
       new SalonPackageSoldMapper(),
