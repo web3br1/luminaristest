@@ -7,6 +7,7 @@ import {
 } from '../../../lib/services/accountsReceivable.service';
 import type { Account } from '../../../lib/services/accounting.service';
 import type { Counterparty } from '../../../lib/services/counterparties.service';
+import { resolveErrorWithCode } from '../lib/resolveError';
 
 export interface CreateReceivableModalProps {
   isOpen: boolean;
@@ -48,17 +49,6 @@ export function parseBrl(s: string): number {
   return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
 }
 
-/** Extract a human message + code from apiClient's thrown error object. */
-function resolveError(e: unknown, fallback: string): { message: string; code?: string } {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown; code?: unknown };
-    const code = typeof o.code === 'string' ? o.code : undefined;
-    if (typeof o.message === 'string') return { message: o.message, code };
-    if (typeof o.error === 'string') return { message: o.error, code };
-    return { message: fallback, code };
-  }
-  return { message: fallback };
-}
 
 export function CreateReceivableModal({
   isOpen,
@@ -157,7 +147,7 @@ export function CreateReceivableModal({
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      const { message, code } = resolveError(err, t('contasAReceber.createModal.error.failed', 'Erro ao registrar a conta a receber.'));
+      const { message, code } = resolveErrorWithCode(err, t('contasAReceber.createModal.error.failed', 'Erro ao registrar a conta a receber.'));
       if (code === 'ACCOUNTING_PERIOD_NOT_OPEN') setPeriodError(true);
       setError(message);
     } finally {
