@@ -16,7 +16,11 @@ export interface CreatePayableData {
   issueDate: Date;
   dueDate: Date;
   amountCents: number;
-  expenseAccountId: string;
+  // NULLABLE (INCR-INVENTORY D3(b)): an inventory purchase debits 1.1.6 Estoques, not an expense leaf,
+  // so it carries expenseAccountId=null and the inventory pair below instead (DTO XOR gate).
+  expenseAccountId: string | null;
+  inventoryProductRef: string | null;
+  inventoryQty: number | null;
   status: string;
   createdById: string | null;
 }
