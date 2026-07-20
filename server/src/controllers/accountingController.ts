@@ -25,33 +25,6 @@ import { PeriodComparisonSchema } from '../features/accounting/dtos/periodCompar
 import { DailyJournalRequestSchema } from '../features/accounting/dtos/dailyJournal.dto';
 import { AgingReportQuerySchema } from '../features/accounting/dtos/aging.dto';
 import { TieOutDiagnosticQuerySchema } from '../features/accounting/dtos/tieOutDiagnostic.dto';
-import { TieOutDiagnosticService } from '../features/accounting/services/TieOutDiagnosticService';
-import { AccountRepository } from '../features/accounting/repositories/AccountRepository';
-import { PostingRepository } from '../features/accounting/repositories/PostingRepository';
-import { ReceivableRepository } from '../features/accounting/repositories/ReceivableRepository';
-import { PayableRepository } from '../features/accounting/repositories/PayableRepository';
-import { AccountingPolicy } from '../features/accounting/policies/AccountingPolicy';
-
-/**
- * ponytail: seam da Fase A (PAR-003) — `lib/factory.ts` é choke point PAR-001 (só o integrador da
- * Fase B o toca). Este resolver local monta o MESMO grafo que o factory montaria (repos/policy
- * zero-arg e stateless; o prisma singleton vem por import nos próprios repos). Fase B: registrar
- * TieOutDiagnosticService no factory + getter `getTieOutDiagnosticService()`, trocar a chamada em
- * `getTieOutDiagnostic` por `getFactory().getTieOutDiagnosticService()` e DELETAR este resolver.
- */
-let tieOutDiagnosticSingleton: TieOutDiagnosticService | null = null;
-function resolveTieOutDiagnosticService(): TieOutDiagnosticService {
-  if (!tieOutDiagnosticSingleton) {
-    tieOutDiagnosticSingleton = new TieOutDiagnosticService(
-      new AccountRepository(),
-      new PostingRepository(),
-      new ReceivableRepository(),
-      new PayableRepository(),
-      new AccountingPolicy(),
-    );
-  }
-  return tieOutDiagnosticSingleton;
-}
 
 export const postEntry = async (req: Request, res: Response) => {
   try {
@@ -467,7 +440,7 @@ export const getTieOutDiagnostic = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: parsed.error.flatten() });
     }
     const scope = resolveAccountingScope(user, parsed.data.unitId);
-    const data = await resolveTieOutDiagnosticService().tieOut(scope);
+    const data = await getFactory().getTieOutDiagnosticService().tieOut(scope);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
