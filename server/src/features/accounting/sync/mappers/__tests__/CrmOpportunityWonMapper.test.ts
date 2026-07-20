@@ -79,4 +79,35 @@ describe('CrmOpportunityWonMapper', () => {
     expect(Number.isInteger(input.lines[1].creditCents)).toBe(true);
     expect(input.lines[0].debitCents).toBe(9999);
   });
+
+  // --- N4 seam fix: revenue split by nature via the CANONICAL splitter (revenueSplit.ts),
+  // shared with SalonSaleFinalizedMapper — the CRM credit is no longer split-blind. ---
+  describe('revenue split by nature (ADR-INCR-REVENUE-SPLIT / Council N4)', () => {
+    it('splits the credit across 3.1 (service) and 3.3 (resale) when the event carries revenueByNature', () => {
+      const input = mapper.map(
+        event({ amount: 200, revenueByNature: { serviceReais: 100, productReais: 100 } }),
+      );
+      expect(input.lines).toContainEqual({ accountCode: '3.1', debitCents: 0, creditCents: 10000 });
+      expect(input.lines).toContainEqual({ accountCode: '3.3', debitCents: 0, creditCents: 10000 });
+      // Balanced: Σcredit === debit total.
+      const credit = input.lines.reduce((s, l) => s + l.creditCents, 0);
+      expect(credit).toBe(input.lines[0].debitCents);
+    });
+
+    it('absorbs the rounding residue in the 3.3 line — Σcredits === total, no cent lost', () => {
+      // 1/3 vs 2/3 of 100,01 → serviceCents = round(10001*1/3) = 3334; productCents = 6667.
+      const input = mapper.map(
+        event({ amount: 100.01, revenueByNature: { serviceReais: 1, productReais: 2 } }),
+      );
+      const s = input.lines.find((l) => l.accountCode === '3.1')!;
+      const p = input.lines.find((l) => l.accountCode === '3.3')!;
+      expect(s.creditCents + p.creditCents).toBe(10001);
+    });
+
+    it('falls back to a single 3.1 credit without a breakdown (CRM supplies none today — no line items)', () => {
+      const input = mapper.map(event({ amount: 200 }));
+      expect(input.lines).toHaveLength(2);
+      expect(input.lines[1]).toEqual({ accountCode: '3.1', debitCents: 0, creditCents: 20000 });
+    });
+  });
 });
