@@ -18,6 +18,8 @@ rules:
         target: ./evals/evals.json#happy-1
   ROUTE-002:
     gates:
+      - type: command
+        target: "bash -c \"grep -q publicApiRoutes server/src/middleware/auth.ts && ! grep -q protectedApiPaths server/src/middleware/auth.ts\""
       - type: eval
         target: ./evals/evals.json#happy-1
       - type: eval
@@ -54,8 +56,8 @@ rules:
 Regras normativas da camada Route, cada uma coberta por um caso de eval comportamental:
 
 - `ROUTE-001` — toque 1: `import`/`router.use('/<resource>', ...)` em `routes/index.ts`.
-- `ROUTE-002` — toque 2: `'/api/<resource>'` no array `protectedApiPaths` de `middleware/auth.ts`. Regressão conhecida: rota wired em index.ts mas esquecida no allowlist → 401 com token válido → caso `regression-1`.
-- `ROUTE-003` — toque 3: bloco `@openapi paths:` por endpoint em `docs.paths.ts`, antes de `* components:` (component schema do DTO não substitui o bloco de path) — caso `edge-1`.
+- `ROUTE-002` — auth deny-by-default: rota protegida NÃO edita `middleware/auth.ts` (não existe `protectedApiPaths`); rota pública = regra explícita em `publicApiRoutes` no próprio middleware. O gate `command` lê o **app** (auth.ts), não o texto da skill — lição do furo ROUTE-002 original (gate `eval` prova o que a skill diz, não o que o app faz). Regressão histórica: allowlist por rota esquecível → 401 com token válido → caso `regression-1` (hoje testa o modelo novo).
+- `ROUTE-003` — toque 2: bloco `@openapi paths:` por endpoint em `docs.paths.ts`, antes de `* components:` (component schema do DTO não substitui o bloco de path) — caso `edge-1`.
 - `ROUTE-004` — `export default router` sobre `Router()` de `express`.
 - `ROUTE-005` — zero lógica no arquivo de rota (sem auth inline, validação ou try/catch).
 - `ROUTE-006` — handlers importados por funções nomeadas existentes do controller.

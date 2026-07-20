@@ -53,7 +53,7 @@ generated-by: skill-audit coverage
 | `REPO-006` | backend-repository-generator | eval:./evals/evals.json#edge-1 | ✅ |
 | `REPO-007` | backend-repository-generator | eval:./evals/evals.json#happy-1 | ✅ |
 | `ROUTE-001` | backend-route-generator | eval:./evals/evals.json#happy-1 | ✅ |
-| `ROUTE-002` | backend-route-generator | eval:./evals/evals.json#happy-1 | eval:./evals/evals.json#regression-1 | ✅ |
+| `ROUTE-002` | backend-route-generator | command:bash -c \"grep -q publicApiRoutes server/src/middleware/auth.ts && ! grep -q protectedApiPaths server/src/middleware/auth.ts\" | eval:./evals/evals.json#happy-1 | eval:./evals/evals.json#regression-1 | ✅ |
 | `ROUTE-003` | backend-route-generator | eval:./evals/evals.json#happy-1 | eval:./evals/evals.json#edge-1 | ✅ |
 | `ROUTE-004` | backend-route-generator | eval:./evals/evals.json#happy-1 | ✅ |
 | `ROUTE-005` | backend-route-generator | eval:./evals/evals.json#happy-1 | ✅ |

@@ -19,11 +19,10 @@
       "id": "happy-1",
       "type": "happy",
       "rules": ["ROUTE-001", "ROUTE-002", "ROUTE-003", "ROUTE-004", "ROUTE-005", "ROUTE-006"],
-      "prompt": "Gere o registro 3-toques completo para o recurso invoices, expondo list/getById/create/update/delete via InvoiceController (handlers nomeados listInvoices, getInvoiceById, createInvoice, updateInvoice, deleteInvoice). Saída: o conteúdo de CADA arquivo, e marque o início de cada arquivo com uma linha contendo APENAS o caminho como comentário, exatamente assim: `// server/src/routes/invoices.ts`, `// server/src/routes/index.ts`, `// server/src/middleware/auth.ts`, `// server/src/routes/docs.paths.ts` (o caminho sozinho na linha, sem texto extra).",
+      "prompt": "Gere o registro 2-toques completo para o recurso invoices (rota protegida por JWT — lembre: o auth middleware é deny-by-default, rota sob /api/* já nasce protegida), expondo list/getById/create/update/delete via InvoiceController (handlers nomeados listInvoices, getInvoiceById, createInvoice, updateInvoice, deleteInvoice). Saída: o conteúdo de CADA arquivo, e marque o início de cada arquivo com uma linha contendo APENAS o caminho como comentário, exatamente assim: `// server/src/routes/invoices.ts`, `// server/src/routes/index.ts`, `// server/src/routes/docs.paths.ts` (o caminho sozinho na linha, sem texto extra).",
       "target_files": [
         "server/src/routes/invoices.ts",
         "server/src/routes/index.ts",
-        "server/src/middleware/auth.ts",
         "server/src/routes/docs.paths.ts"
       ],
       "assertions": [
@@ -35,7 +34,7 @@
         "@invoices.ts::absent:res.status",
         "@index.ts::regex:import\\s+invoicesRouter\\s+from\\s+['\"]\\./invoices['\"]",
         "@index.ts::regex:router\\.use\\(\\s*['\"]/invoices['\"]\\s*,\\s*invoicesRouter",
-        "@auth.ts::contains:'/api/invoices'",
+        "absent:protectedApiPaths",
         "@docs.paths.ts::contains:/api/invoices"
       ]
     },
@@ -55,11 +54,11 @@
       "id": "regression-1",
       "type": "regression",
       "rules": ["ROUTE-002"],
-      "regression_of": "Rota wired em routes/index.ts mas esquecida em protectedApiPaths (middleware/auth.ts) → 401 com token válido (verificado no build do módulo CRM)",
-      "prompt": "Ao registrar a rota invoices, qual é o toque obrigatório em server/src/middleware/auth.ts que evita o 401 com token válido? Mostre a edição exata no array protectedApiPaths.",
+      "regression_of": "Modelo antigo: allowlist protectedApiPaths por rota, esquecível → 401 com token válido (build do CRM). Após FIX-AUTH (deny-by-default), a regressão a vigiar inverteu: re-ensinar edição de auth.ts por rota protegida, ou esquecer a regra publicApiRoutes de uma rota pública.",
+      "prompt": "Ao registrar a rota invoices (protegida por JWT), o que você precisa editar em server/src/middleware/auth.ts para que ela exija autenticação? E se um endpoint POST /api/webhooks/incoming precisasse ser 100% público (sem JWT), o que faria? Explique citando o modelo de auth atual do middleware.",
       "assertions": [
-        "contains:protectedApiPaths",
-        "contains:'/api/invoices'"
+        "contains:publicApiRoutes",
+        "regex:(deny.by.default|nega por (padrão|default)|já nasce protegid|nenhuma edição|não precisa editar|nada a editar)"
       ]
     }
   ]

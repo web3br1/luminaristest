@@ -67,7 +67,7 @@ sub-skills, **não** é re-testado aqui:
 - `FULL-002` — delegar aos contratos das sub-skills e reusar canônicos; não copiar instruções nem recriar "ilhas".
 - `FULL-003` — UI (page + frontend service) livre de Prisma/DB; só `apiClient` → service layer.
 - `FULL-004` — `Service`/`Repository` livres de React/JSX e de transporte (`Request`/`Response`/`res.json`).
-- `FULL-005` — registro de rota = 3 toques (`routes/index.ts` + `protectedApiPaths` + `@openapi`).
+- `FULL-005` — registro de rota = 2 toques (`routes/index.ts` + `@openapi` em `docs.paths.ts`); auth deny-by-default — sem edição em `middleware/auth.ts` (pública = `publicApiRoutes`).
 - `FULL-006` — contrato compatível ponta-a-ponta: envelope + nomes de campo do backend == os do frontend service.
 - `FULL-007` — testes dos dois lados (backend `jest` policy-first/not-found + frontend) incl. compat de contrato.
 - `FULL-008` — `disable-model-invocation: true` (gate **static**, no frontmatter da `SKILL.md`): `--com-prisma` executa
