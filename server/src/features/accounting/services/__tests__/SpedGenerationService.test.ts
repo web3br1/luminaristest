@@ -133,6 +133,7 @@ function buildService(m: Mocks = {}) {
     incomeStatement: jest.fn(async () => ({
       grossRevenue: { accounts: [{ code: '3.1', name: 'Receita', amountCents: '50000' }], totalCents: '50000' },
       revenueDeductions: { accounts: [], totalCents: '0' },
+      costOfGoodsSold: { accounts: [], totalCents: '0' },
       expenses: { accounts: [], totalCents: '0' },
       netResult: { amountCents: '50000' },
     })),
