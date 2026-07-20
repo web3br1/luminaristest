@@ -1,52 +1,14 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyToken, getAuthToken } from '@/lib/jwt';
 
-// Protected API paths (prefix-based matching)
-const protectedApiPaths = [
-  '/api/documents',
-  '/api/auth/me',
-  '/api/auth/logout',
-  '/api/chat',
-  '/api/users',
-  '/api/chat-instances',
-  '/api/chat-messages',
-  '/api/dashboard-layout',
-  '/api/dashboard',
-  '/api/dynamic-tables',
-  '/api/analytics',       // ← cobre /api/analytics e /api/analytics/definitions
-  '/api/reports',         // ← cobre /api/reports/generate-chart-data
-  '/api/structured-data', // ← cobre /api/structured-data/:documentId
-  '/api/crm',             // ← cobre /api/crm/pipeline/*
-  '/api/accounting',      // ← cobre /api/accounting/post e /reverse
-  '/api/payables',        // ← cobre Contas a Pagar (INCR-AP): create/pay/cancel/reconcile
-  '/api/receivables',     // ← cobre Contas a Receber (INCR-AR): create/receive/cancel/reconcile
-  '/api/dimensions',      // ← cobre Dimensões (INCR-DIM): catálogo (definitions/values) + reports
-  '/api/counterparties',  // ← cobre Contrapartes (INCR-COUNTERPARTY): catálogo fornecedor/cliente
-  '/api/entry-approvals', // ← cobre a torre de aprovação (ADR-INCR-APPROVAL): draft/submit/approve/reject
-  '/api/sales',           // ← cobre /api/sales/cancel e /return (transições Incremento D)
-  '/api/saved-views',     // ← saved table views (per-user)
-];
-
-// Admin-only API paths with method checks
-const adminOnlyApiPaths: { path: string; method: string }[] = [
-  { path: '/api/users', method: 'GET' },
-  { path: '/api/users', method: 'DELETE' },
-  { path: '/api/users/', method: 'DELETE' }, // /api/users/:id
-];
-
-function isPathProtected(pathname: string): boolean {
-  return protectedApiPaths.some((p) => pathname.startsWith(p));
-}
-
-function isAdminOnly(pathname: string, method: string): boolean {
-  return adminOnlyApiPaths.some((rule) => pathname.startsWith(rule.path) && method === rule.method);
-}
-
-// Identity headers are injected ONLY from a verified token below. Any copy arriving on
-// the inbound request is a client-supplied spoof and must be dropped before routing —
-// otherwise a request that slips past the prefix guard (see RISK-SEC-AUTH-001) reaches a
-// handler that trusts these headers. This strip is the authoritative defense; the path
-// normalization below is the second layer.
+/**
+ * Identity headers this middleware injects for downstream handlers (getUserContext,
+ * authUtils, AnalyticsResolver). They carry authority, so any copy arriving on the inbound
+ * request is a client-supplied spoof and is dropped before routing (RISK-SEC-AUTH-001).
+ *
+ * `x-user-timezone` is deliberately NOT in this list: it is legitimately sent by the
+ * frontend (my-app/lib/api/api-client.ts), is never injected here, and grants no authority.
+ */
 const INBOUND_IDENTITY_HEADERS = [
   'x-user-id',
   'x-user-username',
@@ -57,30 +19,97 @@ const INBOUND_IDENTITY_HEADERS = [
   'x-user-updated-at',
 ] as const;
 
+/**
+ * Deny-by-default: every path under /api requires a valid JWT unless it is listed here.
+ * Mounting a route grants no access — forgetting to list it fails closed (401), never open.
+ *
+ * Matching mirrors how Express matches: case-insensitive, trailing slash ignored, whole
+ * segments, and NOT percent-decoded. That last one is deliberate — Express does not decode
+ * when matching a mount path (verified against a live Express router: POST /api/ACCOUNTING/post
+ * reaches the accounting router, while POST /api/%61ccounting/post 404s and never reaches it).
+ * Decoding here would make this guard see a different path than the router does, and exactly
+ * that kind of divergence produced RISK-SEC-AUTH-001. An encoded path matches no public rule
+ * and is therefore denied.
+ */
+type PublicRule = { path: string; method: string; match: 'exact' | 'prefix' };
+
+const publicApiRoutes: PublicRule[] = [
+  { path: '/api', method: 'GET', match: 'exact' }, // API info banner
+  { path: '/api/auth/login', method: 'POST', match: 'exact' },
+  { path: '/api/auth/register', method: 'POST', match: 'exact' },
+  { path: '/api/users', method: 'POST', match: 'exact' }, // public user registration
+  { path: '/api/docs', method: 'GET', match: 'prefix' }, // swagger UI + openapi.json + static
+];
+
+// Admin-only API paths with method checks (prefix match covers /api/users/:id).
+const adminOnlyApiPaths: { path: string; method: string }[] = [
+  { path: '/api/users', method: 'GET' },
+  { path: '/api/users', method: 'DELETE' },
+];
+
+/** Whole-segment prefix match: '/api/users' matches '/api/users/1' but never '/api/usersx'. */
+function matchesSegmentPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(prefix + '/');
+}
+
+/**
+ * Normalizes a request path for routing decisions the same way Express matches it:
+ * query string dropped, case folded, trailing slashes removed.
+ */
+function normalizeForMatch(rawPath: string): string {
+  const trimmed = rawPath.replace(/\/+$/, '');
+  return (trimmed === '' ? '/' : trimmed).toLowerCase();
+}
+
+function isApiPath(pathname: string): boolean {
+  return matchesSegmentPrefix(pathname, '/api');
+}
+
+/**
+ * The method the router will actually dispatch on. Express serves HEAD from a GET handler
+ * (verified: HEAD on a GET-only route returns 200; no other verb is derived), so every rule
+ * keyed by method must fold it — a rule that reads the raw method sees `HEAD !== 'GET'` and
+ * silently stops applying. Mirroring the router is the rule, and each function that matches a
+ * method must use this: divergence from the router is what RISK-SEC-AUTH-001 was made of.
+ */
+function routedMethod(method: string): string {
+  return method === 'HEAD' ? 'GET' : method;
+}
+
+function isPublic(pathname: string, method: string): boolean {
+  const effectiveMethod = routedMethod(method);
+  return publicApiRoutes.some(
+    (rule) =>
+      rule.method === effectiveMethod &&
+      (rule.match === 'exact' ? pathname === rule.path : matchesSegmentPrefix(pathname, rule.path))
+  );
+}
+
+function isAdminOnly(pathname: string, method: string): boolean {
+  // Folded for the same reason as isPublic: without it, `HEAD /api/users` skipped this gate
+  // entirely and the ADMIN-only handler ran for a USER token (200, with content-length as an
+  // enumeration oracle). Same rule, both matchers — that symmetry is the invariant.
+  const effectiveMethod = routedMethod(method);
+  return adminOnlyApiPaths.some(
+    (rule) => rule.method === effectiveMethod && matchesSegmentPrefix(pathname, rule.path)
+  );
+}
+
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
-  // Strip spoofable identity headers up front (defense-in-depth, RISK-SEC-AUTH-001).
-  for (const h of INBOUND_IDENTITY_HEADERS) delete req.headers[h];
+  // Strip spoofable identity headers up front, before any routing decision. Runs for every
+  // request, including public and non-/api ones — nothing downstream may trust a header this
+  // middleware did not itself set.
+  for (const header of INBOUND_IDENTITY_HEADERS) {
+    delete req.headers[header];
+  }
 
   const method = req.method;
+  // Routing decisions use the folded path; the raw path is kept for the self-update
+  // check, where a user id must be compared byte-for-byte (folding would corrupt it).
+  const rawPath = req.path.replace(/\/+$/, '') || '/';
+  const pathname = normalizeForMatch(req.path);
 
-  // Match protected prefixes on the DECODED, lower-cased path. Express routes
-  // case-insensitively and decodes %-escapes, so a case-sensitive `originalUrl.startsWith`
-  // let `/api/ACCOUNTING/...` and `/api/%61ccounting/...` reach protected handlers while
-  // skipping this guard (RISK-SEC-AUTH-001). `req.path` also excludes the query string.
-  const rawPath = req.path;
-  let pathname: string;
-  try {
-    pathname = decodeURIComponent(rawPath).toLowerCase();
-  } catch {
-    pathname = rawPath.toLowerCase();
-  }
-
-  // Allow public user creation (POST /api/users)
-  if (pathname === '/api/users' && method === 'POST') {
-    return next();
-  }
-
-  if (!isPathProtected(pathname)) {
+  if (!isApiPath(pathname) || isPublic(pathname, method)) {
     return next();
   }
 
@@ -108,12 +137,15 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     }
 
     // User update rule: only self can update when not admin
-    const isUserUpdateOperation = pathname.startsWith('/api/users/') && (method === 'PUT' || method === 'PATCH');
+    const isUserUpdateOperation =
+      matchesSegmentPrefix(pathname, '/api/users') && (method === 'PUT' || method === 'PATCH');
     if (isUserUpdateOperation && payload.role !== 'ADMIN') {
-      const pathParts = pathname.split('/');
-      // If the route is /api/users/me/..., it's intrinsically a self-update
-      const isMeRoute = pathParts.includes('me');
-      
+      const pathParts = rawPath.split('/');
+      // If the route is /api/users/me/..., it's intrinsically a self-update. Folded, because
+      // Express routes /api/users/ME/preferences to the same handler — the id comparison below
+      // is what must stay byte-exact, not this segment check.
+      const isMeRoute = pathParts.some((p) => p.toLowerCase() === 'me');
+
       if (!isMeRoute) {
         const targetUserId = pathParts.pop();
         const currentUserId = String(payload.id || payload.userId || '');
