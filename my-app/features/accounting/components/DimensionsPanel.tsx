@@ -9,16 +9,8 @@ import {
 } from '../../../lib/services/dimensions.service';
 import { Modal } from '../../../components/ui/Modal';
 import { DimensionReports } from './DimensionReports';
+import { resolveError } from '../lib/resolveError';
 
-// ── error helper (apiClient throws a PLAIN OBJECT, not an Error) ────────────────
-function resolveError(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown };
-    if (typeof o.message === 'string') return o.message;
-    if (typeof o.error === 'string') return o.error;
-  }
-  return fallback;
-}
 
 // ── tree helpers ────────────────────────────────────────────────────────────────
 interface TreeNode {
