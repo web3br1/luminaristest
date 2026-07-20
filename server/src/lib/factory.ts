@@ -418,6 +418,17 @@ export class ApplicationFactory {
       this.policies.accounting,
     );
 
+    // Built as a local const (not inline in the services literal) so it can be injected as the
+    // OPTIONAL AP→estoque dep of PayableService below (INCR-INVENTORY D3(b) / Body 3). The `inventory`
+    // service slot below reuses this same instance.
+    const inventoryService = new InventoryService(
+      this.repositories.inventory,
+      this.repositories.account,
+      postingService,
+      auditService,
+      this.policies.accounting,
+    );
+
     this.services = {
       chat: new ChatService(
         embeddingOpenAIService,
@@ -539,6 +550,9 @@ export class ApplicationFactory {
         auditService,
         this.policies.accounting,
         this.repositories.counterparty,
+        // OPTIONAL AP→estoque bridge (INCR-INVENTORY D3(b) / Body 3): an inventory purchase receives
+        // stock and its cancel reverses it, via the shared InventoryService instance built above.
+        inventoryService,
       ),
       receivable: new ReceivableService(
         this.repositories.receivable,
@@ -564,13 +578,7 @@ export class ApplicationFactory {
         auditService,
         this.policies.accounting,
       ),
-      inventory: new InventoryService(
-        this.repositories.inventory,
-        this.repositories.account,
-        postingService,
-        auditService,
-        this.policies.accounting,
-      ),
+      inventory: inventoryService,
       packageBalance: packageBalanceService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
