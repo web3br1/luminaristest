@@ -66,13 +66,13 @@ export class ReceivableRepository implements IReceivableRepository {
     });
   }
 
-  public async findAnyByDocumentNumber(
+  public async findAllByDocumentNumber(
     scope: AccountingScope,
     documentNumber: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<Receivable | null> {
-    // Tombstone-aware, NO deletedAt filter (see IReceivableRepository JSDoc).
-    return (tx ?? prisma).receivable.findFirst({
+  ): Promise<Receivable[]> {
+    // Tombstone-aware, NO deletedAt filter; caller classifies (see IReceivableRepository JSDoc).
+    return (tx ?? prisma).receivable.findMany({
       where: {
         ...accountingScopeWhere(scope),
         OR: [

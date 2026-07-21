@@ -29,17 +29,34 @@ via `CrmReceivableBridge` (`server/src/features/accounting/sync/bridges/CrmRecei
   `Salon*Bridge`), invocado pelo `crmController` (gatilho vivo) e pelo `accountingSyncReconcile.job`
   (rede de durabilidade). Nada entra no motor DynamicTable.
 
-### Idempotência (dois guards, re-checados a cada passe)
+### Idempotência (guards re-checados a cada passe; endurecidos por review independente FAIL→fix)
 
 1. **Era legada:** oportunidade que JÁ tem `JournalEntry(sourceType='crm.opportunity.won')` (rota
-   direta aposentada) é deixada em paz — criar receivable também dobraria a receita. As entradas
-   legadas em 1.1.2 continuam cobertas pelo diagnóstico tie-out (exceção (c) do E1: 1.1.2
-   salão+CRM-legado + 1.1.5 + 2.1.2).
-2. **Receivable existente:** lookup **tombstone-aware** (`findAnyByDocumentNumber` casa também a
-   forma rename-on-delete `deleted:<id>:CRM-<oppId>`, sem filtro de `deletedAt`) — um cancelamento
-   humano é decisão final, nunca ressuscitado pelo reconcile.
-   Corrida live×reconcile no mesmo instante cai no `@@unique` (P2002 numa das pontas; o passe
-   seguinte classifica como já-contabilizado).
+   direta aposentada) é deixada em paz — criar receivable também dobraria a receita. Vale para
+   **qualquer status** da entry, inclusive `Reversed`: um estorno humano do legado é decisão final
+   e o bridge nunca re-contabiliza por cima (review L2, deliberado). As entradas legadas em 1.1.2
+   continuam cobertas pelo diagnóstico tie-out (exceção (c) do E1: 1.1.2 salão+CRM-legado +
+   1.1.5 + 2.1.2).
+2. **Receivable existente — CLASSIFICADO, não bloqueio cego** (`findAllByDocumentNumber`, sem
+   filtro de `deletedAt`, casa exato + forma rename-on-delete em **shape estrito**
+   `deleted:<id-sem-dois-pontos>:CRM-<oppId>`, imune ao falso-positivo de sufixo — review L3):
+   - linha **viva** → já contabilizado;
+   - tombstone **com `cancelledById`** → cancelamento humano, final, nunca ressuscitado;
+   - tombstone **sem `cancelledById`** → compensação de máquina de um reconhecimento FALHADO
+     (`compensateFailedRecognition` não seta ator) → **re-tentável** (review H1: sem isso, uma
+     falha transiente de posting viraria perda de receita permanente e silenciosa, classificada
+     como hit idempotente).
+   A validação do fato (dinheiro/data) roda **depois** dos guards (review L1), para que fato
+   corrompido de oportunidade já contabilizada classifique em vez de falhar eternamente.
+3. **Corrida live×reconcile com rename no meio** (review M1: o `@@unique` inclui `customerName`,
+   então dois snapshots diferentes não colidem em P2002): sweep pós-criação — se há 2+ linhas
+   vivas com a chave, sobrevive o **menor id** e cada corredor cancela apenas a linha que ELE
+   criou (cancel = estorno ⇒ o reconhecimento duplicado zera). As duas pontas aplicam a mesma
+   regra ⇒ exatamente um receivable converge.
+4. **Tenant CRM-first sem plano de contas** (review M2): `3.1` ausente dispara o seed canônico
+   idempotente (`PostingService.listAccounts`) antes de desistir — a rota direta aposentada
+   auto-semeava dentro do `postEntry`; sem isso, tenant que nunca abriu contabilidade falharia
+   para sempre.
 
 ## Alternativas rejeitadas
 

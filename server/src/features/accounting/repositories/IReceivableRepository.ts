@@ -60,16 +60,17 @@ export interface IReceivableRepository {
   findAllActive(scope: AccountingScope, tx?: Prisma.TransactionClient): Promise<Receivable[]>;
 
   /**
-   * Idempotency finder for externally-keyed receivables (CRM seam, ADR-CRM-AR-SEAM): matches the
-   * documentNumber EXACTLY or in its rename-on-delete tombstone form (`deleted:<id>:<doc>`), and
-   * deliberately does NOT filter deletedAt — a receivable the user cancelled must still count as
-   * "exists" so a reconcile pass never resurrects it.
+   * Idempotency finder for externally-keyed receivables (CRM seam, ADR-CRM-AR-SEAM): every row
+   * whose documentNumber matches EXACTLY or in rename-on-delete tombstone form
+   * (`deleted:<id>:<doc>`), deliberately NOT filtering deletedAt. The CALLER classifies the rows
+   * (live / human cancel / machine compensation) — a user cancel must never be resurrected while
+   * a compensated FAILED creation must stay retryable (review H1).
    */
-  findAnyByDocumentNumber(
+  findAllByDocumentNumber(
     scope: AccountingScope,
     documentNumber: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<Receivable | null>;
+  ): Promise<Receivable[]>;
 
   /**
    * All "em aberto" receivables in scope for the aging report (INCR-AGING): non-deleted rows whose

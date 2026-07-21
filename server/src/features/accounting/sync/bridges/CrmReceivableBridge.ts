@@ -1,6 +1,7 @@
 import { ValidationError } from '../../../../lib/errors';
 import { MAX_CENTS } from '../../models/money';
 import { isValidDateOnly } from '../../models/dates';
+import type { Receivable } from 'generated/prisma';
 import type { AccountingScope } from '../../scope/AccountingScope';
 import type { ReceivableService } from '../../services/ReceivableService';
 import type { PostingService } from '../../services/PostingService';
@@ -19,16 +20,22 @@ import type { IAccountRepository } from '../../repositories/IAccountRepository';
  * 1.1.5 tie-out come for free). Same altitude as the Salon*Bridges: invoked POST-COMMIT from
  * the CRM controller / reconcile job, never inside the DynamicTable engine (§2.1).
  *
- * Idempotency (two guards, both re-checked every pass):
+ * Idempotency (two guards, both re-checked every pass; review-hardened):
  *  1. LEGACY: an opportunity already booked by the retired direct route (JournalEntry with
  *     sourceType 'crm.opportunity.won') is left alone — creating a receivable too would
- *     double-book revenue. Legacy 1.1.2 entries stay covered by the tie-out diagnostic.
- *  2. RECEIVABLE: documentNumber `CRM-<opportunityId>` is the business key. The lookup is
- *     tombstone-aware (matches the rename-on-delete form `deleted:<id>:CRM-<oppId>`), so a
- *     receivable the user CANCELLED is never resurrected — the cancel (with its reversal)
- *     stands as the human decision.
- * A same-instant live×reconcile race falls through to the @@unique key (P2002 fails one side;
- * the next reconcile pass classifies it as already booked).
+ *     double-book revenue. Applies regardless of entry status: a human who REVERSED a legacy
+ *     entry made a final call; the bridge never re-books over it (review L2, deliberate).
+ *  2. RECEIVABLE: documentNumber `CRM-<opportunityId>` is the business key. All rows carrying
+ *     it (live or rename-on-delete tombstoned) are CLASSIFIED, not blanket-blocked:
+ *       - live row → already booked;
+ *       - tombstone WITH cancelledById → human cancel, final decision, never resurrected;
+ *       - tombstone WITHOUT cancelledById → machine compensation of a FAILED recognition
+ *         (compensateFailedRecognition sets no actor) → RETRYABLE, else a transient posting
+ *         failure would silently lose the revenue forever (review H1).
+ *  3. RACE (live trigger × reconcile on the same instant, opportunity renamed in between so the
+ *     customerName-bearing @@unique cannot collide — review M1): a post-create sweep keeps the
+ *     deterministic survivor (lowest id) and cancels the duplicate this call created; both
+ *     racers apply the same rule, so exactly one receivable remains.
  */
 
 /** Retired direct-posting sourceType — kept ONLY as the legacy-era guard key. */
@@ -80,24 +87,21 @@ export class CrmReceivableBridge {
     scope: AccountingScope,
     fact: WonOpportunityFact,
   ): Promise<CrmBridgeOutcome> {
-    const amountCents = this.toCents(fact);
-    const dateOnly = this.toDateOnly(fact);
+    const documentNumber = crmDocumentNumber(fact.opportunityId);
 
     // Guard 1 — legacy era: revenue already recognized by the retired direct route.
     const legacy = await this.posting.findEntryBySource(scope, CRM_LEGACY_SOURCE_TYPE, fact.opportunityId);
     if (legacy) return { outcome: 'legacy_entry' };
 
-    // Guard 2 — receivable already exists (live OR tombstoned by a user cancel).
-    const documentNumber = crmDocumentNumber(fact.opportunityId);
-    const existing = await this.receivableRepo.findAnyByDocumentNumber(scope, documentNumber);
-    if (existing) return { outcome: 'already_booked' };
+    // Guard 2 — classify every row carrying the business key (live / human-cancel / compensation).
+    const existing = await this.receivableRepo.findAllByDocumentNumber(scope, documentNumber);
+    if (this.isAlreadyBooked(existing, documentNumber)) return { outcome: 'already_booked' };
 
-    const revenueAccount = await this.accountRepo.findByCode(scope, CRM_REVENUE_ACCOUNT_CODE);
-    if (!revenueAccount) {
-      throw new ValidationError(
-        `Conta de receita '${CRM_REVENUE_ACCOUNT_CODE}' não existe nesta unidade — plano de contas não semeado.`,
-      );
-    }
+    // Source-fact validation AFTER the idempotency guards (review L1): an already-booked
+    // opportunity whose data was later corrupted classifies as booked instead of failing forever.
+    const amountCents = this.toCents(fact);
+    const dateOnly = this.toDateOnly(fact);
+    const revenueAccount = await this.resolveRevenueAccount(scope);
 
     const receivable = await this.receivableService.createReceivable(scope, {
       unitId: fact.unitId,
@@ -110,7 +114,62 @@ export class CrmReceivableBridge {
       amountCents,
       revenueAccountId: revenueAccount.id,
     });
+
+    // Race sweep (review M1): if a concurrent racer slipped past guard 2 under a DIFFERENT
+    // customerName snapshot (rename window), two live rows now share the key. Deterministic
+    // survivor = lowest id; each racer cancels only the row IT created, so exactly one remains
+    // (cancel = estorno, so the duplicate recognition nets to zero).
+    const after = await this.receivableRepo.findAllByDocumentNumber(scope, documentNumber);
+    const liveTwins = after.filter((r) => r.deletedAt === null && r.documentNumber === documentNumber);
+    if (liveTwins.length > 1) {
+      const survivor = liveTwins.reduce((a, b) => (a.id < b.id ? a : b));
+      if (survivor.id !== receivable.id) {
+        await this.receivableService.cancelReceivable(scope, receivable.id, {
+          unitId: fact.unitId,
+          reversalDate: dateOnly,
+          reason: 'Duplicata de corrida live×reconcile (ADR-CRM-AR-SEAM) — sobrevive o id mais antigo.',
+        });
+        return { outcome: 'already_booked' };
+      }
+    }
+
     return { outcome: 'created', receivableId: receivable.id };
+  }
+
+  /**
+   * Guard-2 classifier. Blocking rows: a LIVE receivable with the exact key, or a tombstone in
+   * the STRICT rename-on-delete shape (`deleted:<one-segment-id>:<doc>` — a manual receivable
+   * whose own documentNumber merely ends with `:<doc>` never matches, review L3) that carries a
+   * cancelledById (human cancel). Actor-less tombstones are machine compensations → retryable.
+   */
+  private isAlreadyBooked(rows: Receivable[], documentNumber: string): boolean {
+    const suffix = `:${documentNumber}`;
+    const isStrictTombstone = (dn: string): boolean => {
+      if (!dn.startsWith('deleted:') || !dn.endsWith(suffix)) return false;
+      const middle = dn.slice('deleted:'.length, dn.length - suffix.length);
+      return middle.length > 0 && !middle.includes(':');
+    };
+    return rows.some((row) => {
+      if (row.deletedAt === null) return row.documentNumber === documentNumber;
+      if (!row.documentNumber || !isStrictTombstone(row.documentNumber)) return false;
+      return row.cancelledById !== null;
+    });
+  }
+
+  /** Resolve the 3.1 leaf; on a chart never touched by accounting (CRM-first tenant, review M2),
+   *  trigger the idempotent canonical seed once via the public listAccounts before giving up. */
+  private async resolveRevenueAccount(scope: AccountingScope) {
+    let account = await this.accountRepo.findByCode(scope, CRM_REVENUE_ACCOUNT_CODE);
+    if (!account) {
+      await this.posting.listAccounts(scope); // idempotently seeds CANONICAL_ACCOUNTS
+      account = await this.accountRepo.findByCode(scope, CRM_REVENUE_ACCOUNT_CODE);
+    }
+    if (!account) {
+      throw new ValidationError(
+        `Conta de receita '${CRM_REVENUE_ACCOUNT_CODE}' não existe nesta unidade — plano de contas não semeado.`,
+      );
+    }
+    return account;
   }
 
   /** MONEY BOUNDARY (Contract §2.1): CRM float reais → integer cents, exactly once, hard guards. */

@@ -161,9 +161,9 @@ export interface SalonReconcileDeps {
 
 /**
  * Re-drive every Finalized salon sale lacking a journal entry. Idempotent and
- * fault-isolated: an isolated failure is logged and the batch continues. Mirrors
- * reconcileAccountingSync; kept as a separate core so each source stays independently
- * testable and the CRM contract is untouched.
+ * fault-isolated: an isolated failure is logged and the batch continues. Mirrors the
+ * per-source pass shape (see reconcileCrmReceivables); kept as a separate core so each
+ * source stays independently testable.
  */
 export async function reconcileSalonSales(deps: SalonReconcileDeps): Promise<ReconcileSummary> {
   const sales = await deps.listFinalizedSales();
