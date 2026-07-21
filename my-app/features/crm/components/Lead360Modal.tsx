@@ -6,6 +6,7 @@ import { resolveErrorMessage } from '../../../lib/utils/error-handler';
 import { notify } from '../../../lib/notifications/notify';
 import type { CrmRecord } from '../hooks/useCrmData';
 import type { ProposalCapture } from '../hooks/useCrmPipelineBoard';
+import { formatTimestamp } from '../lib/dates';
 import { GradientHeader } from './ui/GradientHeader';
 import { ScoreGauge } from './ui/ScoreGauge';
 import { StatusBadge } from './ui/StatusBadge';
@@ -244,6 +245,10 @@ export function Lead360Modal({ isOpen, onClose, lead, stages, onChanged }: Lead3
               <dd className="mt-0.5">
                 <StatusBadge status={String(d.status ?? 'Open')} />
               </dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('detail.next_action', 'Próxima ação')}</dt>
+              <dd className="mt-0.5 font-bold text-gray-800 dark:text-gray-200">{formatTimestamp(d.nextActionAt)}</dd>
             </div>
           </dl>
         </SectionCard>

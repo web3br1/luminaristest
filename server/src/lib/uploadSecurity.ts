@@ -24,9 +24,17 @@ export const DEFAULT_ATTACHMENT_MIME_TYPES = new Set([
 export function validateMagicBytes(buffer: Buffer, mimetype: string): boolean {
   const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46]; // %PDF
   const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04]; // PK (DOCX and XLSX are ZIP-based)
+  const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47]; // \x89PNG
+  const JPEG_MAGIC = [0xff, 0xd8, 0xff]; // JPEG SOI + marker
 
   if (mimetype === 'application/pdf') {
     return PDF_MAGIC.every((byte, i) => buffer[i] === byte);
+  }
+  if (mimetype === 'image/png') {
+    return PNG_MAGIC.every((byte, i) => buffer[i] === byte);
+  }
+  if (mimetype === 'image/jpeg') {
+    return JPEG_MAGIC.every((byte, i) => buffer[i] === byte);
   }
   if (mimetype.includes('officedocument') || mimetype.includes('spreadsheet')) {
     return ZIP_MAGIC.every((byte, i) => buffer[i] === byte);
@@ -39,7 +47,7 @@ export function validateMagicBytes(buffer: Buffer, mimetype: string): boolean {
     const isPdf = PDF_MAGIC.every((byte, i) => buffer[i] === byte);
     return isZip || isPdf;
   }
-  // Images and text (csv/plain) — no reliable magic-bytes signature to enforce here;
+  // Text (csv/plain) — no reliable magic-bytes signature to enforce here;
   // the MIME allowlist + size limit guard these.
   return true;
 }

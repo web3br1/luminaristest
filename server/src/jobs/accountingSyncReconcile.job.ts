@@ -109,10 +109,18 @@ export async function reconcileAccountingSync(deps: ReconcileDeps): Promise<Reco
       });
     } catch (error) {
       // Isolated failure must NOT stop the batch.
+      // Durable, greppable per-item signal (Bloco A — observabilidade). A persistent failure
+      // (e.g. Won sem unitId) re-surfaces every cycle; `failedSoFar` makes a stuck item visible.
+      const reason = error instanceof Error ? error.message : String(error);
       summary.failed++;
       logger.error('Reconcile failed for opportunity — continuing', {
+        event: 'reconcile_item_failed',
+        sourceType: 'crm.opportunity.won',
+        sourceId: opp.opportunityId,
         opportunityId: opp.opportunityId,
-        error: error instanceof Error ? error.message : String(error),
+        unitId: opp.unitId,
+        failedSoFar: summary.failed,
+        reason,
       });
       continue;
     }
@@ -210,10 +218,18 @@ export async function reconcileSalonSales(deps: SalonReconcileDeps): Promise<Rec
       });
     } catch (error) {
       // Isolated failure must NOT stop the batch.
+      // Durable, greppable per-item signal (Bloco A — observabilidade). A persistent failure
+      // (e.g. venda sem unitId) re-surfaces every cycle; `failedSoFar` makes a stuck item visible.
+      const reason = error instanceof Error ? error.message : String(error);
       summary.failed++;
       logger.error('Reconcile failed for salon sale — continuing', {
+        event: 'reconcile_item_failed',
+        sourceType: 'salon.sale.finalized',
+        sourceId: sale.saleId,
         saleId: sale.saleId,
-        error: error instanceof Error ? error.message : String(error),
+        unitId: sale.unitId,
+        failedSoFar: summary.failed,
+        reason,
       });
       continue;
     }

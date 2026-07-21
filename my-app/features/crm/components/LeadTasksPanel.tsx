@@ -6,7 +6,7 @@ import { DynamicTableService } from '../../../lib/services/dynamic-table.service
 import { resolveErrorMessage } from '../../../lib/utils/error-handler';
 import { useLeadTasks } from '../hooks/useLeadTasks';
 import { useActorNames } from '../hooks/useActorNames';
-import { formatDate } from '../lib/dates';
+import { formatDate, formatTimestamp } from '../lib/dates';
 
 interface LeadTasksPanelProps {
   leadId: string;
@@ -164,6 +164,11 @@ export function LeadTasksPanel({ leadId, onChanged }: LeadTasksPanelProps) {
                 <span className="shrink-0 text-xs font-bold text-gray-500 dark:text-gray-400">
                   {formatDate(task.data?.date)}
                 </span>
+                {task.data?.reminderAt ? (
+                  <span className="shrink-0 text-xs font-bold text-amber-600 dark:text-amber-400">
+                    {t('tasks.reminder', 'Lembrete')}: {formatTimestamp(task.data.reminderAt)}
+                  </span>
+                ) : null}
                 {owner && (
                   <span className="shrink-0 truncate text-xs font-bold text-gray-500 dark:text-gray-400">{owner}</span>
                 )}
