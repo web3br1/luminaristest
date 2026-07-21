@@ -7,6 +7,7 @@ import {
   type CounterpartyType,
   type CreateCounterpartyPayload,
 } from '../../../lib/services/counterparties.service';
+import { resolveError } from '../lib/resolveError';
 
 export interface CreateCounterpartyModalProps {
   isOpen: boolean;
@@ -17,15 +18,6 @@ export interface CreateCounterpartyModalProps {
   onSuccess: () => void;
 }
 
-/** Extract a human message from apiClient's thrown error object. */
-function resolveError(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown };
-    if (typeof o.message === 'string') return o.message;
-    if (typeof o.error === 'string') return o.error;
-  }
-  return fallback;
-}
 
 /**
  * CreateCounterpartyModal — cadastra uma contraparte (fornecedor/cliente). Espelha o

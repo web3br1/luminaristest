@@ -90,6 +90,10 @@ via `CrmReceivableBridge` (`server/src/features/accounting/sync/bridges/CrmRecei
 ## Efeito no tie-out
 
 Novos ganhos CRM param de tocar 1.1.2 → a conta volta a ser exclusiva do ciclo do salão e
-`Σ Receivable abertos == saldo(1.1.5)` passa a incluir o CRM. O diagnóstico tie-out (lote Council,
-pendente de merge) deve tratar 1.1.2-CRM como **população legada fechada** (só entradas
-pré-ADR-CRM-AR-SEAM).
+`Σ Receivable abertos == saldo(1.1.5)` passa a incluir o CRM. O `TieOutDiagnosticService`
+(lote Council, PR #133) trata `crm.opportunity.won` como **população legada fechada** na 1.1.2
+(só entradas pré-seam) — o mapa de feeders é tipado contra a union de eventos vivos **+**
+`CRM_LEGACY_SOURCE_TYPE` (constante no `AccountingSyncPort`), então um feeder novo ou um typo
+continuam quebrando o tsc. O skip-list do lote (`syncSkipErrorCode`: período-fechado /
+MAX_CENTS-poison) compõe com o bridge: o preflight R2 e o choke-point MAX_CENTS classificam
+como BLOCKED no reconcile e warn no gatilho vivo, nunca loop de falha.

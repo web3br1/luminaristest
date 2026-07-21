@@ -40,8 +40,9 @@ import type { IAccountingPeriodRepository } from '../../repositories/IAccounting
  *     racers apply the same rule, so exactly one receivable remains.
  */
 
-/** Retired direct-posting sourceType — kept ONLY as the legacy-era guard key. */
-export const CRM_LEGACY_SOURCE_TYPE = 'crm.opportunity.won';
+import { CRM_LEGACY_SOURCE_TYPE } from '../AccountingSyncPort';
+
+export { CRM_LEGACY_SOURCE_TYPE };
 
 /** Revenue leaf for CRM deals (canonical chart). CRM has no line items, so the whole amount is
  *  service revenue. ponytail: single 3.1 credit is the ceiling — a Receivable carries ONE

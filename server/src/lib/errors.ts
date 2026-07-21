@@ -79,6 +79,25 @@ export class ServiceError extends AppError {
 }
 
 /**
+ * Raised when a posting leg exceeds the Int32 cents ceiling (MAX_CENTS, ACC-014).
+ * Thrown by the PostingService choke-point guard (Council 1.5) with its OWN code,
+ * DISTINCT from ACCOUNTING_PERIOD_NOT_OPEN: bridges/reconcile treat both as
+ * skip+log, but period-closed is transient (reopens) while this one is a POISON
+ * event — it can never succeed until the source amount itself is fixed.
+ */
+export class MaxCentsExceededError extends AppError {
+  constructor(accountCode: string, magnitudeCents: number, maxCents: number) {
+    super(
+      `Partida da conta '${accountCode}' excede o teto de centavos suportado ` +
+        `(${magnitudeCents} > máx ${maxCents}).`,
+      422,
+      'MAX_CENTS_EXCEEDED',
+    );
+    Object.setPrototypeOf(this, MaxCentsExceededError.prototype);
+  }
+}
+
+/**
  * Raised when a posting is attempted against a period that is not OPEN.
  * Bridge/reconcile jobs must catch this specific code to skip+log (not fatal).
  */

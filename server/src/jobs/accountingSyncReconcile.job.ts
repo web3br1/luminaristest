@@ -32,6 +32,7 @@ import type {
   WonOpportunityFact,
 } from '../features/accounting/sync/bridges/CrmReceivableBridge';
 import type { AccountingEvent, SyncResult } from '../features/accounting/sync/AccountingSyncPort';
+import { syncSkipErrorCode } from '../features/accounting/sync/AccountingSyncPort';
 import { JournalEntryRepository } from '../features/accounting/repositories/JournalEntryRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 import { loadSalePackageInfo } from '../features/accounting/sync/bridges/salonSaleItems';
@@ -61,17 +62,33 @@ export interface ReconcileSummary {
   idempotentHits: number;
   failed: number;
   /**
-   * Settlement pass only (Incremento D / D1): sales Finalized+Paid whose revenue entry is not yet
-   * booked, so the settlement is deliberately deferred (NOT a failure) — left for a later run once
-   * the revenue exists. Optional so the other passes keep their exact 4-field summary unchanged.
+   * Deliberately deferred items (NOT failures):
+   *  - settlement pass (Incremento D / D1): sales Finalized+Paid whose opening entry is not yet
+   *    booked — left for a later run once it exists;
+   *  - ANY sync pass (Council 1.5): events rejected by a skip-listed deterministic code —
+   *    ACCOUNTING_PERIOD_NOT_OPEN (defers until the period reopens) or MAX_CENTS_EXCEEDED
+   *    (POISON: can never succeed until the source amount is fixed; classifying it here keeps
+   *    the re-drive from looping it as a retriable failure every cycle).
+   * Optional so passes without occurrences keep their exact 4-field summary unchanged.
    */
   blocked?: number;
 }
 
 /**
+ * Shared poison/defer classifier for the sync passes (Council 1.5). Returns the skip-listed
+ * code (period-closed / MAX_CENTS) or null. On a hit the pass counts the item as BLOCKED and
+ * warns — the batch continues and the item is never spun as a retriable failure.
+ */
+function classifyBlockedSyncError(error: unknown): string | null {
+  return syncSkipErrorCode(error);
+}
+
+/**
  * Re-drive every Won opportunity lacking its Contas a Receber (ADR-CRM-AR-SEAM). The bridge is
  * the idempotency authority (legacy direct entry / existing-or-tombstoned receivable both count
- * as idempotent hits). Fault-isolated: an isolated failure is logged and the batch continues.
+ * as idempotent hits). Deterministic skip-listed codes (period-closed — incl. the bridge's R2
+ * preflight — / MAX_CENTS poison) classify as BLOCKED. Fault-isolated: an isolated failure is
+ * logged and the batch continues.
  */
 export async function reconcileCrmReceivables(
   deps: CrmReceivableReconcileDeps,
@@ -112,6 +129,18 @@ export async function reconcileCrmReceivables(
         summary.idempotentHits++;
       }
     } catch (error) {
+      // Poison/defer (Council 1.5): a skip-listed deterministic code is BLOCKED, not failed —
+      // MAX_CENTS_EXCEEDED would otherwise re-fail identically every cycle (poison loop).
+      const skipCode = classifyBlockedSyncError(error);
+      if (skipCode) {
+        summary.blocked = (summary.blocked ?? 0) + 1;
+        logger.warn('Reconcile blocked for opportunity — deterministic non-retriable code, skipping', {
+          opportunityId: opp.opportunityId,
+          code: skipCode,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       // Isolated failure must NOT stop the batch.
       summary.failed++;
       logger.error('Reconcile failed for opportunity — continuing', {
@@ -213,6 +242,17 @@ export async function reconcileSalonSales(deps: SalonReconcileDeps): Promise<Rec
         entryId: result.entryId,
       });
     } catch (error) {
+      // Poison/defer (Council 1.5): skip-listed deterministic code → BLOCKED, not failed.
+      const skipCode = classifyBlockedSyncError(error);
+      if (skipCode) {
+        summary.blocked = (summary.blocked ?? 0) + 1;
+        logger.warn('Reconcile blocked for salon sale — deterministic non-retriable code, skipping', {
+          saleId: sale.saleId,
+          code: skipCode,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       // Isolated failure must NOT stop the batch.
       summary.failed++;
       logger.error('Reconcile failed for salon sale — continuing', {
@@ -301,6 +341,17 @@ export async function reconcileSalonCancellations(
         summary.idempotentHits++;
       }
     } catch (error) {
+      // Poison/defer (Council 1.5): the reversal path can hit the period gate too — BLOCKED.
+      const skipCode = classifyBlockedSyncError(error);
+      if (skipCode) {
+        summary.blocked = (summary.blocked ?? 0) + 1;
+        logger.warn('Reconcile blocked for cancelled sale — deterministic non-retriable code, skipping', {
+          saleId: sale.saleId,
+          code: skipCode,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       summary.failed++;
       logger.error('Reconcile failed for cancelled sale — continuing', {
         saleId: sale.saleId,
@@ -370,6 +421,17 @@ export async function reconcileSalonReturns(deps: SalonReturnReconcileDeps): Pro
       summary.synced++;
       logger.info('Reconcile booked salon return', { saleId: sale.saleId, entryId: result.entryId });
     } catch (error) {
+      // Poison/defer (Council 1.5): skip-listed deterministic code → BLOCKED, not failed.
+      const skipCode = classifyBlockedSyncError(error);
+      if (skipCode) {
+        summary.blocked = (summary.blocked ?? 0) + 1;
+        logger.warn('Reconcile blocked for salon return — deterministic non-retriable code, skipping', {
+          saleId: sale.saleId,
+          code: skipCode,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       summary.failed++;
       logger.error('Reconcile failed for salon return — continuing', {
         saleId: sale.saleId,
@@ -473,6 +535,17 @@ export async function reconcileSalonSettlements(
         entryId: result.entryId,
       });
     } catch (error) {
+      // Poison/defer (Council 1.5): skip-listed deterministic code → BLOCKED, not failed.
+      const skipCode = classifyBlockedSyncError(error);
+      if (skipCode) {
+        summary.blocked = (summary.blocked ?? 0) + 1;
+        logger.warn('Reconcile blocked for salon settlement — deterministic non-retriable code, skipping', {
+          saleId: sale.saleId,
+          code: skipCode,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       summary.failed++;
       logger.error('Reconcile failed for salon settlement — continuing', {
         saleId: sale.saleId,
@@ -571,6 +644,17 @@ export async function reconcileSalonPackageOrigin(
         });
       }
     } catch (error) {
+      // Poison/defer (Council 1.5): skip-listed deterministic code → BLOCKED, not failed.
+      const skipCode = classifyBlockedSyncError(error);
+      if (skipCode) {
+        summary.blocked = (summary.blocked ?? 0) + 1;
+        logger.warn('Reconcile blocked for package origin — deterministic non-retriable code, skipping', {
+          saleId: sale.saleId,
+          code: skipCode,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       summary.failed++;
       logger.error('Reconcile failed for package origin — continuing', {
         saleId: sale.saleId,

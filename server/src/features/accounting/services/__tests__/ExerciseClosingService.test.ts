@@ -120,6 +120,30 @@ describe('ExerciseClosingService.closeExercise', () => {
     await expect(service.closeExercise(scope, 2026)).rejects.toBeInstanceOf(ForbiddenError);
   });
 
+  it('N6 joint: composes UNTAGGED legs under sourceType=closing even when a result account requiresDimension — admitted by the postEntry machine-writer exemption', async () => {
+    // The closing service reads aggregated balances — there is no per-leg dimension fact to tag.
+    // The requiresDimension flag on '3.1' must NOT change its output: the leg stays untagged and
+    // the entry stays sourceType='closing', which is exactly what PostingService exempts from the
+    // SEC-B1-1 gate (see PostingService.test 'MACHINE-WRITER EXEMPTION'). Without that exemption
+    // this input deadlocks the year-end close (Council 1.7/N6).
+    const flaggedAccounts = ACCOUNTS.map((a) =>
+      a.code === '3.1' ? ({ ...a, requiresDimension: true } as Account) : a,
+    );
+    const postEntry = jest.fn(async (_s: unknown, input: PostEntryInput) => ({ id: 'c', ...input }));
+    const service = new ExerciseClosingService(
+      { findManyByUnit: jest.fn(async () => flaggedAccounts) } as never,
+      { groupByAccount: jest.fn(async () => [{ accountId: '3.1', debitCents: 0, creditCents: 150000 }]) } as never,
+      { postEntry } as never,
+      { canPost: () => true } as never,
+    );
+    await service.closeExercise(scope, 2026);
+    const input = (postEntry.mock.calls[0] as unknown[])[1] as PostEntryInput;
+    expect(input.sourceType).toBe('closing');
+    // Every closing leg is dimensionless — the exemption, not tagging, is what admits it.
+    expect(input.lines.every((l) => l.dimensions === undefined)).toBe(true);
+    expect(input.lines).toContainEqual({ accountCode: '3.1', debitCents: 150000, creditCents: 0 });
+  });
+
   it('B1: a SECOND annual close only closes the CURRENT year (does not re-inflate a prior closed year)', async () => {
     // Ledger where 2026 (revenue 1000) is already closed; 2027 has revenue 500. An all-history read
     // that excludes every closing would see 1000+500=1500; the annual [1 Jan 2027 ..] window sees 500.

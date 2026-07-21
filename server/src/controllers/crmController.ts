@@ -5,6 +5,7 @@ import { UnauthorizedError } from '../lib/errors';
 import logger from '../lib/logger';
 import { getFactory } from '../lib/factory';
 import { resolveAccountingScope } from '../features/accounting/scope/AccountingScope';
+import { syncSkipErrorCode } from '../features/accounting/sync/AccountingSyncPort';
 import type { WonOpportunityFact } from '../features/accounting/sync/bridges/CrmReceivableBridge';
 import {
   AdvanceStageSchema,
@@ -133,6 +134,18 @@ async function maybeSyncOpportunityWon(
     const scope = resolveAccountingScope(user, unitId);
     await getFactory().getCrmReceivableBridge().bookWonOpportunity(scope, fact);
   } catch (syncError) {
+    // Same specific-code skip-list as the salon bridges (period-closed / MAX_CENTS poison) —
+    // never a base-class catch. The bridge's R2 period preflight surfaces here as a clean,
+    // row-free defer. Anything else stays a loud error left for reconciliation.
+    const skipCode = syncSkipErrorCode(syncError);
+    if (skipCode) {
+      logger.warn('CRM→AR bridge skipped — erro determinístico não-retriável', {
+        opportunityId: result.id,
+        code: skipCode,
+        error: syncError instanceof Error ? syncError.message : String(syncError),
+      });
+      return;
+    }
     logger.error('CRM→AR bridge (opportunity won) failed — left for reconciliation', {
       opportunityId: result.id,
       error: syncError instanceof Error ? syncError.message : String(syncError),

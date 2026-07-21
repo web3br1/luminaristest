@@ -13,6 +13,8 @@
  * idempotency on (sourceType, sourceId) — see ADR-B01.
  */
 
+import { AppError } from '../../../lib/errors';
+
 /**
  * A domain fact that should produce a journal entry. Discriminated by `sourceType`.
  * The RAW source amount (reais, float) is carried here — conversion to integer
@@ -47,9 +49,9 @@ export type AccountingEvent = {
    */
   paymentMethod?: string;
   /**
-   * Finalized revenue only (ADR-INCR-REVENUE-SPLIT): raw per-nature line subtotals (reais), so
-   * SalonSaleFinalizedMapper can split the credit across `3.1 Receita de Serviços` and
-   * `3.3 Receita de Revenda`. Undefined for every other event kind. When absent (or both zero),
+   * Revenue-recognition events only (ADR-INCR-REVENUE-SPLIT): raw per-nature line subtotals
+   * (reais), so the mapper can split the credit across `3.1 Receita de Serviços` and
+   * `3.3 Receita de Revenda`. Carried by 'salon.sale.finalized'. When absent (or both zero),
    * the mapper falls back to a single `3.1` credit (backwards-compatible).
    */
   revenueByNature?: { serviceReais: number; productReais: number };
@@ -58,6 +60,38 @@ export type AccountingEvent = {
 /** Result of a sync: the (possibly pre-existing, via idempotency) journal entry id. */
 export interface SyncResult {
   entryId: string;
+}
+
+/**
+ * Retired direct-posting sourceType of the CRM seam (ADR-CRM-AR-SEAM). No longer in the
+ * AccountingEvent union — no code emits it — but the string survives in old ledger entries:
+ * CrmReceivableBridge uses it as the legacy-era idempotency guard and TieOutDiagnosticService
+ * still aggregates that CLOSED legacy population on 1.1.2.
+ */
+export const CRM_LEGACY_SOURCE_TYPE = 'crm.opportunity.won';
+
+/**
+ * Error codes the best-effort bridges skip+log (and the reconcile re-drive classifies as
+ * BLOCKED, never retriable-failed). Project rule (`erro-especifico-para-skip-em-job`): skip
+ * ONLY on a specific code, never on a base error class — anything else stays a loud failure
+ * left for reconciliation.
+ *   • ACCOUNTING_PERIOD_NOT_OPEN — transient by admin action (period reopens later);
+ *   • MAX_CENTS_EXCEEDED — POISON: the source amount exceeds the Int32 ledger ceiling and the
+ *     event can NEVER succeed until the source itself is fixed; retrying it every cycle is the
+ *     infinite poison-loop Council 1.5 names.
+ */
+export const SYNC_SKIP_ERROR_CODES = ['ACCOUNTING_PERIOD_NOT_OPEN', 'MAX_CENTS_EXCEEDED'] as const;
+
+/**
+ * Returns the skip-listed code carried by `error`, or null when the error must NOT be skipped.
+ * Reads `AppError.errorCode` — the previous inline checks in the bridges read a non-existent
+ * `.code` property, so the period-closed skip NEVER fired (dead branch, fixed here for the class).
+ */
+export function syncSkipErrorCode(error: unknown): string | null {
+  if (error instanceof AppError && (SYNC_SKIP_ERROR_CODES as readonly string[]).includes(error.errorCode)) {
+    return error.errorCode;
+  }
+  return null;
 }
 
 /**

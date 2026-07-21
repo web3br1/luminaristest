@@ -22,6 +22,8 @@ jest.mock('../../../../../lib/logger', () => ({
 }));
 
 import { maybeSyncSalonSaleFinalized } from '../SalonSalesAccountingBridge';
+import { AccountingPeriodNotOpenError, MaxCentsExceededError } from '../../../../../lib/errors';
+import { MAX_CENTS } from '../../../models/money';
 
 const SALES_TABLE_ID = 'tbl-sales-1';
 const actor = { userId: 'u1' };
@@ -113,6 +115,41 @@ describe('SalonSalesAccountingBridge.maybeSyncSalonSaleFinalized', () => {
       maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow()),
     ).resolves.toBeUndefined();
     expect(loggerError).toHaveBeenCalled();
+  });
+
+  // --- Specific-code skip-list (Council 1.5). These two tests FAIL against the previous code:
+  // the old catch read `(err as {code?}).code`, but AppError carries `errorCode` — the skip
+  // branch was dead and every skip-listed error fell through to logger.error. ---
+  describe('skip-list by specific error code (skip+warn, NEVER logged as failure)', () => {
+    it('skips ACCOUNTING_PERIOD_NOT_OPEN (period-closed is not a reconciliation failure)', async () => {
+      sync.mockRejectedValueOnce(new AccountingPeriodNotOpenError(2026, 6));
+      await expect(
+        maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow()),
+      ).resolves.toBeUndefined();
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ code: 'ACCOUNTING_PERIOD_NOT_OPEN' }),
+      );
+      expect(loggerError).not.toHaveBeenCalled();
+    });
+
+    it('skips MAX_CENTS_EXCEEDED (poison event — retrying can never succeed)', async () => {
+      sync.mockRejectedValueOnce(new MaxCentsExceededError('1.1.2', MAX_CENTS + 1, MAX_CENTS));
+      await expect(
+        maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow()),
+      ).resolves.toBeUndefined();
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ code: 'MAX_CENTS_EXCEEDED' }),
+      );
+      expect(loggerError).not.toHaveBeenCalled();
+    });
+
+    it('does NOT skip an arbitrary AppError-free failure (stays a loud error for reconciliation)', async () => {
+      sync.mockRejectedValueOnce(new Error('SQLITE_BUSY forever'));
+      await maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow());
+      expect(loggerError).toHaveBeenCalled();
+    });
   });
 
   // --- Anti-revenue gate (Incremento G P4) ---

@@ -26,6 +26,7 @@ import {
 import type { AccountingScope } from '../../features/accounting/scope/AccountingScope';
 import type { AccountingEvent } from '../../features/accounting/sync/AccountingSyncPort';
 import type { WonOpportunityFact } from '../../features/accounting/sync/bridges/CrmReceivableBridge';
+import { AccountingPeriodNotOpenError, MaxCentsExceededError } from '../../lib/errors';
 
 // Mock heavy/IO module-level imports — the CORE function under test uses none of them
 // (it operates purely over injected deps), but importing the job module loads them.
@@ -124,6 +125,36 @@ describe('reconcileCrmReceivables', () => {
 
     expect(book).toHaveBeenCalledTimes(3); // did not stop at the failure
     expect(summary).toEqual({ total: 3, synced: 2, idempotentHits: 0, failed: 1 });
+  });
+
+  it('classifies a MAX_CENTS_EXCEEDED poison from the bridge as BLOCKED (not failed) and continues', async () => {
+    const book = jest
+      .fn()
+      .mockRejectedValueOnce(new MaxCentsExceededError('1.1.5', 2_147_483_648, 2_147_483_647))
+      .mockResolvedValueOnce({ outcome: 'created', receivableId: 'r2' });
+    const deps = buildDeps({
+      listWonOpportunities: jest.fn(async () => [
+        opp({ opportunityId: 'poison' }),
+        opp({ opportunityId: 'healthy' }),
+      ]),
+      book: book as jest.Mock,
+    });
+
+    const summary = await reconcileCrmReceivables(deps);
+
+    // Poison is DEFERRED, not spun as a retriable failure — and the batch continued.
+    expect(summary).toEqual({ total: 2, synced: 1, idempotentHits: 0, failed: 0, blocked: 1 });
+    expect(book).toHaveBeenCalledTimes(2);
+  });
+
+  it('classifies ACCOUNTING_PERIOD_NOT_OPEN (bridge R2 preflight) as BLOCKED — defers row-free', async () => {
+    const deps = buildDeps({
+      book: jest.fn().mockRejectedValueOnce(new AccountingPeriodNotOpenError(2026, 6)) as jest.Mock,
+    });
+
+    const summary = await reconcileCrmReceivables(deps);
+
+    expect(summary).toEqual({ total: 1, synced: 0, idempotentHits: 0, failed: 0, blocked: 1 });
   });
 
   it('fails an opportunity with no unitId without calling book, and continues', async () => {
