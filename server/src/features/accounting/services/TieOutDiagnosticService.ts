@@ -11,35 +11,41 @@ import {
   FORNECEDORES_A_PAGAR_CODE,
 } from '../fixtures/ChartOfAccountsFixture';
 import type { AccountingEvent } from '../sync/AccountingSyncPort';
+import { CRM_LEGACY_SOURCE_TYPE } from '../sync/AccountingSyncPort';
 
 // ─── Constantes de domínio ────────────────────────────────────────────────────
 
 /**
- * `1.1.2 A Receber` — conta-controle do contas-a-receber de PDV (salão + CRM). Os mappers do
- * AccountingSync a referenciam por código (CrmOpportunityWonMapper / SalonSale*Mapper /
- * SalonPackageSoldMapper); resolvida aqui por LOOKUP no plano (findByCode), nunca por id.
+ * `1.1.2 A Receber` — conta-controle do contas-a-receber de PDV (salão). Os mappers do
+ * AccountingSync a referenciam por código (SalonSale*Mapper / SalonPackageSoldMapper);
+ * resolvida aqui por LOOKUP no plano (findByCode), nunca por id.
  */
 export const POS_RECEIVABLE_CODE = '1.1.2';
 
 /**
- * TODOS os sourceTypes do AccountingSync (feeders de PDV). O board (Council 1.3) confirma que o
- * CRM também debita 1.1.2 — o tie-out da 1.1.2 compara o agregado (salão + CRM) vs razão, nunca
- * o salão sozinho. O Record força exaustividade nos DOIS sentidos contra a union
- * `AccountingEvent['sourceType']`: um 6º feeder novo quebra o tsc aqui (chave faltando) e um
- * typo também (chave extra). Incluir um feeder que não toque 1.1.2 é inócuo — a exclusão só
- * afeta a linha agregada da própria 1.1.2.
+ * TODOS os sourceTypes que já alimentaram a 1.1.2. O board (Council 1.3) confirma que o CRM
+ * também debitava 1.1.2 — desde o ADR-CRM-AR-SEAM o CRM entra pelo subrazão AR (1.1.5), então
+ * 'crm.opportunity.won' aqui cobre a POPULAÇÃO LEGADA FECHADA (entradas pré-seam, sem
+ * settlement possível); o tie-out da 1.1.2 compara o agregado (salão + CRM-legado) vs razão.
+ * O Record força exaustividade nos DOIS sentidos contra a union `AccountingEvent['sourceType']`
+ * + a chave legada: um 6º feeder novo quebra o tsc aqui (chave faltando) e um typo também
+ * (chave extra). Incluir um feeder que não toque 1.1.2 é inócuo — a exclusão só afeta a linha
+ * agregada da própria 1.1.2.
  */
-const POS_FEEDER_SOURCE_TYPE_MAP: Record<AccountingEvent['sourceType'], true> = {
-  'crm.opportunity.won': true,
+const POS_FEEDER_SOURCE_TYPE_MAP: Record<
+  AccountingEvent['sourceType'] | typeof CRM_LEGACY_SOURCE_TYPE,
+  true
+> = {
+  [CRM_LEGACY_SOURCE_TYPE]: true,
   'salon.sale.finalized': true,
   'salon.sale.returned': true,
   'salon.sale.settled': true,
   'salon.package.sold': true,
 };
 
-export const POS_FEEDER_SOURCE_TYPES = Object.keys(
-  POS_FEEDER_SOURCE_TYPE_MAP,
-) as AccountingEvent['sourceType'][];
+export const POS_FEEDER_SOURCE_TYPES = Object.keys(POS_FEEDER_SOURCE_TYPE_MAP) as Array<
+  AccountingEvent['sourceType'] | typeof CRM_LEGACY_SOURCE_TYPE
+>;
 
 // ─── Report shapes (money em INTEGER CENTS, serializado como string — convenção INCR-4) ──
 

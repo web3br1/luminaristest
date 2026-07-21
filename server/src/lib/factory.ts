@@ -84,7 +84,7 @@ import { TieOutDiagnosticService } from '../features/accounting/services/TieOutD
 import { CounterpartyService } from '../features/accounting/services/CounterpartyService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
-import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
+import { CrmReceivableBridge } from '../features/accounting/sync/bridges/CrmReceivableBridge';
 import { SalonSaleFinalizedMapper } from '../features/accounting/sync/mappers/SalonSaleFinalizedMapper';
 import { SalonSaleReturnedMapper } from '../features/accounting/sync/mappers/SalonSaleReturnedMapper';
 import { SalonSaleSettledMapper } from '../features/accounting/sync/mappers/SalonSaleSettledMapper';
@@ -209,6 +209,7 @@ export class ApplicationFactory {
     entryApproval: EntryApprovalService;
     period: PeriodService;
     accountingSync: AccountingSyncService;
+    crmReceivableBridge: CrmReceivableBridge;
     accountingReport: AccountingReportService;
     cashFlowReport: CashFlowReportService;
     periodComparisonReport: PeriodComparisonReportService;
@@ -379,8 +380,9 @@ export class ApplicationFactory {
 
     // AccountingSync — application-level integration adapter (NOT the DynamicTable
     // engine). Depends on postingService (above); first non-controller consumer.
+    // CRM Won deals no longer post directly (retired CrmOpportunityWonMapper) — they route
+    // through the AR subledger via CrmReceivableBridge (ADR-CRM-AR-SEAM).
     const accountingSyncService = new AccountingSyncService(postingService, [
-      new CrmOpportunityWonMapper(),
       new SalonSaleFinalizedMapper(),
       new SalonSaleReturnedMapper(),
       new SalonSaleSettledMapper(),
@@ -410,6 +412,16 @@ export class ApplicationFactory {
     const referentialCatalogService = new ReferentialCatalogService(
       this.repositories.referentialAccount,
       this.policies.accounting,
+    );
+
+    // Extracted from the literal so CrmReceivableBridge (below) shares the same instance.
+    const receivableService = new ReceivableService(
+      this.repositories.receivable,
+      this.repositories.account,
+      postingService,
+      auditService,
+      this.policies.accounting,
+      this.repositories.counterparty,
     );
 
     this.services = {
@@ -534,13 +546,15 @@ export class ApplicationFactory {
         this.policies.accounting,
         this.repositories.counterparty,
       ),
-      receivable: new ReceivableService(
+      receivable: receivableService,
+      // CRM → AR seam (ADR-CRM-AR-SEAM): post-commit integration bridge, same altitude as
+      // AccountingSync — never injected into the DynamicTable engine (§2.1).
+      crmReceivableBridge: new CrmReceivableBridge(
+        receivableService,
         this.repositories.receivable,
         this.repositories.account,
         postingService,
-        auditService,
-        this.policies.accounting,
-        this.repositories.counterparty,
+        this.repositories.accountingPeriod,
       ),
       dimension: new DimensionService(
         this.repositories.dimension,
@@ -621,6 +635,7 @@ export class ApplicationFactory {
   public getPayableService = (): PayableService => this.services.payable;
 
   public getReceivableService = (): ReceivableService => this.services.receivable;
+  public getCrmReceivableBridge = (): CrmReceivableBridge => this.services.crmReceivableBridge;
   public getDimensionService = (): DimensionService => this.services.dimension;
   public getDimensionReportService = (): DimensionReportService => this.services.dimensionReport;
   public getTieOutDiagnosticService = (): TieOutDiagnosticService => this.services.tieOutDiagnostic;

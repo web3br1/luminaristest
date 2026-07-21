@@ -2,7 +2,8 @@
  * revenueSplit — canonical revenue-by-nature credit splitter (ADR-INCR-REVENUE-SPLIT D5).
  *
  * Single source of the 3.1/3.3 split technique, shared by EVERY revenue-recognition mapper
- * (SalonSaleFinalizedMapper since PR #66; CrmOpportunityWonMapper since the N4 seam fix).
+ * (SalonSaleFinalizedMapper since PR #66; the retired CrmOpportunityWonMapper used it between
+ * the N4 seam fix and ADR-CRM-AR-SEAM, which rerouted CRM through the AR subledger).
  * Extracted so the technique cannot be re-inlined and drift per mapper (class
  * `reuse-criterion-blind-to-reinlined-technique` — the parseBrl money bug was exactly this
  * failure mode materialized).
