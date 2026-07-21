@@ -1,5 +1,5 @@
 import { CrmReceivableBridge, crmDocumentNumber, type WonOpportunityFact } from '../CrmReceivableBridge';
-import { ValidationError } from '../../../../../lib/errors';
+import { AccountingPeriodNotOpenError, ValidationError } from '../../../../../lib/errors';
 import { MAX_CENTS } from '../../../models/money';
 import type { AccountingScope } from '../../../scope/AccountingScope';
 
@@ -26,13 +26,15 @@ function fact(over: Partial<WonOpportunityFact> = {}): WonOpportunityFact {
   };
 }
 
-/** Minimal receivable row for guard classification. */
+/** Minimal receivable row for guard classification / twin convergence. */
 function row(over: Record<string, unknown> = {}) {
   return {
     id: 'recv-x',
     documentNumber: DOC,
     deletedAt: null,
     cancelledById: null,
+    status: 'OPEN',
+    issueDate: new Date('2026-06-25T00:00:00.000Z'),
     ...over,
   };
 }
@@ -44,6 +46,7 @@ function buildBridge(over: {
   findByCode?: jest.Mock;
   findEntryBySource?: jest.Mock;
   listAccounts?: jest.Mock;
+  findByYearMonth?: jest.Mock;
 } = {}) {
   const createReceivable = over.createReceivable ?? jest.fn(async () => ({ id: 'recv-1' }));
   const cancelReceivable = over.cancelReceivable ?? jest.fn(async () => ({ id: 'recv-1' }));
@@ -51,12 +54,14 @@ function buildBridge(over: {
   const findByCode = over.findByCode ?? jest.fn(async () => ({ id: 'acct-3-1', code: '3.1' }));
   const findEntryBySource = over.findEntryBySource ?? jest.fn(async () => null);
   const listAccounts = over.listAccounts ?? jest.fn(async () => []);
+  const findByYearMonth = over.findByYearMonth ?? jest.fn(async () => ({ status: 'OPEN' }));
 
   const bridge = new CrmReceivableBridge(
     { createReceivable, cancelReceivable } as unknown as ConstructorParameters<typeof CrmReceivableBridge>[0],
     { findAllByDocumentNumber } as unknown as ConstructorParameters<typeof CrmReceivableBridge>[1],
     { findByCode } as unknown as ConstructorParameters<typeof CrmReceivableBridge>[2],
     { findEntryBySource, listAccounts } as unknown as ConstructorParameters<typeof CrmReceivableBridge>[3],
+    { findByYearMonth } as unknown as ConstructorParameters<typeof CrmReceivableBridge>[4],
   );
   return {
     bridge,
@@ -66,6 +71,7 @@ function buildBridge(over: {
     findByCode,
     findEntryBySource,
     listAccounts,
+    findByYearMonth,
   };
 }
 
@@ -195,7 +201,7 @@ describe('CrmReceivableBridge', () => {
     expect(dto).toMatchObject({ unitId: 'unit-1', reversalDate: '2026-06-25' });
   });
 
-  it('M1 race sweep: the survivor (lowest id) keeps its receivable and cancels nothing', async () => {
+  it('M1 race sweep: the survivor (lowest id) keeps its receivable and sweeps the leftover twin', async () => {
     const createReceivable = jest.fn(async () => ({ id: 'recv-a' }));
     const findAllByDocumentNumber = jest
       .fn()
@@ -209,7 +215,53 @@ describe('CrmReceivableBridge', () => {
     const result = await bridge.bookWonOpportunity(scope, fact());
 
     expect(result).toEqual({ outcome: 'created', receivableId: 'recv-a' });
+    // R1: convergence cancels every non-survivor OPEN twin, whichever call runs the sweep.
+    expect(cancelReceivable).toHaveBeenCalledTimes(1);
+    expect(cancelReceivable.mock.calls[0]![1]).toBe('recv-b');
+  });
+
+  it('R1: a LATER pass finding leftover live twins converges them (sweep is never single-shot)', async () => {
+    // A prior race left two live rows (its sweep cancel failed). This pass creates nothing —
+    // guard 2 detects the twins, cancels the higher-id OPEN one and classifies already_booked.
+    const { bridge, createReceivable, cancelReceivable } = buildBridge({
+      findAllByDocumentNumber: jest.fn(async () => [
+        row({ id: 'recv-a', status: 'OPEN', issueDate: new Date('2026-06-25T00:00:00.000Z') }),
+        row({ id: 'recv-b', status: 'OPEN', issueDate: new Date('2026-06-25T00:00:00.000Z') }),
+      ]),
+    });
+
+    const result = await bridge.bookWonOpportunity(scope, fact());
+
+    expect(result).toEqual({ outcome: 'already_booked' });
+    expect(createReceivable).not.toHaveBeenCalled();
+    expect(cancelReceivable).toHaveBeenCalledTimes(1);
+    expect(cancelReceivable.mock.calls[0]![1]).toBe('recv-b'); // survivor = lowest id
+  });
+
+  it('R1: a twin a human engaged with (not OPEN) is never auto-cancelled — warn only', async () => {
+    const { bridge, cancelReceivable } = buildBridge({
+      findAllByDocumentNumber: jest.fn(async () => [
+        row({ id: 'recv-a', status: 'OPEN', issueDate: new Date('2026-06-25T00:00:00.000Z') }),
+        row({ id: 'recv-b', status: 'RECEIVED', issueDate: new Date('2026-06-25T00:00:00.000Z') }),
+      ]),
+    });
+
+    const result = await bridge.bookWonOpportunity(scope, fact());
+
+    expect(result).toEqual({ outcome: 'already_booked' });
     expect(cancelReceivable).not.toHaveBeenCalled();
+  });
+
+  it('R2: a closed (or missing) period fails BEFORE creating the row — no tombstone accumulation', async () => {
+    const { bridge, createReceivable, findByYearMonth } = buildBridge({
+      findByYearMonth: jest.fn(async () => ({ status: 'HARD_CLOSED' })),
+    });
+
+    await expect(bridge.bookWonOpportunity(scope, fact())).rejects.toBeInstanceOf(
+      AccountingPeriodNotOpenError,
+    );
+    expect(findByYearMonth).toHaveBeenCalledWith(scope, 2026, 6); // UTC year/month of closedAt
+    expect(createReceivable).not.toHaveBeenCalled();
   });
 
   it('M2: a chart never touched by accounting is seeded once (listAccounts) before resolving 3.1', async () => {

@@ -49,14 +49,24 @@ via `CrmReceivableBridge` (`server/src/features/accounting/sync/bridges/CrmRecei
    A validação do fato (dinheiro/data) roda **depois** dos guards (review L1), para que fato
    corrompido de oportunidade já contabilizada classifique em vez de falhar eternamente.
 3. **Corrida live×reconcile com rename no meio** (review M1: o `@@unique` inclui `customerName`,
-   então dois snapshots diferentes não colidem em P2002): sweep pós-criação — se há 2+ linhas
-   vivas com a chave, sobrevive o **menor id** e cada corredor cancela apenas a linha que ELE
-   criou (cancel = estorno ⇒ o reconhecimento duplicado zera). As duas pontas aplicam a mesma
-   regra ⇒ exatamente um receivable converge.
+   então dois snapshots diferentes não colidem em P2002): convergência de gêmeas — havendo 2+
+   linhas vivas com a chave, sobrevive o **menor id** e as demais em `OPEN` são canceladas
+   (cancel = estorno ⇒ o reconhecimento duplicado zera). O sweep roda no pós-criação **e no
+   guard 2 de qualquer passe** (review R1 — nunca single-shot: um cancel que falhe é re-dirigido
+   pelo próximo passe). Gêmea que um humano já tocou (`RECEIVING`/`RECEIVED`) nunca é
+   auto-cancelada — warn e decisão humana. Premissa documentada (review R3): "menor id = mais
+   antiga" vale porque cuid do Prisma é prefixado por timestamp em processo único; com ids
+   não-monotônicos a regra segue determinística, só deixa de ser "a mais velha vence".
 4. **Tenant CRM-first sem plano de contas** (review M2): `3.1` ausente dispara o seed canônico
    idempotente (`PostingService.listAccounts`) antes de desistir — a rota direta aposentada
    auto-semeava dentro do `postEntry`; sem isso, tenant que nunca abriu contabilidade falharia
    para sempre.
+5. **Preflight de período no bridge** (review R2): antes de criar a linha, o bridge re-lê o
+   período da competência e falha limpo (`ACCOUNTING_PERIOD_NOT_OPEN`) se não estiver `OPEN` —
+   senão, com o H1 re-tentável, uma falha determinística (ex.: `closedAt` em período fechado)
+   cunharia linha + audit + tombstone de compensação a cada passe de 5 min, sem teto.
+   Não-autoritativo: o gate in-tx do `postEntry` continua sendo a autoridade (T6); o preflight
+   só mantém a falha row-free, em paridade com a rota direta aposentada.
 
 ## Alternativas rejeitadas
 

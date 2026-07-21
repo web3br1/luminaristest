@@ -552,6 +552,7 @@ export class ApplicationFactory {
         this.repositories.receivable,
         this.repositories.account,
         postingService,
+        this.repositories.accountingPeriod,
       ),
       dimension: new DimensionService(
         this.repositories.dimension,

@@ -1,4 +1,5 @@
-import { ValidationError } from '../../../../lib/errors';
+import { AccountingPeriodNotOpenError, ValidationError } from '../../../../lib/errors';
+import logger from '../../../../lib/logger';
 import { MAX_CENTS } from '../../models/money';
 import { isValidDateOnly } from '../../models/dates';
 import type { Receivable } from 'generated/prisma';
@@ -7,6 +8,7 @@ import type { ReceivableService } from '../../services/ReceivableService';
 import type { PostingService } from '../../services/PostingService';
 import type { IReceivableRepository } from '../../repositories/IReceivableRepository';
 import type { IAccountRepository } from '../../repositories/IAccountRepository';
+import type { IAccountingPeriodRepository } from '../../repositories/IAccountingPeriodRepository';
 
 /**
  * CrmReceivableBridge — post-commit integration adapter: CRM `Won` opportunity → AR subledger
@@ -76,6 +78,7 @@ export class CrmReceivableBridge {
     private readonly receivableRepo: IReceivableRepository,
     private readonly accountRepo: IAccountRepository,
     private readonly posting: PostingService,
+    private readonly periodRepo: IAccountingPeriodRepository,
   ) {}
 
   /**
@@ -94,13 +97,28 @@ export class CrmReceivableBridge {
     if (legacy) return { outcome: 'legacy_entry' };
 
     // Guard 2 — classify every row carrying the business key (live / human-cancel / compensation).
+    // A pass that finds live TWINS (leftover of a race whose sweep failed) converges them first,
+    // so convergence is re-driven by EVERY pass, not only by the pass that created the duplicate
+    // (review R1 — the sweep is never single-shot).
     const existing = await this.receivableRepo.findAllByDocumentNumber(scope, documentNumber);
+    const liveRows = existing.filter((r) => r.deletedAt === null && r.documentNumber === documentNumber);
+    if (liveRows.length > 1) {
+      await this.convergeTwins(scope, fact.unitId, liveRows);
+      return { outcome: 'already_booked' };
+    }
     if (this.isAlreadyBooked(existing, documentNumber)) return { outcome: 'already_booked' };
 
     // Source-fact validation AFTER the idempotency guards (review L1): an already-booked
     // opportunity whose data was later corrupted classifies as booked instead of failing forever.
     const amountCents = this.toCents(fact);
     const dateOnly = this.toDateOnly(fact);
+
+    // PERIOD PREFLIGHT (review R2): a deterministic period failure must NOT create the row —
+    // otherwise every reconcile pass would mint row + audit + compensation tombstone without
+    // ceiling. Non-authoritative (the in-tx gate in postEntry stays the authority); this only
+    // keeps the failure clean, matching the retired direct route (which failed row-free).
+    await this.assertPeriodOpen(scope, dateOnly);
+
     const revenueAccount = await this.resolveRevenueAccount(scope);
 
     const receivable = await this.receivableService.createReceivable(scope, {
@@ -116,24 +134,70 @@ export class CrmReceivableBridge {
     });
 
     // Race sweep (review M1): if a concurrent racer slipped past guard 2 under a DIFFERENT
-    // customerName snapshot (rename window), two live rows now share the key. Deterministic
-    // survivor = lowest id; each racer cancels only the row IT created, so exactly one remains
-    // (cancel = estorno, so the duplicate recognition nets to zero).
+    // customerName snapshot (rename window), two live rows now share the key. Converge to the
+    // deterministic survivor; a failed cancel here is retried by the guard-2 sweep of any later
+    // pass (review R1).
     const after = await this.receivableRepo.findAllByDocumentNumber(scope, documentNumber);
     const liveTwins = after.filter((r) => r.deletedAt === null && r.documentNumber === documentNumber);
     if (liveTwins.length > 1) {
-      const survivor = liveTwins.reduce((a, b) => (a.id < b.id ? a : b));
-      if (survivor.id !== receivable.id) {
-        await this.receivableService.cancelReceivable(scope, receivable.id, {
-          unitId: fact.unitId,
-          reversalDate: dateOnly,
-          reason: 'Duplicata de corrida live×reconcile (ADR-CRM-AR-SEAM) — sobrevive o id mais antigo.',
-        });
-        return { outcome: 'already_booked' };
-      }
+      const survivor = await this.convergeTwins(scope, fact.unitId, liveTwins);
+      if (survivor.id !== receivable.id) return { outcome: 'already_booked' };
     }
 
     return { outcome: 'created', receivableId: receivable.id };
+  }
+
+  /**
+   * Converge live twins sharing the CRM business key to ONE survivor. Survivor = lowest id —
+   * deterministic on both racers; later-created rows sort higher because Prisma cuids are
+   * timestamp-prefixed and this app is single-process (review R3 — documented assumption; with
+   * non-monotonic ids the rule stays deterministic, just not "oldest wins"). Only OPEN twins are
+   * cancelled (cancel = estorno, netting the duplicate recognition to zero): a RECEIVING/RECEIVED
+   * twin means a human already engaged with it — never cancel money movement under them (warn
+   * instead). A failed cancel is logged and retried by the next pass's guard-2 sweep.
+   */
+  private async convergeTwins(
+    scope: AccountingScope,
+    unitId: string,
+    twins: Receivable[],
+  ): Promise<Receivable> {
+    const survivor = twins.reduce((a, b) => (a.id < b.id ? a : b));
+    for (const twin of twins) {
+      if (twin.id === survivor.id) continue;
+      if (twin.status !== 'OPEN') {
+        logger.warn('CRM twin receivable not OPEN — human engaged, not auto-cancelling', {
+          receivableId: twin.id,
+          status: twin.status,
+        });
+        continue;
+      }
+      try {
+        await this.receivableService.cancelReceivable(scope, twin.id, {
+          unitId,
+          reversalDate: twin.issueDate.toISOString().slice(0, 10),
+          reason: 'Duplicata de corrida live×reconcile (ADR-CRM-AR-SEAM) — sobrevive o id mais antigo.',
+        });
+      } catch (error) {
+        logger.warn('CRM twin cancel failed — next pass re-drives the sweep', {
+          receivableId: twin.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return survivor;
+  }
+
+  /**
+   * Preflight period gate (outside tx; mirrors PostingService.assertPeriodOpen). Reads the
+   * SAME UTC year/month the authoritative in-tx gate will read from the date-only string.
+   */
+  private async assertPeriodOpen(scope: AccountingScope, dateOnly: string): Promise<void> {
+    const year = Number(dateOnly.slice(0, 4));
+    const month = Number(dateOnly.slice(5, 7));
+    const period = await this.periodRepo.findByYearMonth(scope, year, month);
+    if (!period || period.status !== 'OPEN') {
+      throw new AccountingPeriodNotOpenError(year, month);
+    }
   }
 
   /**
