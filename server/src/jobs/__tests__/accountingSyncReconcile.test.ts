@@ -25,6 +25,7 @@ import {
 } from '../accountingSyncReconcile.job';
 import type { AccountingScope } from '../../features/accounting/scope/AccountingScope';
 import type { AccountingEvent } from '../../features/accounting/sync/AccountingSyncPort';
+import { AccountingPeriodNotOpenError, MaxCentsExceededError } from '../../lib/errors';
 
 // Mock heavy/IO module-level imports — the CORE function under test uses none of them
 // (it operates purely over injected deps), but importing the job module loads them.
@@ -116,6 +117,36 @@ describe('reconcileAccountingSync', () => {
 
     expect(sync).toHaveBeenCalledTimes(3); // did not stop at the failure
     expect(summary).toEqual({ total: 3, synced: 2, idempotentHits: 0, failed: 1 });
+  });
+
+  it('classifies a MAX_CENTS_EXCEEDED poison event as BLOCKED (not failed) and continues the batch', async () => {
+    const sync = jest
+      .fn()
+      .mockRejectedValueOnce(new MaxCentsExceededError('1.1.2', 2_147_483_648, 2_147_483_647))
+      .mockResolvedValueOnce({ entryId: 'e2' });
+    const deps = buildDeps({
+      listWonOpportunities: jest.fn(async () => [
+        opp({ opportunityId: 'poison' }),
+        opp({ opportunityId: 'healthy' }),
+      ]),
+      sync: sync as jest.Mock,
+    });
+
+    const summary = await reconcileAccountingSync(deps);
+
+    // Poison is DEFERRED, not spun as a retriable failure — and the batch continued.
+    expect(summary).toEqual({ total: 2, synced: 1, idempotentHits: 0, failed: 0, blocked: 1 });
+    expect(sync).toHaveBeenCalledTimes(2);
+  });
+
+  it('classifies ACCOUNTING_PERIOD_NOT_OPEN as BLOCKED (defers until the period reopens)', async () => {
+    const deps = buildDeps({
+      sync: jest.fn().mockRejectedValueOnce(new AccountingPeriodNotOpenError(2026, 6)) as jest.Mock,
+    });
+
+    const summary = await reconcileAccountingSync(deps);
+
+    expect(summary).toEqual({ total: 1, synced: 0, idempotentHits: 0, failed: 0, blocked: 1 });
   });
 
   it('fails an opportunity with no unitId without calling hasExistingEntry/sync, and continues', async () => {

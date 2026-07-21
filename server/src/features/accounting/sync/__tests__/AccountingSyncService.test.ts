@@ -2,7 +2,7 @@ import { Prisma } from 'generated/prisma';
 import { AccountingSyncService } from '../AccountingSyncService';
 import { CrmOpportunityWonMapper } from '../mappers/CrmOpportunityWonMapper';
 import { SalonSaleSettledMapper } from '../mappers/SalonSaleSettledMapper';
-import { ValidationError } from '../../../../lib/errors';
+import { MaxCentsExceededError, ValidationError } from '../../../../lib/errors';
 import type { AccountingScope } from '../../scope/AccountingScope';
 import type { AccountingEvent } from '../AccountingSyncPort';
 import type { PostEntryInput } from '../../dtos/PostingDto';
@@ -102,6 +102,18 @@ describe('AccountingSyncService', () => {
 
     await expect(svc.sync(scope, wonEvent)).rejects.toBeInstanceOf(ValidationError);
     expect(postEntry).toHaveBeenCalledTimes(1); // no retry
+  });
+
+  it('MaxCentsExceededError is NOT retried (deterministic poison — Council 1.5) and surfaces its own code', async () => {
+    const postEntry = jest.fn(async () => {
+      throw new MaxCentsExceededError('1.1.2', 2_147_483_648, 2_147_483_647);
+    });
+    const { svc } = buildService(postEntry);
+
+    const err = await svc.sync(scope, wonEvent).catch((e) => e);
+    expect(err).toBeInstanceOf(MaxCentsExceededError);
+    expect(err.errorCode).toBe('MAX_CENTS_EXCEEDED');
+    expect(postEntry).toHaveBeenCalledTimes(1); // no retry — bridges/reconcile skip on this code
   });
 
   it('transient DB error respects the retry limit then reports without partial write', async () => {

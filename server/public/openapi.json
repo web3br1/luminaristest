@@ -485,6 +485,29 @@
         }
       }
     },
+    "/api/accounting/reports/tie-out": {
+      "get": {
+        "summary": "Diagnóstico de tie-out subrazão-razão (AR vs 1.1.5, AP vs 2.1.2, salão+CRM vs 1.1.2), read-only",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tie-out report (3 checks com differenceCents inteiro exato e status OK/DIVERGENT)"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
     "/api/accounting/{unitId}/periods": {
       "get": {
         "summary": "List accounting periods for a fiscal year",

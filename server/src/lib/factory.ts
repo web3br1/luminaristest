@@ -80,6 +80,7 @@ import { PayableService } from '../features/accounting/services/PayableService';
 import { ReceivableService } from '../features/accounting/services/ReceivableService';
 import { DimensionService } from '../features/accounting/services/DimensionService';
 import { DimensionReportService } from '../features/accounting/services/DimensionReportService';
+import { TieOutDiagnosticService } from '../features/accounting/services/TieOutDiagnosticService';
 import { CounterpartyService } from '../features/accounting/services/CounterpartyService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
@@ -227,6 +228,7 @@ export class ApplicationFactory {
     receivable: ReceivableService;
     dimension: DimensionService;
     dimensionReport: DimensionReportService;
+    tieOutDiagnostic: TieOutDiagnosticService;
     counterparty: CounterpartyService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
@@ -551,6 +553,13 @@ export class ApplicationFactory {
         this.repositories.dimension,
         this.policies.accounting,
       ),
+      tieOutDiagnostic: new TieOutDiagnosticService(
+        this.repositories.account,
+        this.repositories.posting,
+        this.repositories.receivable,
+        this.repositories.payable,
+        this.policies.accounting,
+      ),
       counterparty: new CounterpartyService(
         this.repositories.counterparty,
         auditService,
@@ -614,6 +623,7 @@ export class ApplicationFactory {
   public getReceivableService = (): ReceivableService => this.services.receivable;
   public getDimensionService = (): DimensionService => this.services.dimension;
   public getDimensionReportService = (): DimensionReportService => this.services.dimensionReport;
+  public getTieOutDiagnosticService = (): TieOutDiagnosticService => this.services.tieOutDiagnostic;
   public getCounterpartyService = (): CounterpartyService => this.services.counterparty;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
