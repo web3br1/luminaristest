@@ -584,8 +584,7 @@
           "description",
           "issueDate",
           "dueDate",
-          "amountCents",
-          "expenseAccountId"
+          "amountCents"
         ],
         "properties": {
           "unitId": {
@@ -624,7 +623,16 @@
           },
           "expenseAccountId": {
             "type": "string",
-            "description": "Id de uma conta-folha nature=Expense (contrapartida do reconhecimento)"
+            "description": "Id de uma conta-folha nature=Expense (contrapartida do reconhecimento). XOR com inventoryProductRef+inventoryQty (INCR-INVENTORY D3(b))."
+          },
+          "inventoryProductRef": {
+            "type": "string",
+            "description": "Compra de estoque (INCR-INVENTORY D3(b)): ref DynamicTable do produto; débito vai a 1.1.6 Estoques + emite StockMovement INBOUND. Exige inventoryQty; XOR com expenseAccountId."
+          },
+          "inventoryQty": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Unidades recebidas nesta compra de estoque; pareado com inventoryProductRef. amountCents é o valor TOTAL (evita arredondamento por-unidade)."
           },
           "attachmentId": {
             "type": "string",

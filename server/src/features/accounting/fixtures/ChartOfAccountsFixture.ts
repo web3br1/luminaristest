@@ -33,6 +33,12 @@ export const CANONICAL_ACCOUNTS: ReadonlyArray<CanonicalAccount> = [
   // Sibling leaf under `1.1` — ACC-018 NOT triggered, zero migration (ensureChartOfAccounts creates
   // -if-missing by code; precedent `2.1.2` do AP). BP maps it automatically (nature-only).
   { code: '1.1.5', name: 'Clientes a Receber', nature: 'Asset', acceptsEntries: true },
+  // Estoques (INCR-INVENTORY / ADR-INCR-INVENTORY F-INV0 → a): the DEDICATED control account of the
+  // perpetual inventory subledger. An INBOUND (seed or AP purchase) debits this Asset leaf; a sale's
+  // CMV credits it (D 4.2 CMV / C 1.1.6). Σ InventoryItem.totalValueCents == saldo(1.1.6) is the tie-out
+  // (mirrors 1.1.5/AR). Sibling leaf under `1.1` — ACC-018 NOT triggered, zero migration
+  // (ensureChartOfAccounts creates-if-missing by code). BP maps it automatically (nature-only).
+  { code: '1.1.6', name: 'Estoques', nature: 'Asset', acceptsEntries: true },
   // Liability tower (Incremento D / D1-Q10): a Package Balance settlement debits the prepaid
   // liability (service delivered against an advance), NEVER cash. `2` is the synthetic root.
   { code: '2', name: 'Passivo', nature: 'Liability', acceptsEntries: false },
@@ -62,6 +68,12 @@ export const CANONICAL_ACCOUNTS: ReadonlyArray<CanonicalAccount> = [
   { code: '3.3', name: 'Receita de Revenda de Mercadorias', nature: 'Revenue', acceptsEntries: true },
   { code: '4', name: 'Despesa', nature: 'Expense', acceptsEntries: false },
   { code: '4.1', name: 'Despesas Operacionais', nature: 'Expense', acceptsEntries: true },
+  // Custo das Mercadorias Vendidas (INCR-INVENTORY / ADR-INCR-INVENTORY F-INV0 → a, D7): the CMV leaf.
+  // A sale's cost recognition debits this Expense leaf (D 4.2 / C 1.1.6). Mapped EXPLICITLY into the
+  // DRE `costOfGoodsSold` section (StatementMappingFixture dre.cogs, order 250 < dre.expenses 300) so
+  // CMV never silently folds into general expenses (lesson FAIL-1 do revenue-split). Sibling leaf under
+  // `4` — zero migration (create-if-missing by code).
+  { code: '4.2', name: 'Custo das Mercadorias Vendidas', nature: 'Expense', acceptsEntries: true },
 ];
 
 /**
@@ -83,3 +95,17 @@ export const FORNECEDORES_A_PAGAR_CODE = '2.1.2';
  * so the subledger ties out to the GL. Resolved by CODE (stable), never by name.
  */
 export const CLIENTES_A_RECEBER_CODE = '1.1.5';
+
+/**
+ * Canonical "Estoques" control leaf (INCR-INVENTORY, F-INV0). An inventory INBOUND debits this account
+ * and a sale's CMV credits it; Σ InventoryItem.totalValueCents ties out to saldo(1.1.6). Resolved by
+ * CODE (stable), never by name.
+ */
+export const ESTOQUES_CODE = '1.1.6';
+
+/**
+ * Canonical "Custo das Mercadorias Vendidas" leaf (INCR-INVENTORY, F-INV0/D7). The CMV recognition
+ * debits this Expense account (D 4.2 / C 1.1.6). Mapped into the DRE costOfGoodsSold section. Resolved
+ * by CODE (stable), never by name.
+ */
+export const CMV_CODE = '4.2';

@@ -43,6 +43,7 @@ model User {
   receivables             Receivable[] // Relation to Receivable (accounts receivable / contas a receber, INCR-AR)
   dimensionDefinitions    DimensionDefinition[] // Relation to DimensionDefinition (cost-center/project dimensions, INCR-DIM)
   counterparties          Counterparty[] // Relation to Counterparty (supplier/customer catalog, INCR-COUNTERPARTY)
+  inventoryItems          InventoryItem[] // Relation to InventoryItem (perpetual inventory subledger, INCR-INVENTORY)
 }
 
 // Per-user saved table views (query/filters/sort) for the canonical table stack.
@@ -851,8 +852,10 @@ model Payable {
   issueDate        DateTime // date-only (competência do reconhecimento) — validated by isValidDateOnly at the DTO
   dueDate          DateTime // date-only (vencimento; aging is a later increment — F3)
   amountCents      Int // integer cents (Contract §2.1); MAX_CENTS guarded at the DTO (ACC-014)
-  expenseAccountId String // FK Account — contrapartida do reconhecimento, folha nature='Expense' (gate D4, re-checked in the service)
-  expenseAccount   Account          @relation("PayableExpenseAccount", fields: [expenseAccountId], references: [id])
+  expenseAccountId String? // FK Account — contrapartida do reconhecimento, folha nature='Expense' (gate D4). NULLABLE (INCR-INVENTORY D3(b)): an inventory PURCHASE debits 1.1.6 Estoques instead of an expense leaf, so expenseAccountId is null and inventoryProductRef/inventoryQty are set (DTO XOR gate). The service re-checks the branch via isInventoryPurchase.
+  expenseAccount   Account?         @relation("PayableExpenseAccount", fields: [expenseAccountId], references: [id])
+  inventoryProductRef String? // INCR-INVENTORY D3(b): set (with inventoryQty) when this Payable is a merchandise-for-resale purchase → routes the debit to 1.1.6 Estoques + emits a StockMovement INBOUND. XOR with expenseAccountId (DTO .superRefine).
+  inventoryQty        Int? // INCR-INVENTORY D3(b): units received by this purchase; paired with inventoryProductRef. receiveStock gets amountCents as the TOTAL value (avoids per-unit rounding).
   counterpartyId   String? // FK Counterparty (INCR-COUNTERPARTY / A1) — NULLABLE (SEC-A1-5: NOT NULL deferred to a 2nd migration after backfill proves coverage). Resolved RE-SCOPED inside createPayable (SEC-A1-1); supplierName stays the snapshot.
   counterparty     Counterparty?    @relation(fields: [counterpartyId], references: [id])
   status           String // OPEN | PAYING | PAID | CANCELLED (see PAYABLE_STATUSES)
@@ -1091,4 +1094,60 @@ model Counterparty {
   @@index([userId, unitId, type])
   @@index([deletedAt])
   @@map("counterparties")
+}
+
+// ── Estoque (subrazão de inventário perpétuo + CMV) — INCR-INVENTORY / ADR-INCR-INVENTORY ──
+// First-class Prisma inventory subledger valued by MOVING AVERAGE COST (F-INV1), mirroring the AP/AR
+// pair: a dedicated control account (1.1.6 Estoques) whose Σ ties out to the GL. Perpetual valuation
+// (qty-on-hand × moving average) is a FINANCIAL INVARIANT ⇒ Prisma first-class, NEVER DynamicTable
+// (STOP block; the product NAME/category stays in DynamicTable — only the VALUATION rises here). The
+// product is referenced by `productRef: String` (F-INV5, mirrors AR.customerRef — NOT a FK).
+//
+// InventoryItem is the CURRENT SNAPSHOT (qty-on-hand + total value); StockMovement is the append-only
+// razão. The moving-average unit cost is NEVER a persisted float — it is derived (totalValueCents ÷
+// qtyOnHand) INSIDE the tx with the residue absorbed (D6). Tenancy = AccountingScope (userId + unitId).
+// Migration = CREATE TABLE ×2 (this file also makes payables.expenseAccountId nullable for the AP→estoque bridge).
+model InventoryItem {
+  id              String          @id @default(cuid())
+  userId          String // scope owner (AccountingScope.ownerUserId); FK User — cascade (operational data; trail = AuditEvent, T8)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId          String // business unit (scoped string, not a FK)
+  productRef      String // scoped ref to a DynamicTable product row (F-INV5; plain string, NOT a FK — precedent AR.customerRef)
+  description     String? // display label snapshot (optional)
+  qtyOnHand       Int             @default(0) // units in hand (integer; fractional units are OUT of MVP)
+  totalValueCents Int             @default(0) // total valued cost in integer cents — the source-of-truth of the moving average (D6/ACC-014)
+  status          String          @default("ACTIVE") // ACTIVE | ARCHIVED (see INVENTORY_ITEM_STATUSES)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime? // soft-delete
+  movements       StockMovement[]
+
+  @@unique([userId, unitId, productRef]) // D-a: one live valuation row per product × unit — closes the upsert/CAS TOCTOU
+  @@index([userId, unitId, status])
+  @@map("inventory_items")
+}
+
+// The append-only razão of the inventory subledger. Every INBOUND / COGS / ADJUSTMENT / REVERSAL is a
+// row with SIGNED qtyDelta + valueCentsDelta; Σ valueCentsDelta == InventoryItem.totalValueCents ==
+// saldo(1.1.6) is the tie-out (D6). `entryId` holds the journal entry id when the movement has a ledger
+// counterpart (COGS posts D 4.2 / C 1.1.6; INBOUND from AP posts D 1.1.6 / C 2.1.2). Idempotency key is
+// PER-ITEM (D-b): a multi-item sale mints N COGS movements with the SAME sourceId=saleId but distinct
+// inventoryItemId, so the key must include inventoryItemId. read-first findMovementBySource returns the
+// existing cents on replay; the @@unique is the backstop (Gap 3).
+model StockMovement {
+  id              String        @id @default(cuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  kind            String // INBOUND | COGS | ADJUSTMENT | REVERSAL (see STOCK_MOVEMENT_KINDS)
+  qtyDelta        Int // signed unit delta (+inbound / −cogs)
+  valueCentsDelta Int // signed valued-cost delta in integer cents
+  occurredAt      DateTime // event date (date-only competência)
+  sourceType      String // origin discriminator: inventory.inbound | salon.sale.cogs | ap.payable | …
+  sourceId        String // origin key (payableId | saleId | reversalEventId | seed id)
+  entryId         String? // journal entry id when the movement has a ledger counterpart (denormalized convenience)
+  createdAt       DateTime      @default(now())
+
+  @@unique([inventoryItemId, kind, sourceType, sourceId]) // D-b: per-item idempotency backstop (multi-item sale → N COGS rows, same saleId, distinct item)
+  @@index([inventoryItemId, occurredAt])
+  @@map("stock_movements")
 }

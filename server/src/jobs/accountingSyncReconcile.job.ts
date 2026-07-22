@@ -23,6 +23,7 @@ import type { AccountingScope } from '../features/accounting/scope/AccountingSco
 import { LEDGER_STATUSES } from '../features/accounting/models/ledgerStatus';
 import {
   buildSalonSaleFinalizedEvent,
+  buildSalonSaleCogsEvent,
   buildSalonSaleReturnedEvent,
   buildSalonSaleSettledEvent,
   buildSalonPackageSoldEvent,
@@ -36,6 +37,7 @@ import { syncSkipErrorCode } from '../features/accounting/sync/AccountingSyncPor
 import { JournalEntryRepository } from '../features/accounting/repositories/JournalEntryRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 import { loadSalePackageInfo } from '../features/accounting/sync/bridges/salonSaleItems';
+import type { ProductLine } from '../features/accounting/sync/bridges/salonSaleItems';
 
 /** A `Won` opportunity normalized from its DynamicTable row, with its owning tenant. */
 export interface WonOpportunity {
@@ -560,6 +562,112 @@ export async function reconcileSalonSettlements(
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Salon CMV pass (INCR-INVENTORY Body 2, Gap 2 crash-recovery) — the durability net
+// for the post-commit CMV seam (maybeSyncSalonSaleCogs). The live emission runs the
+// subledger baixa (tx1) then posts the razão (tx2, D 4.2 / C 1.1.6); if the process
+// crashes between the two commits the baixa is durable but the razão is missing. This
+// pass re-drives every Finalized non-package sale with product lines that has no
+// 'salon.sale.cogs' entry: recordSaleCogs is READ-FIRST idempotent (a replay returns
+// the already-booked cents WITHOUT a second decrement), so re-driving posts the razão
+// at most once and never double-baixa's stock.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** A `Finalized` non-package salon sale with product lines needing a CMV entry. */
+export interface CogsSale {
+  ownerUserId: string;
+  saleId: string;
+  unitId: string;
+  currency: string;
+  occurredAt: string;
+  /** Product lines for the CMV baixa; a sale with none has no cost to book (skipped upstream). */
+  productLines: ProductLine[];
+}
+
+export interface SalonCogsReconcileDeps {
+  listCogsSales: () => Promise<CogsSale[]>;
+  hasExistingEntry: (
+    scope: AccountingScope,
+    sourceType: string,
+    sourceId: string,
+  ) => Promise<boolean>;
+  /** Re-drive the subledger baixa (read-first idempotent) → total CMV cents (existing on replay). */
+  recordSaleCogs: (
+    scope: AccountingScope,
+    params: { saleId: string; unitId: string; occurredAt: Date; lines: ProductLine[] },
+  ) => Promise<{ totalCogsCents: number }>;
+  sync: (scope: AccountingScope, event: AccountingEvent) => Promise<SyncResult>;
+}
+
+/**
+ * Re-drive every Finalized non-package sale (with product lines) lacking a 'salon.sale.cogs' entry:
+ * run the read-first idempotent baixa, then post the razão. Idempotent and fault-isolated — an
+ * isolated failure (insufficient stock, period closed, posting down) is logged and the batch
+ * continues. A zero-cost result posts nothing (counted as an idempotent hit, not a failure).
+ */
+export async function reconcileSalonCogs(deps: SalonCogsReconcileDeps): Promise<ReconcileSummary> {
+  const sales = await deps.listCogsSales();
+  const summary: ReconcileSummary = { total: sales.length, synced: 0, idempotentHits: 0, failed: 0 };
+
+  for (const sale of sales) {
+    try {
+      if (!sale.unitId) {
+        throw new Error(`Venda '${sale.saleId}' sem unitId — CMV não reconciliável.`);
+      }
+      if (sale.productLines.length === 0) {
+        // No product lines → no cost of goods; nothing to book.
+        summary.idempotentHits++;
+        continue;
+      }
+      const scope = resolveAccountingScope({ userId: sale.ownerUserId }, sale.unitId);
+
+      // Already booked CMV? idempotent hit. sync() stays the authority even if a race slips past
+      // this check — postEntry dedupes on ('salon.sale.cogs', saleId).
+      const exists = await deps.hasExistingEntry(scope, 'salon.sale.cogs', sale.saleId);
+      if (exists) {
+        summary.idempotentHits++;
+        continue;
+      }
+
+      // Re-drive the baixa (tx1). READ-FIRST idempotent: a prior run that baixa'd but crashed before
+      // posting returns the SAME cents here with NO second decrement — this is the Gap 2 recovery path.
+      const { totalCogsCents } = await deps.recordSaleCogs(scope, {
+        saleId: sale.saleId,
+        unitId: sale.unitId,
+        occurredAt: new Date(sale.occurredAt),
+        lines: sale.productLines,
+      });
+      if (totalCogsCents <= 0) {
+        // Zero-cost sale (e.g. every product line valued at 0) — nothing to post.
+        summary.idempotentHits++;
+        continue;
+      }
+
+      const event = buildSalonSaleCogsEvent({
+        saleId: sale.saleId,
+        unitId: sale.unitId,
+        costCents: totalCogsCents,
+        currency: sale.currency,
+        occurredAt: sale.occurredAt,
+        label: `CMV Venda ${sale.saleId}`,
+      });
+      const result = await deps.sync(scope, event);
+      summary.synced++;
+      logger.info('Reconcile booked salon CMV', { saleId: sale.saleId, entryId: result.entryId });
+    } catch (error) {
+      summary.failed++;
+      logger.error('Reconcile failed for salon CMV — continuing', {
+        saleId: sale.saleId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      continue;
+    }
+  }
+
+  logger.info('Salon CMV reconcile complete', { ...summary });
+  return summary;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Prepaid package passes (Incremento G P6) — durability net for the package origin
 // (C 2.1.1 + balance credit) and consumption (balance debit), plus a warn-only
 // balance↔2.1.1 reconciliation. All idempotent, fault-isolated, never autocorrecting.
@@ -876,6 +984,7 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
       isAllPackage: boolean;
       packageId: string;
       revenueByNature: { serviceReais: number; productReais: number };
+      productLines: ProductLine[];
     }> = [];
     for (const { ownerUserId, row } of found) {
       const info = await loadSalePackageInfo(ownerUserId, row.id);
@@ -885,6 +994,7 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
         isAllPackage: info.kind === 'Package',
         packageId: info.packageIds.length === 1 ? info.packageIds[0] : '',
         revenueByNature: info.revenueByNature,
+        productLines: info.productLines,
       });
     }
     return out;
@@ -992,6 +1102,25 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
     sync: doSync,
   });
 
+  // Salon CMV (INCR-INVENTORY Body 2) — re-drive the cost-of-goods razão for every Finalized
+  // non-package sale with product lines whose 'salon.sale.cogs' entry is missing (Gap 2 recovery).
+  const cogs = await reconcileSalonCogs({
+    listCogsSales: async () =>
+      classifiedFinalized
+        .filter(({ isAllPackage, productLines }) => !isAllPackage && productLines.length > 0)
+        .map(({ ownerUserId, row, productLines }) => ({
+          ownerUserId,
+          saleId: row.id,
+          unitId: typeof row.data.unitId === 'string' ? row.data.unitId : '',
+          currency: typeof row.data.currency === 'string' ? row.data.currency : 'BRL',
+          occurredAt: typeof row.data.date === 'string' ? row.data.date : new Date().toISOString(),
+          productLines,
+        })),
+    hasExistingEntry,
+    recordSaleCogs: (scope, params) => factory.getInventoryService().recordSaleCogs(scope, params),
+    sync: doSync,
+  });
+
   // Package origin (C 2.1.1 + balance credit) for every all-Package Finalized sale.
   const packageOrigin = await reconcileSalonPackageOrigin({
     listPackageSales: async () =>
@@ -1064,7 +1193,7 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
     },
   });
 
-  return [crm, salon, cancellations, returns, settlements, packageOrigin, packageConsumption].reduce(
+  return [crm, salon, cancellations, returns, settlements, cogs, packageOrigin, packageConsumption].reduce(
     mergeSummaries,
   );
 }

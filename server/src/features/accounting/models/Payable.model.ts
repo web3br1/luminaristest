@@ -27,6 +27,21 @@ export const PAYMENT_STATUSES = ['ACTIVE', 'CANCELLED'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 /**
+ * Inventory-purchase predicate (INCR-INVENTORY D3(b)). A Payable is a merchandise-for-resale purchase
+ * when it carries BOTH `inventoryProductRef` and `inventoryQty` (the DTO XOR gate guarantees these
+ * arrive together and mutually exclusive with `expenseAccountId`). Such a payable debits `1.1.6
+ * Estoques` instead of an expense leaf and drives a `StockMovement` INBOUND at `amountCents`. The
+ * service branches every posting path (create, reconcile re-drive, cancel) on this predicate so the
+ * `expenseAccountId=null` row is never treated as a dangling expense payable.
+ */
+export function isInventoryPurchase(payable: {
+  inventoryProductRef?: string | null;
+  inventoryQty?: number | null;
+}): boolean {
+  return payable.inventoryProductRef != null && payable.inventoryQty != null;
+}
+
+/**
  * Dual fato gerador — two distinct ledger events keyed on DISTINCT source ids (D3):
  *   - recognition posts under `sourceId = payableId`,
  *   - settlement posts under `sourceId = paymentId` (NEVER payableId — else a re-payment after a

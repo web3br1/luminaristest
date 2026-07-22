@@ -27,6 +27,7 @@ export type AccountingEvent = {
    *  string survives only as CRM_LEGACY_SOURCE_TYPE (legacy-era guard + old ledger entries). */
   sourceType:
     | 'salon.sale.finalized'
+    | 'salon.sale.cogs'
     | 'salon.sale.returned'
     | 'salon.sale.settled'
     | 'salon.package.sold';
@@ -55,6 +56,13 @@ export type AccountingEvent = {
    * the mapper falls back to a single `3.1` credit (backwards-compatible).
    */
   revenueByNature?: { serviceReais: number; productReais: number };
+  /**
+   * Cost-of-goods only (INCR-INVENTORY, `salon.sale.cogs`): the sale's total CMV, ALREADY in
+   * integer cents (computed by `InventoryService.recordSaleCogs` from the moving-average
+   * subledger — D5/D6). Undefined for every other event kind. `SalonSaleCogsMapper` reads THIS
+   * (never `amount`); the value never crosses a float boundary.
+   */
+  costCents?: number;
 };
 
 /** Result of a sync: the (possibly pre-existing, via idempotency) journal entry id. */
@@ -130,6 +138,40 @@ export function buildSalonSaleFinalizedEvent(fields: {
     occurredAt: fields.occurredAt,
     label: fields.label,
     revenueByNature: fields.revenueByNature,
+  };
+}
+
+/**
+ * Pure builder for the salon "sale cost-of-goods" event (INCR-INVENTORY, Body 2 / O-2) — shared by
+ * the finalized-sale bridge (live trigger, post-commit, 2nd emission after revenue) and the
+ * reconciliation job (re-drive) so both emit identical events. Carries the CMV ALREADY in integer
+ * cents (`costCents`, from `InventoryService.recordSaleCogs`); the mapper does NOT reconvert — it
+ * only validates the Int. `amount` is unused for this event kind (set to 0), mirroring how
+ * `paymentMethod`/`revenueByNature` are event-specific and read only by their own mapper.
+ *
+ * Uses a DISTINCT sourceType ('salon.sale.cogs') so the CMV entry (D 4.2 / C 1.1.6) never collides
+ * with the revenue entry ('salon.sale.finalized') on @@unique([userId,unitId,sourceType,sourceId])
+ * — revenue and CMV coexist for the same saleId. occurredAt should match the sale's date (the same
+ * accounting date used for the revenue entry).
+ */
+export function buildSalonSaleCogsEvent(fields: {
+  saleId: string;
+  unitId: string;
+  costCents: number;
+  currency: string;
+  occurredAt: string;
+  label: string;
+}): AccountingEvent {
+  return {
+    sourceType: 'salon.sale.cogs',
+    sourceId: fields.saleId,
+    unitId: fields.unitId,
+    // amount is unused for this event kind — the mapper reads costCents (integer cents), never a float.
+    amount: 0,
+    costCents: fields.costCents,
+    currency: fields.currency,
+    occurredAt: fields.occurredAt,
+    label: fields.label,
   };
 }
 

@@ -16,8 +16,10 @@
 import { getFactory } from '../../../../lib/factory';
 import logger from '../../../../lib/logger';
 import { resolveAccountingScope } from '../../scope/AccountingScope';
-import { buildSalonSaleFinalizedEvent, syncSkipErrorCode } from '../AccountingSyncPort';
+import { buildSalonSaleCogsEvent, buildSalonSaleFinalizedEvent, syncSkipErrorCode } from '../AccountingSyncPort';
 import { loadSalePackageInfo } from './salonSaleItems';
+import type { AccountingScope } from '../../scope/AccountingScope';
+import type { ProductLine } from './salonSaleItems';
 
 /** The minimal shape this bridge reads from a DynamicTable data row (create/update result). */
 interface SaleRow {
@@ -81,17 +83,25 @@ export async function maybeSyncSalonSaleFinalized(
       return;
     }
 
+    const currency = typeof data.currency === 'string' ? data.currency : 'BRL';
+    const occurredAt = typeof data.date === 'string' ? data.date : new Date().toISOString();
     const event = buildSalonSaleFinalizedEvent({
       saleId: row.id,
       unitId,
       amount: totalAmount,
-      currency: typeof data.currency === 'string' ? data.currency : 'BRL',
-      occurredAt: typeof data.date === 'string' ? data.date : new Date().toISOString(),
+      currency,
+      occurredAt,
       label: `Venda ${row.id}`,
       revenueByNature: saleInfo.revenueByNature,
     });
     const scope = resolveAccountingScope(actor, unitId);
     await getFactory().getAccountingSyncService().sync(scope, event);
+
+    // SECOND emission (Body 2 / O-2): book the cost-of-goods for the sale's product lines. Runs
+    // AFTER revenue succeeds, in its OWN try/catch — a CMV failure must NOT undo or re-drive the
+    // already-posted revenue (the reconcile job re-drives CMV independently, idempotent by
+    // read-first + @@unique). Only product lines carry COGS; a pure-service sale has none.
+    await maybeSyncSalonSaleCogs(scope, row.id, unitId, currency, occurredAt, saleInfo.productLines);
   } catch (syncError) {
     // Skip ONLY on the shared specific-code list (period-closed / MAX_CENTS poison) — never on a
     // base error class. syncSkipErrorCode reads AppError.errorCode; the old inline check read a
@@ -108,6 +118,61 @@ export async function maybeSyncSalonSaleFinalized(
     logger.error('AccountingSync (salon sale finalized) failed — left for reconciliation', {
       saleId: row.id,
       error: syncError instanceof Error ? syncError.message : String(syncError),
+    });
+  }
+}
+
+/**
+ * Book the cost-of-goods (CMV) for a finalized sale's product lines (Body 2 / O-2). Runs the
+ * subledger baixa (tx1, `InventoryService.recordSaleCogs` — moving-average, atomic CAS) and, if it
+ * yields cost, emits `salon.sale.cogs` so `SalonSaleCogsMapper` posts the razão (tx2, D 4.2 / C
+ * 1.1.6). SELF-CONTAINED try/catch and non-fatal: a CMV failure (insufficient stock, period closed,
+ * posting down) is logged for the reconcile job and NEVER propagates to unwind the revenue entry
+ * that already committed.
+ *
+ * No emission when there are no product lines (a pure-service sale) or the computed cost is 0.
+ */
+async function maybeSyncSalonSaleCogs(
+  scope: AccountingScope,
+  saleId: string,
+  unitId: string,
+  currency: string,
+  occurredAt: string,
+  productLines: ProductLine[],
+): Promise<void> {
+  if (productLines.length === 0) return;
+  try {
+    const { totalCogsCents } = await getFactory()
+      .getInventoryService()
+      .recordSaleCogs(scope, {
+        saleId,
+        unitId,
+        occurredAt: new Date(occurredAt),
+        lines: productLines,
+      });
+    if (totalCogsCents <= 0) return; // replay/zero cost → nothing to post.
+
+    const cogsEvent = buildSalonSaleCogsEvent({
+      saleId,
+      unitId,
+      costCents: totalCogsCents,
+      currency,
+      occurredAt,
+      label: `CMV Venda ${saleId}`,
+    });
+    await getFactory().getAccountingSyncService().sync(scope, cogsEvent);
+  } catch (cogsError) {
+    const code = (cogsError as { code?: string }).code;
+    if (code === 'ACCOUNTING_PERIOD_NOT_OPEN') {
+      logger.warn('AccountingSync (CMV) skipped — período não está aberto', {
+        saleId,
+        error: cogsError instanceof Error ? cogsError.message : String(cogsError),
+      });
+      return;
+    }
+    logger.error('AccountingSync (salon sale CMV) failed — left for reconciliation', {
+      saleId,
+      error: cogsError instanceof Error ? cogsError.message : String(cogsError),
     });
   }
 }

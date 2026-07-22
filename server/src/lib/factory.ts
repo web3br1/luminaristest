@@ -27,6 +27,7 @@ import { PayableRepository } from '../features/accounting/repositories/PayableRe
 import { ReceivableRepository } from '../features/accounting/repositories/ReceivableRepository';
 import { DimensionRepository } from '../features/accounting/repositories/DimensionRepository';
 import { CounterpartyRepository } from '../features/accounting/repositories/CounterpartyRepository';
+import { InventoryRepository } from '../features/accounting/repositories/InventoryRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
@@ -83,10 +84,12 @@ import { DimensionService } from '../features/accounting/services/DimensionServi
 import { DimensionReportService } from '../features/accounting/services/DimensionReportService';
 import { TieOutDiagnosticService } from '../features/accounting/services/TieOutDiagnosticService';
 import { CounterpartyService } from '../features/accounting/services/CounterpartyService';
+import { InventoryService } from '../features/accounting/services/InventoryService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
 import { CrmReceivableBridge } from '../features/accounting/sync/bridges/CrmReceivableBridge';
 import { SalonSaleFinalizedMapper } from '../features/accounting/sync/mappers/SalonSaleFinalizedMapper';
+import { SalonSaleCogsMapper } from '../features/accounting/sync/mappers/SalonSaleCogsMapper';
 import { SalonSaleReturnedMapper } from '../features/accounting/sync/mappers/SalonSaleReturnedMapper';
 import { SalonSaleSettledMapper } from '../features/accounting/sync/mappers/SalonSaleSettledMapper';
 import { SalonPackageSoldMapper } from '../features/accounting/sync/mappers/SalonPackageSoldMapper';
@@ -137,6 +140,7 @@ import type { IPayableRepository } from '../features/accounting/repositories/IPa
 import type { IReceivableRepository } from '../features/accounting/repositories/IReceivableRepository';
 import type { IDimensionRepository } from '../features/accounting/repositories/IDimensionRepository';
 import type { ICounterpartyRepository } from '../features/accounting/repositories/ICounterpartyRepository';
+import type { IInventoryRepository } from '../features/accounting/repositories/IInventoryRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
 import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
@@ -174,6 +178,7 @@ export class ApplicationFactory {
     receivable: IReceivableRepository;
     dimension: IDimensionRepository;
     counterparty: ICounterpartyRepository;
+    inventory: IInventoryRepository;
   };
 
   private readonly policies: {
@@ -233,6 +238,7 @@ export class ApplicationFactory {
     dimensionReport: DimensionReportService;
     tieOutDiagnostic: TieOutDiagnosticService;
     counterparty: CounterpartyService;
+    inventory: InventoryService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
@@ -275,6 +281,7 @@ export class ApplicationFactory {
       receivable: new ReceivableRepository(),
       dimension: new DimensionRepository(),
       counterparty: new CounterpartyRepository(),
+      inventory: new InventoryRepository(),
     };
 
     // Policies
@@ -394,6 +401,7 @@ export class ApplicationFactory {
     // through the AR subledger via CrmReceivableBridge (ADR-CRM-AR-SEAM).
     const accountingSyncService = new AccountingSyncService(postingService, [
       new SalonSaleFinalizedMapper(),
+      new SalonSaleCogsMapper(),
       new SalonSaleReturnedMapper(),
       new SalonSaleSettledMapper(),
       new SalonPackageSoldMapper(),
@@ -421,6 +429,17 @@ export class ApplicationFactory {
 
     const referentialCatalogService = new ReferentialCatalogService(
       this.repositories.referentialAccount,
+      this.policies.accounting,
+    );
+
+    // Built as a local const (not inline in the services literal) so it can be injected as the
+    // OPTIONAL AP→estoque dep of PayableService below (INCR-INVENTORY D3(b) / Body 3). The `inventory`
+    // service slot below reuses this same instance.
+    const inventoryService = new InventoryService(
+      this.repositories.inventory,
+      this.repositories.account,
+      postingService,
+      auditService,
       this.policies.accounting,
     );
 
@@ -556,6 +575,9 @@ export class ApplicationFactory {
         auditService,
         this.policies.accounting,
         this.repositories.counterparty,
+        // OPTIONAL AP→estoque bridge (INCR-INVENTORY D3(b) / Body 3): an inventory purchase receives
+        // stock and its cancel reverses it, via the shared InventoryService instance built above.
+        inventoryService,
       ),
       receivable: receivableService,
       // CRM → AR seam (ADR-CRM-AR-SEAM): post-commit integration bridge, same altitude as
@@ -590,6 +612,7 @@ export class ApplicationFactory {
         auditService,
         this.policies.accounting,
       ),
+      inventory: inventoryService,
       packageBalance: packageBalanceService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
@@ -652,6 +675,7 @@ export class ApplicationFactory {
   public getDimensionReportService = (): DimensionReportService => this.services.dimensionReport;
   public getTieOutDiagnosticService = (): TieOutDiagnosticService => this.services.tieOutDiagnostic;
   public getCounterpartyService = (): CounterpartyService => this.services.counterparty;
+  public getInventoryService = (): InventoryService => this.services.inventory;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;

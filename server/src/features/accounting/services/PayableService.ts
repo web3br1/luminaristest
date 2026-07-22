@@ -2,11 +2,13 @@ import { ForbiddenError, NotFoundError, ValidationError } from '../../../lib/err
 import logger from '../../../lib/logger';
 import { Prisma } from 'generated/prisma';
 import type { Account, Payable, PayablePayment } from 'generated/prisma';
-import { FORNECEDORES_A_PAGAR_CODE } from '../fixtures/ChartOfAccountsFixture';
+import { ESTOQUES_CODE, FORNECEDORES_A_PAGAR_CODE } from '../fixtures/ChartOfAccountsFixture';
+import { INVENTORY_INBOUND_SOURCE_TYPE } from '../models/Inventory.model';
 import {
   AP_PAYABLE_SOURCE_TYPE,
   AP_PAYMENT_SOURCE_TYPE,
   deletedDocumentNumber,
+  isInventoryPurchase,
   resolvePaymentMethodAccount,
 } from '../models/Payable.model';
 import type {
@@ -23,6 +25,7 @@ import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { PostEntryInput } from '../dtos/PostingDto';
 import type { AuditService } from './AuditService';
 import type { PostingService } from './PostingService';
+import type { IInventoryService } from './IInventoryService';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { accountingScopeWhere } from '../scope/AccountingScope';
 
@@ -54,6 +57,10 @@ export class PayableService {
     private readonly auditService: AuditService,
     private readonly policy: IAccountingPolicy,
     private readonly counterpartyRepo: ICounterpartyRepository,
+    // OPTIONAL (INCR-INVENTORY D3(b) / Body 3): the AP→estoque bridge injects the inventory subledger.
+    // Kept optional so the Fase B factory wiring is a separate step — the factory compiles with this
+    // arg absent. Inventory-purchase paths assert its presence and fail loud when it is missing.
+    private readonly inventoryService?: IInventoryService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -97,8 +104,23 @@ export class PayableService {
     }
     const { userId, unitId } = accountingScopeWhere(scope);
 
-    // Expense-account gate (D4): must be an existing, active, LEAF Expense account of this scope.
-    const expenseAccount = await this.resolveExpenseAccount(scope, dto.expenseAccountId);
+    // INCR-INVENTORY D3(b): an inventory PURCHASE (inventoryProductRef + inventoryQty, DTO XOR gate)
+    // debits 1.1.6 Estoques instead of an expense leaf and drives a StockMovement INBOUND.
+    const inventoryPurchase = isInventoryPurchase(dto);
+
+    // Expense-account gate (D4): only for ordinary expense payables — must be an existing, active, LEAF
+    // Expense account of this scope. Inventory purchases carry expenseAccountId=null.
+    const expenseAccount = inventoryPurchase
+      ? null
+      : await this.resolveExpenseAccount(scope, dto.expenseAccountId!);
+
+    // Inventory purchases MUST have the subledger wired (the dep is optional until Fase B factory
+    // wiring). Fail LOUD before minting a row we could never value, never silently skip the INBOUND.
+    if (inventoryPurchase && !this.inventoryService) {
+      throw new ValidationError(
+        'Compra de estoque requer o serviço de estoque configurado (wiring de inventário pendente).',
+      );
+    }
 
     // Counterparty gate (SEC-A1-1 — IDOR #1): if a counterpartyId is supplied, RE-SCOPE it here
     // (findById carries the scope), so a payable can never link to another tenant's counterparty. The
@@ -122,7 +144,9 @@ export class PayableService {
             issueDate: new Date(dto.issueDate),
             dueDate: new Date(dto.dueDate),
             amountCents: dto.amountCents,
-            expenseAccountId: expenseAccount.id,
+            expenseAccountId: expenseAccount?.id ?? null,
+            inventoryProductRef: dto.inventoryProductRef ?? null,
+            inventoryQty: dto.inventoryQty ?? null,
             status: 'OPEN',
             createdById: scope.actorUserId,
           },
@@ -138,7 +162,8 @@ export class PayableService {
             supplierRef: dto.supplierRef,
             amountCents: String(dto.amountCents),
             dueDate: dto.dueDate,
-            expenseAccountCode: expenseAccount.code,
+            // Debit leg of the recognition: an expense leaf, or 1.1.6 Estoques for an inventory purchase.
+            expenseAccountCode: expenseAccount?.code ?? ESTOQUES_CODE,
           },
         });
         return created;
@@ -158,6 +183,31 @@ export class PayableService {
     } catch (error) {
       await this.compensateFailedRecognition(scope, payable);
       throw error;
+    }
+
+    // Inventory INBOUND (D3(b)) — AFTER the recognition is booked (D 1.1.6 / C 2.1.2), value the SKU.
+    // receiveStock is READ-FIRST idempotent on sourceId=payableId, so this same purchase can never
+    // double-value with a seed of the same lot (Gate 4). It runs in its OWN tx; the recognition is
+    // already committed, so a failure here must NOT compensate the (valid) recognition — leave the
+    // payable OPEN and let reconcilePayables re-drive the missing INBOUND (Gap 2/Gate 8), converging
+    // like the AP settlement crash window. Best-effort: log and return; reconcile is the net.
+    if (inventoryPurchase) {
+      try {
+        await this.inventoryService!.receiveStock(scope, {
+          productRef: dto.inventoryProductRef!,
+          qty: dto.inventoryQty!,
+          totalValueCents: dto.amountCents,
+          occurredAt: new Date(dto.issueDate),
+          sourceType: INVENTORY_INBOUND_SOURCE_TYPE,
+          sourceId: payable.id,
+          description: dto.description,
+        });
+      } catch (error) {
+        logger.warn('AP createPayable: inventory INBOUND failed — reconcile will re-drive', {
+          payableId: payable.id,
+          error,
+        });
+      }
     }
     return payable;
   }
@@ -290,6 +340,25 @@ export class PayableService {
       throw new ValidationError('Desfaça o pagamento ativo antes de cancelar a conta.');
     }
 
+    // INCR-INVENTORY D3(b): an inventory purchase received stock at create — un-receive it at the
+    // ORIGINAL receipt cost BEFORE reversing the ledger, so an insufficient-stock rejection (the goods
+    // were already sold) aborts the cancel cleanly instead of leaving a half-done ledger reversal.
+    // Idempotent by a reversalEventId distinct from the receipt key (payableId), so a retried cancel
+    // replays without a second decrement. Keeps the tie-out Σ==saldo(1.1.6) intact.
+    if (isInventoryPurchase(payable)) {
+      if (!this.inventoryService) {
+        throw new ValidationError(
+          'Cancelamento de compra de estoque requer o serviço de estoque configurado.',
+        );
+      }
+      await this.inventoryService.reverseStockForReceipt(scope, {
+        sourceType: INVENTORY_INBOUND_SOURCE_TYPE,
+        sourceId: payableId,
+        reversalEventId: `${payableId}:cancel`,
+        reversalDate: new Date(dto.reversalDate),
+      });
+    }
+
     // Reverse the recognition if it exists (a dangling create may have none).
     const recognition = await this.posting.findEntryBySource(scope, AP_PAYABLE_SOURCE_TYPE, payableId);
     let reversalEntryId: string | null = null;
@@ -401,7 +470,38 @@ export class PayableService {
     for (const payable of payables) {
       if (payable.status === 'CANCELLED') continue;
       const recognition = await this.posting.findEntryBySource(scope, AP_PAYABLE_SOURCE_TYPE, payable.id);
+
+      // INCR-INVENTORY D3(b) twin (Gap 2/Gate 8): an inventory PURCHASE carries expenseAccountId=null
+      // and debits 1.1.6 Estoques. It must NOT be resolved by expenseAccountId (=null → the pre-inventory
+      // path skipped it, orphaning the row). Re-post the missing recognition (D 1.1.6 / C 2.1.2) AND
+      // re-drive the possibly-missing INBOUND (idempotent by read-first on payableId), so the tie-out
+      // Σ==saldo(1.1.6) closes after a crash between the two txs.
+      if (isInventoryPurchase(payable)) {
+        try {
+          if (!recognition) {
+            await this.posting.postEntry(scope, this.buildRecognitionInputFromRow(scope, payable, null));
+            recognitionsPosted += 1;
+          }
+          if (this.inventoryService) {
+            await this.inventoryService.receiveStock(scope, {
+              productRef: payable.inventoryProductRef!,
+              qty: payable.inventoryQty!,
+              totalValueCents: payable.amountCents,
+              occurredAt: payable.issueDate,
+              sourceType: INVENTORY_INBOUND_SOURCE_TYPE,
+              sourceId: payable.id,
+              description: payable.description,
+            });
+          }
+        } catch (error) {
+          logger.warn('AP reconcile: inventory purchase re-drive failed', { payableId: payable.id, error });
+        }
+        continue;
+      }
+
       if (recognition) continue;
+      // An ordinary expense payable with no expense account cannot be recognized (defensive skip).
+      if (!payable.expenseAccountId) continue;
       try {
         const expenseAccount = await this.accountRepo.findById(scope, payable.expenseAccountId);
         if (!expenseAccount) {
@@ -523,10 +623,24 @@ export class PayableService {
     return account;
   }
 
+  /**
+   * Debit account code of the recognition: an inventory purchase debits `1.1.6 Estoques` (D3(b)); an
+   * ordinary expense payable debits its resolved Expense leaf. `expenseAccount` is null exactly when
+   * the payable is an inventory purchase (createPayable/reconcile pass it accordingly).
+   */
+  private recognitionDebitCode(payable: Payable, expenseAccount: Account | null): string {
+    if (isInventoryPurchase(payable)) return ESTOQUES_CODE;
+    if (!expenseAccount) {
+      // Defensive: a non-inventory payable without an expense account cannot be recognized.
+      throw new ValidationError('Conta de despesa ausente para o reconhecimento da conta a pagar.');
+    }
+    return expenseAccount.code;
+  }
+
   private buildRecognitionInput(
     scope: AccountingScope,
     payable: Payable,
-    expenseAccount: Account,
+    expenseAccount: Account | null,
     dto: CreatePayableInput,
   ): PostEntryInput {
     return {
@@ -541,17 +655,18 @@ export class PayableService {
         attachmentId: dto.attachmentId,
       },
       lines: [
-        { accountCode: expenseAccount.code, debitCents: dto.amountCents, creditCents: 0 },
+        { accountCode: this.recognitionDebitCode(payable, expenseAccount), debitCents: dto.amountCents, creditCents: 0 },
         { accountCode: FORNECEDORES_A_PAGAR_CODE, debitCents: 0, creditCents: dto.amountCents },
       ],
     };
   }
 
-  /** Recognition input rebuilt from a persisted row (reconcile re-drive). */
+  /** Recognition input rebuilt from a persisted row (reconcile re-drive). `expenseAccount` is null for
+   *  an inventory purchase (debit routes to 1.1.6). */
   private buildRecognitionInputFromRow(
     scope: AccountingScope,
     payable: Payable,
-    expenseAccount: Account,
+    expenseAccount: Account | null,
   ): PostEntryInput {
     return {
       unitId: scope.unitId,
@@ -564,7 +679,7 @@ export class PayableService {
         documentDate: this.toDateOnly(payable.issueDate),
       },
       lines: [
-        { accountCode: expenseAccount.code, debitCents: payable.amountCents, creditCents: 0 },
+        { accountCode: this.recognitionDebitCode(payable, expenseAccount), debitCents: payable.amountCents, creditCents: 0 },
         { accountCode: FORNECEDORES_A_PAGAR_CODE, debitCents: 0, creditCents: payable.amountCents },
       ],
     };

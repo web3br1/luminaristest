@@ -27,12 +27,25 @@ export interface RevenueByNature {
   productReais: number;
 }
 
+/** One product line of a sale, for the CMV baixa (INCR-INVENTORY, Body 2). `productRef` is the
+ *  saleItem's `productId` (the same reference the inventory subledger keys on); `qty` its quantity. */
+export interface ProductLine {
+  productRef: string;
+  qty: number;
+}
+
 export interface SalePackageInfo {
   kind: SaleItemsKind;
   /** Distinct packageIds across the sale's Package items (MVP expects length ≤ 1). */
   packageIds: string[];
   /** Per-nature line subtotals for the revenue split. */
   revenueByNature: RevenueByNature;
+  /**
+   * Product lines ONLY (Service/Package excluded), for the cost-of-goods baixa (Body 2). A line is
+   * emitted solely when it has a `productId` (an inventory reference to key the subledger on); a
+   * Product-typed line without a productId cannot be valued and is skipped.
+   */
+  productLines: ProductLine[];
 }
 
 /** Numeric coercion that never propagates NaN into the money math (missing/garbage → 0). */
@@ -45,13 +58,14 @@ function toNum(v: unknown): number {
 export async function loadSalePackageInfo(userId: string, saleId: string): Promise<SalePackageInfo> {
   const repo = getFactory().getDynamicTableRepository();
   const itemsTable = await repo.findTableByInternalName(userId, 'saleItems');
-  if (!itemsTable) return { kind: 'Empty', packageIds: [], revenueByNature: { serviceReais: 0, productReais: 0 } };
+  if (!itemsTable) return { kind: 'Empty', packageIds: [], revenueByNature: { serviceReais: 0, productReais: 0 }, productLines: [] };
 
   const rows = await repo.findRowsByFieldValue(itemsTable.id, 'saleId', saleId);
-  if (rows.length === 0) return { kind: 'Empty', packageIds: [], revenueByNature: { serviceReais: 0, productReais: 0 } };
+  if (rows.length === 0) return { kind: 'Empty', packageIds: [], revenueByNature: { serviceReais: 0, productReais: 0 }, productLines: [] };
 
   const kinds = new Set<string>();
   const packageIds = new Set<string>();
+  const productLines: ProductLine[] = [];
   let serviceReais = 0;
   let productReais = 0;
   for (const r of rows) {
@@ -60,6 +74,9 @@ export async function loadSalePackageInfo(userId: string, saleId: string): Promi
     if (d.productId || String(d.type ?? '') === 'Product') {
       kinds.add('Product');
       productReais += lineReais;
+      // COGS baixa needs a product reference: only a line with a productId can be valued in the
+      // subledger. A Product-typed line without one contributes to revenue but not to CMV.
+      if (d.productId) productLines.push({ productRef: String(d.productId), qty: toNum(d.quantity) });
     } else if (d.serviceId || String(d.type ?? '') === 'Service') {
       kinds.add('Service');
       serviceReais += lineReais;
@@ -76,7 +93,7 @@ export async function loadSalePackageInfo(userId: string, saleId: string): Promi
     const only = [...kinds][0];
     if (only === 'Product' || only === 'Service' || only === 'Package') kind = only;
   }
-  return { kind, packageIds: [...packageIds], revenueByNature: { serviceReais, productReais } };
+  return { kind, packageIds: [...packageIds], revenueByNature: { serviceReais, productReais }, productLines };
 }
 
 /** True only when every item is a Package item (the prepaid-origin routing condition). */
