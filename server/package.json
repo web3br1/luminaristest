@@ -21,7 +21,7 @@
     "lint:fix": "eslint src --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "jest --forceExit",
+    "test": "npm run test:unit && npm run test:integration",
     "test:unit": "jest --selectProjects unit --forceExit",
     "test:integration": "jest --selectProjects integration --runInBand --forceExit",
     "test:coverage": "jest --coverage --runInBand --forceExit",
