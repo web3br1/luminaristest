@@ -235,7 +235,7 @@ function CreateUserPage(props: InferGetServerSidePropsType<typeof getServerSideP
                     onChange={handleFormChange}
                   />
                 </div>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 font-medium">O usuário poderá alterar sua senha depois através da página "Meu Perfil".</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 font-medium">O usuário poderá alterar sua senha depois através da página &quot;Meu Perfil&quot;.</p>
               </div>
 
             </div>
