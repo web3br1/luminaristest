@@ -1,7 +1,9 @@
 import { createHash } from 'crypto';
 import type { BankStatement, BankStatementLine, Prisma } from 'generated/prisma';
 import { ForbiddenError, NotFoundError, ServiceError, ValidationError } from '../../../lib/errors';
-import { parseTable, type SpreadsheetFormat } from '../../../lib/spreadsheet';
+import { parseTable } from '../../../lib/spreadsheet';
+import { parseOfx, type StatementFormat } from '../../../lib/ofx';
+import { parseCnab } from '../../../lib/cnab';
 import type { IReconciliationRepository } from '../repositories/IReconciliationRepository';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
@@ -71,7 +73,7 @@ export class ReconciliationService {
   async importStatement(
     scope: AccountingScope,
     dto: ImportBankStatementDto,
-    file: { buffer: Buffer; format: SpreadsheetFormat },
+    file: { buffer: Buffer; format: StatementFormat },
   ): Promise<ImportResult> {
     if (!this.policy.canReconcile(scope)) {
       throw new ForbiddenError('Você não tem permissão para conciliar.');
@@ -92,7 +94,14 @@ export class ReconciliationService {
       return { statement: existing, created: false, lineCount: lines.length };
     }
 
-    const table = await parseTable(file.buffer, file.format);
+    // Same validation gate (parseLines) for every format — OFX and CNAB just normalize to
+    // the identical {headers, rows} shape before it. Branch only on WHICH parser to call.
+    const table =
+      file.format === 'ofx'
+        ? parseOfx(file.buffer)
+        : file.format === 'cnab'
+          ? parseCnab(file.buffer)
+          : await parseTable(file.buffer, file.format);
     const parsedLines = this.parseLines(scope, table);
     if (parsedLines.length === 0) {
       throw new ValidationError('Extrato sem linhas de dados.');
@@ -656,7 +665,9 @@ export class ReconciliationService {
     }
     const statement = await this.repo.findStatementById(scope, statementId);
     if (!statement) throw new NotFoundError('Extrato não encontrado.');
-    const lines = await this.repo.findLinesByStatement(scope, statementId, status);
+    // WithActiveMatches so a MATCHED line carries the matchId the UNMATCH surface
+    // needs (D7). activeMatches is a projection — the undo gate stays in unmatch().
+    const lines = await this.repo.findLinesWithActiveMatches(scope, statementId, status);
     return { statement, lines };
   }
 

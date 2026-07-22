@@ -1,4 +1,3 @@
-// @ts-ignore: missing type declarations for pdf-parse
 import pdfParse from 'pdf-parse';
 
 /**

@@ -1,0 +1,20 @@
+{
+  // Test-only TS config: widens rootDir to include test/ (helpers, setup) and adds the @test alias.
+  // The production build keeps using tsconfig.json (rootDir ./src), so tests never leak into dist/.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "allowJs": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@server/*": ["./src/*"],
+      "@test/*": ["./test/*"],
+      "generated/prisma": ["./generated/prisma"]
+    }
+  },
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    "generated/**/*"
+  ]
+}

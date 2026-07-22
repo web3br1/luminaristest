@@ -18,6 +18,11 @@ export const EXPORT_KINDS = [
   'EXPORT_INCOME_STATEMENT',
   'EXPORT_IMPORT_ERRORS',
   'EXPORT_TEMPLATE',
+  // SPED Contábil (ECD) file — a plain-text `.txt` artifact, not a spreadsheet.
+  // Column is a plain String (ADR-INCR-SPED-ECD D1) ⇒ new kind = zero migration.
+  'EXPORT_SPED_ECD',
+  // SPED Fiscal (ECF · Lucro Presumido) file (ADR-INCR-SPED-ECF D7) ⇒ zero migration.
+  'EXPORT_SPED_ECF',
 ] as const;
 
 export type ImportKind = (typeof IMPORT_KINDS)[number];

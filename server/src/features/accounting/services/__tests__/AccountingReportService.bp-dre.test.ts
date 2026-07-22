@@ -321,6 +321,25 @@ describe('incomeStatement', () => {
     expect(report.revenueDeductions.totalCents).toBe('-1000');
   });
 
+  it('resale revenue (3.3, ADR-INCR-REVENUE-SPLIT) lands in grossRevenue, combined with 3.1', async () => {
+    // Would FAIL before the dre.gross_rev_resale rule: 3.3 matched no rule → dropped by
+    // `if (!rule) continue`, so grossRevenue underreported and J150 diverged from I355.
+    const accounts = [
+      makeAccount({ code: '3.1', name: 'Receita de Serviços', nature: 'Revenue' }),
+      makeAccount({ code: '3.3', name: 'Receita de Revenda de Mercadorias', nature: 'Revenue' }),
+    ];
+    const raw: MockGroupByResult[] = [
+      { accountId: '3.1', debitCents: 0, creditCents: 7000 }, // serviço
+      { accountId: '3.3', debitCents: 0, creditCents: 3000 }, // revenda
+    ];
+    const { svc } = buildService(accounts, raw);
+    const report = await svc.incomeStatement(SCOPE, AS_OF);
+    // both credit_positive → gross = 7000 + 3000, nothing dropped
+    expect(report.grossRevenue.totalCents).toBe('10000');
+    expect(report.grossRevenue.accounts.map((a) => a.code).sort()).toEqual(['3.1', '3.3']);
+    expect(report.reportStatus).not.toBe('INVALID'); // 3.3 is mapped, not an unmapped account
+  });
+
   it('expenses is debit_negative (debit 2000 → amountCents -2000)', async () => {
     const accounts = [makeAccount({ code: '4.1', nature: 'Expense' })];
     const { svc } = buildService(accounts, [

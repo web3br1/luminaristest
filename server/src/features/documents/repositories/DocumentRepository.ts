@@ -26,41 +26,6 @@ export class DocumentRepository implements IDocumentRepository {
   }
 
   async update(id: string, data: DocumentUpdateInput): Promise<IDocument> {
-    /*
-## Phase 4: Knowledge Graph Integration
-
-The AI Agent's intelligence has been significantly enhanced by a **Knowledge Graph**, which provides a holistic "map" of the system's tables and their relationships.
-
-### Key Enhancements:
-- **Persistent Storage**: The graph is stored in a new `KnowledgeGraph` Prisma model.
-- **AI Context Enrichment**: `ChatService` injects the "Knowledge Map" into the AI prompt for deep system awareness.
-
----
-
-## Phase 5: Server-side CRUD Standardization
-
-A major refactoring was performed to standardize all server-side operations, ensuring consistency, reliability, and security across the entire application.
-
-### Key Enhancements:
-- **Unified User Context**: Replaced fragmented context extraction with a single, robust helper `getUserContextFromRequest` in `authUtils.ts`.
-- **Standardized Controller Pattern**: All 14 controllers (from `user` to `analytics` and `reports`) now follow a consistent structure:
-    - User context extraction and validation.
-    - Zod schema validation for inputs.
-    - Service layer delegation.
-    - Standardized JSON responses (`{ success: true, data: ... }`).
-    - Unified error handling via `handleApiError`.
-- **Zero Build Errors**: Resolved long-standing TypeScript issues (TS7030, model mismatches) in `DocumentRepository.ts` and `reportsController.ts`.
-
-```mermaid
-graph LR
-    A[Standardized Request] --> B[Auth Middleware / Context]
-    B --> C[Standardized Controller]
-    C --> D[Zod Validation]
-    D --> E[Service Layer]
-    E --> F[Repository / DB]
-    F --> G[Standardized JSON Response]
-```
-    */
     const updated = await prisma.document.update({
       where: { id },
       data: {
@@ -117,6 +82,14 @@ graph LR
     await prisma.document.delete({
       where: { id },
     });
+  }
+
+  async deleteWithChunks(id: string): Promise<void> {
+    // Batch transaction: both statements commit together or roll back together.
+    await prisma.$transaction([
+      prisma.chunk.deleteMany({ where: { documentId: id } }),
+      prisma.document.delete({ where: { id } }),
+    ]);
   }
 
   private toDomain(prismaDocument: PrismaDocument): IDocument {

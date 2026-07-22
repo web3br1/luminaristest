@@ -1,6 +1,7 @@
 // React default import: tsconfig uses jsx:"preserve", so vitest/esbuild transforms JSX with the
 // classic runtime and needs React in scope (same pattern as crm/ui/StatusBadge, the tested precedent).
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'next-i18next';
 import { FiUploadCloud, FiDownload, FiCheckCircle, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
 import {
   dataExchangeService,
@@ -10,31 +11,24 @@ import {
   type DataExchangeJob,
   type DataExchangeRow,
 } from '../../../lib/services/dataExchange.service';
+import { resolveError } from '../lib/resolveError';
 
-const IMPORT_KINDS: Array<{ id: ImportKind; label: string }> = [
-  { id: 'IMPORT_CHART_OF_ACCOUNTS', label: 'Plano de Contas' },
-  { id: 'IMPORT_OPENING_BALANCES', label: 'Saldos Iniciais' },
-  { id: 'IMPORT_JOURNAL_ENTRIES', label: 'Lançamentos' },
+const IMPORT_KINDS: Array<{ id: ImportKind; labelKey: string; labelPt: string }> = [
+  { id: 'IMPORT_CHART_OF_ACCOUNTS', labelKey: 'importExport.importKind.chartOfAccounts', labelPt: 'Plano de Contas' },
+  { id: 'IMPORT_OPENING_BALANCES', labelKey: 'importExport.importKind.openingBalances', labelPt: 'Saldos Iniciais' },
+  { id: 'IMPORT_JOURNAL_ENTRIES', labelKey: 'importExport.importKind.journalEntries', labelPt: 'Lançamentos' },
 ];
 
-const EXPORT_KINDS: Array<{ id: ExportKind; label: string }> = [
-  { id: 'EXPORT_TRIAL_BALANCE', label: 'Balancete' },
-  { id: 'EXPORT_GENERAL_LEDGER', label: 'Razão' },
-  { id: 'EXPORT_BALANCE_SHEET', label: 'Balanço Patrimonial' },
-  { id: 'EXPORT_INCOME_STATEMENT', label: 'DRE' },
+const EXPORT_KINDS: Array<{ id: ExportKind; labelKey: string; labelPt: string }> = [
+  { id: 'EXPORT_TRIAL_BALANCE', labelKey: 'importExport.exportKind.trialBalance', labelPt: 'Balancete' },
+  { id: 'EXPORT_GENERAL_LEDGER', labelKey: 'importExport.exportKind.generalLedger', labelPt: 'Razão' },
+  { id: 'EXPORT_BALANCE_SHEET', labelKey: 'importExport.exportKind.balanceSheet', labelPt: 'Balanço Patrimonial' },
+  { id: 'EXPORT_INCOME_STATEMENT', labelKey: 'importExport.exportKind.incomeStatement', labelPt: 'DRE' },
 ];
 
 const inputClass =
   'rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 focus:border-emerald-500 focus:outline-none disabled:opacity-50';
 
-function resolveError(e: unknown): string {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown };
-    if (typeof o.error === 'string') return o.error;
-    if (typeof o.message === 'string') return o.message;
-  }
-  return 'Ocorreu um erro. Tente novamente.';
-}
 
 /**
  * Status → badge classes (COMMITTED green, PARTIAL amber, FAILED red, else neutral).
@@ -59,6 +53,8 @@ export function ImportExportPanel({
   /** Fired after a commit writes rows — lets the parent refetch the (already-mounted) Balancete (FE-INCR6 W1). */
   onCommitSuccess?: () => void;
 }) {
+  const { t } = useTranslation('accounting');
+  const genericError = () => t('importExport.error.generic', 'Ocorreu um erro. Tente novamente.');
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Import state
@@ -103,9 +99,9 @@ export function ImportExportPanel({
       await refreshRows(created.id);
     } catch (err) {
       const status = (err as { status?: number })?.status;
-      if (status === 415) setImportError('Arquivo inválido — envie CSV ou XLSX.');
-      else if (status === 413) setImportError('Arquivo muito grande.');
-      else setImportError(resolveError(err));
+      if (status === 415) setImportError(t('importExport.error.invalidFile', 'Arquivo inválido — envie CSV ou XLSX.'));
+      else if (status === 413) setImportError(t('importExport.error.fileTooLarge', 'Arquivo muito grande.'));
+      else setImportError(resolveError(err, genericError()));
     } finally {
       setUploading(false);
     }
@@ -122,7 +118,7 @@ export function ImportExportPanel({
       // Only a commit that actually wrote rows changes the ledger views.
       if (result.committedRows > 0) onCommitSuccess?.();
     } catch (err) {
-      setImportError(resolveError(err));
+      setImportError(resolveError(err, genericError()));
     } finally {
       setCommitting(false);
     }
@@ -133,18 +129,18 @@ export function ImportExportPanel({
     try {
       await dataExchangeService.downloadTemplate(importKind, unitId, templateFormat);
     } catch (err) {
-      setImportError(resolveError(err));
+      setImportError(resolveError(err, genericError()));
     }
   }
 
   async function handleExport() {
     setExportError(null);
     if (needsAsOf && !asOf) {
-      setExportError('Informe a data (asOf) para BP/DRE.');
+      setExportError(t('importExport.error.asOfRequired', 'Informe a data (asOf) para BP/DRE.'));
       return;
     }
     if (needsAccount && !accountCode) {
-      setExportError('Informe o código da conta para o Razão.');
+      setExportError(t('importExport.error.accountRequired', 'Informe o código da conta para o Razão.'));
       return;
     }
     setExporting(true);
@@ -161,7 +157,7 @@ export function ImportExportPanel({
         fileName,
       );
     } catch (err) {
-      setExportError(resolveError(err));
+      setExportError(resolveError(err, genericError()));
     } finally {
       setExporting(false);
     }
@@ -175,17 +171,17 @@ export function ImportExportPanel({
     <div className="space-y-8">
       {/* ── Importação ─────────────────────────────────────────────────────── */}
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-5">
-        <h2 className="mb-1 text-lg font-semibold text-neutral-200">Importação</h2>
+        <h2 className="mb-1 text-lg font-semibold text-neutral-200">{t('importExport.import.title', 'Importação')}</h2>
         <p className="mb-4 text-sm text-neutral-500">
-          Envie um CSV/XLSX, revise a validação e confirme. Nada é gravado até você confirmar.
+          {t('importExport.import.description', 'Envie um CSV/XLSX, revise a validação e confirme. Nada é gravado até você confirmar.')}
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-neutral-400">
-            Tipo
+            {t('importExport.import.typeLabel', 'Tipo')}
             <select value={importKind} onChange={(e) => setImportKind(e.target.value as ImportKind)} className={inputClass}>
               {IMPORT_KINDS.map((k) => (
-                <option key={k.id} value={k.id}>{k.label}</option>
+                <option key={k.id} value={k.id}>{t(k.labelKey, k.labelPt)}</option>
               ))}
             </select>
           </label>
@@ -199,7 +195,7 @@ export function ImportExportPanel({
             onClick={handleTemplate}
             className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm font-medium text-neutral-200 transition-colors hover:bg-neutral-700"
           >
-            <FiDownload size={15} /> Baixar modelo
+            <FiDownload size={15} /> {t('importExport.import.downloadTemplate', 'Baixar modelo')}
           </button>
 
           <input ref={fileRef} type="file" accept=".csv,.xlsx" onChange={handleFileSelected} className="hidden" />
@@ -209,7 +205,7 @@ export function ImportExportPanel({
             disabled={uploading}
             className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50"
           >
-            <FiUploadCloud size={16} /> {uploading ? 'Enviando…' : 'Selecionar arquivo'}
+            <FiUploadCloud size={16} /> {uploading ? t('importExport.import.uploading', 'Enviando…') : t('importExport.import.selectFile', 'Selecionar arquivo')}
           </button>
         </div>
 
@@ -226,10 +222,10 @@ export function ImportExportPanel({
                 {(job.status === 'COMMITTED' || job.status === 'VALIDATED') && job.invalidRows === 0 ? <FiCheckCircle size={13} /> : <FiAlertTriangle size={13} />}
                 {job.status}
               </span>
-              <span className="text-neutral-400">Total: <strong className="text-neutral-200">{job.totalRows}</strong></span>
-              <span className="text-emerald-400">Válidas: <strong>{job.validRows}</strong></span>
-              <span className="text-red-400">Inválidas: <strong>{job.invalidRows}</strong></span>
-              {job.committedRows > 0 && <span className="text-neutral-300">Gravadas: <strong>{job.committedRows}</strong></span>}
+              <span className="text-neutral-400">{t('importExport.stats.total', 'Total:')} <strong className="text-neutral-200">{job.totalRows}</strong></span>
+              <span className="text-emerald-400">{t('importExport.stats.valid', 'Válidas:')} <strong>{job.validRows}</strong></span>
+              <span className="text-red-400">{t('importExport.stats.invalid', 'Inválidas:')} <strong>{job.invalidRows}</strong></span>
+              {job.committedRows > 0 && <span className="text-neutral-300">{t('importExport.stats.committed', 'Gravadas:')} <strong>{job.committedRows}</strong></span>}
             </div>
 
             {previewRows.length > 0 && (
@@ -237,10 +233,10 @@ export function ImportExportPanel({
                 <table className="w-full text-left text-sm">
                   <thead className="bg-neutral-900 text-xs uppercase text-neutral-500">
                     <tr>
-                      <th className="px-3 py-2">Linha</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Campo</th>
-                      <th className="px-3 py-2">Erro</th>
+                      <th className="px-3 py-2">{t('importExport.table.row', 'Linha')}</th>
+                      <th className="px-3 py-2">{t('importExport.table.status', 'Status')}</th>
+                      <th className="px-3 py-2">{t('importExport.table.field', 'Campo')}</th>
+                      <th className="px-3 py-2">{t('importExport.table.error', 'Erro')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-800">
@@ -258,7 +254,7 @@ export function ImportExportPanel({
                 </table>
                 {previewRows.length > 200 && (
                   <div className="bg-neutral-900 px-3 py-2 text-xs text-neutral-500">
-                    Mostrando 200 de {previewRows.length} linhas.
+                    {t('importExport.table.showingLimited', 'Mostrando 200 de {{total}} linhas.', { total: previewRows.length })}
                   </div>
                 )}
               </div>
@@ -271,7 +267,9 @@ export function ImportExportPanel({
               className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 active:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {committing ? <FiRefreshCw className="animate-spin" size={16} /> : <FiCheckCircle size={16} />}
-              {committing ? 'Confirmando…' : `Confirmar importação (${job.validRows})`}
+              {committing
+                ? t('importExport.import.committing', 'Confirmando…')
+                : t('importExport.import.confirm', 'Confirmar importação ({{count}})', { count: job.validRows })}
             </button>
           </div>
         )}
@@ -279,28 +277,28 @@ export function ImportExportPanel({
 
       {/* ── Exportação ─────────────────────────────────────────────────────── */}
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-5">
-        <h2 className="mb-1 text-lg font-semibold text-neutral-200">Exportação</h2>
-        <p className="mb-4 text-sm text-neutral-500">Baixe relatórios em CSV ou XLSX.</p>
+        <h2 className="mb-1 text-lg font-semibold text-neutral-200">{t('importExport.export.title', 'Exportação')}</h2>
+        <p className="mb-4 text-sm text-neutral-500">{t('importExport.export.description', 'Baixe relatórios em CSV ou XLSX.')}</p>
 
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex items-center gap-2 text-sm text-neutral-400">
-            Relatório
+            {t('importExport.export.reportLabel', 'Relatório')}
             <select value={exportKind} onChange={(e) => setExportKind(e.target.value as ExportKind)} className={inputClass}>
               {EXPORT_KINDS.map((k) => (
-                <option key={k.id} value={k.id}>{k.label}</option>
+                <option key={k.id} value={k.id}>{t(k.labelKey, k.labelPt)}</option>
               ))}
             </select>
           </label>
 
           {needsAsOf && (
             <label className="flex items-center gap-2 text-sm text-neutral-400">
-              Data
+              {t('importExport.export.dateLabel', 'Data')}
               <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className={inputClass} />
             </label>
           )}
           {needsAccount && (
             <label className="flex items-center gap-2 text-sm text-neutral-400">
-              Conta
+              {t('importExport.export.accountLabel', 'Conta')}
               <input type="text" value={accountCode} onChange={(e) => setAccountCode(e.target.value)} placeholder="1.1.1" className={inputClass} />
             </label>
           )}
@@ -316,7 +314,7 @@ export function ImportExportPanel({
             disabled={exporting}
             className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50"
           >
-            <FiDownload size={16} /> {exporting ? 'Exportando…' : 'Exportar'}
+            <FiDownload size={16} /> {exporting ? t('importExport.export.exporting', 'Exportando…') : t('importExport.export.submit', 'Exportar')}
           </button>
         </div>
 

@@ -3,6 +3,7 @@ import type { Posting, Prisma } from 'generated/prisma';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { accountingScopeWhere } from '../scope/AccountingScope';
 import type {
+  AccountDimensionTotals,
   AccountPostingTotals,
   CreatePostingInput,
   IPostingRepository,
@@ -30,6 +31,16 @@ export class PostingRepository implements IPostingRepository {
     });
   }
 
+  public async deleteByEntryId(
+    scope: AccountingScope,
+    entryId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    await (tx ?? prisma).posting.deleteMany({
+      where: { entryId, ...accountingScopeWhere(scope) },
+    });
+  }
+
   public async findByAccount(scope: AccountingScope, accountId: string): Promise<Posting[]> {
     return prisma.posting.findMany({
       where: { ...accountingScopeWhere(scope), accountId },
@@ -40,7 +51,7 @@ export class PostingRepository implements IPostingRepository {
   public async groupByAccount(
     scope: AccountingScope,
     statuses: string[],
-    options?: { from?: Date; to?: Date },
+    options?: { from?: Date; to?: Date; excludeSourceTypes?: string[] },
   ): Promise<AccountPostingTotals[]> {
     const dateFilter =
       options?.from || options?.to
@@ -51,11 +62,15 @@ export class PostingRepository implements IPostingRepository {
             },
           }
         : {};
+    const sourceTypeFilter =
+      options?.excludeSourceTypes && options.excludeSourceTypes.length > 0
+        ? { sourceType: { notIn: options.excludeSourceTypes } }
+        : {};
     const grouped = await prisma.posting.groupBy({
       by: ['accountId'],
       where: {
         ...accountingScopeWhere(scope),
-        entry: { status: { in: statuses }, ...dateFilter },
+        entry: { status: { in: statuses }, ...dateFilter, ...sourceTypeFilter },
       },
       _sum: { debitCents: true, creditCents: true },
     });
@@ -65,6 +80,46 @@ export class PostingRepository implements IPostingRepository {
       debitCents: row._sum.debitCents ?? 0,
       creditCents: row._sum.creditCents ?? 0,
     }));
+  }
+
+  public async groupByAccountAndDimension(
+    scope: AccountingScope,
+    statuses: string[],
+    options: { definitionId: string; from?: Date; to?: Date; excludeSourceTypes?: string[] },
+  ): Promise<AccountDimensionTotals[]> {
+    const dateFilter =
+      options.from || options.to
+        ? { date: { ...(options.from ? { gte: options.from } : {}), ...(options.to ? { lte: options.to } : {}) } }
+        : {};
+    const sourceTypeFilter =
+      options.excludeSourceTypes && options.excludeSourceTypes.length > 0
+        ? { sourceType: { notIn: options.excludeSourceTypes } }
+        : {};
+    // Prisma groupBy can't cross the posting_dimensions bridge, so fetch legs + their tag for THIS
+    // axis and reduce in-memory (D5). @@unique([postingId,definitionId]) guarantees ≤1 tag per leg
+    // per axis, so `dimensions[0]` is unambiguous; an untagged leg falls into valueId=null.
+    const postings = await prisma.posting.findMany({
+      where: {
+        ...accountingScopeWhere(scope),
+        entry: { status: { in: statuses }, ...dateFilter, ...sourceTypeFilter },
+      },
+      select: {
+        accountId: true,
+        debitCents: true,
+        creditCents: true,
+        dimensions: { where: { definitionId: options.definitionId }, select: { valueId: true } },
+      },
+    });
+    const map = new Map<string, AccountDimensionTotals>();
+    for (const p of postings) {
+      const valueId = p.dimensions[0]?.valueId ?? null;
+      const key = `${p.accountId}::${valueId ?? '__NONE__'}`;
+      const cur = map.get(key) ?? { accountId: p.accountId, valueId, debitCents: 0, creditCents: 0 };
+      cur.debitCents += p.debitCents;
+      cur.creditCents += p.creditCents;
+      map.set(key, cur);
+    }
+    return [...map.values()];
   }
 
   public async nextEntryNumber(

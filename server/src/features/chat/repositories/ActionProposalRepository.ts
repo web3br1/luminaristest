@@ -1,5 +1,5 @@
 import prisma from '../../../lib/prisma';
-import { ActionProposal } from 'generated/prisma';
+import { ActionProposal, Prisma } from 'generated/prisma';
 import { IActionProposalRepository } from './IActionProposalRepository';
 
 export class ActionProposalRepository implements IActionProposalRepository {
@@ -11,7 +11,7 @@ export class ActionProposalRepository implements IActionProposalRepository {
                 tableId: data.tableId,
                 tableName: data.tableName,
                 tableLabel: data.tableLabel,
-                data: data.data || {},
+                data: (data.data ?? {}) as Prisma.InputJsonValue,
                 status: data.status || 'PENDING',
             },
         });

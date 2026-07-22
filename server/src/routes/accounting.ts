@@ -6,10 +6,17 @@ import {
   getAccountLedger,
   getBalanceSheet,
   getIncomeStatement,
+  getCashFlow,
+  getPeriodComparison,
+  getDailyJournal,
+  getAging,
+  getTieOutDiagnostic,
   listAccounts,
   listEntries,
+  getEntryReceipt,
   createAccount,
   deleteAccount,
+  setAccountRequiresDimension,
   listPeriods,
   seedYear,
   openPeriod,
@@ -46,6 +53,22 @@ import {
   listDataExchangeRows,
   commitDataExchangeImport,
 } from '../controllers/dataExchangeController';
+import {
+  setReferentialMapping,
+  unsetReferentialMapping,
+  listReferentialMappings,
+  getReferentialCoverage,
+  batchSetReferentialMappings,
+  copyReferentialMappingVersion,
+  getReferentialSkeleton,
+} from '../controllers/referentialMappingController';
+import {
+  referentialCatalogUpload,
+  importReferentialCatalog,
+  listReferentialCatalog,
+} from '../controllers/referentialCatalogController';
+import { generateSpedEcd, generateSpedEcf } from '../controllers/spedController';
+import { closeExercise } from '../controllers/closingController';
 
 const router = Router();
 
@@ -58,14 +81,21 @@ router.get('/trial-balance', getTrialBalance);
 router.get('/ledger', getAccountLedger);
 router.get('/balance-sheet', getBalanceSheet);
 router.get('/income-statement', getIncomeStatement);
+router.get('/reports/cash-flow', getCashFlow);
+router.get('/reports/period-comparison', getPeriodComparison);
+router.get('/reports/daily-journal', getDailyJournal);
+router.get('/reports/aging', getAging);
+router.get('/reports/tie-out', getTieOutDiagnostic);
 
 // Chart of accounts management.
 router.get('/accounts', listAccounts);
 router.post('/accounts', createAccount);
 router.delete('/accounts/:id', deleteAccount);
+router.patch('/accounts/:id/requires-dimension', setAccountRequiresDimension);
 
 // Journal entry listing.
 router.get('/entries', listEntries);
+router.get('/journal-entries/:entryId/receipt', getEntryReceipt);
 
 // Documentary evidence / attachments on journal entries (BE-INCR-5).
 router.post('/attachments', documentAttachmentUpload, createDocumentAttachment);
@@ -81,6 +111,16 @@ router.get('/data-exchange/jobs/:jobId/rows', listDataExchangeRows);
 router.get('/data-exchange/jobs/:jobId/download', downloadDataExchangeArtifact);
 router.post('/data-exchange/jobs/:jobId/commit', commitDataExchangeImport);
 
+// SPED Contábil (ECD) — generate the `.txt` file (download reuses the job route above).
+router.post('/sped/ecd/generate', generateSpedEcd);
+
+// SPED Fiscal (ECF) — Lucro Presumido; generate the `.txt` (download reuses the job route).
+router.post('/sped/ecf/generate', generateSpedEcf);
+
+// Year-end result closing (encerramento/apuração do resultado, BE-INCR-SPED-APURACAO).
+// Reopening = reverse the returned entry via POST /reverse (frees the idempotency key).
+router.post('/closing/exercise', closeExercise);
+
 // Bank reconciliation — statement import, match/unmatch, pending report (BE-INCR-7).
 router.post('/reconciliation/statements', bankStatementUpload, importBankStatement);
 router.get('/reconciliation/statements', listBankStatements);
@@ -92,6 +132,19 @@ router.post('/reconciliation/lines/:id/ignore', setLineIgnored);
 router.post('/reconciliation/matches', createManualMatch);
 router.post('/reconciliation/matches/:id/unmatch', unmatchReconciliation);
 router.get('/reconciliation/pending', getPendingReport);
+
+// Referential chart mapping — versioned Account→RFB code + coverage diagnostic (BE-INCR-9).
+// Batch/copy authoring + chart-driven skeleton (BE-INCR-9B Track A).
+router.put('/referential/mappings', setReferentialMapping);
+router.post('/referential/mappings/batch', batchSetReferentialMappings);
+router.post('/referential/mappings/copy', copyReferentialMappingVersion);
+router.delete('/referential/mappings', unsetReferentialMapping);
+router.get('/referential/mappings', listReferentialMappings);
+router.get('/referential/coverage', getReferentialCoverage);
+router.get('/referential/skeleton', getReferentialSkeleton);
+// Referential CATALOG (RFB official layout) — import + lookup (BE-INCR-9B Track B).
+router.post('/referential/catalog/import', referentialCatalogUpload, importReferentialCatalog);
+router.get('/referential/catalog', listReferentialCatalog);
 
 // Accounting period management (INCR-1).
 // NOTE: /:unitId/periods must come before /periods/:id routes to avoid param clash.

@@ -1,0 +1,1034 @@
+{
+  "view": {
+    "title": "Accounting",
+    "subtitle": "Double-entry ledger — trial balance by unit",
+    "unit": "Unit",
+    "loadingUnits": "Loading…",
+    "noUnit": "No unit",
+    "selectUnitPrompt": "Select a unit to view the accounting data.",
+    "balancete": "Trial Balance",
+    "balanced": "Balanced (Σdebit = Σcredit)",
+    "unbalanced": "Unbalanced — check the ledger",
+    "newEntry": "New Journal Entry",
+    "tabs": {
+      "balancete": "Trial Balance",
+      "periodos": "Periods",
+      "lancamentos": "Journal Entries",
+      "contasAPagar": "Accounts Payable",
+      "contasAReceber": "Accounts Receivable",
+      "razao": "Ledger",
+      "planoDeContas": "Chart of Accounts",
+      "bp": "BS",
+      "dre": "IS",
+      "dfc": "Cash Flow",
+      "comparativo": "Comparative",
+      "diario": "Daily Journal",
+      "importacaoExportacao": "Import/Export",
+      "conciliacao": "Reconciliation",
+      "compliance": "Compliance",
+      "dimensoes": "Dimensions",
+      "contrapartes": "Counterparties"
+    },
+    "error": {
+      "units": "Failed to load units.",
+      "report": "Failed to load trial balance."
+    }
+  },
+  "contasAPagar": {
+    "heading": "Accounts Payable",
+    "newPayable": "New Bill",
+    "loading": "Loading accounts payable…",
+    "empty": "No accounts payable recorded for this unit yet.",
+    "viewPeriods": "View Periods",
+    "status": {
+      "OPEN": "Open",
+      "PAYING": "Paying",
+      "PAID": "Paid",
+      "CANCELLED": "Cancelled"
+    },
+    "col": {
+      "expand": "Expand",
+      "supplier": "Supplier",
+      "description": "Description",
+      "dueDate": "Due date",
+      "amount": "Amount",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "action": {
+      "pay": "Pay",
+      "payTitle": "Register payment",
+      "cancel": "Cancel",
+      "cancelTitle": "Cancel the bill",
+      "undo": "Undo payment",
+      "undoTitle": "Undo the payment (reopens the bill)",
+      "paying": "Processing…"
+    },
+    "payments": {
+      "date": "Paid on",
+      "method": "Method",
+      "amount": "Amount",
+      "status": "State",
+      "active": "Active",
+      "cancelled": "Cancelled"
+    },
+    "error": {
+      "load": "Failed to load accounts payable.",
+      "action": "Could not complete the operation."
+    },
+    "createModal": {
+      "title": "New Bill",
+      "cancel": "Cancel",
+      "submit": "Save",
+      "saving": "Saving…",
+      "optional": "(optional)",
+      "noExpenseAccounts": "No analytic expense account found. Create one in the Chart of Accounts.",
+      "field": {
+        "supplier": "Supplier",
+        "supplierPlaceholder": "Supplier name…",
+        "description": "Description",
+        "descriptionPlaceholder": "e.g. rent, utilities, supplies…",
+        "document": "Document no.",
+        "documentPlaceholder": "Invoice, slip…",
+        "amount": "Amount (R$)",
+        "issueDate": "Issue date",
+        "dueDate": "Due date",
+        "expenseAccount": "Expense account (counterpart)",
+        "selectAccount": "— select the expense account —",
+        "counterparty": "Counterparty",
+        "noCounterparty": "— no counterparty —"
+      },
+      "error": {
+        "invalid": "Fill in supplier, description, dates, amount and expense account.",
+        "failed": "Failed to record the bill."
+      },
+      "noCounterparties": "No supplier registered.",
+      "manageCounterparties": "Register counterparties"
+    },
+    "actionModal": {
+      "cancel": "Back",
+      "paidAtLabel": "Payment date",
+      "reversalDateLabel": "Reversal date",
+      "methodLabel": "Payment method",
+      "reasonLabel": "Reason",
+      "payTitle": "Register payment",
+      "payConfirm": "Confirm payment",
+      "paying": "Saving…",
+      "payNote": "Will post D Suppliers / C Bank for the full balance. Partial payment is not supported.",
+      "cancelTitle": "Cancel bill",
+      "cancelConfirm": "Confirm cancellation",
+      "cancelling": "Cancelling…",
+      "cancelNote": "The recognition entry will be reversed on the date above. This action cannot be undone.",
+      "undoTitle": "Undo payment",
+      "undoConfirm": "Confirm",
+      "undoing": "Undoing…",
+      "undoNote": "The payment will be reversed and the bill will return to “Open”."
+    }
+  },
+  "contasAReceber": {
+    "heading": "Accounts Receivable",
+    "newReceivable": "New Invoice",
+    "loading": "Loading accounts receivable…",
+    "empty": "No accounts receivable recorded for this unit yet.",
+    "viewPeriods": "View Periods",
+    "status": {
+      "OPEN": "Open",
+      "RECEIVING": "Receiving",
+      "RECEIVED": "Received",
+      "CANCELLED": "Cancelled"
+    },
+    "col": {
+      "expand": "Expand",
+      "customer": "Customer",
+      "description": "Description",
+      "dueDate": "Due date",
+      "amount": "Amount",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "action": {
+      "receive": "Receive",
+      "receiveTitle": "Register receipt",
+      "cancel": "Cancel",
+      "cancelTitle": "Cancel the invoice",
+      "undo": "Undo receipt",
+      "undoTitle": "Undo the receipt (reopens the invoice)",
+      "receiving": "Processing…"
+    },
+    "receipts": {
+      "date": "Received on",
+      "method": "Method",
+      "amount": "Amount",
+      "status": "State",
+      "active": "Active",
+      "cancelled": "Cancelled"
+    },
+    "error": {
+      "load": "Failed to load accounts receivable.",
+      "action": "Could not complete the operation."
+    },
+    "createModal": {
+      "title": "New Invoice",
+      "cancel": "Cancel",
+      "submit": "Save",
+      "saving": "Saving…",
+      "optional": "(optional)",
+      "noRevenueAccounts": "No analytic revenue account found. Create one in the Chart of Accounts.",
+      "field": {
+        "customer": "Customer",
+        "customerPlaceholder": "Customer name…",
+        "description": "Description",
+        "descriptionPlaceholder": "e.g. service rendered, sale, subscription…",
+        "document": "Document no.",
+        "documentPlaceholder": "Invoice, bill…",
+        "amount": "Amount (R$)",
+        "issueDate": "Issue date",
+        "dueDate": "Due date",
+        "revenueAccount": "Revenue account (counterpart)",
+        "selectAccount": "— select the revenue account —",
+        "counterparty": "Counterparty",
+        "noCounterparty": "— no counterparty —"
+      },
+      "error": {
+        "invalid": "Fill in customer, description, dates, amount and revenue account.",
+        "failed": "Failed to record the invoice."
+      },
+      "noCounterparties": "No customer registered.",
+      "manageCounterparties": "Register counterparties"
+    },
+    "actionModal": {
+      "cancel": "Back",
+      "receivedAtLabel": "Receipt date",
+      "reversalDateLabel": "Reversal date",
+      "methodLabel": "Receipt method",
+      "reasonLabel": "Reason",
+      "receiveTitle": "Register receipt",
+      "receiveConfirm": "Confirm receipt",
+      "receiving": "Saving…",
+      "receiveNote": "Will post D Bank / C Customers for the full balance. Partial receipt is not supported.",
+      "cancelTitle": "Cancel receivable",
+      "cancelConfirm": "Confirm cancellation",
+      "cancelling": "Cancelling…",
+      "cancelNote": "The recognition entry will be reversed on the date above. This action cannot be undone.",
+      "undoTitle": "Undo receipt",
+      "undoConfirm": "Confirm",
+      "undoing": "Undoing…",
+      "undoNote": "The receipt will be reversed and the invoice will return to “Open”."
+    }
+  },
+  "compliance": {
+    "error": {
+      "generic": "Something went wrong. Please try again.",
+      "versionRequired": "Enter a mapping version.",
+      "loadFirst": "Load a source version first.",
+      "copyTarget": "Enter a different target version."
+    },
+    "mapping": {
+      "title": "Referential Mapping (RFB)",
+      "description": "Map each leaf account to its RFB referential chart code. Every account needs a code before the ECD file can be generated.",
+      "versionLabel": "Version",
+      "load": "Load coverage",
+      "loading": "Loading…",
+      "ready": "Ready to generate ECD/ECF",
+      "notReady": "{{count}} account(s) unmapped",
+      "allMapped": "Every leaf account is mapped in this version.",
+      "save": "Save mappings ({{count}})",
+      "saving": "Saving…",
+      "stats": {
+        "leaf": "Leaf:",
+        "mapped": "Mapped:",
+        "unmapped": "Pending:"
+      },
+      "table": {
+        "account": "Account",
+        "code": "RFB code",
+        "label": "Label"
+      }
+    },
+    "copy": {
+      "title": "Copy version",
+      "description": "Clone the loaded version's mapping ({{from}}) into a new version — handy at fiscal-year rollover.",
+      "toLabel": "New version",
+      "submit": "Copy",
+      "copying": "Copying…"
+    }
+  },
+  "sped": {
+    "generating": "Generating…",
+    "ecd": {
+      "title": "Generate SPED ECD",
+      "description": "Digital Accounting Bookkeeping. Requires a complete referential mapping (the \"Ready\" badge above).",
+      "book": "Book (term)",
+      "submit": "Generate & download ECD"
+    },
+    "ecf": {
+      "title": "Generate SPED ECF",
+      "description": "Fiscal Accounting Bookkeeping (Lucro Presumido). The PVA recovers the ECD blocks.",
+      "submit": "Generate & download ECF"
+    },
+    "field": {
+      "year": "Year",
+      "version": "Mapping version",
+      "cnpj": "Tax ID (CNPJ)",
+      "nome": "Company name",
+      "uf": "State",
+      "codMun": "City code (IBGE)",
+      "indNire": "Has NIRE",
+      "indGrandePorte": "Large company",
+      "numOrd": "Order no.",
+      "natLivr": "Book nature",
+      "dtExSocial": "Fiscal year end",
+      "codNat": "Legal nature",
+      "cnae": "CNAE code",
+      "endereco": "Address",
+      "bairro": "District",
+      "cep": "Postal code",
+      "email": "Email",
+      "csll": "CSLL rate",
+      "identNom": "Name",
+      "cpfCnpj": "Tax ID",
+      "qualifDesc": "Qualification",
+      "codAssin": "Code (900=accountant)",
+      "qualifCode": "Qualif. (900=accountant)",
+      "indCrc": "CRC",
+      "fone": "Phone"
+    },
+    "opt": {
+      "no": "No",
+      "yes": "Yes"
+    },
+    "signers": {
+      "title": "Signers (J930)",
+      "titleEcf": "Signers (0930, max 2)",
+      "add": "Add",
+      "remove": "Remove",
+      "resp": "Legal rep.",
+      "notResp": "Not legal rep."
+    },
+    "error": {
+      "generic": "Something went wrong. Check the fields and try again.",
+      "signersInvalid": "Invalid signers.",
+      "year": "Enter a valid year.",
+      "yearEcf": "Enter a valid year (≥ 2015).",
+      "versionRequired": "Enter the referential mapping version.",
+      "signersRequired": "Add at least one signer.",
+      "signersIncomplete": "Fill in name, tax ID and the other fields for each signer.",
+      "ecdRespLegal": "There must be exactly one legal-representative signer.",
+      "ecdContador": "The ECD requires an accountant signer (code 900) and a non-accountant.",
+      "ecfSignerCount": "The ECF accepts 1 or 2 signers.",
+      "ecfContador": "The ECF requires an accountant signer (qualification 900) and a non-accountant.",
+      "ecfContadorCrc": "The accountant signer (900) requires an 11-digit CPF and a CRC."
+    }
+  },
+  "trialBalance": {
+    "loading": "Loading trial balance…",
+    "selectUnit": "Select a unit.",
+    "empty": "No entries posted for this unit yet.",
+    "col": {
+      "code": "Code",
+      "account": "Account",
+      "nature": "Nature",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balance": "Balance"
+    },
+    "total": "Total",
+    "nature": {
+      "Asset": "Asset",
+      "Liability": "Liability",
+      "Equity": "Equity",
+      "Revenue": "Revenue",
+      "Expense": "Expense"
+    }
+  },
+  "periods": {
+    "error": {
+      "load": "Failed to load periods.",
+      "seed": "Failed to seed periods.",
+      "transition": "Period transition failed."
+    },
+    "fiscalYear": "Fiscal Year",
+    "seeding": "Creating…",
+    "seedYear": "Seed {{year}}",
+    "loading": "Loading periods…",
+    "emptyYear": "No periods created for {{year}}. Click \"Seed {{year}}\" to initialize.",
+    "months": {
+      "1": "Jan",
+      "2": "Feb",
+      "3": "Mar",
+      "4": "Apr",
+      "5": "May",
+      "6": "Jun",
+      "7": "Jul",
+      "8": "Aug",
+      "9": "Sep",
+      "10": "Oct",
+      "11": "Nov",
+      "12": "Dec"
+    },
+    "status": {
+      "FUTURE": "Future",
+      "OPEN": "Open",
+      "SOFT_CLOSED": "Soft Closed",
+      "HARD_CLOSED": "Hard Closed"
+    },
+    "action": {
+      "open": "Open",
+      "softClose": "Soft close",
+      "hardClose": "Hard close",
+      "reopen": "Reopen"
+    },
+    "hardClosed": "Permanently closed",
+    "notCreated": "Not created",
+    "actionLabel": {
+      "soft-close": "Soft close",
+      "hard-close": "Hard close",
+      "reopen": "Reopen period"
+    },
+    "reasonOptional": "reason (optional)",
+    "reasonPlaceholder": "Justification…",
+    "wait": "Please wait…",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  },
+  "ledger": {
+    "accountLabel": "Account",
+    "loadingOption": "Loading…",
+    "closingBalanceInline": "Closing balance:",
+    "closingBalance": "Closing balance",
+    "empty": "No entries in this account.",
+    "loadingLedger": "Loading ledger…",
+    "col": {
+      "date": "Date",
+      "description": "Description",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balance": "Balance"
+    },
+    "error": {
+      "loadAccounts": "Failed to load chart of accounts.",
+      "loadLedger": "Failed to load ledger."
+    }
+  },
+  "chartOfAccounts": {
+    "title": "Chart of Accounts",
+    "newAccount": "New Account",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "delete": "Delete",
+    "yes": "Yes",
+    "no": "No",
+    "loading": "Loading chart of accounts…",
+    "empty": "No accounts registered for this unit.",
+    "form": {
+      "heading": "New ledger account",
+      "code": "Code",
+      "codePlaceholder": "e.g. 1.1.01",
+      "name": "Name",
+      "namePlaceholder": "e.g. Cash",
+      "type": "Type",
+      "acceptsEntries": "Accepts entries"
+    },
+    "col": {
+      "code": "Code",
+      "name": "Name",
+      "type": "Type",
+      "acceptsEntries": "Accepts entries",
+      "requiresDimension": "Requires dimension",
+      "actions": "Actions"
+    },
+    "requiresDimension": {
+      "on": "Required",
+      "off": "Optional",
+      "naHint": "Only applies to accounts that accept entries."
+    },
+    "nature": {
+      "asset": "Asset",
+      "liability": "Liability",
+      "equity": "Equity",
+      "revenue": "Revenue",
+      "expense": "Expense"
+    },
+    "deleteConfirm": {
+      "title": "Delete account?",
+      "message": "Delete account {{code}} — {{name}}? This action cannot be undone.",
+      "confirm": "Yes, delete"
+    },
+    "error": {
+      "load": "Failed to load accounts.",
+      "create": "Failed to create account.",
+      "delete": "Failed to delete account.",
+      "requiresDimension": "Failed to update the dimension requirement."
+    }
+  },
+  "journalEntries": {
+    "status": {
+      "Draft": "Draft",
+      "Posted": "Posted",
+      "Reconciled": "Reconciled",
+      "Reversed": "Reversed"
+    },
+    "reversalBadge": "Reversal",
+    "postings": {
+      "account": "Account",
+      "debit": "Debit",
+      "credit": "Credit"
+    },
+    "reverseAction": {
+      "enabledTitle": "Reverse this entry",
+      "disabledTitle": "Entry already reversed",
+      "label": "Reverse"
+    },
+    "error": {
+      "load": "Failed to load journal entries.",
+      "reverse": "Failed to reverse entry."
+    },
+    "loading": "Loading journal entries…",
+    "empty": "No journal entries posted for this unit yet.",
+    "col": {
+      "expand": "Expand",
+      "number": "No.",
+      "date": "Date",
+      "description": "Description",
+      "debits": "Debits",
+      "credits": "Credits",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "confirmModal": {
+      "title": "Confirm reversal",
+      "cancel": "Cancel",
+      "reversing": "Reversing…",
+      "confirm": "Confirm reversal",
+      "reverseEntryOf": "Reverse entry from",
+      "reversalDateLabel": "Reversal date",
+      "warning": "A new offsetting entry will be created automatically on the date above. This action cannot be undone.",
+      "periodClosed": "The period for the selected date is closed.",
+      "viewPeriods": "View Periods"
+    }
+  },
+  "journalEntryModal": {
+    "title": "New Journal Entry",
+    "field": {
+      "date": "Date",
+      "description": "Description",
+      "descriptionPlaceholder": "Entry memo…",
+      "selectAccount": "— select account —"
+    },
+    "column": {
+      "account": "Account",
+      "debitCredit": "D / C",
+      "amount": "Amount (R$)"
+    },
+    "lines": {
+      "heading": "Entries"
+    },
+    "line": {
+      "add": "+ Add line",
+      "remove": "Remove line"
+    },
+    "toggle": {
+      "debitTitle": "Debit — click to toggle",
+      "creditTitle": "Credit — click to toggle"
+    },
+    "balance": {
+      "totalDebit": "Σ Debits: {{value}}",
+      "totalCredit": "Σ Credits: {{value}}",
+      "balanced": "Balanced ✓",
+      "unbalanced": "Unbalanced"
+    },
+    "button": {
+      "cancel": "Cancel",
+      "post": "Post",
+      "posting": "Posting…"
+    },
+    "error": {
+      "unbalanced": "The entry is unbalanced. Adjust the amounts before posting.",
+      "missingAccount": "Select an account for each line.",
+      "missingAmount": "Enter an amount greater than zero on each line.",
+      "postFailed": "Error posting the entry. Please try again."
+    },
+    "dimensions": {
+      "label": "Dimensions",
+      "none": "— {{axis}} —"
+    }
+  },
+  "balanceSheet": {
+    "controls": {
+      "asOf": "Position as of",
+      "calculating": "Calculating…",
+      "generate": "Generate BS"
+    },
+    "error": {
+      "load": "Failed to load balance sheet."
+    },
+    "empty": "Select the date and click \"Generate BS\" to view the Balance Sheet.",
+    "header": {
+      "asOf": "Position as of"
+    },
+    "balanced": "Balanced",
+    "unbalanced": "Unbalanced",
+    "section": {
+      "assets": "Assets",
+      "liabilities": "Liabilities",
+      "equity": "Equity",
+      "empty": "No accounts with balance",
+      "total": "Total"
+    },
+    "netResult": {
+      "title": "Net Result for the Period",
+      "range": "{{from}} to {{to}}",
+      "calculated": "calculated"
+    },
+    "status": {
+      "ok": "OK",
+      "warning": "Warning",
+      "invalid": "Invalid",
+      "mappingVersion": "Mapping version: {{version}}"
+    },
+    "diagnostics": {
+      "unmappedTitle": "Unmapped accounts with balance:",
+      "unclosedPriorYear": "Prior-year result not closed ({{amount}})"
+    }
+  },
+  "incomeStatement": {
+    "empty": "No accounts with balance",
+    "total": "Total",
+    "asOfLabel": "Up to",
+    "calculating": "Calculating…",
+    "generate": "Generate Income Statement",
+    "loadError": "Failed to load income statement.",
+    "emptyState": "Select the date and click \"Generate Income Statement\" to view the Income Statement.",
+    "dateRangeSeparator": "to",
+    "unmappedTitle": "Unmapped accounts with balance:",
+    "section": {
+      "grossRevenue": "Gross Revenue",
+      "revenueDeductions": "(−) Revenue Deductions",
+      "expenses": "(−) Expenses"
+    },
+    "netResult": "Net Result for the Period",
+    "calculatedSemantics": "calculated — {{semantics}}",
+    "status": {
+      "ok": "OK",
+      "warning": "Warning",
+      "invalid": "Invalid"
+    },
+    "mappingVersionTitle": "Version: {{version}}"
+  },
+  "importExport": {
+    "importKind": {
+      "chartOfAccounts": "Chart of Accounts",
+      "openingBalances": "Opening Balances",
+      "journalEntries": "Journal Entries"
+    },
+    "exportKind": {
+      "trialBalance": "Trial Balance",
+      "generalLedger": "General Ledger",
+      "balanceSheet": "Balance Sheet",
+      "incomeStatement": "Income Statement"
+    },
+    "import": {
+      "title": "Import",
+      "description": "Upload a CSV/XLSX, review the validation and confirm. Nothing is saved until you confirm.",
+      "typeLabel": "Type",
+      "downloadTemplate": "Download template",
+      "uploading": "Uploading…",
+      "selectFile": "Select file",
+      "committing": "Confirming…",
+      "confirm": "Confirm import ({{count}})"
+    },
+    "export": {
+      "title": "Export",
+      "description": "Download reports in CSV or XLSX.",
+      "reportLabel": "Report",
+      "dateLabel": "Date",
+      "accountLabel": "Account",
+      "exporting": "Exporting…",
+      "submit": "Export"
+    },
+    "stats": {
+      "total": "Total:",
+      "valid": "Valid:",
+      "invalid": "Invalid:",
+      "committed": "Saved:"
+    },
+    "table": {
+      "row": "Row",
+      "status": "Status",
+      "field": "Field",
+      "error": "Error",
+      "showingLimited": "Showing 200 of {{total}} rows."
+    },
+    "error": {
+      "generic": "An error occurred. Please try again.",
+      "invalidFile": "Invalid file — upload CSV or XLSX.",
+      "fileTooLarge": "File too large.",
+      "asOfRequired": "Enter the date (asOf) for BS/IS.",
+      "accountRequired": "Enter the account code for the General Ledger."
+    }
+  },
+  "reconciliation": {
+    "bankAccount": "Bank account",
+    "loadingAccounts": "Loading accounts…",
+    "noBankAccounts": "No account available",
+    "subtabs": {
+      "statements": "Bank statements",
+      "pending": "Pending queue"
+    },
+    "import": {
+      "title": "Import statement",
+      "description": "Upload a CSV, XLSX or OFX. For CSV/XLSX, columns: date, amountCents, description[, externalRef], amounts in signed cents. Re-importing the same file is idempotent.",
+      "periodStart": "Period start",
+      "periodEnd": "Period end",
+      "statementRef": "Reference (optional)",
+      "statementRefPlaceholder": "e.g. Statement Jul/2026",
+      "openingBalance": "Opening balance (cents)",
+      "closingBalance": "Closing balance (cents)",
+      "selectFile": "Select file",
+      "uploading": "Uploading…",
+      "needAccount": "Select the bank account.",
+      "needPeriod": "Enter the period start and end.",
+      "tooLarge": "File too large.",
+      "success": "Statement imported: {{count}} line(s).",
+      "idempotent": "File already imported — nothing changed ({{count}} line(s))."
+    },
+    "statements": {
+      "loading": "Loading statements…",
+      "empty": "No statements imported for this unit.",
+      "viewLines": "View lines",
+      "autoMatch": "Auto-match",
+      "autoMatching": "Matching…",
+      "delete": "Delete",
+      "autoMatchResult": "Auto-match: {{matched}} matched, {{ambiguous}} ambiguous, {{zero}} with no candidate (of {{processed}}).",
+      "col": {
+        "period": "Period",
+        "ref": "Reference",
+        "imported": "Imported at",
+        "actions": "Actions"
+      }
+    },
+    "lines": {
+      "loading": "Loading lines…",
+      "empty": "No lines in this statement.",
+      "unmatch": "Undo",
+      "unmatchTitle": "Undo match with {{date}} — {{desc}}",
+      "unmatchError": "Could not undo the match. The list has been refreshed.",
+      "col": {
+        "line": "Line",
+        "date": "Date",
+        "description": "Description",
+        "amount": "Amount",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "status": {
+        "UNMATCHED": "Unmatched",
+        "MATCHED": "Matched",
+        "IGNORED": "Ignored"
+      }
+    },
+    "deleteConfirm": {
+      "title": "Delete statement?",
+      "message": "Delete this statement and its lines? Blocked if any match is active. This action cannot be undone.",
+      "confirm": "Yes, delete",
+      "cancel": "Cancel",
+      "deleting": "Deleting…"
+    },
+    "unmatchConfirm": {
+      "title": "Undo reconciliation?",
+      "message": "The line returns to Unmatched and the entry reverts from Reconciled to Posted. The link is preserved (audited) and can be redone.",
+      "target": "Match: {{date}} — {{desc}}",
+      "confirm": "Yes, undo",
+      "cancel": "Cancel",
+      "unmatching": "Undoing…"
+    },
+    "pending": {
+      "loading": "Loading pending items…",
+      "selectAccount": "Select a bank account to view pending items.",
+      "refresh": "Refresh",
+      "totals": "{{lineCount}} line(s) · Σ {{lineTotal}} · {{postingCount}} posting(s)",
+      "suggestions": "Suggestions",
+      "ignore": "Ignore",
+      "ignoring": "Ignoring…",
+      "filters": {
+        "from": "From",
+        "to": "To"
+      },
+      "lines": {
+        "title": "Statement lines without a match",
+        "empty": "No pending lines."
+      },
+      "postings": {
+        "title": "Bank postings without a match",
+        "empty": "No pending postings."
+      },
+      "col": {
+        "date": "Date",
+        "description": "Description",
+        "amount": "Amount",
+        "entry": "Entry",
+        "actions": "Actions"
+      }
+    },
+    "match": {
+      "title": "Match line",
+      "inflow": "Inflow",
+      "outflow": "Outflow",
+      "loading": "Fetching suggestions…",
+      "empty": "No candidate found (exact same amount, ±3 days, Posted entry). Post the entry and try again, or ignore the line.",
+      "ambiguityHint": "Several candidates with the same amount — pick the correct one (there is no automatic choice).",
+      "confirm": "Match selected",
+      "confirming": "Matching…",
+      "cancel": "Cancel",
+      "col": {
+        "date": "Date",
+        "description": "Description",
+        "delta": "Δ days",
+        "amount": "Amount"
+      }
+    },
+    "error": {
+      "load": "Failed to load reconciliation.",
+      "generic": "An error occurred. Please try again."
+    }
+  },
+  "cashFlow": {
+    "title": "Cash Flow (Statement)",
+    "controls": {
+      "asOf": "Position as of",
+      "generate": "Generate CFS",
+      "calculating": "Calculating…"
+    },
+    "error": {
+      "load": "Failed to load cash-flow statement."
+    },
+    "empty": "Select the date and click \"Generate CFS\" to view the Cash Flow Statement.",
+    "method": {
+      "indirect": "Indirect method"
+    },
+    "section": {
+      "operating": "Operating activities",
+      "investing": "Investing activities",
+      "financing": "Financing activities",
+      "total": "Total",
+      "empty": "No movement"
+    },
+    "operating": {
+      "netResult": "Net result for the period",
+      "adjustments": "Adjustments (working capital and non-cash)"
+    },
+    "cash": {
+      "opening": "Opening cash",
+      "closing": "Closing cash"
+    },
+    "reconciliation": {
+      "title": "Reconciliation",
+      "sectionsTotal": "Net cash generated",
+      "computedClosing": "Computed closing cash",
+      "reconciles": "Reconciles",
+      "notReconciles": "Does not reconcile"
+    },
+    "status": {
+      "ok": "OK",
+      "warning": "Warning",
+      "invalid": "Invalid",
+      "mappingVersion": "Mapping version: {{version}}"
+    }
+  },
+  "periodComparison": {
+    "title": "Comparative Trial Balance",
+    "controls": {
+      "current": "Current period",
+      "previous": "Comparison period",
+      "generate": "Generate comparison",
+      "calculating": "Calculating…"
+    },
+    "error": {
+      "load": "Failed to load comparative trial balance."
+    },
+    "empty": "Select both dates and click \"Generate comparison\" to view the variation.",
+    "columns": {
+      "account": "Account",
+      "current": "Current",
+      "previous": "Previous",
+      "deltaAbs": "Change",
+      "deltaPct": "Change %"
+    },
+    "range": {
+      "label": "{{current}} vs {{previous}}"
+    },
+    "noBaseline": "—"
+  },
+  "dailyJournal": {
+    "title": "General Journal",
+    "controls": {
+      "from": "From",
+      "to": "To",
+      "generate": "Generate Journal",
+      "calculating": "Calculating…"
+    },
+    "error": {
+      "load": "Failed to load the General Journal."
+    },
+    "empty": "Select the range and click \"Generate Journal\" to view the entries.",
+    "entry": {
+      "number": "Entry no. {{number}}",
+      "date": "Date",
+      "description": "Description"
+    },
+    "columns": {
+      "account": "Account",
+      "debit": "Debit",
+      "credit": "Credit"
+    },
+    "balanced": "Balanced",
+    "unbalanced": "Unbalanced",
+    "range": {
+      "label": "{{from}} to {{to}}"
+    }
+  },
+  "dimensions": {
+    "status": {
+      "active": "Active",
+      "archived": "Archived"
+    },
+    "error": {
+      "load": "Failed to load dimensions.",
+      "archive": "Could not archive."
+    },
+    "view": {
+      "catalog": "Catalog",
+      "reports": "Reports"
+    },
+    "includeArchived": "Include archived",
+    "newAxis": "New Axis",
+    "empty": "No dimension axis yet. Create a cost center or project to get started.",
+    "loading": "Loading dimensions…",
+    "newValue": "New value",
+    "archiveAxisTitle": "Archive the axis",
+    "archive": "Archive",
+    "noValues": "No values in this axis yet.",
+    "rollupOnly": "(rollup)",
+    "archiveValueTitle": "Archive the value",
+    "optional": "(optional)",
+    "archiveModal": {
+      "title": "Archive dimension",
+      "cancel": "Back",
+      "archiving": "Archiving…",
+      "confirm": "Archive",
+      "axisNote": "Archive all of the axis values before archiving the axis. Historical entry links are preserved.",
+      "valueNote": "Archive the child values first. The value stops appearing for tagging, but historical links are preserved."
+    },
+    "field": {
+      "code": "Code",
+      "name": "Name",
+      "parent": "Parent value (rollup)"
+    },
+    "createAxis": {
+      "title": "New Dimension Axis",
+      "cancel": "Cancel",
+      "saving": "Creating…",
+      "submit": "Create",
+      "codePlaceholder": "e.g. COST_CENTER, PROJECT",
+      "namePlaceholder": "e.g. Cost Center, Project",
+      "error": "Failed to create the axis."
+    },
+    "createValue": {
+      "title": "New Dimension Value",
+      "cancel": "Cancel",
+      "saving": "Creating…",
+      "submit": "Create",
+      "axisLabel": "Axis",
+      "codePlaceholder": "e.g. DOWNTOWN_STORE",
+      "namePlaceholder": "e.g. Downtown Store",
+      "noParent": "— no parent (root) —",
+      "error": "Failed to create the value."
+    },
+    "reports": {
+      "error": "Failed to generate the report.",
+      "noAxes": "Create an active dimension axis in the catalog to generate reports.",
+      "axis": "Axis",
+      "selectAxis": "— select the axis —",
+      "from": "From",
+      "to": "To",
+      "balance": "Trial balance",
+      "result": "Income",
+      "generate": "Generate",
+      "generating": "Generating…",
+      "emptyState": "Select an axis and click \"Generate\" for the per-dimension breakdown.",
+      "balanceTitle": "Trial balance by dimension",
+      "resultTitle": "Income statement by dimension",
+      "noResult": "No result (revenue/expense) tagged on this axis in the period.",
+      "total": "Total",
+      "col": {
+        "value": "Value",
+        "ownBalance": "Own balance",
+        "rollupBalance": "Rollup balance",
+        "revenue": "Revenue",
+        "expense": "Expense",
+        "result": "Result"
+      }
+    }
+  },
+  "contrapartes": {
+    "heading": "Counterparties",
+    "new": "New Counterparty",
+    "loading": "Loading counterparties…",
+    "empty": "No counterparty registered in this unit yet.",
+    "type": {
+      "SUPPLIER": "Supplier",
+      "CUSTOMER": "Customer"
+    },
+    "status": {
+      "active": "Active",
+      "archived": "Archived"
+    },
+    "filter": {
+      "all": "All",
+      "suppliers": "Suppliers",
+      "customers": "Customers",
+      "includeArchived": "Include archived"
+    },
+    "col": {
+      "name": "Name",
+      "type": "Type",
+      "ref": "Reference",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "action": {
+      "archive": "Archive",
+      "archiveTitle": "Archive counterparty"
+    },
+    "error": {
+      "load": "Failed to load counterparties.",
+      "archive": "Could not archive the counterparty."
+    },
+    "createModal": {
+      "title": "New Counterparty",
+      "cancel": "Cancel",
+      "submit": "Register",
+      "saving": "Saving…",
+      "optional": "(optional)",
+      "field": {
+        "type": "Type",
+        "name": "Name",
+        "namePlaceholder": "Counterparty name…",
+        "ref": "Reference",
+        "refPlaceholder": "Tax ID, external code…"
+      },
+      "error": {
+        "invalid": "Enter the counterparty name.",
+        "failed": "Failed to register the counterparty."
+      }
+    },
+    "archiveModal": {
+      "title": "Archive counterparty",
+      "cancel": "Back",
+      "confirm": "Confirm archiving",
+      "archiving": "Archiving…",
+      "note": "The counterparty stops appearing when creating new accounts. Existing entries and linked accounts remain intact."
+    }
+  }
+}

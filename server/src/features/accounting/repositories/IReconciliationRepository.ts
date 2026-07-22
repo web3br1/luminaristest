@@ -2,6 +2,7 @@ import type { BankStatement, BankStatementLine, ReconciliationMatch, Prisma } fr
 import type { AccountingScope } from '../scope/AccountingScope';
 import type {
   BankStatementLineStatus,
+  BankStatementLineWithActiveMatches,
   CandidatePosting,
   CandidatePostingQuery,
   CreateBankStatementInput,
@@ -102,6 +103,20 @@ export interface IReconciliationRepository {
     status?: BankStatementLineStatus,
     tx?: Prisma.TransactionClient,
   ): Promise<BankStatementLine[]>;
+
+  /**
+   * Display read for the UNMATCH surface (D7): same lines as findLinesByStatement
+   * but each carries its ACTIVE matches (unmatchedAt == null) with the matchId and
+   * the entry summary that labels the undo. A DEDICATED method (not an include on
+   * findLinesByStatement) so the match/auto-match hot path keeps its lean query.
+   * The nested matches inherit the line's userId/unitId — no scope re-open.
+   */
+  findLinesWithActiveMatches(
+    scope: AccountingScope,
+    statementId: string,
+    status?: BankStatementLineStatus,
+    tx?: Prisma.TransactionClient,
+  ): Promise<BankStatementLineWithActiveMatches[]>;
 
   /**
    * Conditionally moves a line fromStatus -> toStatus (the only sanctioned

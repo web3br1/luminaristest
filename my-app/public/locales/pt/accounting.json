@@ -1,0 +1,1034 @@
+{
+  "view": {
+    "title": "Contabilidade",
+    "subtitle": "Razão de partida dobrada — balancete por unidade",
+    "unit": "Unidade",
+    "loadingUnits": "Carregando…",
+    "noUnit": "Nenhuma unidade",
+    "selectUnitPrompt": "Selecione uma unidade para visualizar os dados contábeis.",
+    "balancete": "Balancete",
+    "balanced": "Balanceado (Σdébito = Σcrédito)",
+    "unbalanced": "Desbalanceado — verifique o razão",
+    "newEntry": "Novo Lançamento",
+    "tabs": {
+      "balancete": "Balancete",
+      "periodos": "Períodos",
+      "lancamentos": "Lançamentos",
+      "contasAPagar": "Contas a Pagar",
+      "contasAReceber": "Contas a Receber",
+      "razao": "Razão",
+      "planoDeContas": "Plano de Contas",
+      "bp": "BP",
+      "dre": "DRE",
+      "dfc": "DFC",
+      "comparativo": "Comparativo",
+      "diario": "Livro Diário",
+      "importacaoExportacao": "Importação/Exportação",
+      "conciliacao": "Conciliação",
+      "compliance": "Compliance",
+      "dimensoes": "Dimensões",
+      "contrapartes": "Contrapartes"
+    },
+    "error": {
+      "units": "Falha ao carregar as unidades.",
+      "report": "Falha ao carregar o balancete."
+    }
+  },
+  "contasAPagar": {
+    "heading": "Contas a Pagar",
+    "newPayable": "Nova Conta",
+    "loading": "Carregando contas a pagar…",
+    "empty": "Nenhuma conta a pagar registrada nesta unidade ainda.",
+    "viewPeriods": "Ver Períodos",
+    "status": {
+      "OPEN": "Em aberto",
+      "PAYING": "Em pagamento",
+      "PAID": "Paga",
+      "CANCELLED": "Cancelada"
+    },
+    "col": {
+      "expand": "Expandir",
+      "supplier": "Fornecedor",
+      "description": "Descrição",
+      "dueDate": "Vencimento",
+      "amount": "Valor",
+      "status": "Status",
+      "actions": "Ações"
+    },
+    "action": {
+      "pay": "Pagar",
+      "payTitle": "Registrar pagamento",
+      "cancel": "Cancelar",
+      "cancelTitle": "Cancelar a conta",
+      "undo": "Desfazer pagamento",
+      "undoTitle": "Desfazer o pagamento (reabre a conta)",
+      "paying": "Processando…"
+    },
+    "payments": {
+      "date": "Pago em",
+      "method": "Forma",
+      "amount": "Valor",
+      "status": "Situação",
+      "active": "Ativo",
+      "cancelled": "Cancelado"
+    },
+    "error": {
+      "load": "Erro ao carregar as contas a pagar.",
+      "action": "Não foi possível concluir a operação."
+    },
+    "createModal": {
+      "title": "Nova Conta a Pagar",
+      "cancel": "Cancelar",
+      "submit": "Registrar",
+      "saving": "Registrando…",
+      "optional": "(opcional)",
+      "noExpenseAccounts": "Nenhuma conta de despesa analítica encontrada. Cadastre uma no Plano de Contas.",
+      "field": {
+        "supplier": "Fornecedor",
+        "supplierPlaceholder": "Nome do fornecedor…",
+        "description": "Descrição",
+        "descriptionPlaceholder": "Ex.: aluguel, energia, insumos…",
+        "document": "Nº do documento",
+        "documentPlaceholder": "NF, boleto…",
+        "amount": "Valor (R$)",
+        "issueDate": "Emissão",
+        "dueDate": "Vencimento",
+        "expenseAccount": "Conta de despesa (contrapartida)",
+        "selectAccount": "— selecione a conta de despesa —",
+        "counterparty": "Contraparte",
+        "noCounterparty": "— sem contraparte —"
+      },
+      "error": {
+        "invalid": "Preencha fornecedor, descrição, datas, valor e conta de despesa.",
+        "failed": "Erro ao registrar a conta a pagar."
+      },
+      "noCounterparties": "Nenhum fornecedor cadastrado.",
+      "manageCounterparties": "Cadastrar contrapartes"
+    },
+    "actionModal": {
+      "cancel": "Voltar",
+      "paidAtLabel": "Data do pagamento",
+      "reversalDateLabel": "Data da reversão",
+      "methodLabel": "Forma de pagamento",
+      "reasonLabel": "Motivo",
+      "payTitle": "Registrar pagamento",
+      "payConfirm": "Confirmar pagamento",
+      "paying": "Registrando…",
+      "payNote": "Será lançado D Fornecedores / C Banco pelo saldo integral. Pagamento parcial não é suportado.",
+      "cancelTitle": "Cancelar conta a pagar",
+      "cancelConfirm": "Confirmar cancelamento",
+      "cancelling": "Cancelando…",
+      "cancelNote": "O lançamento de reconhecimento será estornado na data acima. Esta ação não pode ser desfeita.",
+      "undoTitle": "Desfazer pagamento",
+      "undoConfirm": "Confirmar",
+      "undoing": "Desfazendo…",
+      "undoNote": "O pagamento será estornado e a conta voltará para “Em aberto”."
+    }
+  },
+  "contasAReceber": {
+    "heading": "Contas a Receber",
+    "newReceivable": "Nova Conta",
+    "loading": "Carregando contas a receber…",
+    "empty": "Nenhuma conta a receber registrada nesta unidade ainda.",
+    "viewPeriods": "Ver Períodos",
+    "status": {
+      "OPEN": "Em aberto",
+      "RECEIVING": "Em recebimento",
+      "RECEIVED": "Recebida",
+      "CANCELLED": "Cancelada"
+    },
+    "col": {
+      "expand": "Expandir",
+      "customer": "Cliente",
+      "description": "Descrição",
+      "dueDate": "Vencimento",
+      "amount": "Valor",
+      "status": "Status",
+      "actions": "Ações"
+    },
+    "action": {
+      "receive": "Receber",
+      "receiveTitle": "Registrar recebimento",
+      "cancel": "Cancelar",
+      "cancelTitle": "Cancelar a conta",
+      "undo": "Desfazer recebimento",
+      "undoTitle": "Desfazer o recebimento (reabre a conta)",
+      "receiving": "Processando…"
+    },
+    "receipts": {
+      "date": "Recebido em",
+      "method": "Forma",
+      "amount": "Valor",
+      "status": "Situação",
+      "active": "Ativo",
+      "cancelled": "Cancelado"
+    },
+    "error": {
+      "load": "Erro ao carregar as contas a receber.",
+      "action": "Não foi possível concluir a operação."
+    },
+    "createModal": {
+      "title": "Nova Conta a Receber",
+      "cancel": "Cancelar",
+      "submit": "Registrar",
+      "saving": "Registrando…",
+      "optional": "(opcional)",
+      "noRevenueAccounts": "Nenhuma conta de receita analítica encontrada. Cadastre uma no Plano de Contas.",
+      "field": {
+        "customer": "Cliente",
+        "customerPlaceholder": "Nome do cliente…",
+        "description": "Descrição",
+        "descriptionPlaceholder": "Ex.: serviço prestado, venda, mensalidade…",
+        "document": "Nº do documento",
+        "documentPlaceholder": "NF, fatura…",
+        "amount": "Valor (R$)",
+        "issueDate": "Emissão",
+        "dueDate": "Vencimento",
+        "revenueAccount": "Conta de receita (contrapartida)",
+        "selectAccount": "— selecione a conta de receita —",
+        "counterparty": "Contraparte",
+        "noCounterparty": "— sem contraparte —"
+      },
+      "error": {
+        "invalid": "Preencha cliente, descrição, datas, valor e conta de receita.",
+        "failed": "Erro ao registrar a conta a receber."
+      },
+      "noCounterparties": "Nenhum cliente cadastrado.",
+      "manageCounterparties": "Cadastrar contrapartes"
+    },
+    "actionModal": {
+      "cancel": "Voltar",
+      "receivedAtLabel": "Data do recebimento",
+      "reversalDateLabel": "Data da reversão",
+      "methodLabel": "Forma de recebimento",
+      "reasonLabel": "Motivo",
+      "receiveTitle": "Registrar recebimento",
+      "receiveConfirm": "Confirmar recebimento",
+      "receiving": "Registrando…",
+      "receiveNote": "Será lançado D Banco / C Clientes pelo saldo integral. Recebimento parcial não é suportado.",
+      "cancelTitle": "Cancelar conta a receber",
+      "cancelConfirm": "Confirmar cancelamento",
+      "cancelling": "Cancelando…",
+      "cancelNote": "O lançamento de reconhecimento será estornado na data acima. Esta ação não pode ser desfeita.",
+      "undoTitle": "Desfazer recebimento",
+      "undoConfirm": "Confirmar",
+      "undoing": "Desfazendo…",
+      "undoNote": "O recebimento será estornado e a conta voltará para “Em aberto”."
+    }
+  },
+  "compliance": {
+    "error": {
+      "generic": "Ocorreu um erro. Tente novamente.",
+      "versionRequired": "Informe uma versão de mapeamento.",
+      "loadFirst": "Carregue uma versão de origem primeiro.",
+      "copyTarget": "Informe uma versão de destino diferente."
+    },
+    "mapping": {
+      "title": "Mapeamento Referencial (RFB)",
+      "description": "Associe cada conta analítica ao código do plano referencial da Receita. Todas as contas precisam de código antes de gerar a ECD.",
+      "versionLabel": "Versão",
+      "load": "Carregar cobertura",
+      "loading": "Carregando…",
+      "ready": "Pronto para gerar ECD/ECF",
+      "notReady": "{{count}} conta(s) sem mapeamento",
+      "allMapped": "Todas as contas analíticas estão mapeadas nesta versão.",
+      "save": "Salvar mapeamentos ({{count}})",
+      "saving": "Salvando…",
+      "stats": {
+        "leaf": "Analíticas:",
+        "mapped": "Mapeadas:",
+        "unmapped": "Pendentes:"
+      },
+      "table": {
+        "account": "Conta",
+        "code": "Código RFB",
+        "label": "Rótulo"
+      }
+    },
+    "copy": {
+      "title": "Copiar versão",
+      "description": "Clone o mapeamento da versão carregada ({{from}}) para uma nova versão — útil na virada de exercício.",
+      "toLabel": "Nova versão",
+      "submit": "Copiar",
+      "copying": "Copiando…"
+    }
+  },
+  "sped": {
+    "generating": "Gerando…",
+    "ecd": {
+      "title": "Gerar SPED ECD",
+      "description": "Escrituração Contábil Digital. Exige o mapeamento referencial completo (badge \"Pronto\" acima).",
+      "book": "Livro (termo)",
+      "submit": "Gerar e baixar ECD"
+    },
+    "ecf": {
+      "title": "Gerar SPED ECF",
+      "description": "Escrituração Contábil Fiscal (Lucro Presumido). O PVA recupera os blocos da ECD ativa.",
+      "submit": "Gerar e baixar ECF"
+    },
+    "field": {
+      "year": "Ano",
+      "version": "Versão mapeamento",
+      "cnpj": "CNPJ",
+      "nome": "Nome empresarial",
+      "uf": "UF",
+      "codMun": "Cód. município (IBGE)",
+      "indNire": "Possui NIRE",
+      "indGrandePorte": "Grande porte",
+      "numOrd": "Nº de ordem",
+      "natLivr": "Natureza do livro",
+      "dtExSocial": "Encerr. exercício",
+      "codNat": "Nat. jurídica",
+      "cnae": "CNAE-Fiscal",
+      "endereco": "Endereço",
+      "bairro": "Bairro",
+      "cep": "CEP",
+      "email": "E-mail",
+      "csll": "Alíquota CSLL",
+      "identNom": "Nome",
+      "cpfCnpj": "CPF/CNPJ",
+      "qualifDesc": "Qualificação",
+      "codAssin": "Cód. (900=contador)",
+      "qualifCode": "Qualif. (900=contador)",
+      "indCrc": "CRC",
+      "fone": "Fone"
+    },
+    "opt": {
+      "no": "Não",
+      "yes": "Sim"
+    },
+    "signers": {
+      "title": "Signatários (J930)",
+      "titleEcf": "Signatários (0930, máx 2)",
+      "add": "Adicionar",
+      "remove": "Remover",
+      "resp": "Resp. legal",
+      "notResp": "Não resp. legal"
+    },
+    "error": {
+      "generic": "Ocorreu um erro. Verifique os campos e tente novamente.",
+      "signersInvalid": "Signatários inválidos.",
+      "year": "Informe um ano válido.",
+      "yearEcf": "Informe um ano válido (≥ 2015).",
+      "versionRequired": "Informe a versão do mapeamento referencial.",
+      "signersRequired": "Informe ao menos um signatário.",
+      "signersIncomplete": "Preencha nome, documento e demais campos de cada signatário.",
+      "ecdRespLegal": "Deve haver exatamente um signatário responsável legal.",
+      "ecdContador": "A ECD exige um signatário contador (código 900) e um não-contador.",
+      "ecfSignerCount": "A ECF aceita 1 ou 2 signatários.",
+      "ecfContador": "A ECF exige um signatário contador (qualificação 900) e um não-contador.",
+      "ecfContadorCrc": "O signatário contador (900) exige CPF de 11 dígitos e CRC."
+    }
+  },
+  "trialBalance": {
+    "loading": "Carregando balancete…",
+    "selectUnit": "Selecione uma unidade.",
+    "empty": "Nenhum lançamento postado nesta unidade ainda.",
+    "col": {
+      "code": "Código",
+      "account": "Conta",
+      "nature": "Natureza",
+      "debit": "Débito",
+      "credit": "Crédito",
+      "balance": "Saldo"
+    },
+    "total": "Total",
+    "nature": {
+      "Asset": "Ativo",
+      "Liability": "Passivo",
+      "Equity": "Patrimônio",
+      "Revenue": "Receita",
+      "Expense": "Despesa"
+    }
+  },
+  "periods": {
+    "error": {
+      "load": "Erro ao carregar períodos.",
+      "seed": "Erro ao semear períodos.",
+      "transition": "Erro na transição de período."
+    },
+    "fiscalYear": "Exercício",
+    "seeding": "Criando…",
+    "seedYear": "Semear {{year}}",
+    "loading": "Carregando períodos…",
+    "emptyYear": "Nenhum período criado para {{year}}. Clique em \"Semear {{year}}\" para inicializar.",
+    "months": {
+      "1": "Jan",
+      "2": "Fev",
+      "3": "Mar",
+      "4": "Abr",
+      "5": "Mai",
+      "6": "Jun",
+      "7": "Jul",
+      "8": "Ago",
+      "9": "Set",
+      "10": "Out",
+      "11": "Nov",
+      "12": "Dez"
+    },
+    "status": {
+      "FUTURE": "Futuro",
+      "OPEN": "Aberto",
+      "SOFT_CLOSED": "Fech. Parcial",
+      "HARD_CLOSED": "Definitivo"
+    },
+    "action": {
+      "open": "Abrir",
+      "softClose": "Fechar parcial",
+      "hardClose": "Fechar definitivo",
+      "reopen": "Reabrir"
+    },
+    "hardClosed": "Definitivamente fechado",
+    "notCreated": "Não criado",
+    "actionLabel": {
+      "soft-close": "Fechar parcialmente",
+      "hard-close": "Fechar definitivamente",
+      "reopen": "Reabrir período"
+    },
+    "reasonOptional": "motivo (opcional)",
+    "reasonPlaceholder": "Justificativa…",
+    "wait": "Aguarde…",
+    "confirm": "Confirmar",
+    "cancel": "Cancelar"
+  },
+  "ledger": {
+    "accountLabel": "Conta",
+    "loadingOption": "Carregando…",
+    "closingBalanceInline": "Saldo final:",
+    "closingBalance": "Saldo final",
+    "empty": "Nenhum lançamento nesta conta.",
+    "loadingLedger": "Carregando razão…",
+    "col": {
+      "date": "Data",
+      "description": "Histórico",
+      "debit": "Débito",
+      "credit": "Crédito",
+      "balance": "Saldo"
+    },
+    "error": {
+      "loadAccounts": "Erro ao carregar plano de contas.",
+      "loadLedger": "Erro ao carregar razão."
+    }
+  },
+  "chartOfAccounts": {
+    "title": "Plano de Contas",
+    "newAccount": "Nova Conta",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "delete": "Excluir",
+    "yes": "Sim",
+    "no": "Não",
+    "loading": "Carregando plano de contas…",
+    "empty": "Nenhuma conta cadastrada nesta unidade.",
+    "form": {
+      "heading": "Nova conta contábil",
+      "code": "Código",
+      "codePlaceholder": "Ex: 1.1.01",
+      "name": "Nome",
+      "namePlaceholder": "Ex: Caixa",
+      "type": "Tipo",
+      "acceptsEntries": "Aceita lançamentos"
+    },
+    "col": {
+      "code": "Código",
+      "name": "Nome",
+      "type": "Tipo",
+      "acceptsEntries": "Aceita lançamentos",
+      "requiresDimension": "Exige dimensão",
+      "actions": "Ações"
+    },
+    "requiresDimension": {
+      "on": "Obrigatória",
+      "off": "Opcional",
+      "naHint": "Só se aplica a contas que aceitam lançamentos."
+    },
+    "nature": {
+      "asset": "Ativo",
+      "liability": "Passivo",
+      "equity": "Patrimônio",
+      "revenue": "Receita",
+      "expense": "Despesa"
+    },
+    "deleteConfirm": {
+      "title": "Excluir conta?",
+      "message": "Excluir conta {{code}} — {{name}}? Esta ação não pode ser desfeita.",
+      "confirm": "Sim, excluir"
+    },
+    "error": {
+      "load": "Erro ao carregar contas.",
+      "create": "Erro ao criar conta.",
+      "delete": "Erro ao excluir conta.",
+      "requiresDimension": "Erro ao atualizar a exigência de dimensão."
+    }
+  },
+  "journalEntries": {
+    "status": {
+      "Draft": "Rascunho",
+      "Posted": "Postado",
+      "Reconciled": "Conciliado",
+      "Reversed": "Estornado"
+    },
+    "reversalBadge": "Estorno",
+    "postings": {
+      "account": "Conta",
+      "debit": "Débito",
+      "credit": "Crédito"
+    },
+    "reverseAction": {
+      "enabledTitle": "Estornar este lançamento",
+      "disabledTitle": "Lançamento já estornado",
+      "label": "Estornar"
+    },
+    "error": {
+      "load": "Erro ao carregar lançamentos.",
+      "reverse": "Erro ao estornar lançamento."
+    },
+    "loading": "Carregando lançamentos…",
+    "empty": "Nenhum lançamento postado nesta unidade ainda.",
+    "col": {
+      "expand": "Expandir",
+      "number": "Nº",
+      "date": "Data",
+      "description": "Descrição",
+      "debits": "Débitos",
+      "credits": "Créditos",
+      "status": "Status",
+      "actions": "Ações"
+    },
+    "confirmModal": {
+      "title": "Confirmar estorno",
+      "cancel": "Cancelar",
+      "reversing": "Estornando…",
+      "confirm": "Confirmar estorno",
+      "reverseEntryOf": "Estornar lançamento de",
+      "reversalDateLabel": "Data do estorno",
+      "warning": "Um novo lançamento oposto será criado automaticamente na data acima. Esta ação não pode ser desfeita.",
+      "periodClosed": "O período para a data selecionada está fechado.",
+      "viewPeriods": "Ver Períodos"
+    }
+  },
+  "journalEntryModal": {
+    "title": "Novo Lançamento",
+    "field": {
+      "date": "Data",
+      "description": "Descrição",
+      "descriptionPlaceholder": "Histórico do lançamento…",
+      "selectAccount": "— selecione a conta —"
+    },
+    "column": {
+      "account": "Conta",
+      "debitCredit": "D / C",
+      "amount": "Valor (R$)"
+    },
+    "lines": {
+      "heading": "Partidas"
+    },
+    "line": {
+      "add": "+ Adicionar linha",
+      "remove": "Remover linha"
+    },
+    "toggle": {
+      "debitTitle": "Débito — clique para alternar",
+      "creditTitle": "Crédito — clique para alternar"
+    },
+    "balance": {
+      "totalDebit": "Σ Débitos: {{value}}",
+      "totalCredit": "Σ Créditos: {{value}}",
+      "balanced": "Balanceado ✓",
+      "unbalanced": "Desequilibrado"
+    },
+    "button": {
+      "cancel": "Cancelar",
+      "post": "Postar",
+      "posting": "Postando…"
+    },
+    "error": {
+      "unbalanced": "O lançamento está desequilibrado. Ajuste os valores antes de postar.",
+      "missingAccount": "Selecione uma conta para cada linha.",
+      "missingAmount": "Informe um valor maior que zero em cada linha.",
+      "postFailed": "Erro ao postar o lançamento. Tente novamente."
+    },
+    "dimensions": {
+      "label": "Dimensões",
+      "none": "— {{axis}} —"
+    }
+  },
+  "balanceSheet": {
+    "controls": {
+      "asOf": "Posição em",
+      "calculating": "Calculando…",
+      "generate": "Gerar BP"
+    },
+    "error": {
+      "load": "Erro ao carregar balanço patrimonial."
+    },
+    "empty": "Selecione a data e clique em \"Gerar BP\" para visualizar o Balanço Patrimonial.",
+    "header": {
+      "asOf": "Posição em"
+    },
+    "balanced": "Balanceado",
+    "unbalanced": "Desbalanceado",
+    "section": {
+      "assets": "Ativo",
+      "liabilities": "Passivo",
+      "equity": "Patrimônio Líquido",
+      "empty": "Sem contas com saldo",
+      "total": "Total"
+    },
+    "netResult": {
+      "title": "Resultado do Exercício",
+      "range": "{{from}} a {{to}}",
+      "calculated": "calculado"
+    },
+    "status": {
+      "ok": "OK",
+      "warning": "Aviso",
+      "invalid": "Inválido",
+      "mappingVersion": "Versão de mapeamento: {{version}}"
+    },
+    "diagnostics": {
+      "unmappedTitle": "Contas sem mapeamento com saldo:",
+      "unclosedPriorYear": "Resultado do exercício anterior não encerrado ({{amount}})"
+    }
+  },
+  "incomeStatement": {
+    "empty": "Sem contas com saldo",
+    "total": "Total",
+    "asOfLabel": "Até",
+    "calculating": "Calculando…",
+    "generate": "Gerar DRE",
+    "loadError": "Erro ao carregar DRE.",
+    "emptyState": "Selecione a data e clique em \"Gerar DRE\" para visualizar a Demonstração do Resultado.",
+    "dateRangeSeparator": "a",
+    "unmappedTitle": "Contas sem mapeamento com saldo:",
+    "section": {
+      "grossRevenue": "Receita Bruta",
+      "revenueDeductions": "(−) Deduções de Receita",
+      "expenses": "(−) Despesas"
+    },
+    "netResult": "Resultado Líquido do Exercício",
+    "calculatedSemantics": "calculado — {{semantics}}",
+    "status": {
+      "ok": "OK",
+      "warning": "Aviso",
+      "invalid": "Inválido"
+    },
+    "mappingVersionTitle": "Versão: {{version}}"
+  },
+  "importExport": {
+    "importKind": {
+      "chartOfAccounts": "Plano de Contas",
+      "openingBalances": "Saldos Iniciais",
+      "journalEntries": "Lançamentos"
+    },
+    "exportKind": {
+      "trialBalance": "Balancete",
+      "generalLedger": "Razão",
+      "balanceSheet": "Balanço Patrimonial",
+      "incomeStatement": "DRE"
+    },
+    "import": {
+      "title": "Importação",
+      "description": "Envie um CSV/XLSX, revise a validação e confirme. Nada é gravado até você confirmar.",
+      "typeLabel": "Tipo",
+      "downloadTemplate": "Baixar modelo",
+      "uploading": "Enviando…",
+      "selectFile": "Selecionar arquivo",
+      "committing": "Confirmando…",
+      "confirm": "Confirmar importação ({{count}})"
+    },
+    "export": {
+      "title": "Exportação",
+      "description": "Baixe relatórios em CSV ou XLSX.",
+      "reportLabel": "Relatório",
+      "dateLabel": "Data",
+      "accountLabel": "Conta",
+      "exporting": "Exportando…",
+      "submit": "Exportar"
+    },
+    "stats": {
+      "total": "Total:",
+      "valid": "Válidas:",
+      "invalid": "Inválidas:",
+      "committed": "Gravadas:"
+    },
+    "table": {
+      "row": "Linha",
+      "status": "Status",
+      "field": "Campo",
+      "error": "Erro",
+      "showingLimited": "Mostrando 200 de {{total}} linhas."
+    },
+    "error": {
+      "generic": "Ocorreu um erro. Tente novamente.",
+      "invalidFile": "Arquivo inválido — envie CSV ou XLSX.",
+      "fileTooLarge": "Arquivo muito grande.",
+      "asOfRequired": "Informe a data (asOf) para BP/DRE.",
+      "accountRequired": "Informe o código da conta para o Razão."
+    }
+  },
+  "reconciliation": {
+    "bankAccount": "Conta bancária",
+    "loadingAccounts": "Carregando contas…",
+    "noBankAccounts": "Nenhuma conta disponível",
+    "subtabs": {
+      "statements": "Extratos",
+      "pending": "Fila pendente"
+    },
+    "import": {
+      "title": "Importar extrato",
+      "description": "Envie um CSV, XLSX ou OFX. Para CSV/XLSX, colunas: date, amountCents, description[, externalRef], valores em centavos sinalizados. Reimportar o mesmo arquivo é idempotente.",
+      "periodStart": "Início do período",
+      "periodEnd": "Fim do período",
+      "statementRef": "Referência (opcional)",
+      "statementRefPlaceholder": "Ex.: Extrato Jul/2026",
+      "openingBalance": "Saldo inicial (centavos)",
+      "closingBalance": "Saldo final (centavos)",
+      "selectFile": "Selecionar arquivo",
+      "uploading": "Enviando…",
+      "needAccount": "Selecione a conta-banco.",
+      "needPeriod": "Informe o início e o fim do período.",
+      "tooLarge": "Arquivo muito grande.",
+      "success": "Extrato importado: {{count}} linha(s).",
+      "idempotent": "Arquivo já importado — nada foi alterado ({{count}} linha(s))."
+    },
+    "statements": {
+      "loading": "Carregando extratos…",
+      "empty": "Nenhum extrato importado para esta unidade.",
+      "viewLines": "Ver linhas",
+      "autoMatch": "Auto-conciliar",
+      "autoMatching": "Conciliando…",
+      "delete": "Excluir",
+      "autoMatchResult": "Auto-conciliação: {{matched}} conciliada(s), {{ambiguous}} ambígua(s), {{zero}} sem candidato (de {{processed}}).",
+      "col": {
+        "period": "Período",
+        "ref": "Referência",
+        "imported": "Importado em",
+        "actions": "Ações"
+      }
+    },
+    "lines": {
+      "loading": "Carregando linhas…",
+      "empty": "Nenhuma linha neste extrato.",
+      "unmatch": "Desfazer",
+      "unmatchTitle": "Desfazer vínculo com {{date}} — {{desc}}",
+      "unmatchError": "Não foi possível desfazer o vínculo. A lista foi atualizada.",
+      "col": {
+        "line": "Linha",
+        "date": "Data",
+        "description": "Histórico",
+        "amount": "Valor",
+        "status": "Status",
+        "actions": "Ações"
+      },
+      "status": {
+        "UNMATCHED": "Pendente",
+        "MATCHED": "Conciliada",
+        "IGNORED": "Ignorada"
+      }
+    },
+    "deleteConfirm": {
+      "title": "Excluir extrato?",
+      "message": "Excluir este extrato e suas linhas? Bloqueado se houver vínculo ativo. Esta ação não pode ser desfeita.",
+      "confirm": "Sim, excluir",
+      "cancel": "Cancelar",
+      "deleting": "Excluindo…"
+    },
+    "unmatchConfirm": {
+      "title": "Desfazer conciliação?",
+      "message": "A linha volta a Pendente e o lançamento retorna de Conciliado para Postado. O vínculo é preservado (auditado) e pode ser refeito.",
+      "target": "Vínculo: {{date}} — {{desc}}",
+      "confirm": "Sim, desfazer",
+      "cancel": "Cancelar",
+      "unmatching": "Desfazendo…"
+    },
+    "pending": {
+      "loading": "Carregando pendências…",
+      "selectAccount": "Selecione uma conta-banco para ver as pendências.",
+      "refresh": "Atualizar",
+      "totals": "{{lineCount}} linha(s) · Σ {{lineTotal}} · {{postingCount}} lançamento(s)",
+      "suggestions": "Sugestões",
+      "ignore": "Ignorar",
+      "ignoring": "Ignorando…",
+      "filters": {
+        "from": "De",
+        "to": "Até"
+      },
+      "lines": {
+        "title": "Linhas do extrato sem conciliação",
+        "empty": "Nenhuma linha pendente."
+      },
+      "postings": {
+        "title": "Lançamentos do banco sem conciliação",
+        "empty": "Nenhum lançamento pendente."
+      },
+      "col": {
+        "date": "Data",
+        "description": "Histórico",
+        "amount": "Valor",
+        "entry": "Lançamento",
+        "actions": "Ações"
+      }
+    },
+    "match": {
+      "title": "Conciliar linha",
+      "inflow": "Entrada",
+      "outflow": "Saída",
+      "loading": "Buscando sugestões…",
+      "empty": "Nenhum candidato encontrado (mesmo valor exato, ±3 dias, lançamento Postado). Registre o lançamento e tente novamente, ou ignore a linha.",
+      "ambiguityHint": "Vários candidatos com o mesmo valor — escolha o correto (não há escolha automática).",
+      "confirm": "Conciliar selecionado",
+      "confirming": "Conciliando…",
+      "cancel": "Cancelar",
+      "col": {
+        "date": "Data",
+        "description": "Histórico",
+        "delta": "Δ dias",
+        "amount": "Valor"
+      }
+    },
+    "error": {
+      "load": "Erro ao carregar a conciliação.",
+      "generic": "Ocorreu um erro. Tente novamente."
+    }
+  },
+  "cashFlow": {
+    "title": "Fluxo de Caixa (DFC)",
+    "controls": {
+      "asOf": "Posição em",
+      "generate": "Gerar DFC",
+      "calculating": "Calculando…"
+    },
+    "error": {
+      "load": "Erro ao carregar o fluxo de caixa."
+    },
+    "empty": "Selecione a data e clique em \"Gerar DFC\" para visualizar a Demonstração do Fluxo de Caixa.",
+    "method": {
+      "indirect": "Método indireto"
+    },
+    "section": {
+      "operating": "Atividades operacionais",
+      "investing": "Atividades de investimento",
+      "financing": "Atividades de financiamento",
+      "total": "Total",
+      "empty": "Sem movimentação"
+    },
+    "operating": {
+      "netResult": "Resultado do período",
+      "adjustments": "Ajustes (capital de giro e não-caixa)"
+    },
+    "cash": {
+      "opening": "Caixa inicial",
+      "closing": "Caixa final"
+    },
+    "reconciliation": {
+      "title": "Reconciliação",
+      "sectionsTotal": "Geração líquida de caixa",
+      "computedClosing": "Caixa final calculado",
+      "reconciles": "Reconcilia",
+      "notReconciles": "Não reconcilia"
+    },
+    "status": {
+      "ok": "OK",
+      "warning": "Aviso",
+      "invalid": "Inválido",
+      "mappingVersion": "Versão de mapeamento: {{version}}"
+    }
+  },
+  "periodComparison": {
+    "title": "Balancete Comparativo",
+    "controls": {
+      "current": "Período atual",
+      "previous": "Período de comparação",
+      "generate": "Gerar comparativo",
+      "calculating": "Calculando…"
+    },
+    "error": {
+      "load": "Erro ao carregar o balancete comparativo."
+    },
+    "empty": "Selecione as duas datas e clique em \"Gerar comparativo\" para visualizar a variação.",
+    "columns": {
+      "account": "Conta",
+      "current": "Atual",
+      "previous": "Anterior",
+      "deltaAbs": "Variação",
+      "deltaPct": "Variação %"
+    },
+    "range": {
+      "label": "{{current}} vs {{previous}}"
+    },
+    "noBaseline": "—"
+  },
+  "dailyJournal": {
+    "title": "Livro Diário",
+    "controls": {
+      "from": "De",
+      "to": "Até",
+      "generate": "Gerar Livro Diário",
+      "calculating": "Calculando…"
+    },
+    "error": {
+      "load": "Erro ao carregar o Livro Diário."
+    },
+    "empty": "Selecione o intervalo e clique em \"Gerar Livro Diário\" para visualizar os lançamentos.",
+    "entry": {
+      "number": "Lançamento nº {{number}}",
+      "date": "Data",
+      "description": "Histórico"
+    },
+    "columns": {
+      "account": "Conta",
+      "debit": "Débito",
+      "credit": "Crédito"
+    },
+    "balanced": "Balanceado",
+    "unbalanced": "Desbalanceado",
+    "range": {
+      "label": "{{from}} a {{to}}"
+    }
+  },
+  "dimensions": {
+    "status": {
+      "active": "Ativo",
+      "archived": "Arquivado"
+    },
+    "error": {
+      "load": "Erro ao carregar as dimensões.",
+      "archive": "Não foi possível arquivar."
+    },
+    "view": {
+      "catalog": "Catálogo",
+      "reports": "Relatórios"
+    },
+    "includeArchived": "Incluir arquivados",
+    "newAxis": "Novo Eixo",
+    "empty": "Nenhum eixo de dimensão cadastrado. Crie um centro de custo ou projeto para começar.",
+    "loading": "Carregando dimensões…",
+    "newValue": "Novo valor",
+    "archiveAxisTitle": "Arquivar o eixo",
+    "archive": "Arquivar",
+    "noValues": "Nenhum valor neste eixo ainda.",
+    "rollupOnly": "(agregador)",
+    "archiveValueTitle": "Arquivar o valor",
+    "optional": "(opcional)",
+    "archiveModal": {
+      "title": "Arquivar dimensão",
+      "cancel": "Voltar",
+      "archiving": "Arquivando…",
+      "confirm": "Arquivar",
+      "axisNote": "Arquive todos os valores do eixo antes de arquivar o eixo. Os vínculos históricos de lançamentos são preservados.",
+      "valueNote": "Arquive os valores-filho antes deste. O valor deixa de aparecer na etiquetagem, mas os vínculos históricos são preservados."
+    },
+    "field": {
+      "code": "Código",
+      "name": "Nome",
+      "parent": "Valor-pai (rollup)"
+    },
+    "createAxis": {
+      "title": "Novo Eixo de Dimensão",
+      "cancel": "Cancelar",
+      "saving": "Criando…",
+      "submit": "Criar",
+      "codePlaceholder": "Ex.: COST_CENTER, PROJECT",
+      "namePlaceholder": "Ex.: Centro de Custo, Projeto",
+      "error": "Erro ao criar o eixo."
+    },
+    "createValue": {
+      "title": "Novo Valor de Dimensão",
+      "cancel": "Cancelar",
+      "saving": "Criando…",
+      "submit": "Criar",
+      "axisLabel": "Eixo",
+      "codePlaceholder": "Ex.: LOJA_CENTRO",
+      "namePlaceholder": "Ex.: Loja Centro",
+      "noParent": "— sem pai (raiz) —",
+      "error": "Erro ao criar o valor."
+    },
+    "reports": {
+      "error": "Erro ao gerar o relatório.",
+      "noAxes": "Cadastre um eixo de dimensão ativo no catálogo para gerar relatórios.",
+      "axis": "Eixo",
+      "selectAxis": "— selecione o eixo —",
+      "from": "De",
+      "to": "Até",
+      "balance": "Balancete",
+      "result": "DRE",
+      "generate": "Gerar",
+      "generating": "Gerando…",
+      "emptyState": "Selecione um eixo e clique em \"Gerar\" para o recorte por dimensão.",
+      "balanceTitle": "Balancete por dimensão",
+      "resultTitle": "DRE por dimensão",
+      "noResult": "Nenhum resultado (receita/despesa) etiquetado neste eixo no período.",
+      "total": "Total",
+      "col": {
+        "value": "Valor",
+        "ownBalance": "Saldo próprio",
+        "rollupBalance": "Saldo acumulado",
+        "revenue": "Receita",
+        "expense": "Despesa",
+        "result": "Resultado"
+      }
+    }
+  },
+  "contrapartes": {
+    "heading": "Contrapartes",
+    "new": "Nova Contraparte",
+    "loading": "Carregando contrapartes…",
+    "empty": "Nenhuma contraparte cadastrada nesta unidade ainda.",
+    "type": {
+      "SUPPLIER": "Fornecedor",
+      "CUSTOMER": "Cliente"
+    },
+    "status": {
+      "active": "Ativa",
+      "archived": "Arquivada"
+    },
+    "filter": {
+      "all": "Todas",
+      "suppliers": "Fornecedores",
+      "customers": "Clientes",
+      "includeArchived": "Incluir arquivadas"
+    },
+    "col": {
+      "name": "Nome",
+      "type": "Tipo",
+      "ref": "Referência",
+      "status": "Situação",
+      "actions": "Ações"
+    },
+    "action": {
+      "archive": "Arquivar",
+      "archiveTitle": "Arquivar contraparte"
+    },
+    "error": {
+      "load": "Erro ao carregar as contrapartes.",
+      "archive": "Não foi possível arquivar a contraparte."
+    },
+    "createModal": {
+      "title": "Nova Contraparte",
+      "cancel": "Cancelar",
+      "submit": "Cadastrar",
+      "saving": "Cadastrando…",
+      "optional": "(opcional)",
+      "field": {
+        "type": "Tipo",
+        "name": "Nome",
+        "namePlaceholder": "Nome da contraparte…",
+        "ref": "Referência",
+        "refPlaceholder": "CNPJ, código externo…"
+      },
+      "error": {
+        "invalid": "Informe o nome da contraparte.",
+        "failed": "Erro ao cadastrar a contraparte."
+      }
+    },
+    "archiveModal": {
+      "title": "Arquivar contraparte",
+      "cancel": "Voltar",
+      "confirm": "Confirmar arquivamento",
+      "archiving": "Arquivando…",
+      "note": "A contraparte deixa de aparecer na seleção de novas contas. Os lançamentos e contas já vinculados permanecem intactos."
+    }
+  }
+}

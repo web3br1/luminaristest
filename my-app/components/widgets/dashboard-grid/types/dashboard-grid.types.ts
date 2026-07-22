@@ -18,26 +18,22 @@ export interface DashboardGridItem {
   static?: boolean;
   isDraggable?: boolean;
   isResizable?: boolean;
-  widgetConfig?: Record<string, unknown>;
+  widgetConfig?: any;
 }
 
 export interface DashboardLayout {
   id: string;
   userId: string;
   name: string;
+  isActive: boolean;
   type: string;
   config: {
     positions?: DashboardGridItem[];
+    columns?: number;
+    widgets?: string[];
   };
   createdAt: Date;
   updatedAt: Date;
-}
-
-export interface LayoutResponse {
-  success: boolean;
-  data: {
-    layouts: DashboardLayout[];
-  };
 }
 
 export interface DashboardGridConfig {
@@ -79,7 +75,7 @@ export interface ItemAction {
     droppedY?: number;
     newLayout?: DashboardGridItem[];
     itemId?: string;
-    config?: Record<string, unknown>;
+    config?: any;
     layoutItems?: DashboardGridItem[];
   };
 }

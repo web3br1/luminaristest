@@ -2,22 +2,24 @@ import { ValidationError } from '../../../../lib/errors';
 import type { PostEntryInput } from '../../dtos/PostingDto';
 import type { AccountingEvent } from '../AccountingSyncPort';
 import type { IAccountingEventMapper } from './IAccountingEventMapper';
+import { splitRevenueCredit } from './revenueSplit';
 
 /**
  * Maps `salon.sale.finalized` → revenue recognition entry (Incremento C):
- *   Débito  1.1.2 (A Receber)         = amountCents
- *   Crédito 3.1   (Receita de Vendas) = amountCents
- * Both are canonical leaf accounts (acceptsEntries=true) in ChartOfAccountsFixture —
- * the SAME accounts as CrmOpportunityWonMapper, by ADR-C01 (recognize at the commercial
- * fact). paymentStatus is ignored here: even a `Paid` sale posts to A Receber; the
- * settlement (A Receber → Caixa/Banco) is a separate Incremento D.
+ *   Débito  1.1.2 (A Receber)             = amountCents
+ *   Crédito 3.1   (Receita de Serviços)   = serviceCents
+ *   Crédito 3.3   (Receita de Revenda)    = productCents   (ADR-INCR-REVENUE-SPLIT)
+ * All are canonical leaf accounts (acceptsEntries=true) in ChartOfAccountsFixture. The
+ * receivable (debit) is the full total regardless of nature; the credit is SPLIT by nature
+ * so the ECF-Presumido Bloco P can read per-activity revenue by account.
+ * paymentStatus is ignored here: even a `Paid` sale posts to A Receber; the settlement
+ * (A Receber → Caixa/Banco) is a separate Incremento D.
  */
 export class SalonSaleFinalizedMapper implements IAccountingEventMapper {
   public readonly sourceType = 'salon.sale.finalized' as const;
 
-  /** Leaf account codes (canonical chart) — identical to CRM revenue recognition. */
+  /** Leaf account code (canonical chart). Credit codes live in revenueSplit.ts. */
   private static readonly DEBIT_ACCOUNT = '1.1.2'; // A Receber
-  private static readonly CREDIT_ACCOUNT = '3.1'; //  Receita de Vendas
 
   public map(event: AccountingEvent): PostEntryInput {
     // MONEY BOUNDARY (Contract §2.1 / AC-2.2-1). The salon `totalAmount` is a JSON float
@@ -44,6 +46,10 @@ export class SalonSaleFinalizedMapper implements IAccountingEventMapper {
       );
     }
 
+    // Split the credit by nature (ADR-INCR-REVENUE-SPLIT D5) via the CANONICAL splitter
+    // (revenueSplit.ts — shared with the CRM mapper so the technique cannot drift per mapper).
+    const creditLines = splitRevenueCredit(amountCents, event.revenueByNature);
+
     return {
       unitId: event.unitId,
       date: event.occurredAt,
@@ -52,8 +58,9 @@ export class SalonSaleFinalizedMapper implements IAccountingEventMapper {
       sourceId: event.sourceId,
       lines: [
         { accountCode: SalonSaleFinalizedMapper.DEBIT_ACCOUNT, debitCents: amountCents, creditCents: 0 },
-        { accountCode: SalonSaleFinalizedMapper.CREDIT_ACCOUNT, debitCents: 0, creditCents: amountCents },
+        ...creditLines,
       ],
     };
   }
+
 }

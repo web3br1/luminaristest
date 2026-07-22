@@ -7,6 +7,7 @@
     "dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/server.ts",
     "build": "npx prisma generate && tsc",
     "start": "node dist/server.js",
+    "postinstall": "prisma generate",
     "clean": "if exist dist rmdir /s /q dist",
     "prebuild": "npm run clean",
     "prisma:generate": "prisma generate",
@@ -17,7 +18,15 @@
     "docs:generate": "node ./scripts/generate-openapi.js",
     "accounting:reconcile": "node dist/jobs/accountingSyncReconcileCli.js",
     "lint": "eslint src",
-    "test": "jest"
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "jest --selectProjects unit --forceExit",
+    "test:integration": "jest --selectProjects integration --runInBand --forceExit",
+    "test:coverage": "jest --coverage --runInBand --forceExit",
+    "test:watch": "jest --selectProjects unit --watch",
+    "test:leaks": "jest --detectOpenHandles --runInBand"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
@@ -39,6 +48,7 @@
     "openai": "^4.104.0",
     "pdf-parse": "^1.1.1",
     "prisma": "^6.16.2",
+    "puppeteer": "^25.3.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^13.0.0",
@@ -53,16 +63,20 @@
     "@types/multer": "^2.0.0",
     "@types/node": "^20.10.0",
     "@types/pdf-parse": "^1.1.5",
+    "@types/supertest": "^7.2.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^10.0.0",
     "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
     "jest": "^30.2.0",
+    "prettier": "^3.8.5",
+    "supertest": "^7.2.2",
     "ts-jest": "^29.4.6",
     "ts-node-dev": "^2.0.0",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.3.3",
-    "typescript-eslint": "^8.61.1"
+    "typescript-eslint": "^8.62.0"
   },
   "engines": {
     "node": ">=18.0.0"

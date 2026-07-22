@@ -6,6 +6,7 @@
  */
 
 import type { IDynamicTable, ITableSchema } from '@/features/dynamicTables/models/DynamicTable.model';
+import { logger } from '@/lib/logger';
 
 // =============================================================================
 // TYPES
@@ -87,7 +88,7 @@ const processorRegistry: Record<string, AnalyticsProcessor> = {};
  */
 export function registerProcessor(key: string, processor: AnalyticsProcessor): void {
   if (processorRegistry[key]) {
-    console.warn(`[Analytics] Processor '${key}' already registered. Overwriting.`);
+    logger.warn('[Analytics] Processor already registered. Overwriting.', { key });
   }
   processorRegistry[key] = processor;
 }

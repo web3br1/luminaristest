@@ -3,18 +3,26 @@ import type * as express from 'express';
 import { getFactory } from '@/lib/factory';
 import { GenerateReportSchema } from '@/features/reports/dtos/GenerateReportDto';
 import { getUserContextFromRequest } from '@/lib/authUtils';
+import { AppError } from '@/lib/errors';
+import { logger } from '@/lib/logger';
 import type { ProgressCallback } from '@/features/reports/services/IReportService';
 
-export async function generateChartData(req: Request, res: Response) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    res.status(405).end('Method Not Allowed');
+export async function generateChartData(req: Request, res: Response): Promise<void> {
+  const ctx = getUserContextFromRequest(req);
+  if (!ctx) {
+    res.status(401).json({ success: false, error: 'Authentication required' });
     return;
   }
 
-  const ctx = getUserContextFromRequest(req);
-  if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
+  // Validate BEFORE committing to the SSE stream, so a bad request gets a real 400 (JSON),
+  // consistent with the other features — not a 200 + error event.
+  const validation = GenerateReportSchema.safeParse(req.body);
+  if (!validation.success) {
+    res.status(400).json({ success: false, error: validation.error.flatten() });
+    return;
+  }
 
+  // From here on the response is a Server-Sent Events stream.
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -25,14 +33,6 @@ export async function generateChartData(req: Request, res: Response) {
   };
 
   try {
-    const validation = GenerateReportSchema.safeParse(req.body);
-    if (!validation.success) {
-      const errorMessage = validation.error.issues.map(e => e.message).join(', ');
-      sendEvent({ type: 'error', message: `Invalid request body: ${errorMessage}` });
-      res.end();
-      return;
-    }
-
     const reportService = getFactory().getReportService();
     const onProgress: ProgressCallback = (update) => {
       sendEvent({ type: 'progress', ...update });
@@ -48,13 +48,12 @@ export async function generateChartData(req: Request, res: Response) {
     } else {
       sendEvent({ type: 'message', message: result.response, chatInstanceId: validation.data.chatInstanceId });
     }
-  } catch (error: unknown) {
-    console.error('Error in generate-chart-data handler:', error);
-    sendEvent({ type: 'error', message: error instanceof Error ? error.message : 'An unexpected error occurred' });
+  } catch (error) {
+    // Log the real error; only surface a safe message to the client (no internals leaked).
+    logger.error('Error in generate-chart-data handler', { error });
+    const message = error instanceof AppError ? error.message : 'An unexpected error occurred';
+    sendEvent({ type: 'error', message });
   } finally {
     res.end();
-    return;
   }
 }
-
-

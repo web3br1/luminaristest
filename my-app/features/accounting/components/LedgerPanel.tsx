@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'next-i18next';
 import { accountingService, type AccountLedgerReport, type Account } from '../../../lib/services/accounting.service';
 import { formatCents } from '../lib/formatCents';
 import { formatDate } from '../lib/formatDate';
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function LedgerPanel({ unitId }: Props) {
+  const { t } = useTranslation('accounting');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedCode, setSelectedCode] = useState('');
   const [ledger, setLedger] = useState<AccountLedgerReport | null>(null);
@@ -21,7 +23,7 @@ export function LedgerPanel({ unitId }: Props) {
       const active = r.accounts.filter((a) => !a.deletedAt);
       setAccounts(active);
       if (active.length > 0 && !selectedCode) setSelectedCode(active[0].code);
-    }).catch(() => setError('Erro ao carregar plano de contas.'));
+    }).catch(() => setError(t('ledger.error.loadAccounts', 'Erro ao carregar plano de contas.')));
   }, [unitId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load ledger when account changes
@@ -31,7 +33,7 @@ export function LedgerPanel({ unitId }: Props) {
     setError(null);
     accountingService.getAccountLedger({ unitId, accountCode: selectedCode })
       .then((r) => setLedger(r))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Erro ao carregar razão.'))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : t('ledger.error.loadLedger', 'Erro ao carregar razão.')))
       .finally(() => setLoading(false));
   }, [unitId, selectedCode]);
 
@@ -40,14 +42,14 @@ export function LedgerPanel({ unitId }: Props) {
       {/* Account selector */}
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-sm">
-          <span className="text-neutral-400">Conta</span>
+          <span className="text-neutral-400">{t('ledger.accountLabel', 'Conta')}</span>
           <select
             value={selectedCode}
             onChange={(e) => setSelectedCode(e.target.value)}
             disabled={accounts.length === 0}
             className="rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 focus:border-emerald-500 focus:outline-none disabled:opacity-50"
           >
-            {accounts.length === 0 && <option value="">Carregando…</option>}
+            {accounts.length === 0 && <option value="">{t('ledger.loadingOption', 'Carregando…')}</option>}
             {accounts.map((a) => (
               <option key={a.id} value={a.code}>{a.code} — {a.name}</option>
             ))}
@@ -56,7 +58,7 @@ export function LedgerPanel({ unitId }: Props) {
 
         {ledger && (
           <span className="text-sm text-neutral-500">
-            Saldo final:{' '}
+            {t('ledger.closingBalanceInline', 'Saldo final:')}{' '}
             <span className="tabular-nums text-neutral-200">
               {formatCents(ledger.closingBalanceCents)}
             </span>
@@ -71,12 +73,12 @@ export function LedgerPanel({ unitId }: Props) {
       )}
 
       {loading && (
-        <div className="py-12 text-center text-neutral-400">Carregando razão…</div>
+        <div className="py-12 text-center text-neutral-400">{t('ledger.loadingLedger', 'Carregando razão…')}</div>
       )}
 
       {!loading && ledger && ledger.rows.length === 0 && (
         <div className="py-12 text-center text-neutral-500">
-          Nenhum lançamento nesta conta.
+          {t('ledger.empty', 'Nenhum lançamento nesta conta.')}
         </div>
       )}
 
@@ -85,11 +87,11 @@ export function LedgerPanel({ unitId }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-neutral-800 text-left text-neutral-400">
-                <th className="px-4 py-3 font-medium">Data</th>
-                <th className="px-4 py-3 font-medium">Histórico</th>
-                <th className="px-4 py-3 text-right font-medium">Débito</th>
-                <th className="px-4 py-3 text-right font-medium">Crédito</th>
-                <th className="px-4 py-3 text-right font-medium">Saldo</th>
+                <th className="px-4 py-3 font-medium">{t('ledger.col.date', 'Data')}</th>
+                <th className="px-4 py-3 font-medium">{t('ledger.col.description', 'Histórico')}</th>
+                <th className="px-4 py-3 text-right font-medium">{t('ledger.col.debit', 'Débito')}</th>
+                <th className="px-4 py-3 text-right font-medium">{t('ledger.col.credit', 'Crédito')}</th>
+                <th className="px-4 py-3 text-right font-medium">{t('ledger.col.balance', 'Saldo')}</th>
               </tr>
             </thead>
             <tbody>
@@ -119,7 +121,7 @@ export function LedgerPanel({ unitId }: Props) {
             <tfoot>
               <tr className="border-t-2 border-neutral-700 bg-neutral-900">
                 <td colSpan={4} className="px-4 py-2.5 text-sm font-semibold text-neutral-300">
-                  Saldo final
+                  {t('ledger.closingBalance', 'Saldo final')}
                 </td>
                 <td className={`px-4 py-2.5 text-right tabular-nums text-sm font-bold ${
                   ledger.closingBalanceCents >= 0 ? 'text-emerald-400' : 'text-red-400'

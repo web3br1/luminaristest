@@ -1,8 +1,9 @@
 import type { Request, Response } from 'express';
-import { analyticsService } from '@/features/analytics/services/AnalyticsService';
+import { getFactory } from '@/lib/factory';
 import { handleApiError } from '@/lib/apiUtils';
 import { getUserContextFromRequest } from '@/lib/authUtils';
 import { resolveChartData, resolveChartDetails } from '@/features/analytics/engine/AnalyticsResolver';
+import { ChartDataQuerySchema, ChartDetailsQuerySchema, DrillDownQuerySchema } from '@/features/analytics/dtos/AnalyticsQueryDto';
 
 export async function getAnalyticsPresets(req: Request, res: Response) {
   try {
@@ -10,7 +11,7 @@ export async function getAnalyticsPresets(req: Request, res: Response) {
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const presetKey = typeof req.query.presetKey === 'string' ? req.query.presetKey : undefined;
-    const groups = await analyticsService.getAllPresetGroupsAsync(ctx.id, presetKey);
+    const groups = await getFactory().getAnalyticsService().getAllPresetGroupsAsync(ctx.userId, presetKey);
     return res.status(200).json({ success: true, data: groups });
   } catch (error) {
     return handleApiError(error, res);
@@ -22,9 +23,10 @@ export async function getAnalyticsData(req: Request, res: Response) {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
-    const key = String(req.query.key || '');
-    const params = { ...req.query };
-    const result = await resolveChartData(req, key, params);
+    const parsed = ChartDataQuerySchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.flatten() });
+
+    const result = await resolveChartData(ctx, parsed.data.key, { ...req.query });
     return res.status(200).json({ success: true, data: result });
   } catch (error) {
     return handleApiError(error, res);
@@ -37,7 +39,7 @@ export async function getPresetAnalyticsPresets(req: Request, res: Response) {
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const presetKey = String(req.params.presetKey || '');
-    const groups = await analyticsService.getAllPresetGroupsAsync(ctx.id, presetKey);
+    const groups = await getFactory().getAnalyticsService().getAllPresetGroupsAsync(ctx.userId, presetKey);
     return res.status(200).json({ success: true, data: groups });
   } catch (error) {
     return handleApiError(error, res);
@@ -49,9 +51,10 @@ export async function getPresetAnalyticsData(req: Request, res: Response) {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
-    const key = String(req.query.key || '');
-    const params = { ...req.query };
-    const result = await resolveChartData(req, key, params);
+    const parsed = ChartDataQuerySchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.flatten() });
+
+    const result = await resolveChartData(ctx, parsed.data.key, { ...req.query });
     return res.status(200).json({ success: true, data: result });
   } catch (error) {
     return handleApiError(error, res);
@@ -64,21 +67,15 @@ export async function getChartDetails(req: Request, res: Response) {
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const chartKey = String(req.params.chartKey || '');
-    const dataPointName = typeof req.query.dataPointName === 'string' ? req.query.dataPointName : undefined;
-    const page = typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : 1;
-    const limit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 50;
-    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
-    const sortBy = typeof req.query.sortBy === 'string' ? req.query.sortBy : undefined;
-    const sortOrder = typeof req.query.sortOrder === 'string' && ['asc', 'desc'].includes(req.query.sortOrder)
-      ? req.query.sortOrder as 'asc' | 'desc'
-      : 'desc';
+    const parsed = ChartDetailsQuerySchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.flatten() });
 
-    const result = await resolveChartDetails(req, chartKey, dataPointName, {
-      page,
-      limit,
-      search,
-      sortBy,
-      sortOrder,
+    const result = await resolveChartDetails(ctx, chartKey, parsed.data.dataPointName, {
+      page: parsed.data.page,
+      limit: parsed.data.limit,
+      search: parsed.data.search,
+      sortBy: parsed.data.sortBy,
+      sortOrder: parsed.data.sortOrder,
     });
 
     return res.status(200).json({ success: true, data: result });
@@ -96,7 +93,7 @@ export async function discoverTableKPIs(req: Request, res: Response) {
     const tableId = String(req.params.tableId || '');
     if (!tableId) return res.status(400).json({ success: false, error: 'Table ID is required' });
 
-    const suggestedGroups = await analyticsService.discoverKPIsAsync(ctx.id, tableId);
+    const suggestedGroups = await getFactory().getAnalyticsService().discoverKPIsAsync(ctx.userId, tableId);
     return res.status(200).json({ success: true, data: suggestedGroups });
   } catch (error) {
     return handleApiError(error, res);
@@ -108,17 +105,16 @@ export async function getDrillDownData(req: Request, res: Response) {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
-    const tableId = String(req.query.tableId || '');
-    if (!tableId) return res.status(400).json({ success: false, error: 'Table ID is required' });
+    const parsed = DrillDownQuerySchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    const { tableId, recordIds: recordIdsStr, fields: fieldsStr, page, limit } = parsed.data;
 
-    const recordIdsStr = String(req.query.recordIds || '');
     const recordIds = recordIdsStr ? recordIdsStr.split(',').map(id => id.trim()) : [];
 
     if (recordIds.length === 0) {
       return res.status(200).json({ success: true, data: [] });
     }
 
-    const fieldsStr = String(req.query.fields || '');
     const fields = fieldsStr ? fieldsStr.split(',').map(f => f.trim()) : [];
 
     const dynamicTableService = await import('@/lib/factory').then(m => m.getFactory().getDynamicTableService());
@@ -144,9 +140,7 @@ export async function getDrillDownData(req: Request, res: Response) {
       });
     }
 
-    // Optional Pagination (in-memory)
-    const page = parseInt(String(req.query.page || '1'), 10);
-    const limit = parseInt(String(req.query.limit || '20'), 10);
+    // Optional Pagination (in-memory) — page/limit already validated above.
     const totalRecords = filteredData.length;
     const totalPages = Math.ceil(totalRecords / limit);
     const offset = (page - 1) * limit;

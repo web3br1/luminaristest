@@ -2,6 +2,9 @@
 // This is the single source of truth — authUtils.ts re-exports from here.
 import { Role } from '../features/users/models/User.model';
 
+/**
+ * Authenticated user context attached to a request after auth.
+ */
 export interface UserContext {
   /** Primary user identifier (same as id, provided for clarity in service calls) */
   userId: string;
@@ -19,4 +22,6 @@ export interface UserContext {
   userEmail: string;
   /** Alias for name */
   userName?: string;
+  /** From x-user-timezone header (injected by the API client) */
+  timeZone?: string;
 }

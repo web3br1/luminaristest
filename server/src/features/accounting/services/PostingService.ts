@@ -1,8 +1,10 @@
-import { AccountingPeriodNotOpenError, AppError, ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
+import { AccountingPeriodNotOpenError, AppError, ForbiddenError, MaxCentsExceededError, NotFoundError, ValidationError } from '../../../lib/errors';
 import logger from '../../../lib/logger';
 import { Prisma } from 'generated/prisma';
 import type { Account } from 'generated/prisma';
 import { CANONICAL_ACCOUNTS } from '../fixtures/ChartOfAccountsFixture';
+import { CLOSING_SOURCE_TYPE, reversedClosingSourceId } from '../models/closing';
+import { MAX_CENTS } from '../models/money';
 import type { CreateAccountInput, PostEntryInput, ReverseEntryInput } from '../dtos/PostingDto';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
 import type {
@@ -13,7 +15,10 @@ import type {
 import type { IPostingRepository } from '../repositories/IPostingRepository';
 import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { IAccountingPeriodRepository } from '../repositories/IAccountingPeriodRepository';
+import type { ISourceProvenanceRepository } from '../repositories/ISourceProvenanceRepository';
+import type { IDimensionRepository } from '../repositories/IDimensionRepository';
 import type { AuditService } from './AuditService';
+import { assertLegDimensions, resolveLineDimensions } from './dimensionTagging';
 import type { AccountingScope } from '../scope/AccountingScope';
 import { accountingScopeWhere } from '../scope/AccountingScope';
 
@@ -39,6 +44,8 @@ export class PostingService {
     private readonly policy: IAccountingPolicy,
     private readonly periodRepo: IAccountingPeriodRepository,
     private readonly auditService: AuditService,
+    private readonly sourceProvenanceRepo: ISourceProvenanceRepository,
+    private readonly dimensionRepo: IDimensionRepository,
   ) {}
 
   /** Derive year+month from an ISO date string using UTC (no tz shift for date-only strings). */
@@ -166,6 +173,31 @@ export class PostingService {
 
     await this.ensureChartOfAccounts(scope);
 
+    // CENTS CHOKE-POINT GUARD (Council 1.5 / ACC-014) — the write authority validates the cents
+    // themselves, not just the balance. Border guards (DTO Zod, import validators) keep the
+    // friendly-400 UX for direct API input, but bridge/mapper callers bypass every DTO — this is
+    // the single point ALL write paths cross. Two distinct rejections:
+    //   • non-integer/negative cents → ValidationError (malformed money can NEVER enter the ledger);
+    //   • integer above the Int32 storage ceiling → MaxCentsExceededError with its OWN code
+    //     ('MAX_CENTS_EXCEEDED', distinct from period-closed) so best-effort bridges and the
+    //     reconcile re-drive can skip it as a POISON event instead of retrying forever.
+    for (const line of input.lines) {
+      if (
+        !Number.isInteger(line.debitCents) ||
+        !Number.isInteger(line.creditCents) ||
+        line.debitCents < 0 ||
+        line.creditCents < 0
+      ) {
+        throw new ValidationError(
+          `Partida da conta '${line.accountCode}' com centavos inválidos — inteiro >= 0 obrigatório.`,
+        );
+      }
+      const magnitude = Math.max(line.debitCents, line.creditCents);
+      if (magnitude > MAX_CENTS) {
+        throw new MaxCentsExceededError(line.accountCode, magnitude, MAX_CENTS);
+      }
+    }
+
     // BALANCE INVARIANT — integer cents, EXACT equality (no float/epsilon, Contract §2.1).
     const sumDebit = input.lines.reduce((acc, line) => acc + line.debitCents, 0);
     const sumCredit = input.lines.reduce((acc, line) => acc + line.creditCents, 0);
@@ -188,14 +220,29 @@ export class PostingService {
       }
     }
 
-    // Resolve every line's account (leaf-only) BEFORE opening the transaction.
-    const resolvedLines: Array<{ accountId: string; debitCents: number; creditCents: number }> = [];
+    // Resolve every line's account (leaf-only) AND its dimension tags BEFORE opening the transaction.
+    // Dimension resolution is metadata-only and runs AFTER the balance check above — it can NEVER
+    // change Σdébito=Σcrédito (ACC-024).
+    const resolvedLines: Array<{
+      accountId: string;
+      accountCode: string;
+      requiresDimension: boolean;
+      debitCents: number;
+      creditCents: number;
+      dimensions: Array<{ definitionId: string; valueId: string }>;
+    }> = [];
     for (const line of input.lines) {
       const account = await this.resolveLeafAccount(scope, line.accountCode);
+      const dimensions = line.dimensions?.length
+        ? await resolveLineDimensions(this.dimensionRepo, scope, line.dimensions)
+        : [];
       resolvedLines.push({
         accountId: account.id,
+        accountCode: account.code,
+        requiresDimension: account.requiresDimension,
         debitCents: line.debitCents,
         creditCents: line.creditCents,
+        dimensions,
       });
     }
 
@@ -204,6 +251,30 @@ export class PostingService {
       const entry = await this.postingRepo.runTransaction(async (tx) => {
         // AUTHORITATIVE PERIOD GATE — inside the tx, before Posted. Closes the TOCTOU window.
         await this.assertPeriodOpenTx(tx, scope, input.date);
+
+        // MANDATORY-DIMENSION GATE (SEC-B1-1, INCR-DIM-COMPLETENESS) — in-tx (T6), authoritative at
+        // commit: a leg to a `requiresDimension` account with NO tag is rejected + rolls back. This
+        // is the FIRST of the three write-paths covered by the shared choke-point (the other two are
+        // reverseEntry — copy-only — and EntryApprovalService.approveEntry). PROSPECTIVE (SEC-B1-5).
+        //
+        // MACHINE-WRITER EXEMPTION (Council 1.7/N6) — a closing entry (sourceType='closing',
+        // ExerciseClosingService) composes its legs FROM aggregated ledger balances: there is no
+        // per-leg dimension fact to tag, and gating it would DEADLOCK the year-end close the moment
+        // any result account is flagged (exercício inencerrável → no PVA-clean ECD). This mirrors
+        // the reversal exemption (SEC-B1-2): both are derived-content writers, not original economic
+        // content. The apuração I350/I355 path IS this closing entry (SPED gen is read-only, D7), so
+        // no other machine writer needs the exemption. Boundary note: sourceType is caller-supplied,
+        // but a caller forging 'closing' only skips a METADATA completeness gate (ACC-024 — no ledger
+        // value) at the cost of mislabeling its entry as DRE-excluded — audited like every post.
+        if (sourceType !== CLOSING_SOURCE_TYPE) {
+          assertLegDimensions(
+            resolvedLines.map((l) => ({
+              accountCode: l.accountCode,
+              requiresDimension: l.requiresDimension,
+              dimensionCount: l.dimensions.length,
+            })),
+          );
+        }
 
         const fiscalYear = this.fiscalYearFrom(input.date);
         const entryNumber = await this.postingRepo.nextEntryNumber(scope, fiscalYear, tx);
@@ -226,7 +297,7 @@ export class PostingService {
         );
 
         for (const line of resolvedLines) {
-          await this.postingRepo.create(
+          const posting = await this.postingRepo.create(
             {
               userId,
               unitId,
@@ -237,6 +308,15 @@ export class PostingService {
             },
             tx,
           );
+          // INCR-DIM — tag the leg (metadata; same tx, T6). The @@unique([postingId,definitionId]) is
+          // the authoritative one-value-per-axis backstop; resolveLineDimensions already rejected dups
+          // and non-leaf/archived values pre-tx. Writes NO ledger value (ACC-024).
+          for (const tag of line.dimensions) {
+            await this.dimensionRepo.createPostingDimension(
+              { userId, unitId, postingId: posting.id, definitionId: tag.definitionId, valueId: tag.valueId },
+              tx,
+            );
+          }
         }
 
         const postings = await this.postingRepo.findByEntryId(scope, created.id, tx);
@@ -247,6 +327,42 @@ export class PostingService {
           targetId:    created.id,
           payload:     { sourceType, sourceId: input.sourceId, description: input.description, sumDebitCents: String(sumDebit), lineCount: String(resolvedLines.length) },
         });
+
+        // BE-INCR-8 — formal provenance (ADR-INCR8 D5). When the caller passes an origin
+        // descriptor, record a SourceDocument + JournalEntrySource in THIS tx — atomic with
+        // the entry (ACC-011/012), tx propagated (T6). Absent ⇒ no origin: manual (no
+        // descriptor) and reversal (a separate path that never sets one) get NONE. This layer
+        // writes NO ledger value; idempotency stays in JournalEntry.@@unique (T7/D2) and a
+        // re-post short-circuits before the tx, so no SourceDocument is ever duplicated.
+        if (input.sourceDocument) {
+          const sd = input.sourceDocument;
+          const sourceDocument = await this.sourceProvenanceRepo.createSourceDocument(
+            {
+              userId,
+              unitId,
+              sourceType,
+              externalRef: sd.externalRef ?? null,
+              documentDate: sd.documentDate ? new Date(sd.documentDate) : null,
+              description: sd.description ?? null,
+              attachmentId: sd.attachmentId ?? null,
+              rawJson: sd.rawJson ?? null,
+              createdById: scope.actorUserId,
+            },
+            tx,
+          );
+          await this.sourceProvenanceRepo.linkEntry(
+            { userId, unitId, journalEntryId: created.id, sourceDocumentId: sourceDocument.id },
+            tx,
+          );
+          await this.auditService.append(tx, scope, {
+            actorUserId: scope.actorUserId,
+            eventType:   'entry.source_recorded',
+            targetType:  'journal_entry',
+            targetId:    created.id,
+            payload:     { journalEntryId: created.id, sourceDocumentId: sourceDocument.id, externalRef: sd.externalRef, sourceType },
+          });
+        }
+
         return { ...created, postings };
       });
 
@@ -341,6 +457,13 @@ export class PostingService {
       );
     }
 
+    // Reversing a CLOSING entry is itself part of the closing mechanism (D3/D5): the reversal
+    // inherits sourceType='closing' so it too is EXCLUDED from the DRE — otherwise its
+    // result-account legs would leak back into the operational result. Hoisted so the P2002
+    // race-close catch below looks the reversal up under the RIGHT sourceType.
+    const isClosingReversal = original.sourceType === CLOSING_SOURCE_TYPE;
+    const reversalSourceType = isClosingReversal ? CLOSING_SOURCE_TYPE : 'reversal';
+
     // ATOMIC — reversal header + swapped legs + original→Reversed + link commit together.
     let result: JournalEntryWithPostings;
     try {
@@ -362,7 +485,7 @@ export class PostingService {
             date: new Date(input.reversalPostingDate),
             description: input.reason ? `Estorno de ${original.id} — ${input.reason}` : `Estorno de ${original.id}`,
             status: 'Posted',
-            sourceType: 'reversal',
+            sourceType: reversalSourceType,
             sourceId: original.id,
             createdById: scope.actorUserId,
             postedById: scope.actorUserId,
@@ -373,7 +496,7 @@ export class PostingService {
         );
 
         for (const leg of original.postings) {
-          await this.postingRepo.create(
+          const mirror = await this.postingRepo.create(
             {
               userId,
               unitId,
@@ -385,10 +508,39 @@ export class PostingService {
             },
             tx,
           );
+          // SEC-B1-2 (INCR-DIM-COMPLETENESS) — COPY the original leg's dimension tags onto the mirror
+          // leg so the reversal is dimensionally IDENTICAL to the original: the DRE-by-dimension slice
+          // reconciles (the reversal cancels the original in the same bucket), and a `requiresDimension`
+          // account's estorno inherits its tags instead of failing. The reversal path is NOT hard-gated
+          // (SEC-B1-5): it mirrors an already-accepted-or-historical entry, and gating it would
+          // retro-reject the estorno of a legitimately-untagged historical leg. Same tx (T6).
+          const originalTags = await this.dimensionRepo.findPostingDimensions(scope, leg.id, tx);
+          for (const tag of originalTags) {
+            await this.dimensionRepo.createPostingDimension(
+              { userId, unitId, postingId: mirror.id, definitionId: tag.definitionId, valueId: tag.valueId },
+              tx,
+            );
+          }
         }
 
         await this.journalEntryRepo.setStatus(scope, original.id, 'Reversed', tx);
         await this.journalEntryRepo.setReversedBy(scope, original.id, reversal.id, tx);
+
+        // FREE THE IDEMPOTENCY KEY (D5): a closing entry keys on sourceId=String(year); once
+        // reversed, rename it so the @@unique(...,sourceType,sourceId) is available again and a
+        // fresh closeExercise(year) produces a NEW entry instead of tripping P2002 on the
+        // reversed one. Same tx as the status flip (ACC-011/019). The renamed entry keeps
+        // sourceType='closing' → still DRE-excluded.
+        if (isClosingReversal) {
+          await this.journalEntryRepo.setSourceId(
+            scope,
+            original.id,
+            // original is guarded status==='Posted' above ⇒ always numbered (fiscalYear non-null,
+            // ADR-INCR-APPROVAL made the column nullable only for Draft/PendingApproval).
+            reversedClosingSourceId(original.fiscalYear!, original.id),
+            tx,
+          );
+        }
 
         const reversalPostings = await this.postingRepo.findByEntryId(scope, reversal.id, tx);
         await this.auditService.append(tx, scope, {
@@ -402,9 +554,10 @@ export class PostingService {
       });
     } catch (error) {
       // ponytail: authoritative race-close — @@unique([userId,unitId,sourceType,sourceId]) blocks
-      // a second reversal. A concurrent reverser that loses the race trips P2002; re-fetch.
+      // a second reversal. A concurrent reverser that loses the race trips P2002; re-fetch under the
+      // reversal's actual sourceType (='closing' when reversing a closing entry — N1).
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const existing = await this.journalEntryRepo.findBySource(scope, 'reversal', original.id);
+        const existing = await this.journalEntryRepo.findBySource(scope, reversalSourceType, original.id);
         if (existing) {
           const racedOriginal =
             (await this.journalEntryRepo.findById(scope, original.id)) ?? original;
@@ -555,5 +708,44 @@ export class PostingService {
       });
     });
     logger.info('Account soft-deleted', { accountId, userId: scope.ownerUserId });
+  }
+
+  /**
+   * Toggle an account's `requiresDimension` flag (INCR-DIM-COMPLETENESS SEC-B1-4). Behind
+   * `canManage`, and EVERY mutation emits an AuditEvent in the hash-chain — so the off→post→on
+   * evasion (turn the flag off, post an untagged leg, turn it back on) is permanently VISIBLE in
+   * the append-only trail. The flip + its audit event commit atomically in one tx (T8). Only
+   * mutates a boolean column — never a ledger value (ACC-024); the gate itself lives in the
+   * posting/approval write-paths (SEC-B1-1), never here.
+   */
+  async setAccountRequiresDimension(
+    scope: AccountingScope,
+    accountId: string,
+    requiresDimension: boolean,
+  ): Promise<Account> {
+    if (!this.policy.canManage(scope)) {
+      throw new ForbiddenError('Você não tem permissão para configurar contas.');
+    }
+    const account = await this.accountRepo.findById(scope, accountId);
+    if (!account) {
+      throw new NotFoundError(`Conta '${accountId}' não encontrada.`);
+    }
+    return this.postingRepo.runTransaction(async (tx) => {
+      const updated = await this.accountRepo.setRequiresDimension(scope, accountId, requiresDimension, tx);
+      await this.auditService.append(tx, scope, {
+        actorUserId: scope.actorUserId,
+        eventType:   'account.requires_dimension_changed',
+        targetType:  'account',
+        targetId:    accountId,
+        payload:     { code: account.code, from: String(account.requiresDimension), to: String(requiresDimension) },
+      });
+      logger.info('Account requiresDimension changed', {
+        accountId,
+        code: account.code,
+        from: account.requiresDimension,
+        to: requiresDimension,
+      });
+      return updated;
+    });
   }
 }

@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
 
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   server:
     name: Server – typecheck & test
@@ -11,6 +16,13 @@ jobs:
     defaults:
       run:
         working-directory: server
+    # Dummy values so module-load and Prisma generate succeed in CI. Tests mock OpenAI/Qdrant and use
+    # an isolated SQLite file (set by test/jest.setupEnv.ts), so no real credentials are needed.
+    # JWT_SECRET dummy is 32+ chars: lib/jwt.ts fail-closes on shorter secrets.
+    env:
+      OPENAI_API_KEY: ci-dummy-openai-key
+      JWT_SECRET: ci-dummy-jwt-secret-0123456789abcdef
+      DATABASE_URL: file:./ci.db
 
     steps:
       - uses: actions/checkout@v4
@@ -25,14 +37,45 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Sem postinstall no server/ → `npm ci` NÃO gera o client. tsc contra um client stale
+      # produz os 35 erros de accounting/repositories/ReconciliationRepository.ts (schema TEM
+      # os modelos; faltava só o generate reproduzível). Este passo fecha o gap P2.
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
       - name: Typecheck
         run: npx tsc --noEmit
+
+      - name: Typecheck tests (tsconfig.test.json)
+        run: npx tsc --noEmit -p tsconfig.test.json
+
+      - name: Audit (advisory)
+        continue-on-error: true
+        run: npm audit --audit-level=high
 
       - name: Lint (layer-gate)
         run: npm run lint
 
       - name: Run tests
         run: npm test
+
+      # Tripwire p/ TECH-DEBT-TEST-001. `npm test` usa `--forceExit`: quando um recurso async
+      # (subprocesso do query-engine do Prisma nos testes de integração SQLite) demora a fechar
+      # e corre com a janela de saída do worker do Jest, o exit vira 1 mesmo com 900/900 verdes
+      # (flake de ambiente, não do diff — provado localmente: 0 handles sob --detectOpenHandles).
+      # forceExit poderia MASCARAR um teste que de fato vaze handle → este passo re-roda a suíte
+      # com o detector e FALHA se o Jest reportar qualquer open handle. Base limpa = verde.
+      - name: Assert no leaked handles (forceExit tripwire)
+        shell: bash
+        run: |
+          set -uo pipefail
+          out=$(npm run test:leaks 2>&1) || { echo "$out"; exit 1; }
+          if echo "$out" | grep -q "Jest has detected the following"; then
+            echo "::error::Open handle vazado — algum teste não fecha um recurso async (TECH-DEBT-TEST-001)."
+            echo "$out" | grep -A15 "Jest has detected the following"
+            exit 1
+          fi
+          echo "OK: nenhum handle vazado."
 
   frontend:
     name: Frontend – build
@@ -60,6 +103,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Vitest NUNCA rodava no CI (job só fazia lint:gate + build) → os guards de
+      # date-only off-by-one (PRs #50/#52) não executavam. E o CI roda em UTC, onde
+      # o bug de UTC-shift fica MASCARADO. Pinar TZ=America/Sao_Paulo (UTC-3) SÓ neste
+      # passo faz os guards morderem sem alterar o comportamento de dev local.
+      - name: Run tests (vitest)
+        run: npm test
+        env:
+          TZ: America/Sao_Paulo
+
   # Gate de governança de skills. `skill-audit run --all` é determinístico (estático: validate +
   # governance-check + sync-metadata + coverage + eval-estrutural + controls + self-check) — sem
   # model-in-loop, roda em < 1s. Barra drift: regra sem gate, gate órfão, eval-score divergente do
@@ -85,6 +137,30 @@ jobs:
 
       - name: skill-audit run --all (0 findings required)
         run: node .claude/skills/skill-audit/skill-audit.mjs run
+
+  # Gate de PRESENÇA da camada de governança operacional (OPS-001..004). O `skill-audit` acima
+  # cobre drift interno das skills, mas NÃO garante que os artefatos-âncora existam — docs/skills
+  # podem regredir silenciosamente (gap P1 do teste de sistema 2026-07-07). Este job falha se:
+  #   • .claude/skills/_OPERATING-GATES.md sumir, OU
+  #   • a referência "Gates de envio OPS-001" sair do reviewer OU do implementer.
+  # NOTA: bloqueante desde já (decisão do usuário). Fica VERMELHO até PR #44 (camada OPS-001)
+  # ser mergeada em main — os três alvos ainda não estão em main na criação deste workflow.
+  governance-presence:
+    name: Governance – OPS-001 layer present
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert operating-gates layer exists
+        shell: bash
+        run: |
+          set -uo pipefail
+          fail=0
+          [ -f .claude/skills/_OPERATING-GATES.md ] || { echo "::error::.claude/skills/_OPERATING-GATES.md ausente (camada OPS-001)."; fail=1; }
+          grep -q "Gates de envio OPS-001" .claude/skills/luminaris-reviewer/SKILL.md    || { echo "::error::reviewer SKILL.md sem 'Gates de envio OPS-001'."; fail=1; }
+          grep -q "Gates de envio OPS-001" .claude/skills/luminaris-implementer/SKILL.md || { echo "::error::implementer SKILL.md sem 'Gates de envio OPS-001'."; fail=1; }
+          [ "$fail" = 0 ] && echo "OK: camada de governança OPS-001 presente."
+          exit "$fail"
 
   # Diff-scoped design gate. A base ainda tem ~33 ocorrências de `zinc-` pré-existentes
   # (contrato §4: superfícies dark = neutral-*). Em vez de reprovar nelas (refactor =

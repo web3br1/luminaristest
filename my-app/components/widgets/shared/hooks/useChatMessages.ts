@@ -85,32 +85,8 @@ export function useChatMessages({
             const { getCookie } = await import('cookies-next');
             const token = getCookie('auth_token');
 
-            // 1. Salva a mensagem do usuário no banco
-            if (chatInstanceId && !chatInstanceId.startsWith('new-chat-')) {
-                try {
-                    const saveUserMsgResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/chat-messages`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`,
-                        },
-                        body: JSON.stringify({
-                            content: confirmedProposalId ? (trimmedInput || '[Confirmado]') : trimmedInput,
-                            chatInstanceId: chatInstanceId,
-                            role: 'user'
-                        }),
-                    });
-
-                    if (!saveUserMsgResponse.ok) {
-                        console.warn(`Falha ao salvar mensagem do usuário (${saveUserMsgResponse.status})`);
-                    }
-                } catch (saveError) {
-                    console.error('Erro ao salvar mensagem do usuário:', saveError);
-                }
-            }
-
-            // 2. Envia para a API de chat para processamento
-            // Se não houver documentIds, o backend responde diretamente com GPT
+            // Send to the chat API. The server persists both the user message and the assistant reply.
+            // If there are no documentIds, the backend answers directly with the LLM.
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/chat`, {
                 method: 'POST',
                 headers: {
@@ -131,40 +107,18 @@ export function useChatMessages({
             }
 
             const responseBody = await response.json();
-            const responseContent = responseBody.answer || responseBody.content || responseBody.response || 'Não foi possível obter uma resposta';
+            // API wraps responses as { success, data }; fall back to the raw body for safety.
+            const payload = responseBody?.data ?? responseBody;
+            const responseContent = payload.answer || payload.content || payload.response || 'Não foi possível obter uma resposta';
 
             const assistantMessage: Message = {
                 role: 'assistant',
                 content: responseContent,
                 timestamp: Date.now(),
-                type: responseBody.type,
-                proposal: responseBody.proposal,
+                type: payload.type,
+                proposal: payload.proposal,
             };
             setMessages(prevMessages => [...prevMessages, assistantMessage]);
-
-            // 3. Salva a resposta do assistente no banco
-            if (chatInstanceId && !chatInstanceId.startsWith('new-chat-')) {
-                try {
-                    const saveAssistantMsgResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/chat-messages`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`,
-                        },
-                        body: JSON.stringify({
-                            content: responseContent,
-                            chatInstanceId: chatInstanceId,
-                            role: 'assistant'
-                        }),
-                    });
-
-                    if (!saveAssistantMsgResponse.ok) {
-                        console.warn(`Falha ao salvar resposta do assistente (${saveAssistantMsgResponse.status})`);
-                    }
-                } catch (saveError) {
-                    console.error('Erro ao salvar resposta do assistente:', saveError);
-                }
-            }
         } catch (error: unknown) {
             const errorMessageContent = `Erro: ${error instanceof Error ? error.message : error || 'Não foi possível enviar a mensagem.'}`;
             const networkErrorMessage: Message = {

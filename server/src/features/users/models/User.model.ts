@@ -17,6 +17,10 @@ export interface IUser {
   username: string;
   email: string;
   role: Role;
+  /** Preferred UI locale (e.g. 'en', 'pt'); not always loaded in every context */
+  locale?: string;
+  /** Preferred currency (e.g. 'BRL', 'USD', 'EUR'); not always loaded in every context */
+  currency?: string;
   // Password hash is part of the data layer but not usually exposed in the core domain model
   // password?: string; // Optional: Include if needed in specific domain operations
   createdAt: Date;

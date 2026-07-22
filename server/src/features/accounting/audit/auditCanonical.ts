@@ -12,6 +12,9 @@ export const CANONICAL_VERSION = 1;
 const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   'entry.posted':    ['sourceType', 'sourceId', 'description', 'sumDebitCents', 'lineCount'],
   'entry.reversed':  ['originalId', 'reversalId', 'reason'],
+  // BE-INCR-8 — formal provenance. Recorded in the same tx as the entry when an origin
+  // descriptor is present. Only ids/type/ref — never rawJson or attachment bytes (PII-safe).
+  'entry.source_recorded': ['journalEntryId', 'sourceDocumentId', 'externalRef', 'sourceType'],
   'account.created': ['code', 'name', 'nature', 'acceptsEntries'],
   'account.deleted': ['code'],
   'period.opened':      ['year', 'month', 'fromStatus', 'toStatus'],
@@ -29,6 +32,37 @@ const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   'data_exchange.import_failed':       ['jobId', 'kind', 'direction', 'errorCode'],
   'data_exchange.export_generated':    ['jobId', 'kind', 'direction', 'sha256', 'totalRows', 'validRows', 'invalidRows'],
   'data_exchange.artifact_downloaded': ['jobId', 'kind', 'direction', 'sha256'],
+  // BE-INCR-9 / 9B — versioned Account→RFB referential mapping authoring. Only the
+  // mapping identity (accountId + referentialCode + mappingVersion); the denormalized
+  // `label` snapshot and any other provenance/PII is dropped. batch/copy per-item audit
+  // reuses `referential.mapping.set` (one honest per-item trail), so no distinct
+  // `.batch`/`.copy` event exists — the allowlist maps only events actually emitted.
+  'referential.mapping.set':   ['accountId', 'referentialCode', 'mappingVersion'],
+  'referential.mapping.unset': ['accountId', 'referentialCode', 'mappingVersion'],
+  // INCR-AP — Contas a Pagar. Id-only / money-as-string; NEVER the supplier name (PII-safe, D6).
+  'payable.created':            ['payableId', 'supplierRef', 'amountCents', 'dueDate', 'expenseAccountCode'],
+  'payable.cancelled':          ['payableId', 'reversalEntryId', 'reason'],
+  'payable.payment_registered': ['payableId', 'paymentId', 'amountCents', 'method', 'entryId'],
+  'payable.payment_cancelled':  ['payableId', 'paymentId', 'reversalEntryId', 'reason'],
+  'receivable.created':            ['receivableId', 'customerRef', 'amountCents', 'dueDate', 'revenueAccountCode'],
+  'receivable.cancelled':          ['receivableId', 'reversalEntryId', 'reason'],
+  'receivable.receipt_registered': ['receivableId', 'receiptId', 'amountCents', 'method', 'entryId'],
+  'receivable.receipt_cancelled':  ['receivableId', 'receiptId', 'reversalEntryId', 'reason'],
+  // ADR-INCR-APPROVAL — maker-checker torre. Ids/hashes/counts only; money-as-string; no PII.
+  // The SoD pair is provable: actorUserId (the trail column) is the actor of each command,
+  // and `entry.approved` carries `createdById` so creator≠approver is auditable.
+  'entry.drafted':        ['description', 'lineCount', 'sumDebitCents'],
+  'entry.draft_updated':  ['description', 'lineCount', 'sumDebitCents', 'version'],
+  'entry.submitted':      ['contentHash', 'version'],
+  'entry.approved':       ['createdById', 'contentHash', 'fiscalYear', 'entryNumber'],
+  'entry.rejected':       ['reason', 'version'],
+  // INCR-DIM — dimension catalog management (cost center / project). Ids + codes only; the tag itself
+  // is NOT a ledger fact (ACC-024) so there is no posting-time audit event — a tagged post is captured
+  // by its own `entry.posted`. These 4 cover only catalog lifecycle (T8: every state change auditable).
+  'dimension.definition_created':  ['definitionId', 'code', 'name'],
+  'dimension.definition_archived': ['definitionId', 'code'],
+  'dimension.value_created':       ['definitionId', 'valueId', 'code', 'name', 'parentId'],
+  'dimension.value_archived':      ['definitionId', 'valueId', 'code'],
 };
 
 /**

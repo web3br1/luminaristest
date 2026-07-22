@@ -1,74 +1,85 @@
-# Feature: Interview (Onboarding guiado por IA)
+# Feature: Interview (AI-guided onboarding)
 
-Conduz o usuário, por conversa com IA, do **entendimento do negócio** até um **sistema pronto para
-criar**: descobre o ramo, casa com um preset, e (opcionalmente) permite **customizar tabelas e campos**
-antes de instanciar. É uma feature de **capacidade** (sem entidade própria no banco) — o contrato são
-os **métodos públicos** dos seus serviços singleton.
+Walks the user, via an AI conversation, from **understanding the business** to a **system ready to
+create**: it discovers the industry, matches a preset, and (optionally) lets the user **customize tables
+and fields** before instantiating. It is a **capability feature** (no entity of its own in the
+database) — the contract is the **public methods** of its singleton services.
 
-> Consumida pelo frontend (não há controller/rota no servidor). O estado de customização é mantido
-> **em memória** por sessão (`StateManager` singleton).
+> Consumed by the frontend (there is no controller/route on the server). The customization state is kept
+> **in memory** per session (`StateManager` singleton).
+
+> **Architecture decision (non-CRUD feature):** this feature organizes folders **by service name**
+> (`InterviewService/`, `FieldCustomizationService/`, `CustomizationService/`) instead of the canonical
+> layout — an **accepted exception**, recorded in `server/ARCHITECTURE.md` §9. Authorization is by
+> **scope** (`UserContext`/`userId`); there is no `Policy` object.
+
+> ⚠️ **Status: NOT WIRED on the server.** No controller, route or other feature references these services
+> (verified by searching all of `server/src`). The active onboarding logic currently lives in the
+> **frontend**; this server copy is orphaned. That is why it is **outside the gold-standard scope** (e.g.
+> it has no `dtos/` — adding validation to unreachable code would be wasted effort). **Before exposing it
+> via a route**, add `dtos/` with Zod schemas on the inputs and review the state persistence (today
+> in-memory per session, it does not survive a restart nor scale horizontally).
 
 ---
 
-## Pipeline (3 serviços, do macro ao micro)
+## Pipeline (3 services, macro to micro)
 
 ```
-InterviewService          → orquestra a entrevista por ESTÁGIOS (descoberta → match de preset → criação/customização)
-  └─ CustomizationService → customização no nível de TABELAS (adicionar/remover tabelas do preset)
-       └─ FieldCustomizationService → customização no nível de CAMPOS de uma tabela
+InterviewService          → orchestrates the interview by STAGES (discovery → preset match → creation/customization)
+  └─ CustomizationService → customization at the TABLE level (add/remove tables from the preset)
+       └─ FieldCustomizationService → customization at the FIELD level of a table
 ```
 
-1. **`InterviewService`** — máquina de estágios da conversa. Descobre o negócio, casa com um preset
-   (`PresetMatcher`) e decide entre criar direto ou customizar. [README](./InterviewService/README.md)
-2. **`CustomizationService`** — gerencia a sessão de customização de **tabelas** do preset escolhido
-   (apresentação, adicionar/remover tabelas). [README](./CustomizationService/README.md)
-3. **`FieldCustomizationService`** — processa pedidos de customização de **campos** de uma tabela
-   específica (adicionar/remover/modificar), reusando field presets. [README](./FieldCustomizationService/README.md)
+1. **`InterviewService`** — the conversation's stage machine. Discovers the business, matches a preset
+   (`PresetMatcher`) and decides between creating directly or customizing. [README](./InterviewService/README.md)
+2. **`CustomizationService`** — manages the **table** customization session of the chosen preset
+   (presentation, add/remove tables). [README](./CustomizationService/README.md)
+3. **`FieldCustomizationService`** — processes **field** customization requests for a specific table
+   (add/remove/modify), reusing field presets. [README](./FieldCustomizationService/README.md)
 
-Tipos compartilhados (estágios, `IInterviewTurnResult`, `ICustomizationState`, ...) vivem em
+Shared types (stages, `IInterviewTurnResult`, `ICustomizationState`, ...) live in
 [`models/`](./models/README.md).
 
 ---
 
-## Estrutura de arquivos
+## File structure
 
 ```
 interview/
-├── README.md                     # este índice
+├── README.md                     # this index
 ├── models/
-│   ├── InterviewTypes.ts         # tipos compartilhados (InterviewStage, IMessage, ICustomizationState, ...)
+│   ├── InterviewTypes.ts         # shared types (InterviewStage, IMessage, ICustomizationState, ...)
 │   └── README.md
 ├── InterviewService/
-│   ├── InterviewService.ts       # orquestrador (singleton)
-│   ├── PresetMatcher.ts          # casa a descrição do negócio com um preset
-│   ├── StageHandlers.ts          # respostas de IA por estágio / confirmação de criação
-│   ├── PromptConfig.ts           # stageConfig (prompts por estágio processável)
+│   ├── InterviewService.ts       # orchestrator (singleton)
+│   ├── PresetMatcher.ts          # matches the business description with a preset
+│   ├── StageHandlers.ts          # AI responses per stage / creation confirmation
+│   ├── PromptConfig.ts           # stageConfig (prompts per processable stage)
 │   └── README.md
 ├── CustomizationService/
-│   ├── CustomizationService.ts   # customização de tabelas (singleton)
-│   ├── StateManager.ts           # estado da sessão EM MEMÓRIA (singleton)
-│   ├── TableExtractor.ts         # extrai tabelas do preset real
-│   ├── AIInteractions.ts         # interações de IA da customização de tabelas
+│   ├── CustomizationService.ts   # table customization (singleton)
+│   ├── StateManager.ts           # IN-MEMORY session state (singleton)
+│   ├── TableExtractor.ts         # extracts tables from the real preset
+│   ├── AIInteractions.ts         # AI interactions for table customization
 │   └── README.md
 └── FieldCustomizationService/
-    ├── index.ts                  # a classe FieldCustomizationService (singleton)
-    ├── FieldIntentParser.ts      # interpreta a intenção do usuário (add/remove/modify campo)
-    ├── FieldUpdater.ts           # aplica as modificações na tabela
-    ├── FieldPresetMatcher.ts     # casa um campo pedido com um field preset
+    ├── index.ts                  # the FieldCustomizationService class (singleton)
+    ├── FieldIntentParser.ts      # interprets the user's intent (add/remove/modify field)
+    ├── FieldUpdater.ts           # applies the modifications to the table
+    ├── FieldPresetMatcher.ts     # matches a requested field with a field preset
     ├── PromptConfig.ts / Types.ts
     └── README.md
 ```
 
-> ⚠️ Componentes **não existem** (eram citados em docs antigas): `AIFieldInteraction`, `FieldExtractor`,
-> `RedisStateManager`. O estado é só em memória; a IA de campos usa `FieldIntentParser` + chamadas
-> diretas ao `OpenAIService`.
+> ⚠️ Components that **do not exist** (they were mentioned in old docs): `AIFieldInteraction`,
+> `FieldExtractor`, `RedisStateManager`. The state is in-memory only; the field AI uses
+> `FieldIntentParser` + direct calls to `OpenAIService`.
 
 ---
 
-## Interação com outras features
+## Interaction with other features
 
-- **[`dynamicTables`](../dynamicTables/README.md):** fonte dos presets. `CustomizationService` usa
-  `presetService.getPresetByKey` + `presetKnowledgeBase` (`presets/ai/`); ao concluir, o sistema é
-  instanciado como tabelas dinâmicas. `FieldCustomizationService` reusa **field presets** ao adicionar
-  campos.
-- **`lib/openai`:** todas as etapas de IA passam pelo `OpenAIService` singleton.
+- **[`dynamicTables`](../dynamicTables/README.md):** the source of presets. `CustomizationService` uses
+  `presetService.getPresetByKey` + `presetKnowledgeBase` (`presets/ai/`); on completion, the system is
+  instantiated as dynamic tables. `FieldCustomizationService` reuses **field presets** when adding fields.
+- **`lib/openai`:** all AI steps go through the `OpenAIService` singleton.

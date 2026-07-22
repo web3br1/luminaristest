@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import { z } from 'zod';
+import { logger } from '../lib/logger'; // relative on purpose: env loads at boot, before path aliases
 
 // Try server/.env first, then project root ../.env
 const serverEnvPath = path.resolve(process.cwd(), '.env');
@@ -8,17 +10,22 @@ const rootEnvPath = path.resolve(process.cwd(), '..', '.env');
 
 let loadedPath: string | null = null;
 
+// Under Jest (NODE_ENV=test, set by test/jest.setupEnv.ts BEFORE this module loads), the test
+// harness pre-sets DATABASE_URL/JWT_SECRET to isolated values. dotenv must FILL missing keys only,
+// never override them — overriding would silently point integration tests at the dev database.
+const DOTENV_OVERRIDE = process.env.NODE_ENV !== 'test';
+
 if (fs.existsSync(serverEnvPath)) {
-  dotenv.config({ path: serverEnvPath, override: true });
+  dotenv.config({ path: serverEnvPath, override: DOTENV_OVERRIDE });
   loadedPath = serverEnvPath;
 } else if (fs.existsSync(rootEnvPath)) {
-  dotenv.config({ path: rootEnvPath, override: true });
+  dotenv.config({ path: rootEnvPath, override: DOTENV_OVERRIDE });
   loadedPath = rootEnvPath;
 }
 
 if (!loadedPath) {
   // Fallback to default dotenv search to avoid throwing
-  dotenv.config({ override: true });
+  dotenv.config({ override: DOTENV_OVERRIDE });
 }
 
 // If after loading we still have no keys, attempt a robust manual parse and force-assign
@@ -27,7 +34,7 @@ try {
     ? loadedPath
     : (fs.existsSync(serverEnvPath) ? serverEnvPath : (fs.existsSync(rootEnvPath) ? rootEnvPath : null));
   if (targetPath) {
-    let buf = fs.readFileSync(targetPath);
+    const buf = fs.readFileSync(targetPath);
     let text: string;
     // Detect BOM for UTF-16 LE/BE
     if (buf.length >= 2 && ((buf[0] === 0xFF && buf[1] === 0xFE) || (buf[0] === 0xFE && buf[1] === 0xFF))) {
@@ -75,32 +82,78 @@ try {
       console.info('[env] Assigned variables from manual parse:', assigned);
     }
   }
-} catch {}
-
-// Diagnostics (always print, without revealing secrets)
-try {
-  const keysToCheck = [
-    'NODE_ENV',
-    'OPENAI_API_KEY',
-    'DATABASE_URL',
-    'JWT_SECRET',
-    'QDRANT_URL',
-    'QDRANT_API_KEY',
-    // REDIS_URL removed — no Redis client in this codebase
-  ];
-  const presenceReport = keysToCheck.reduce<Record<string, 'set' | 'missing'>>((acc, key) => {
-    acc[key] = process.env[key] ? 'set' : 'missing';
-    return acc;
-  }, {} as Record<string, 'set' | 'missing'>);
-
-  console.info('[env] cwd:', process.cwd());
-  console.info('[env] serverEnvPath exists:', fs.existsSync(serverEnvPath));
-  console.info('[env] rootEnvPath exists:', fs.existsSync(rootEnvPath));
-  console.info('[env] Loaded .env from:', loadedPath ?? '(default search/no explicit path)');
-  console.info('[env] Key presence (no values shown):', presenceReport);
-} catch (e) {
-  // Avoid any crash due to logging
+} catch {
+  /* best-effort manual .env parse; ignore failures and fall through to schema validation */
 }
+
+// ---------------------------------------------------------------------------
+// Schema validation — fail-fast at boot on a missing/invalid required variable.
+// ---------------------------------------------------------------------------
+// Required everywhere: DATABASE_URL. Required in production: JWT_SECRET (mirrors lib/jwt's
+// fail-closed check, but surfaced earlier with an aggregated message). External integrations
+// (OpenAI/Qdrant/Redis) are optional so dev/test runs and offline flows don't need every key;
+// their absence is warned in production, not fatal.
+//
+// `buildEnvSchema` / `validateEnv` are exported as pure functions so the rules are unit-testable
+// without the import-time side effect below.
+
+/** Builds the env schema; production tightens JWT_SECRET to required. */
+export function buildEnvSchema(nodeEnv: string) {
+  const isProduction = nodeEnv === 'production';
+  return z
+    .object({
+      NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+      PORT: z.coerce.number().int().positive().optional(),
+      DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+      JWT_SECRET: z.string().min(1).optional(),
+      JWT_EXPIRES_IN: z.string().optional(),
+      OPENAI_API_KEY: z.string().optional(),
+      QDRANT_URL: z.string().optional(),
+      QDRANT_API_KEY: z.string().optional(),
+      REDIS_URL: z.string().optional(),
+    })
+    .superRefine((val, ctx) => {
+      if (isProduction && !val.JWT_SECRET) {
+        ctx.addIssue({ code: 'custom', path: ['JWT_SECRET'], message: 'JWT_SECRET is required in production' });
+      }
+    });
+}
+
+export type Env = z.infer<ReturnType<typeof buildEnvSchema>>;
+
+/** Validates a source (defaults to process.env); throws a single aggregated error on failure. */
+export function validateEnv(source: NodeJS.ProcessEnv = process.env): Env {
+  const nodeEnv = source.NODE_ENV ?? 'development';
+  const parsed = buildEnvSchema(nodeEnv).safeParse(source);
+  if (!parsed.success) {
+    const details = parsed.error.issues
+      .map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`)
+      .join('\n');
+    // Fail-fast: refuse to start with an invalid configuration. Thrown (not process.exit) so it is
+    // visible in logs and catchable by tests; an unhandled throw at boot crashes the process as intended.
+    throw new Error(`[env] Invalid environment configuration:\n${details}`);
+  }
+  return parsed.data;
+}
+
+/** Validated, typed environment. Prefer importing this over reading `process.env` directly. */
+export const env = validateEnv(process.env);
+
+// Warn (don't fail) on missing external integrations in production — features depending on them degrade.
+if (env.NODE_ENV === 'production') {
+  for (const key of ['OPENAI_API_KEY', 'QDRANT_URL'] as const) {
+    if (!env[key]) logger.warn(`[env] ${key} is not set — features depending on it will be unavailable`);
+  }
+}
+
+// Quiet presence report (dev-only; never prints values).
+logger.debug('[env] loaded', {
+  from: loadedPath ?? '(default search)',
+  nodeEnv: env.NODE_ENV,
+  present: (['DATABASE_URL', 'JWT_SECRET', 'OPENAI_API_KEY', 'QDRANT_URL', 'REDIS_URL'] as const).filter(
+    (k) => !!env[k],
+  ),
+});
 
 /**
  * Base directory for CRM attachment binaries (Slice 4 file-store).

@@ -1,6 +1,33 @@
 import { getCookie } from 'cookies-next';
 import { notify } from '../notifications/notify';
 
+/** Zod `.flatten()` shape returned by controllers on safeParse-fail 400s. */
+type ZodFlatten = { formErrors?: string[]; fieldErrors?: Record<string, string[]> };
+
+function isZodFlatten(v: unknown): v is ZodFlatten {
+  return typeof v === 'object' && v !== null && ('fieldErrors' in v || 'formErrors' in v);
+}
+
+/**
+ * Turn a Zod `.flatten()` object into "campo: erro; campo: erro" instead of the
+ * `String(obj)` → "[object Object]" the toast used to show. Falls back to a
+ * generic hint when the flatten carries no readable messages.
+ */
+export function humanizeZodFlatten(err: ZodFlatten): string {
+  const parts: string[] = [];
+  for (const [field, msgs] of Object.entries(err.fieldErrors || {})) {
+    if (msgs && msgs.length) parts.push(`${field}: ${msgs.join(', ')}`);
+  }
+  if (err.formErrors && err.formErrors.length) parts.push(...err.formErrors);
+  return parts.length ? parts.join('; ') : 'Verifique os campos e tente novamente.';
+}
+
+/** Extract a human-readable message from a parsed error body. */
+export function extractErrorMessage(result: Record<string, unknown>, status: number, statusText: string): string {
+  if (isZodFlatten(result?.error)) return humanizeZodFlatten(result.error as ZodFlatten);
+  return String(result?.message || result?.error || `Erro ${status}: ${statusText}`);
+}
+
 /**
  * Global API Client for Luminaris Frontend.
  * Centralizes endpoint management, auth headers, and error parsing.
@@ -58,14 +85,11 @@ class ApiClient {
       }
 
       if (!response.ok) {
-        const errorMessage = String(
-          result?.message ||
-          result?.error ||
-          `Erro ${response.status}: ${response.statusText}`
-        );
+        const errorMessage = extractErrorMessage(result, response.status, response.statusText);
         notify(errorMessage, 'error', 'Erro');
-        // Return the parsed error object (usually { success: false, error: '...' })
-        throw result;
+        // Return the parsed error object (usually { success: false, error: '...' }),
+        // tagged with the HTTP status so callers can branch (e.g. `if (o.status === 400)`).
+        throw { ...result, status: response.status };
       }
 
       return result as T;

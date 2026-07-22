@@ -21,8 +21,9 @@
  */
 import { Prisma } from 'generated/prisma';
 import { PostingService } from '../PostingService';
-import { AccountingPeriodNotOpenError, ForbiddenError, NotFoundError, ValidationError } from '../../../../lib/errors';
+import { AccountingPeriodNotOpenError, ForbiddenError, MaxCentsExceededError, NotFoundError, ValidationError } from '../../../../lib/errors';
 import { CANONICAL_ACCOUNTS } from '../../fixtures/ChartOfAccountsFixture';
+import { MAX_CENTS } from '../../models/money';
 import type { AccountingScope } from '../../scope/AccountingScope';
 
 // prisma.$transaction runs the callback with a fake tx handle; repos are mocked so the
@@ -63,6 +64,8 @@ function buildService(over: {
   policy?: any;
   periodRepo?: any;
   auditService?: any;
+  sourceProvenanceRepo?: any;
+  dimensionRepo?: any;
 } = {}) {
   const accountRepo = {
     findByCode: jest.fn(async (_scope: AccountingScope, code: string) => ({
@@ -89,6 +92,7 @@ function buildService(over: {
     findBySource: jest.fn(async () => null),
     setStatus: jest.fn(async () => ({ id: 'entry-1', status: 'Reversed' })),
     setReversedBy: jest.fn(async () => ({ id: 'entry-1' })),
+    setSourceId: jest.fn(async () => {}),
     ...over.journalEntryRepo,
   };
 
@@ -124,6 +128,24 @@ function buildService(over: {
 
   const auditService = { append: jest.fn(async () => {}), ...over.auditService };
 
+  const sourceProvenanceRepo = {
+    createSourceDocument: jest.fn(async (data: any) => ({ id: 'srcdoc-1', ...data })),
+    linkEntry: jest.fn(async (data: any) => ({ id: 'jes-1', ...data })),
+    findSourcesByEntry: jest.fn(async () => []),
+    ...over.sourceProvenanceRepo,
+  };
+
+  // INCR-DIM: dimension repo — default returns no value (untagged posts never touch it). Tests that
+  // exercise tagging override findValueById/countActiveChildren.
+  const dimensionRepo = {
+    findValueById: jest.fn(async () => null),
+    countActiveChildren: jest.fn(async () => 0),
+    createPostingDimension: jest.fn(async (data: any) => ({ id: 'pd-1', ...data })),
+    // INCR-DIM-COMPLETENESS: reverse copies the original leg's tags. Default = original had none.
+    findPostingDimensions: jest.fn(async () => []),
+    ...over.dimensionRepo,
+  };
+
   const svc = new PostingService(
     accountRepo as any,
     journalEntryRepo as any,
@@ -131,8 +153,10 @@ function buildService(over: {
     policy as any,
     periodRepo as any,
     auditService as any,
+    sourceProvenanceRepo as any,
+    dimensionRepo as any,
   );
-  return { svc, accountRepo, journalEntryRepo, postingRepo, policy, periodRepo, auditService };
+  return { svc, accountRepo, journalEntryRepo, postingRepo, policy, periodRepo, auditService, sourceProvenanceRepo, dimensionRepo };
 }
 
 const balancedInput = {
@@ -390,6 +414,64 @@ describe('PostingService', () => {
       // the returned reversal is built as { ...reversal, postings } — same id, hydrated legs
       expect(rev.id).toBe('rev-1');
       expect(orig.status).toBe('Reversed');
+    });
+
+    it('reversing a CLOSING entry: reversal inherits sourceType=closing AND the original key is freed (D5)', async () => {
+      // A closing entry keys on sourceType='closing', sourceId=String(year); its fiscalYear is 2026.
+      const closingOriginal = {
+        ...original,
+        sourceType: 'closing',
+        sourceId: '2026',
+        fiscalYear: 2026,
+      };
+      const reversal = { id: 'rev-1', sourceType: 'closing', sourceId: 'entry-1', postings: [] };
+      const findById = jest
+        .fn()
+        .mockResolvedValueOnce(closingOriginal)
+        .mockResolvedValueOnce({ ...closingOriginal, status: 'Reversed', reversedById: 'rev-1' });
+      const { svc, journalEntryRepo } = buildService({
+        journalEntryRepo: {
+          findById,
+          findBySource: jest.fn(async () => null),
+          create: jest.fn(async () => reversal),
+        },
+      });
+
+      await svc.reverseEntry(scope, {
+        unitId,
+        lancamentoId: 'entry-1',
+        reversalPostingDate: '2026-12-31',
+      });
+
+      // (a) reversal inherits sourceType='closing' so it too is excluded from the DRE.
+      expect(journalEntryRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceType: 'closing', sourceId: 'entry-1' }),
+        txHandle,
+      );
+      // (b) the original's key is freed so a fresh close(2026) can post a NEW entry.
+      expect(journalEntryRepo.setSourceId).toHaveBeenCalledWith(
+        scope,
+        'entry-1',
+        'closing:2026:reversed:entry-1',
+        txHandle,
+      );
+    });
+
+    it('reversing a NORMAL entry does not free any key and stays sourceType=reversal', async () => {
+      const reversal = { id: 'rev-2', sourceType: 'reversal', sourceId: 'entry-1', postings: [] };
+      const findById = jest
+        .fn()
+        .mockResolvedValueOnce(original)
+        .mockResolvedValueOnce({ ...original, status: 'Reversed', reversedById: 'rev-2' });
+      const { svc, journalEntryRepo } = buildService({
+        journalEntryRepo: { findById, findBySource: jest.fn(async () => null), create: jest.fn(async () => reversal) },
+      });
+      await svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1', reversalPostingDate: '2026-06-23' });
+      expect(journalEntryRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceType: 'reversal' }),
+        txHandle,
+      );
+      expect(journalEntryRepo.setSourceId).not.toHaveBeenCalled();
     });
 
     it('rejects reversing a non-Posted entry (e.g. Draft) → ValidationError, no write', async () => {
@@ -837,6 +919,433 @@ describe('PostingService', () => {
       await expect(svc.postEntry(scope, balancedInput)).rejects.toThrow('DB error');
       // nextEntryNumber was called inside the tx that rolled back — number is not consumed
       expect(postingRepo.nextEntryNumber).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── BE-INCR-8 / ADR-INCR8 — formal provenance seam ────────────────────────────
+  describe('postEntry — provenance (BE-INCR-8 / ADR-INCR8)', () => {
+    const withDoc = {
+      ...balancedInput,
+      sourceType: 'salon.sale.finalized',
+      sourceId: 'sale-1',
+      sourceDocument: {
+        externalRef: 'NF-123',
+        documentDate: '2026-06-20',
+        description: 'Venda salão',
+        attachmentId: 'att-9',
+      },
+    };
+
+    it('records SourceDocument + JournalEntrySource + entry.source_recorded audit — all in the SAME tx', async () => {
+      const { svc, sourceProvenanceRepo, auditService } = buildService();
+      await svc.postEntry(scope, withDoc);
+
+      expect($transaction).toHaveBeenCalledTimes(1);
+      expect(sourceProvenanceRepo.createSourceDocument).toHaveBeenCalledTimes(1);
+      expect(sourceProvenanceRepo.createSourceDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u1',
+          unitId,
+          sourceType: 'salon.sale.finalized', // origin sourceType mirrors the entry (D5)
+          externalRef: 'NF-123',
+          documentDate: new Date('2026-06-20'), // date-only string → Date
+          description: 'Venda salão',
+          attachmentId: 'att-9',
+          createdById: 'u1',
+        }),
+        txHandle, // propagated tx (T6) — same handle threaded to every provenance write
+      );
+      expect(sourceProvenanceRepo.linkEntry).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'u1', unitId, journalEntryId: 'entry-1', sourceDocumentId: 'srcdoc-1' }),
+        txHandle,
+      );
+      // entry.source_recorded appended in the SAME tx (ACC-019), payload in the allowlist.
+      expect(auditService.append).toHaveBeenCalledWith(
+        txHandle,
+        scope,
+        expect.objectContaining({
+          eventType: 'entry.source_recorded',
+          targetType: 'journal_entry',
+          targetId: 'entry-1',
+          payload: expect.objectContaining({
+            journalEntryId: 'entry-1',
+            sourceDocumentId: 'srcdoc-1',
+            externalRef: 'NF-123',
+            sourceType: 'salon.sale.finalized',
+          }),
+        }),
+      );
+    });
+
+    it('atomicity: if linkEntry throws, the whole postEntry rejects (entry + origin roll back together)', async () => {
+      const { svc, sourceProvenanceRepo } = buildService({
+        sourceProvenanceRepo: { linkEntry: jest.fn(async () => { throw new Error('link failed'); }) },
+      });
+      await expect(svc.postEntry(scope, withDoc)).rejects.toThrow('link failed');
+      // createSourceDocument ran, but the throw inside the same $transaction fn rolls it all back —
+      // no entry-with-orphan-origin, no origin-without-entry.
+      expect(sourceProvenanceRepo.createSourceDocument).toHaveBeenCalledTimes(1);
+    });
+
+    it('T7 idempotent re-post: an existing entry short-circuits BEFORE the tx — no new SourceDocument', async () => {
+      const existing = { id: 'entry-existing', postings: [] };
+      const { svc, sourceProvenanceRepo, journalEntryRepo } = buildService({
+        journalEntryRepo: { findBySource: jest.fn(async () => existing) },
+      });
+      const result = await svc.postEntry(scope, withDoc);
+      expect(result).toBe(existing);
+      expect(journalEntryRepo.findBySource).toHaveBeenCalledWith(scope, 'salon.sale.finalized', 'sale-1');
+      expect(sourceProvenanceRepo.createSourceDocument).not.toHaveBeenCalled();
+      expect(sourceProvenanceRepo.linkEntry).not.toHaveBeenCalled();
+    });
+
+    it('manual entry (no descriptor) records NO origin', async () => {
+      const { svc, sourceProvenanceRepo } = buildService();
+      await svc.postEntry(scope, balancedInput); // no sourceDocument
+      expect(sourceProvenanceRepo.createSourceDocument).not.toHaveBeenCalled();
+      expect(sourceProvenanceRepo.linkEntry).not.toHaveBeenCalled();
+    });
+
+    it('reversal records NO origin (estorno is internal, never carries a descriptor)', async () => {
+      const original = {
+        id: 'orig-1', status: 'Posted', reversedById: null,
+        postings: [
+          { accountId: 'a1', debitCents: 10000, creditCents: 0 },
+          { accountId: 'a2', debitCents: 0, creditCents: 10000 },
+        ],
+      };
+      const { svc, sourceProvenanceRepo } = buildService({
+        journalEntryRepo: {
+          findById: jest.fn(async () => original),
+          findBySource: jest.fn(async () => null),
+        },
+        postingRepo: {
+          nextEntryNumber: jest.fn(async () => 5),
+          findByEntryId: jest.fn(async () => original.postings),
+        },
+      });
+      await svc.reverseEntry(scope, { unitId, lancamentoId: 'orig-1', reversalPostingDate: '2026-06-24' });
+      expect(sourceProvenanceRepo.createSourceDocument).not.toHaveBeenCalled();
+      expect(sourceProvenanceRepo.linkEntry).not.toHaveBeenCalled();
+    });
+
+    it('desconflação: two entries sharing an externalRef under DIFFERENT sourceIds each get their own SourceDocument (externalRef is not a dedup key — D6)', async () => {
+      const { svc, sourceProvenanceRepo } = buildService();
+      await svc.postEntry(scope, { ...withDoc, sourceId: 'sale-A', sourceDocument: { externalRef: 'NF-DUP' } });
+      await svc.postEntry(scope, { ...withDoc, sourceId: 'sale-B', sourceDocument: { externalRef: 'NF-DUP' } });
+      expect(sourceProvenanceRepo.createSourceDocument).toHaveBeenCalledTimes(2);
+      const refs = sourceProvenanceRepo.createSourceDocument.mock.calls.map((c: any[]) => c[0].externalRef);
+      expect(refs).toEqual(['NF-DUP', 'NF-DUP']); // no collision — externalRef participates in no dedup key
+    });
+  });
+
+  describe('postEntry — dimension tagging (INCR-DIM)', () => {
+    const valueRow = (over: any = {}) => ({
+      id: 'val-cc-1', userId: 'u1', unitId, definitionId: 'def-cc', code: 'CC1', name: 'Loja Centro',
+      parentId: null, status: 'ACTIVE', createdById: null, createdAt: new Date(), updatedAt: new Date(),
+      deletedAt: null, ...over,
+    });
+    const taggedInput = (dimensions: string[]) => ({
+      ...balancedInput,
+      lines: [
+        { accountCode: '1.1.1', debitCents: 10000, creditCents: 0 },
+        { accountCode: '3.1', debitCents: 0, creditCents: 10000, dimensions },
+      ],
+    });
+
+    it('tags a leg: derives definitionId from the value and writes PostingDimension in the tx', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => valueRow()),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(async (d: any) => ({ id: 'pd-1', ...d })),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await svc.postEntry(scope, taggedInput(['val-cc-1']));
+      expect(dimensionRepo.createPostingDimension).toHaveBeenCalledTimes(1);
+      expect(dimensionRepo.createPostingDimension).toHaveBeenCalledWith(
+        expect.objectContaining({ postingId: 'p-x', definitionId: 'def-cc', valueId: 'val-cc-1', userId: 'u1', unitId }),
+        txHandle,
+      );
+    });
+
+    it('untagged post writes NO PostingDimension and never touches the dimension repo (ACC-024)', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => null),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await svc.postEntry(scope, balancedInput);
+      expect(dimensionRepo.findValueById).not.toHaveBeenCalled();
+      expect(dimensionRepo.createPostingDimension).not.toHaveBeenCalled();
+    });
+
+    it('rejects two values of the SAME axis on one leg (ACC-025), writing nothing', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async (_s: any, id: string) => valueRow({ id, definitionId: 'def-cc' })),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await expect(svc.postEntry(scope, taggedInput(['val-a', 'val-b']))).rejects.toBeInstanceOf(ValidationError);
+      expect(dimensionRepo.createPostingDimension).not.toHaveBeenCalled();
+    });
+
+    it('rejects a non-leaf value (has active children) — leaf-only tagging D3', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => valueRow()),
+        countActiveChildren: jest.fn(async () => 1),
+        createPostingDimension: jest.fn(),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await expect(svc.postEntry(scope, taggedInput(['val-parent']))).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it('rejects an archived value', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => valueRow({ status: 'ARCHIVED' })),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await expect(svc.postEntry(scope, taggedInput(['val-x']))).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it('rejects a value not in the scope', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => null),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await expect(svc.postEntry(scope, taggedInput(['ghost']))).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it('tags across DIFFERENT axes on the same leg (N-axis)', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async (_s: any, id: string) =>
+          id === 'v-cc' ? valueRow({ id, definitionId: 'def-cc' }) : valueRow({ id, definitionId: 'def-proj' }),
+        ),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(async (d: any) => ({ id: 'pd', ...d })),
+      };
+      const { svc } = buildService({ dimensionRepo });
+      await svc.postEntry(scope, taggedInput(['v-cc', 'v-proj']));
+      expect(dimensionRepo.createPostingDimension).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('mandatory-dimension gate + estorno copy (INCR-DIM-COMPLETENESS B1)', () => {
+    const valueRow = (over: any = {}) => ({
+      id: 'val-cc-1', userId: 'u1', unitId, definitionId: 'def-cc', code: 'CC1', name: 'Loja Centro',
+      parentId: null, status: 'ACTIVE', createdById: null, createdAt: new Date(), updatedAt: new Date(),
+      deletedAt: null, ...over,
+    });
+    // accountRepo where account '3.1' requires a dimension; everything else optional.
+    const requiresOn31 = {
+      findByCode: jest.fn(async (_s: AccountingScope, code: string) => ({
+        id: `acc-${code}`, userId: 'u1', unitId, code, name: code, nature: 'Asset',
+        acceptsEntries: true, requiresDimension: code === '3.1',
+      })),
+    };
+    const taggedInput = (dimensions: string[]) => ({
+      ...balancedInput,
+      lines: [
+        { accountCode: '1.1.1', debitCents: 10000, creditCents: 0 },
+        { accountCode: '3.1', debitCents: 0, creditCents: 10000, dimensions },
+      ],
+    });
+
+    it('postEntry: rejects an untagged leg to a requiresDimension account (SEC-B1-1), writing no tag', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => valueRow()),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(),
+        findPostingDimensions: jest.fn(async () => []),
+      };
+      const { svc } = buildService({ accountRepo: requiresOn31, dimensionRepo });
+      await expect(svc.postEntry(scope, balancedInput)).rejects.toBeInstanceOf(ValidationError);
+      expect(dimensionRepo.createPostingDimension).not.toHaveBeenCalled();
+    });
+
+    it('postEntry: accepts the same leg WHEN tagged', async () => {
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => valueRow()),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(async (d: any) => ({ id: 'pd', ...d })),
+        findPostingDimensions: jest.fn(async () => []),
+      };
+      const { svc } = buildService({ accountRepo: requiresOn31, dimensionRepo });
+      await expect(svc.postEntry(scope, taggedInput(['val-cc-1']))).resolves.toBeDefined();
+      expect(dimensionRepo.createPostingDimension).toHaveBeenCalledTimes(1);
+    });
+
+    it('an account WITHOUT the flag stays 100% optional (untagged post succeeds)', async () => {
+      const { svc } = buildService(); // default accountRepo → requiresDimension falsy
+      await expect(svc.postEntry(scope, balancedInput)).resolves.toBeDefined();
+    });
+
+    it('MACHINE-WRITER EXEMPTION (Council 1.7/N6): a CLOSING entry with untagged legs on a requiresDimension account posts — the year-end close cannot deadlock', async () => {
+      // Exact shape ExerciseClosingService composes: sourceType='closing', sourceId=String(year),
+      // dated 31 Dec, untagged legs — one of them zeroing the FLAGGED result account '3.1'.
+      const closingInput = {
+        unitId,
+        date: '2026-12-31',
+        description: 'Encerramento do exercício 2026 — apuração do resultado',
+        sourceType: 'closing',
+        sourceId: '2026',
+        lines: [
+          { accountCode: '3.1', debitCents: 150000, creditCents: 0 }, // requiresDimension, UNTAGGED
+          { accountCode: '2.3.1', debitCents: 0, creditCents: 150000 },
+        ],
+      };
+      const { svc, journalEntryRepo } = buildService({ accountRepo: requiresOn31 });
+      await expect(svc.postEntry(scope, closingInput)).resolves.toBeDefined();
+      expect(journalEntryRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceType: 'closing', status: 'Posted' }),
+        txHandle,
+      );
+    });
+
+    it('the exemption is CLOSING-ONLY: the same untagged legs under sourceType manual still reject', async () => {
+      const { svc } = buildService({ accountRepo: requiresOn31 });
+      await expect(svc.postEntry(scope, balancedInput)).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it('reverseEntry: COPIES the original leg tags onto the mirror (SEC-B1-2) so estorno inherits them', async () => {
+      const original = {
+        id: 'entry-1', userId: 'u1', unitId, status: 'Posted', sourceType: 'manual', reversedById: null,
+        fiscalYear: 2026,
+        postings: [
+          { id: 'p1', accountId: 'acc-1.1.1', debitCents: 10000, creditCents: 0 },
+          { id: 'p2', accountId: 'acc-3.1', debitCents: 0, creditCents: 10000 },
+        ],
+      };
+      const reversal = { id: 'rev-1', sourceType: 'reversal', sourceId: 'entry-1', postings: [] };
+      // p2 (the requiresDimension account leg) carries a tag; p1 has none.
+      const dimensionRepo = {
+        findValueById: jest.fn(async () => valueRow()),
+        countActiveChildren: jest.fn(async () => 0),
+        createPostingDimension: jest.fn(async (d: any) => ({ id: 'pd', ...d })),
+        findPostingDimensions: jest.fn(async (_s: any, postingId: string) =>
+          postingId === 'p2' ? [{ id: 'pd-orig', postingId, definitionId: 'def-cc', valueId: 'val-cc-1' }] : []),
+      };
+      // mirror leg ids are deterministic per create call — emulate distinct ids so the copy targets them.
+      let mirrorSeq = 0;
+      const postingRepo = {
+        create: jest.fn(async (data: any) => ({ id: `mirror-${++mirrorSeq}`, ...data })),
+        findByEntryId: jest.fn(async () => []),
+      };
+      const { svc } = buildService({
+        accountRepo: requiresOn31,
+        dimensionRepo,
+        postingRepo,
+        journalEntryRepo: {
+          findById: jest.fn(async () => original),
+          findBySource: jest.fn(async () => null),
+          create: jest.fn(async () => reversal),
+        },
+      });
+      await svc.reverseEntry(scope, { unitId, lancamentoId: 'entry-1', reversalPostingDate: '2026-06-23' });
+      // Exactly ONE tag copied (from p2), onto a mirror leg — the reversal inherited the original's tag.
+      expect(dimensionRepo.createPostingDimension).toHaveBeenCalledTimes(1);
+      expect(dimensionRepo.createPostingDimension).toHaveBeenCalledWith(
+        expect.objectContaining({ definitionId: 'def-cc', valueId: 'val-cc-1', userId: 'u1', unitId }),
+        txHandle,
+      );
+    });
+  });
+
+  describe('MAX_CENTS choke-point guard (Council 1.5 / ACC-014)', () => {
+    const overCeilingInput = {
+      unitId,
+      date: '2026-06-23',
+      description: 'Venda gigante',
+      sourceType: 'salon.sale.finalized',
+      sourceId: 'sale-big',
+      lines: [
+        { accountCode: '1.1.2', debitCents: MAX_CENTS + 1, creditCents: 0 },
+        { accountCode: '3.1', debitCents: 0, creditCents: MAX_CENTS + 1 },
+      ],
+    };
+
+    it('rejects a leg above MAX_CENTS with MaxCentsExceededError (OWN code, distinct from period-closed) — no tx opened', async () => {
+      const { svc, journalEntryRepo } = buildService();
+      const err = await svc.postEntry(scope, overCeilingInput).catch((e) => e);
+      expect(err).toBeInstanceOf(MaxCentsExceededError);
+      expect(err.errorCode).toBe('MAX_CENTS_EXCEEDED');
+      expect(err.errorCode).not.toBe('ACCOUNTING_PERIOD_NOT_OPEN');
+      expect(err.message).toContain('1.1.2'); // account-coded, as actionable as the old border replicas
+      expect($transaction).not.toHaveBeenCalled();
+      expect(journalEntryRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts EXACTLY MAX_CENTS (boundary is inclusive — the Int32 column stores it)', async () => {
+      const { svc } = buildService();
+      const atCeiling = {
+        ...overCeilingInput,
+        lines: [
+          { accountCode: '1.1.2', debitCents: MAX_CENTS, creditCents: 0 },
+          { accountCode: '3.1', debitCents: 0, creditCents: MAX_CENTS },
+        ],
+      };
+      await expect(svc.postEntry(scope, atCeiling)).resolves.toBeDefined();
+    });
+
+    it('rejects NON-INTEGER cents at the choke-point (mapper/bridge callers bypass every DTO)', async () => {
+      const { svc } = buildService();
+      const floaty = {
+        ...overCeilingInput,
+        lines: [
+          { accountCode: '1.1.2', debitCents: 100.5, creditCents: 0 },
+          { accountCode: '3.1', debitCents: 0, creditCents: 100.5 },
+        ],
+      };
+      const err = await svc.postEntry(scope, floaty).catch((e) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect($transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects NEGATIVE cents at the choke-point', async () => {
+      const { svc } = buildService();
+      const negative = {
+        ...overCeilingInput,
+        lines: [
+          // Balanced sums (Σd = Σc = 100) — only the per-line guard can catch this.
+          { accountCode: '1.1.2', debitCents: -100, creditCents: 0 },
+          { accountCode: '1.1.1', debitCents: 200, creditCents: 0 },
+          { accountCode: '3.1', debitCents: 0, creditCents: 100 },
+        ],
+      };
+      const err = await svc.postEntry(scope, negative).catch((e) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect($transaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setAccountRequiresDimension (INCR-DIM-COMPLETENESS SEC-B1-4)', () => {
+    it('flips the flag + emits an AuditEvent, all in one tx', async () => {
+      const accountRepo = {
+        findById: jest.fn(async (_s: AccountingScope, id: string) => ({
+          id, userId: 'u1', unitId, code: '4.1', name: 'Despesa', nature: 'Expense',
+          acceptsEntries: true, requiresDimension: false,
+        })),
+        setRequiresDimension: jest.fn(async (_s: any, id: string, v: boolean) => ({ id, code: '4.1', requiresDimension: v })),
+      };
+      const { svc, auditService } = buildService({ accountRepo });
+      const updated = await svc.setAccountRequiresDimension(scope, 'acc-4.1', true);
+      expect(accountRepo.setRequiresDimension).toHaveBeenCalledWith(scope, 'acc-4.1', true, txHandle);
+      expect(updated.requiresDimension).toBe(true);
+      expect(auditService.append).toHaveBeenCalledWith(
+        txHandle,
+        scope,
+        expect.objectContaining({ eventType: 'account.requires_dimension_changed', targetType: 'account', targetId: 'acc-4.1' }),
+      );
+    });
+
+    it('is forbidden without canManage', async () => {
+      const { svc } = buildService({ policy: { canManage: jest.fn(() => false) } });
+      await expect(svc.setAccountRequiresDimension(scope, 'acc-4.1', true)).rejects.toBeInstanceOf(ForbiddenError);
     });
   });
   });

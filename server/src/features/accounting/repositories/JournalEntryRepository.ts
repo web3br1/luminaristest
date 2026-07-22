@@ -6,6 +6,7 @@ import { accountingScopeWhere } from '../scope/AccountingScope';
 import type {
   CreateJournalEntryInput,
   IJournalEntryRepository,
+  JournalEntryCasData,
   JournalEntryWithFullPostings,
   JournalEntryWithPostings,
 } from './IJournalEntryRepository';
@@ -79,6 +80,46 @@ export class JournalEntryRepository implements IJournalEntryRepository {
     }
   }
 
+  public async casUpdate(
+    scope: AccountingScope,
+    id: string,
+    expectedVersion: number,
+    data: JournalEntryCasData,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    // The optimistic lock lives in the WHERE: `version: expectedVersion` means a concurrent
+    // transition that already bumped the version makes this update match 0 rows (ACC-023).
+    const { count } = await (tx ?? prisma).journalEntry.updateMany({
+      where: { id, ...accountingScopeWhere(scope), version: expectedVersion },
+      data,
+    });
+    return count;
+  }
+
+  public async findManyByStatus(
+    scope: AccountingScope,
+    statuses: string[],
+    skip: number,
+    take: number,
+  ): Promise<{ entries: JournalEntryWithFullPostings[]; total: number }> {
+    const where = { ...accountingScopeWhere(scope), status: { in: statuses } };
+    const [entries, total] = await prisma.$transaction([
+      prisma.journalEntry.findMany({
+        where,
+        orderBy: { date: 'desc' },
+        skip,
+        take,
+        include: {
+          postings: {
+            include: { account: { select: { code: true, name: true } } },
+          },
+        },
+      }),
+      prisma.journalEntry.count({ where }),
+    ]);
+    return { entries: entries as JournalEntryWithFullPostings[], total };
+  }
+
   public async setReversedBy(
     scope: AccountingScope,
     id: string,
@@ -91,6 +132,21 @@ export class JournalEntryRepository implements IJournalEntryRepository {
     });
     if (count === 0) {
       throw new NotFoundError(`Lançamento '${id}' não encontrado para vincular estorno.`);
+    }
+  }
+
+  public async setSourceId(
+    scope: AccountingScope,
+    id: string,
+    sourceId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const { count } = await (tx ?? prisma).journalEntry.updateMany({
+      where: { id, ...accountingScopeWhere(scope) },
+      data: { sourceId },
+    });
+    if (count === 0) {
+      throw new NotFoundError(`Lançamento '${id}' não encontrado para renomear sourceId.`);
     }
   }
 
@@ -115,5 +171,26 @@ export class JournalEntryRepository implements IJournalEntryRepository {
       prisma.journalEntry.count({ where }),
     ]);
     return { entries: entries as JournalEntryWithFullPostings[], total };
+  }
+
+  public async findManyForExport(
+    scope: AccountingScope,
+    statuses: string[],
+    window: { from: Date; to: Date },
+  ): Promise<JournalEntryWithFullPostings[]> {
+    const entries = await prisma.journalEntry.findMany({
+      where: {
+        ...accountingScopeWhere(scope),
+        status: { in: statuses },
+        date: { gte: window.from, lte: window.to },
+      },
+      orderBy: [{ date: 'asc' }, { entryNumber: 'asc' }],
+      include: {
+        postings: {
+          include: { account: { select: { code: true, name: true } } },
+        },
+      },
+    });
+    return entries as JournalEntryWithFullPostings[];
   }
 }

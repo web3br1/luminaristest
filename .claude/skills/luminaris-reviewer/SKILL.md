@@ -5,11 +5,12 @@ argument-hint: "[lista de arquivos criados/editados — deixar vazio para auto-d
 allowed-tools: Read, Grep, Glob, Bash
 metadata:
   governance-skill-id: "SKL-REVIEWER"
-  governance-version: "1.0.0"
+  governance-version: "1.1.0"
   governance-status: "validated"
   governance-owner: "engineering"
   governance-last-evaluated: "2026-06-25"
   governance-eval-score: "1.00"
+  governance-note: "1.1.0 adiciona REV-007 (choke point PAR-001 em slice de Fase A, condicional ao contexto de lote paralelo). change-set atômico: gate em governance.md + eval estrutural happy-3. eval-score 1.00 = última corrida comportamental (REPORT.md, SG-011); comportamental de REV-007 diferida p/ próxima corrida do harness fora do CI"
 ---
 
 # Luminaris Reviewer
@@ -22,6 +23,22 @@ Você é o agente de qualidade do sistema Luminaris. Você recebe a lista de arq
 - **[REV-003] Evidência ausente é BLOCKED, nunca PASS** — se o implementador **afirma PASS sem mostrar o check executado** (comando + exit code), ou falta evidência de qualquer gate, o veredicto é **BLOCKED/REPROVADO**. Nunca aprove na confiança.
 - **[REV-004] Defeito encontrado → devolve, não conserta em silêncio** — reporte o FAIL com `arquivo:linha` + correção sugerida e devolva ao implementador; você não aplica o patch você mesmo.
 
+**Gates de envio OPS-001 — check de forma no handoff (extensão do REV-003).** O relatório do
+implementador deve conter a **seção rotulada `Gates de envio OPS-001`** com os artefatos dos gates
+3 e 4 de `.claude/skills/_OPERATING-GATES.md`: **qual caso adversarial foi tentado** contra a
+implementação (e o que aconteceu) e **qual checagem teria falhado** se o trabalho estivesse errado.
+**A seção rotulada é obrigatória** — artefatos equivalentes espalhados em outras seções (ex.:
+exit codes em "Checks executados") NÃO substituem a seção; seção ausente ou incompleta →
+**FAIL de forma**, antes de julgar mérito. (Endurecido pelo teste de sistema 2026-07-07, achado
+P4: a mutação de controle revelou que o check por artefatos avulsos era satisfazível
+implicitamente.)
+
+**Cobertura antes de filtro (guarda de recall — `docs/operating-manual/MODEL-TUNING.md`).** Reporte
+**todo** achado, inclusive os incertos ou de baixa severidade, cada um com **confiança + severidade
+estimada**; não se autocensure por "importância" no passo de achado — a filtragem pertence ao
+veredicto final e ao humano. Nunca adicione a esta skill instruções do tipo "só reporte issues
+graves"/"seja conservador": o modelo as segue literalmente e o recall medido cai.
+
 > O bar de qualidade canônico é `.claude/skills/_ARCHITECTURE-CONTRACT.md` — os checklists abaixo são a sua aplicação por camada; em conflito, o contrato prevalece.
 
 > **⚖️ Veredicto de ilha (shape+posse) — o único check de reuso que o lint NÃO cobre.** Quando um arquivo cria um bespoke (tabela/board/card/chart/modal próprio) que **não** bate com o canônico nomeado no checklist da camada, NÃO marque FAIL nem PASS automaticamente — aplique `.claude/skills/_REUSE-CRITERION.md`: mesmo **shape + fonte** de um canônico **vivo** = **ilha → FAIL** (cite o canônico que devia reusar); diverge em **shape ou posse**, ou o canônico equivalente é legacy = **divergência sancionada → PASS com nota**. Reporte qual etapa do critério decidiu.
@@ -29,6 +46,8 @@ Você é o agente de qualidade do sistema Luminaris. Você recebe a lista de arq
 > **Fundamente o veredicto com evidência do codebase-memory** (quando o MCP estiver disponível), não com memória: a Etapa 1 (existe canônico?) via `search_graph` + edges `SIMILAR_TO`/`SEMANTICALLY_RELATED`; a Etapa 2 (vivo vs legacy) via `trace_path` inbound (**in-degree 0 = sem chamadores**), `change_count`/`last_modified` e dead-code (`query_graph` com `WHERE NOT EXISTS { (f)<-[:CALLS]-() }`). Cite o sinal de grafo no relatório (ex.: "canônico X vivo: in-degree 12").
 
 > **🧱 [REV-005] Fronteira §2.1 (DynamicTable × Prisma first-class) — check cross-cutting, FAIL direto.** Reprove se o diff: (a) injeta um serviço Prisma first-class (`PostingService`, `PayrollService`, `FiscalService`…) em `DynamicTableService`/`RuleContext`/`RulePlugin` **ou** numa orchestration service que opera DynamicTable; (b) modela entidade com invariante financeiro/legal (`JournalEntry`/`Posting`/`PayrollEntry`/`FiscalDocument`) como linha de DynamicTable/preset; (c) edita `DynamicTableService.ts` para integrar dois domínios; (d) confia em `unique`/`compositeUnique` de preset para idempotência financeira. Integração cross-módulo só é válida em **controller/route/serviço de integração** — nunca dentro do motor. Evidência objetiva: `grep -rn "PostingService\|PayrollService\|FiscalService" server/src/features/dynamicTables/` deve ser **vazio**. Ver `_ARCHITECTURE-CONTRACT.md §2.1`.
+>
+> **🔀 [REV-007] Choke point PAR-001 num slice de Fase A — FAIL CONDICIONAL ao contexto.** **Só quando a review é de um slice de Fase A** (lote paralelo — `_PARALLELIZATION-CONTRACT.md` PAR-003; o **chamador declara** o contexto): o diff NÃO pode tocar nenhum choke point de registro PAR-001 — `server/src/routes/index.ts`, `server/src/lib/factory.ts`, `server/prisma/schema.prisma`, `server/prisma/seed.ts`, `my-app/public/openapi.json`. Esses pertencem à **Fase B** (integração serial); tocá-los num slice paralelo reintroduz exatamente o conflito de commit que o fatiamento existe pra evitar. Evidência objetiva: `git diff --name-only main...<branch>` **não** intersecta a lista PAR-001 → PASS; interseção → **FAIL** (aponte o arquivo e mande a linha de registro pra Fase B). **Fora de contexto de lote paralelo esta regra é N/A** — numa feature regular, tocar `factory.ts`/`routes/index.ts` é o registro em 3-toques normal e obrigatório, não defeito. Ver `_PARALLELIZATION-CONTRACT.md` PAR-001/PAR-004.
 >
 > **⭐ Slice de referência (o que um "PASS" se parece):** a feature `server/src/features/users/` (DTO → `repositories/UserRepository.ts` → `policies/UserPolicy.ts` → `services/UserService.ts` → `controllers/userController.ts` → `routes/users.ts` → `my-app/lib/services/user.service.ts`) é o exemplar limpo — use-a como baseline ao avaliar camadas. **Ressalva:** o `users` é exceção LGPD ao soft-delete (delete HARD + `getAllUsers` sem `deletedAt`), então NÃO o use como prova de que "hard delete passa": para recursos com soft-delete, o checklist de Repository abaixo prevalece. Para orchestration-services que delegam ao `DynamicTableService`, o exemplar é `server/src/features/crm/services/CrmPipelineService.ts` (ver exceção na camada Service).
 
@@ -324,6 +343,14 @@ Ambas as linhas devem existir e o nome deve bater.
 
 **[REV-002]** Não aprove sem rodar o `tsc` — a compilação é gate obrigatório.
 
+> **Pré-condição de ambiente (worktree fresco):** se o `tsc` falhar em massa com `Cannot find
+> module` (ex.: `next-i18next`, `react-icons`, `generated/prisma`), o ambiente não resolve as
+> dependências — o resultado **não é evidência** de nada. O veredicto é **BLOCKED por ambiente**,
+> nunca PASS nem FAIL: resolva primeiro (`npm ci`, junction/symlink do `node_modules` do repo
+> primário, `npx prisma generate`) e re-rode. Separe sempre erro-de-ambiente de erro-do-diff:
+> compare com a baseline do repo primário antes de atribuir qualquer erro ao diff sob revisão.
+> (Teste de sistema 2026-07-07, achado P3.)
+
 ```bash
 cd server && npx tsc --noEmit
 cd my-app && npx tsc --noEmit
@@ -336,7 +363,7 @@ Se houver erros:
 
 ## Phase 4.5 — Wiring de registro central (tsc-cego)
 
-**[REV-005]** O `tsc` compila verde mesmo quando um artefato novo **não foi registrado** no índice
+**[REV-006]** O `tsc` compila verde mesmo quando um artefato novo **não foi registrado** no índice
 central — a rota fica sem `router.use`, a categoria de KPI/preset fica órfã, ou uma chave i18n existe
 em `en` e não em `pt`. Esses bugs só aparecem em runtime. Rode o gate de wiring:
 
@@ -405,7 +432,11 @@ Produzir um relatório estruturado:
 - **[REV-004] Não corrija** os arquivos — apenas reporte com evidências e sugestão, e devolva ao implementador
 - **Seja específico** — toda FAIL deve ter arquivo:linha e correção sugerida
 - **[REV-002] Não aprove sem rodar tsc** — compilação é gate obrigatório
-- **[REV-005] Não aprove sem rodar o gate de wiring** — `tsc` verde não prova que o artefato foi registrado no índice central (rota/KPI/preset/i18n)
+- **[REV-006] Não aprove sem rodar o gate de wiring** — `tsc` verde não prova que o artefato foi registrado no índice central (rota/KPI/preset/i18n)
+- **[REV-007] Slice de Fase A não toca choke point PAR-001** — só em contexto de lote paralelo; interseção com a lista PAR-001 = FAIL (pertence à Fase B). N/A em feature regular (3-toques é normal)
 - **[REV-003] Não aprove na confiança** — sem evidência do check (comando + exit code), o veredicto é BLOCKED/REPROVADO, nunca PASS
+- **OPS-001 é check de forma** — handoff sem a **seção rotulada** `Gates de envio OPS-001` (com caso adversarial tentado + checagem falseável) = FAIL de forma antes do mérito; artefatos avulsos em outras seções não substituem
+- **tsc sem deps resolvidas não é evidência** — worktree fresco com `Cannot find module` em massa = BLOCKED por ambiente, nunca PASS/FAIL; resolva deps e compare com a baseline do repo primário antes de atribuir erro ao diff
+- **Cobertura antes de filtro** — reporte todo achado com confiança + severidade; não filtre por "importância" no passo de achado (guarda de recall — MODEL-TUNING.md)
 - **Não ignore cross-layer** — um mismatch de tipo entre DTO e frontend service é um bug silencioso
 - **Não presuma** que o código está correto porque foi gerado por uma skill — valide sempre

@@ -38,11 +38,19 @@ export class KpiCacheService {
   }
 
   /**
-   * Deletes all cache entries whose key contains the given `userId` prefix.
+   * Deletes all cache entries belonging to `userId`.
+   *
+   * Keys are built as `${userId}:${suffix}` (see AnalyticsService), so the
+   * tenancy segment is everything before the first `:`. The comparison is an
+   * EXACT match on that segment — never a substring scan (`key.includes(userId)`
+   * would also hit other tenants whose id merely contains this one, and any key
+   * whose suffix happens to embed the id).
    */
   invalidate(userId: string): void {
     for (const key of this.store.keys()) {
-      if (key.includes(userId)) {
+      const separatorIndex = key.indexOf(':');
+      const keyUserId = separatorIndex === -1 ? key : key.slice(0, separatorIndex);
+      if (keyUserId === userId) {
         this.store.delete(key);
       }
     }

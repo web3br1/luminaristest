@@ -11,7 +11,7 @@ export class DynamicTablePolicy implements IDynamicTablePolicy {
 
   // Apenas o usuário associado ou um admin pode visualizar a tabela.
   canView(user: UserContext, table: IDynamicTable): boolean {
-    return user.role === Role.ADMIN || user.id === table.userId;
+    return user.role === Role.ADMIN || user.userId === table.userId;
   }
 
   // Ninguém pode editar a estrutura de uma tabela via API.
@@ -30,6 +30,6 @@ export class DynamicTablePolicy implements IDynamicTablePolicy {
   canManageData(user: UserContext, table: IDynamicTable): boolean {
     const presentation = (table.schema as ITableSchema)?.ui?.presentation;
     if (presentation === 'system') return false;
-    return user.id === table.userId;
+    return user.userId === table.userId;
   }
 }

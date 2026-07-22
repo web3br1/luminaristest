@@ -15,42 +15,47 @@ datasource db {
 }
 
 model User {
-  id             String   @id @default(cuid())
-  name           String?
-  username       String   @unique
-  email          String   @unique
-  password       String
-  role           Role     @default(USER)
-  locale         String   @default("en")  // 'en' | 'pt'
-  currency       String   @default("BRL") // 'BRL' | 'USD' | 'EUR'
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  dashboardLayout DashboardLayout?
-  chatInstances  ChatInstance[] // Relation to ChatInstance
-  documents      Document[]      // Relation to Document
-  dynamicTables  DynamicTable[]  // Relation to DynamicTable
-  knowledgeGraph KnowledgeGraph? // Relation to KnowledgeGraph
-  actionProposals ActionProposal[] // Relation to ActionProposal
-  crmAttachments CrmAttachment[] // Relation to CrmAttachment
-  savedTableViews SavedTableView[] // Relation to SavedTableView
-  accounts       Account[]        // Relation to Account (accounting)
-  journalEntries JournalEntry[]   // Relation to JournalEntry (accounting)
-  postings       Posting[]        // Relation to Posting (accounting)
+  id                      String                   @id @default(cuid())
+  name                    String?
+  username                String                   @unique
+  email                   String                   @unique
+  password                String
+  role                    Role                     @default(USER)
+  locale                  String                   @default("en") // 'en' | 'pt'
+  currency                String                   @default("BRL") // 'BRL' | 'USD' | 'EUR'
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  dashboardLayouts        DashboardLayout[] // multi-tab dashboards (fork feature/back-end)
+  chatInstances           ChatInstance[] // Relation to ChatInstance
+  documents               Document[] // Relation to Document
+  dynamicTables           DynamicTable[] // Relation to DynamicTable
+  knowledgeGraph          KnowledgeGraph? // Relation to KnowledgeGraph
+  actionProposals         ActionProposal[] // Relation to ActionProposal
+  crmAttachments          CrmAttachment[] // Relation to CrmAttachment
+  savedTableViews         SavedTableView[] // Relation to SavedTableView
+  accounts                Account[] // Relation to Account (accounting)
+  journalEntries          JournalEntry[] // Relation to JournalEntry (accounting)
+  postings                Posting[] // Relation to Posting (accounting)
+  referentialMappings     ReferentialMapping[] // Relation to ReferentialMapping (ECD/ECF referential chart, INCR-9)
   customerPackageBalances CustomerPackageBalance[] // Relation to CustomerPackageBalance (prepaid packages)
   packageBalanceMovements PackageBalanceMovement[] // Relation to PackageBalanceMovement (prepaid packages)
+  payables                Payable[] // Relation to Payable (accounts payable / contas a pagar, INCR-AP)
+  receivables             Receivable[] // Relation to Receivable (accounts receivable / contas a receber, INCR-AR)
+  dimensionDefinitions    DimensionDefinition[] // Relation to DimensionDefinition (cost-center/project dimensions, INCR-DIM)
+  counterparties          Counterparty[] // Relation to Counterparty (supplier/customer catalog, INCR-COUNTERPARTY)
 }
 
 // Per-user saved table views (query/filters/sort) for the canonical table stack.
 // Scoped by userId + tableId (IDynamicTable.id); tableId is not a FK (tables are dynamic).
 model SavedTableView {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tableId   String   // IDynamicTable.id (escopo da view; não FK — tabelas são dinâmicas)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tableId   String // IDynamicTable.id (escopo da view; não FK — tabelas são dinâmicas)
   name      String
-  config    Json     // { query, fieldFilters, sortConfig }
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  config    Json // { query, fieldFilters, sortConfig }
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   @@index([userId, tableId])
@@ -60,18 +65,18 @@ model SavedTableView {
 // Downloadable file-store metadata for CRM record attachments (polymorphic, soft-delete).
 // The binary lives on disk under ATTACHMENTS_DIR; this row holds only metadata + storageKey.
 model CrmAttachment {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  entityType  String    // 'lead' | 'account' | 'contact'  (extensível p/ 'opportunity')
-  entityId    String    // id da row DynamicTable (não FK — rows são dinâmicas)
-  fileName    String    // nome original (sanitizado p/ exibição)
-  mimeType    String
-  fileSize    Int
-  storageKey  String    // caminho relativo dentro de ATTACHMENTS_DIR
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entityType String // 'lead' | 'account' | 'contact'  (extensível p/ 'opportunity')
+  entityId   String // id da row DynamicTable (não FK — rows são dinâmicas)
+  fileName   String // nome original (sanitizado p/ exibição)
+  mimeType   String
+  fileSize   Int
+  storageKey String // caminho relativo dentro de ATTACHMENTS_DIR
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
 
   @@index([userId, entityType, entityId])
   @@map("crm_attachments")
@@ -79,9 +84,11 @@ model CrmAttachment {
 
 model DashboardLayout {
   id         String   @id @default(cuid())
-  userId     String   @unique
+  userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  layoutData Json
+  name       String   // Tab label (promoted out of layoutData JSON)
+  isActive   Boolean  @default(false) // At most one active layout (tab) per user
+  layoutData Json     // { type, config } — the grid configuration
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -89,15 +96,15 @@ model DashboardLayout {
 }
 
 model ChatInstance {
-  id              String   @id @default(cuid())
-  widgetInstanceId String   // The ID from the dashboard layout (e.g., item.i)
-  title           String?
-  type            ChatInstanceType @default(DOCUMENT) // Type of chat (DOCUMENT or GENERIC)
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages        ChatMessage[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String           @id @default(cuid())
+  widgetInstanceId String // The ID from the dashboard layout (e.g., item.i)
+  title            String?
+  type             ChatInstanceType @default(DOCUMENT) // Type of chat (DOCUMENT or GENERIC)
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages         ChatMessage[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   @@unique([userId, widgetInstanceId]) // A user can't have two chat instances with the same widget ID
   @@index([userId])
@@ -105,13 +112,13 @@ model ChatInstance {
 }
 
 model ChatMessage {
-  id             String      @id @default(cuid())
+  id             String       @id @default(cuid())
   content        String
   role           MessageRole // USER or ASSISTANT
   chatInstanceId String
   chatInstance   ChatInstance @relation(fields: [chatInstanceId], references: [id], onDelete: Cascade)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   @@index([chatInstanceId])
 }
@@ -130,8 +137,8 @@ enum MessageRole {
 
 // Enum for Chat Instance Types
 enum ChatInstanceType {
-  DOCUMENT  // Chat sobre documentos vetorizados (Qdrant)
-  GENERIC   // Chat genérico (futuro: Dynamic Tables)
+  DOCUMENT // Chat sobre documentos vetorizados (Qdrant)
+  GENERIC // Chat genérico (futuro: Dynamic Tables)
 }
 
 // Enum for uploaded document file types
@@ -152,82 +159,84 @@ enum ProcessingStatus {
 
 // Purpose of the document - affects processing flow
 enum DocumentPurpose {
-  DATA_ANALYSIS    // For spreadsheets/tables (data analysis)
-  KNOWLEDGE_BASE   // For general knowledge documents (Q&A)
+  DATA_ANALYSIS // For spreadsheets/tables (data analysis)
+  KNOWLEDGE_BASE // For general knowledge documents (Q&A)
 }
 
 // Document model: metadata and AI-processed JSON
 model Document {
-  id               String            @id @default(cuid())
-  userId           String
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  fileName         String
-  mimeType         String
-  fileType         FileType
-  fileSize         Int                // size in bytes
-  textContent      String             // extracted text content
-  documentPurpose  DocumentPurpose    @default(DATA_ANALYSIS)  // purpose: data analysis or knowledge base
+  fileName        String
+  mimeType        String
+  fileType        FileType
+  fileSize        Int // size in bytes
+  textContent     String // extracted text content
+  documentPurpose DocumentPurpose @default(DATA_ANALYSIS) // purpose: data analysis or knowledge base
 
-  status           ProcessingStatus  @default(PENDING)  // processing status
-  summary          String?           // optional AI-generated summary
-  contextJson      Json?             // structured JSON from AI processing
-  uploadDate       DateTime          @default(now())     // timestamp of file upload
-  processingDate   DateTime?         // timestamp when processing completed
-  processingError  String?           // error message if processing failed
+  status          ProcessingStatus @default(PENDING) // processing status
+  summary         String? // optional AI-generated summary
+  contextJson     Json? // structured JSON from AI processing
+  uploadDate      DateTime         @default(now()) // timestamp of file upload
+  processingDate  DateTime? // timestamp when processing completed
+  processingError String? // error message if processing failed
 
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  chunks           Chunk[]           // relation to chunks
-  structuredData   StructuredData?   // relation to structured data
+  chunks         Chunk[] // relation to chunks
+  structuredData StructuredData? // relation to structured data
+
   @@index([userId])
 }
 
 /// Chunks of text with embeddings stored in Qdrant
 model Chunk {
-  id          String    @id @default(cuid())
-  text        String
-  index       Int       // order of this chunk in the document
-  documentId  String
-  document    Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
+  id         String   @id @default(cuid())
+  text       String
+  index      Int // order of this chunk in the document
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
   @@index([documentId])
 }
 
 // Model for structured data extracted from documents
 model StructuredData {
-  id          String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // One-to-one relation with Document
-  documentId  String   @unique
-  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentId String   @unique
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   // Stores headers and their types, detected by AI
   // Ex: [{ "name": "Produto", "type": "TEXT" }, { "name": "Valor", "type": "CURRENCY" }]
-  headers     Json
-  
+  headers Json
+
   // Stores row data, ready for Handsontable
   // Ex: [["Notebook", 5000.00], ["Mouse", 150.00]]
-  data        Json
+  data Json
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Model for dynamically created tables by users
 model DynamicTable {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name          String   // Name of the "virtual table" (e.g., "Products", "Clients")
-  internalName  String?  // Stable internal key (e.g., "leads", "leadPipelines")
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String // Name of the "virtual table" (e.g., "Products", "Clients")
+  internalName String? // Stable internal key (e.g., "leads", "leadPipelines")
   /// The category of the table, used for UI grouping. Must be one of the predefined values.
   /// See: features/dynamicTables/models/TableCategories.ts
-  category   String   // Category for grouping tables (e.g., "people", "sales", "inventory")
-  schema    Json     // JSON defining the fields, types, and constraints
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  category     String // Category for grouping tables (e.g., "people", "sales", "inventory")
+  schema       Json // JSON defining the fields, types, and constraints
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relation to the actual data entries
   dataEntries DynamicTableData[]
@@ -238,12 +247,12 @@ model DynamicTable {
 
 // Model for the data entries of a dynamic table
 model DynamicTableData {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   dynamicTableId String
   dynamicTable   DynamicTable @relation(fields: [dynamicTableId], references: [id], onDelete: Cascade)
-  data           Json     // The actual record, in JSON format, validated against the table's schema
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  data           Json // The actual record, in JSON format, validated against the table's schema
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   deletedAt      DateTime? // Used for Soft Deletes across the ERP
 
   @@index([dynamicTableId])
@@ -255,7 +264,7 @@ model KnowledgeGraph {
   id        String   @id @default(cuid())
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  data      Json     // The compiled graph: nodes (tables), edges (relations), and fields
+  data      Json // The compiled graph: nodes (tables), edges (relations), and fields
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -268,11 +277,11 @@ model ActionProposal {
   id         String   @id @default(cuid())
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  action     String   // CREATE, UPDATE, DELETE
+  action     String // CREATE, UPDATE, DELETE
   tableId    String
   tableName  String
   tableLabel String
-  data       Json     // Proposal data
+  data       Json // Proposal data
   status     String   @default("PENDING") // PENDING, EXECUTED, EXPIRED
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -301,19 +310,20 @@ enum AccountingPeriodStatus {
 }
 
 model AccountingPeriod {
-  id          String                  @id @default(cuid())
+  id          String                       @id @default(cuid())
   userId      String
   unitId      String
   year        Int
   month       Int
-  status      AccountingPeriodStatus  @default(FUTURE)
+  status      AccountingPeriodStatus       @default(FUTURE)
   openedAt    DateTime?
   openedById  String?
   closedAt    DateTime?
   closedById  String?
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
+  createdAt   DateTime                     @default(now())
+  updatedAt   DateTime                     @updatedAt
   transitions AccountingPeriodTransition[]
+
   @@unique([userId, unitId, year, month])
   @@index([userId, unitId, status])
   @@index([userId, unitId, year])
@@ -331,6 +341,7 @@ model AccountingPeriodTransition {
   reason      String?
   occurredAt  DateTime                @default(now())
   period      AccountingPeriod        @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
   @@index([userId, unitId, periodId])
   @@index([actorUserId, occurredAt])
   @@map("accounting_period_transitions")
@@ -356,6 +367,7 @@ model AuditEvent {
   hashVersion      Int      @default(1)
   canonicalVersion Int      @default(1)
   createdAt        DateTime
+
   @@unique([scopeUserId, unitId, seq])
   @@unique([scopeUserId, unitId, hash])
   @@index([scopeUserId, unitId, createdAt])
@@ -374,6 +386,7 @@ model AuditChainHead {
   headHash    String
   version     Int      @default(0)
   updatedAt   DateTime @updatedAt
+
   @@id([scopeUserId, unitId])
   @@map("audit_chain_heads")
 }
@@ -382,19 +395,28 @@ model AuditChainHead {
 // (`code`, e.g. "1.1.2") — the parent is the prefix; there is no self-relation.
 // Only leaf accounts (`acceptsEntries`) receive ledger lines.
 model Account {
-  id             String    @id @default(cuid())
-  userId         String
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  unitId         String    // business unit (DynamicTable row id; scoped string, not a FK)
-  code           String    // hierarchical key, e.g. "1.1.2"
-  name           String
-  nature         String    // Asset | Liability | Equity | Revenue | Expense
-  acceptsEntries Boolean   @default(true)
-  postings       Posting[]
-  bankStatements BankStatement[] @relation("AccountBankStatements")
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  deletedAt      DateTime?
+  id                  String               @id @default(cuid())
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId              String // business unit (DynamicTable row id; scoped string, not a FK)
+  code                String // hierarchical key, e.g. "1.1.2"
+  name                String
+  nature              String // Asset | Liability | Equity | Revenue | Expense
+  acceptsEntries      Boolean              @default(true)
+  // INCR-DIM-COMPLETENESS (B1, ADR-INCR-DIM-COMPLETENESS — EMENDA a ADR-INCR-DIM F5): quando true,
+  // toda partida a esta conta EXIGE ≥1 etiqueta de dimensão (qualquer eixo — MVP booleano simples,
+  // não por-eixo). Default false ⇒ contas seguem 100% opcionais (F5 permanece o default). Gate
+  // prospectivo (SEC-B1-5): re-checado in-tx nos escritores de conteúdo original (postEntry/approve);
+  // NUNCA retro-rejeita histórico. Toggle audita + canManage (SEC-B1-4). Zero mudança de dado (ADD COLUMN).
+  requiresDimension   Boolean              @default(false)
+  postings            Posting[]
+  bankStatements      BankStatement[]      @relation("AccountBankStatements")
+  referentialMappings ReferentialMapping[] // conta-folha → conta referencial RFB, versionado (INCR-9)
+  payablesExpense     Payable[]            @relation("PayableExpenseAccount") // conta-despesa (4.x) da contrapartida do reconhecimento AP (INCR-AP)
+  receivablesRevenue  Receivable[]         @relation("ReceivableRevenueAccount") // conta-receita (3.x) da contrapartida do reconhecimento AR (INCR-AR)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  deletedAt           DateTime?
 
   @@unique([userId, unitId, code]) // real DB constraint — each unit owns its chart
   @@index([userId, unitId])
@@ -402,31 +424,88 @@ model Account {
   @@map("accounts")
 }
 
+// Mapeamento Plano-de-Contas → conta REFERENCIAL da RFB, VERSIONADO por ano-calendário
+// (BE-INCR-9 / ADR-INCR9). First-class Prisma — camada DESCRITIVA/compliance ao lado do plano de
+// contas; NÃO muda valor de ledger. Destrava a prontidão ECD/ECF (o leiaute referencial muda por
+// ano-calendário, daí o versionamento). Tenancy = AccountingScope (userId + unitId). SEM deletedAt:
+// mudança = update-in-place, desmapear = hard-delete, e a trilha da mudança vive no AuditEvent
+// (hash-chain) — foge do class-bug soft-delete×@@unique (P2002 no remap). O código/rótulo
+// referencial são strings denormalizadas (snapshot por versão); não há tabela-catálogo/FK no MVP —
+// a importação do leiaute oficial da RFB é diferida junto com a geração do arquivo SPED.
+model ReferentialMapping {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId          String // business unit (scoped string, not a FK)
+  accountId       String
+  account         Account  @relation(fields: [accountId], references: [id]) // conta-folha mapeada (acceptsEntries)
+  referentialCode String // código da conta referencial RFB (string livre — sem catálogo/FK no MVP)
+  label           String // nome da conta referencial, snapshot denormalizado por versão
+  mappingVersion  String // leiaute referencial por ano-calendário, string livre — ex. "2025"
+  createdById     String? // ator (AccountingScope.actorUserId); plain string
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Uma conta tem no máximo 1 código referencial por versão; várias versões coexistem.
+  @@unique([userId, unitId, accountId, mappingVersion])
+  @@index([userId, unitId, mappingVersion])
+  @@map("referential_mappings")
+}
+
+// Catálogo do plano de contas REFERENCIAL oficial da RFB (BE-INCR-9B / ADR-INCR9B, Track B).
+// Dado EXTERNO GLOBAL versionado por leiaute — NÃO tem tenancy (userId/unitId): o leiaute é o
+// mesmo para todos os tenants (D4). Sem relação a User → naturalmente isento do onDelete:Cascade.
+// Semeado por IMPORTAÇÃO do arquivo oficial (D4), nunca inventado nem self-seed per-scope (D1/I052).
+// Serve de LOOKUP e VALIDAÇÃO de pertinência do lado de DESTINO do de-para (D3 — só conta analítica
+// da versão é destino válido); o de-para em si (ReferentialMapping, INCR-9) continua gravando
+// referentialCode/label string, SEM FK dura a esta tabela (D9). SEM deletedAt: re-import = upsert-in-
+// place pela @@unique (idempotente), foge do class-bug soft-delete×@@unique. As colunas EXATAS do
+// arquivo oficial (posicional/encoding) = FASE 2, campo-a-campo; o import consome uma tabela de
+// colunas-nomeadas via lib/spreadsheet.parseTable (reuso INCR-6), desacoplado do formato físico.
+model ReferentialAccount {
+  id            String   @id @default(cuid())
+  layoutVersion String // leiaute/ano-calendário do plano referencial RFB (casa com mappingVersion — D7)
+  code          String // código da conta referencial RFB
+  name          String // nome oficial da conta referencial
+  isAnalytic    Boolean // true = folha (só analítica é destino válido do de-para — D3); vem da COLUNA do arquivo (9B-4), nunca inferido
+  parentCode    String? // árvore do referencial, se o arquivo trouxer (só picker/validação — D10)
+  createdAt     DateTime @default(now())
+
+  @@unique([layoutVersion, code]) // idempotência do import + lookup por (versão, código)
+  @@index([layoutVersion, isAnalytic])
+  @@map("referential_accounts")
+}
+
 // Journal entry header (lançamento). Groups N balanced legs (`postings`) where
 // Σdebit = Σcredit (enforced in the posting service). Posted entries are immutable —
 // corrections are made via a reversing entry (estorno). `reversedById` links an
 // original to its reversal (self-relation).
 model JournalEntry {
-  id           String    @id @default(cuid())
+  id           String               @id @default(cuid())
   userId       String
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  unitId       String    // business unit (scoped string, not a FK)
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId       String // business unit (scoped string, not a FK)
   date         DateTime
   description  String
-  status       String    @default("Draft") // Draft | Posted | Reconciled | Reversed
-  sourceType   String    @default("manual")
+  status       String               @default("Draft") // Draft | PendingApproval | Posted | Reconciled | Reversed
+  sourceType   String               @default("manual")
   sourceId     String?
-  reversedById String?   @unique // the reversal entry that estorned this one
-  reversedBy   JournalEntry?  @relation("Reversal", fields: [reversedById], references: [id])
-  reverses     JournalEntry?  @relation("Reversal")
+  reversedById String?              @unique // the reversal entry that estorned this one
+  reversedBy   JournalEntry?        @relation("Reversal", fields: [reversedById], references: [id])
+  reverses     JournalEntry?        @relation("Reversal")
   postings     Posting[]
   attachments  DocumentAttachment[] @relation("JournalEntryAttachments")
-  createdById  String?   // actor who created this entry (authorship trail)
-  postedById   String?   // actor who posted/confirmed this entry (SoD trail)
-  fiscalYear   Int       // derived from date (postingDate) in America/Sao_Paulo; assigned at post time
-  entryNumber  Int       // sequential within (userId, unitId, fiscalYear); assigned at post time
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  sources      JournalEntrySource[] @relation("JournalEntrySources")
+  createdById  String? // actor who created this entry (authorship trail / maker)
+  submittedById String? // actor who submitted for approval (ADR-INCR-APPROVAL, maker trail)
+  approvedById String? // actor who approved (ADR-INCR-APPROVAL, checker trail — SoD: != createdById)
+  postedById   String? // actor who posted/confirmed this entry (SoD trail)
+  version      Int                  @default(1) // optimistic-lock counter for the approval CAS (ACC-023)
+  contentHash  String? // frozen economic-content hash at submit (ACC-017/022); null while Draft
+  fiscalYear   Int? // born at POST/approve, inside the tx (ACC-015) — null while Draft/PendingApproval
+  entryNumber  Int? // sequential within (userId, unitId, fiscalYear); born at POST/approve — null while Draft/PendingApproval
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 
   // Idempotency — a real DB constraint (SQLite treats NULL sourceId as distinct, so
   // manual entries never collide). Closes the double-post window app code cannot.
@@ -461,18 +540,18 @@ model JournalEntrySequence {
 // increment; broadening to other targets (INCR-6+) relaxes the FK.
 model DocumentAttachment {
   id           String       @id @default(cuid())
-  userId       String       // scope owner (AccountingScope.ownerUserId); plain scope key
-  unitId       String       // business unit (scoped string, not a FK)
+  userId       String // scope owner (AccountingScope.ownerUserId); plain scope key
+  unitId       String // business unit (scoped string, not a FK)
   targetType   String       @default("JOURNAL_ENTRY")
-  targetId     String       // journal_entries.id
+  targetId     String // journal_entries.id
   journalEntry JournalEntry @relation("JournalEntryAttachments", fields: [targetId], references: [id], onDelete: Cascade)
-  fileName     String       // sanitized display name (what is on disk), never raw client input
+  fileName     String // sanitized display name (what is on disk), never raw client input
   mimeType     String
   fileSize     Int
-  sha256       String       // 64-char hex; computed server-side at upload
-  storageKey   String       // relative path within ATTACHMENTS_DIR (attachmentStorage.saveFile)
-  uploadedById String?      // actor who uploaded (AccountingScope.actorUserId); plain string
-  deletedById  String?      // actor who soft-deleted; plain string
+  sha256       String // 64-char hex; computed server-side at upload
+  storageKey   String // relative path within ATTACHMENTS_DIR (attachmentStorage.saveFile)
+  uploadedById String? // actor who uploaded (AccountingScope.actorUserId); plain string
+  deletedById  String? // actor who soft-deleted; plain string
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   deletedAt    DateTime?
@@ -487,25 +566,25 @@ model DocumentAttachment {
 // NOT a DynamicTable preset. Imports commit through PostingService.postEntry/createAccount;
 // this model never writes ledger data directly. Tenancy = plain scoped strings (no User FK).
 model AccountingDataExchangeJob {
-  id            String    @id @default(cuid())
-  userId        String    // scope owner (AccountingScope.ownerUserId); plain scope key
-  unitId        String    // business unit (scoped string, not a FK)
-  direction     String    // IMPORT | EXPORT
-  kind          String    // IMPORT_CHART_OF_ACCOUNTS | IMPORT_OPENING_BALANCES | IMPORT_JOURNAL_ENTRIES | EXPORT_*
-  status        String    // UPLOADED | VALIDATED | COMMITTING | COMMITTED | PARTIAL | FAILED | EXPORTED
-  originalName  String?   // client-supplied upload name (display only)
+  id            String                      @id @default(cuid())
+  userId        String // scope owner (AccountingScope.ownerUserId); plain scope key
+  unitId        String // business unit (scoped string, not a FK)
+  direction     String // IMPORT | EXPORT
+  kind          String // IMPORT_CHART_OF_ACCOUNTS | IMPORT_OPENING_BALANCES | IMPORT_JOURNAL_ENTRIES | EXPORT_*
+  status        String // UPLOADED | VALIDATED | COMMITTING | COMMITTED | PARTIAL | FAILED | EXPORTED
+  originalName  String? // client-supplied upload name (display only)
   mimeType      String?
   sizeBytes     Int?
-  sha256        String?   // 64-char hex of the uploaded/generated artifact
-  storageKey    String?   // relative path within ATTACHMENTS_DIR (attachmentStorage); source or artifact
-  totalRows     Int       @default(0)
-  validRows     Int       @default(0)
-  invalidRows   Int       @default(0)
-  committedRows Int       @default(0)
-  requestedById String    // actor who created the job; plain string
-  committedById String?   // actor who committed; plain string
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  sha256        String? // 64-char hex of the uploaded/generated artifact
+  storageKey    String? // relative path within ATTACHMENTS_DIR (attachmentStorage); source or artifact
+  totalRows     Int                         @default(0)
+  validRows     Int                         @default(0)
+  invalidRows   Int                         @default(0)
+  committedRows Int                         @default(0)
+  requestedById String // actor who created the job; plain string
+  committedById String? // actor who committed; plain string
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
   committedAt   DateTime?
   rows          AccountingDataExchangeRow[]
 
@@ -517,20 +596,20 @@ model AccountingDataExchangeJob {
 // cells and the per-row validation outcome; targetId is set (plain string) after commit.
 model AccountingDataExchangeRow {
   id             String                    @id @default(cuid())
-  userId         String                    // plain scope key (denormalized for scoped queries)
+  userId         String // plain scope key (denormalized for scoped queries)
   unitId         String
   jobId          String
   job            AccountingDataExchangeJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  rowNumber      Int                       // 1-based source row (for user-facing error reports)
-  groupKey       String?                   // entryKey — groups multi-line journal entries
-  rawJson        String                    // original parsed cells (JSON string)
-  normalizedJson String?                   // canonicalized cells (money as integer cents string); null if unparseable
-  status         String                    // VALID | INVALID | COMMITTED | SKIPPED
+  rowNumber      Int // 1-based source row (for user-facing error reports)
+  groupKey       String? // entryKey — groups multi-line journal entries
+  rawJson        String // original parsed cells (JSON string)
+  normalizedJson String? // canonicalized cells (money as integer cents string); null if unparseable
+  status         String // VALID | INVALID | COMMITTED | SKIPPED
   errorCode      String?
   errorMessage   String?
-  field          String?                   // offending column, when applicable
-  targetType     String?                   // ACCOUNT | JOURNAL_ENTRY (set after commit)
-  targetId       String?                   // created entity id (plain string, not a FK)
+  field          String? // offending column, when applicable
+  targetType     String? // ACCOUNT | JOURNAL_ENTRY (set after commit)
+  targetId       String? // created entity id (plain string, not a FK)
   createdAt      DateTime                  @default(now())
 
   @@index([userId, unitId, jobId])
@@ -542,19 +621,20 @@ model AccountingDataExchangeRow {
 // closing invariant Σdebit = Σcredit per entry is exact integer equality. `userId`
 // and `unitId` are denormalized for fast tenant-scoped groupBy (trial balance).
 model Posting {
-  id          String       @id @default(cuid())
-  userId      String
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  unitId      String
-  entryId     String
-  entry       JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  accountId   String
-  account     Account      @relation(fields: [accountId], references: [id])
-  debitCents  Int          @default(0)
-  creditCents Int          @default(0)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime?    @updatedAt
+  id                    String                @id @default(cuid())
+  userId                String
+  user                  User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId                String
+  entryId               String
+  entry                 JournalEntry          @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId             String
+  account               Account               @relation(fields: [accountId], references: [id])
+  debitCents            Int                   @default(0)
+  creditCents           Int                   @default(0)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime?             @updatedAt
   reconciliationMatches ReconciliationMatch[] @relation("PostingReconciliationMatches")
+  dimensions            PostingDimension[] // dimension tags on THIS leg (INCR-DIM) — virtual relation, FK lives in posting_dimensions (zero ALTER on postings)
 
   @@index([userId, unitId])
   @@index([entryId])
@@ -571,21 +651,21 @@ model Posting {
 
 // One imported bank statement file for one GL bank account (ADR-INCR7 D1/D4).
 model BankStatement {
-  id                  String    @id @default(cuid())
-  userId              String    // AccountingScope.ownerUserId (plain scope key)
-  unitId              String    // business unit (scoped string, not a FK)
-  glAccountId         String    // bank GL account (accounts.id) this statement belongs to (D4)
-  glAccount           Account   @relation("AccountBankStatements", fields: [glAccountId], references: [id])
-  statementRef        String?   // bank-provided statement id/label (display)
+  id                  String              @id @default(cuid())
+  userId              String // AccountingScope.ownerUserId (plain scope key)
+  unitId              String // business unit (scoped string, not a FK)
+  glAccountId         String // bank GL account (accounts.id) this statement belongs to (D4)
+  glAccount           Account             @relation("AccountBankStatements", fields: [glAccountId], references: [id])
+  statementRef        String? // bank-provided statement id/label (display)
   periodStart         DateTime
   periodEnd           DateTime
-  openingBalanceCents Int?      // optional control totals (|v| <= MAX_CENTS)
+  openingBalanceCents Int? // optional control totals (|v| <= MAX_CENTS)
   closingBalanceCents Int?
-  sha256              String    // file hash — re-import idempotency (D1/ACC-013)
-  attachmentId        String?   // DocumentAttachment of the raw file (INCR-5)
-  importedById        String?   // actor (AccountingScope.actorUserId); plain string
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  sha256              String // file hash — re-import idempotency (D1/ACC-013)
+  attachmentId        String? // DocumentAttachment of the raw file (INCR-5)
+  importedById        String? // actor (AccountingScope.actorUserId); plain string
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
   deletedAt           DateTime?
   lines               BankStatementLine[]
 
@@ -597,20 +677,20 @@ model BankStatement {
 
 // One parsed statement line (staging; immutable — no soft-delete, status covers IGNORED).
 model BankStatementLine {
-  id          String   @id @default(cuid())
+  id          String                @id @default(cuid())
   userId      String
   unitId      String
   statementId String
-  statement   BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
-  lineNumber  Int      // 1-based, source order
+  statement   BankStatement         @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  lineNumber  Int // 1-based, source order
   date        DateTime
-  amountCents Int      // SIGNED: >0 inflow (statement credit), <0 outflow. |v| <= MAX_CENTS (ACC-014)
+  amountCents Int // SIGNED: >0 inflow (statement credit), <0 outflow. |v| <= MAX_CENTS (ACC-014)
   description String
-  externalRef String?  // bank transaction/document id, when present
-  status      String   @default("UNMATCHED") // UNMATCHED | MATCHED | IGNORED
-  rawJson     String   // original parsed cells (JSON string)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  externalRef String? // bank transaction/document id, when present
+  status      String                @default("UNMATCHED") // UNMATCHED | MATCHED | IGNORED
+  rawJson     String // original parsed cells (JSON string)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
   matches     ReconciliationMatch[]
 
   @@unique([statementId, lineNumber])
@@ -625,16 +705,16 @@ model BankStatementLine {
 // No updatedAt (deliberate): the only sanctioned mutation is the soft-undo,
 // which self-timestamps via unmatchedAt/unmatchedById.
 model ReconciliationMatch {
-  id              String   @id @default(cuid())
+  id              String            @id @default(cuid())
   userId          String
   unitId          String
   statementLineId String
   statementLine   BankStatementLine @relation(fields: [statementLineId], references: [id], onDelete: Cascade)
   postingId       String
-  posting         Posting  @relation("PostingReconciliationMatches", fields: [postingId], references: [id])
-  matchType       String   // AUTO | MANUAL (D6)
-  matchedById     String?  // actor; plain string
-  createdAt       DateTime @default(now())
+  posting         Posting           @relation("PostingReconciliationMatches", fields: [postingId], references: [id])
+  matchType       String // AUTO | MANUAL (D6)
+  matchedById     String? // actor; plain string
+  createdAt       DateTime          @default(now())
   unmatchedAt     DateTime? // soft-undo (D7/ACC-018)
   unmatchedById   String?
 
@@ -642,6 +722,56 @@ model ReconciliationMatch {
   @@index([userId, unitId, postingId])
   @@index([userId, unitId, statementLineId])
   @@map("reconciliation_matches")
+}
+
+// ── Formal provenance (BE-INCR-8 / ADR-INCR8) ──────────────────────────────────
+// First-class Prisma — camada DESCRITIVA/de rastreio ao lado do ledger. NÃO muda
+// nenhum valor de ledger, NÃO substitui a idempotência (T7 vive em
+// JournalEntry.@@unique([userId,unitId,sourceType,sourceId])). Tenancy = AccountingScope
+// (userId+unitId, plain scope strings, SEM FK User → no-cascade, ACC-020). SQLite.
+
+// O documento/evento de origem que originou lançamento(s). Uniforme entre origens (CRM,
+// salão, import). Campos mínimos deliberados (A1 seam fino — mitiga shape especulativo
+// pré-ECD/ECF).
+model SourceDocument {
+  id           String               @id @default(cuid())
+  userId       String // AccountingScope.ownerUserId (plain scope key; SEM FK User — D7)
+  unitId       String // business unit (scoped string, not a FK)
+  sourceType   String // taxonomia viva: crm.opportunity.won | salon.sale.* | IMPORT_JOURNAL_ENTRIES | ...
+  externalRef  String? // referência HUMANA do documento (NF nº X, boleto nº Y) — separada do sourceId/idempotência (D6)
+  documentDate DateTime? // data do documento de origem, quando distinta da data de lançamento
+  description  String? // rótulo curto da origem (display/drill-down)
+  attachmentId String? // DocumentAttachment do arquivo bruto, quando houver (INCR-5); plain string
+  rawJson      String? // snapshot opcional da origem (JSON string)
+  createdById  String? // ator (AccountingScope.actorUserId); plain string
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  deletedAt    DateTime? // soft-delete p/ correção futura; NENHUM path de delete é wired no MVP
+  sources      JournalEntrySource[]
+
+  // SEM @@unique de idempotência (D2): a dedup do ledger é do JournalEntry; postEntry
+  // curto-circuita no idempotent-hit antes de criar a origem, então re-post não duplica.
+  @@index([userId, unitId, sourceType])
+  @@index([userId, unitId, externalRef])
+  @@index([deletedAt])
+  @@map("source_documents")
+}
+
+// Vínculo entry <-> documento de origem. N:M estrutural (D3); MVP escreve 1 entry <- 1 documento.
+model JournalEntrySource {
+  id               String         @id @default(cuid())
+  userId           String // plain scope key (denormalizado p/ query scoped; SEM FK User — D7)
+  unitId           String
+  journalEntryId   String
+  journalEntry     JournalEntry   @relation("JournalEntrySources", fields: [journalEntryId], references: [id], onDelete: Cascade)
+  sourceDocumentId String
+  sourceDocument   SourceDocument @relation(fields: [sourceDocumentId], references: [id])
+  createdAt        DateTime       @default(now())
+
+  @@unique([journalEntryId, sourceDocumentId]) // re-drive não duplica o vínculo
+  @@index([userId, unitId, sourceDocumentId])
+  @@index([userId, unitId, journalEntryId])
+  @@map("journal_entry_sources")
 }
 
 // ── Prepaid packages (Incremento G — Prepaid Package Origin) ───────────────────
@@ -663,9 +793,9 @@ model CustomerPackageBalance {
   id           String    @id @default(cuid())
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  unitId       String    // business unit (DynamicTable row id; scoped string, not a FK)
-  customerId   String    // customer (DynamicTable row id; scoped string, not a FK)
-  packageId    String    // package from the catalog (DynamicTable row id; scoped string, not a FK)
+  unitId       String // business unit (DynamicTable row id; scoped string, not a FK)
+  customerId   String // customer (DynamicTable row id; scoped string, not a FK)
+  packageId    String // package from the catalog (DynamicTable row id; scoped string, not a FK)
   balanceCents Int       @default(0)
   expiresAt    DateTime? // reserved for future expiry; NOT enforced in the G MVP
   createdAt    DateTime  @default(now())
@@ -689,12 +819,276 @@ model PackageBalanceMovement {
   unitId     String
   customerId String
   packageId  String
-  saleId     String   // the sale (DynamicTable row id) that originated this movement
-  kind       String   // 'credit' (package-sale origin) | 'debit' (Package Balance consumption)
-  deltaCents Int      // always > 0; direction is given by `kind`
+  saleId     String // the sale (DynamicTable row id) that originated this movement
+  kind       String // 'credit' (package-sale origin) | 'debit' (Package Balance consumption)
+  deltaCents Int // always > 0; direction is given by `kind`
   createdAt  DateTime @default(now())
 
   @@unique([userId, unitId, saleId, kind]) // closes double-apply on reconcile re-drive
   @@index([userId, unitId, customerId, packageId])
   @@map("package_balance_movements")
+}
+
+// Contas a Pagar (Accounts Payable) — INCR-AP / ADR-INCR-AP. FIRST-CLASS PRISMA (financial
+// invariant ⇒ Prisma, never DynamicTable — CLAUDE.md STOP block, Contract §2.1). Records the
+// obligation to a supplier (a nota) and its payment, with the DUAL fato gerador booked through
+// PostingService.postEntry directly (F0 rota (a), golden ref ExerciseClosingService):
+//   - recognition (competência): D expenseAccount (4.x) / C 2.1.2 Fornecedores a Pagar — sourceType='ap.payable', sourceId=payableId
+//   - settlement (data efetiva):  D 2.1.2 / C conta-por-método — sourceType='ap.payment', sourceId=paymentId
+// Tenancy = AccountingScope (userId=ownerUserId + unitId). The obligation-side idempotency lives
+// in JournalEntry.@@unique([userId,unitId,sourceType,sourceId]); the AP business key below only
+// dedupes the human record (supplierName+documentNumber). status: OPEN → PAYING → PAID | CANCELLED
+// (PAYING is the transient DB race-gate of the double-payment guard, D4; CANCELLED terminal).
+model Payable {
+  id               String           @id @default(cuid())
+  userId           String // scope owner (AccountingScope.ownerUserId); FK User — audit trail is the AuditEvent (exception to cascade), the payable row itself cascades
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId           String // business unit (scoped string, not a FK)
+  supplierName     String // snapshot of the supplier display name (F1) — never resolved from supplierRef at read time
+  supplierRef      String? // scoped ref to a DynamicTable supplier row (F1 rota (c); precedent CustomerPackageBalance.customerId) — plain string, not a FK
+  documentNumber   String? // nº da NF/documento; part of the business key (SQLite treats NULL as distinct, like sourceId)
+  description      String
+  issueDate        DateTime // date-only (competência do reconhecimento) — validated by isValidDateOnly at the DTO
+  dueDate          DateTime // date-only (vencimento; aging is a later increment — F3)
+  amountCents      Int // integer cents (Contract §2.1); MAX_CENTS guarded at the DTO (ACC-014)
+  expenseAccountId String // FK Account — contrapartida do reconhecimento, folha nature='Expense' (gate D4, re-checked in the service)
+  expenseAccount   Account          @relation("PayableExpenseAccount", fields: [expenseAccountId], references: [id])
+  counterpartyId   String? // FK Counterparty (INCR-COUNTERPARTY / A1) — NULLABLE (SEC-A1-5: NOT NULL deferred to a 2nd migration after backfill proves coverage). Resolved RE-SCOPED inside createPayable (SEC-A1-1); supplierName stays the snapshot.
+  counterparty     Counterparty?    @relation(fields: [counterpartyId], references: [id])
+  status           String // OPEN | PAYING | PAID | CANCELLED (see PAYABLE_STATUSES)
+  createdById      String? // actor who created (AccountingScope.actorUserId); plain string
+  cancelledById    String? // actor who cancelled; plain string
+  cancelReason     String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+  payments         PayablePayment[]
+
+  // Business key (D3): one live payable per supplier × document. rename-on-delete
+  // (documentNumber → deleted:<id>:<documentNumber>) frees the key on cancel/delete so a
+  // re-create does not trip P2002 (memória unique-de-idempotencia-x-soft-delete). NULL
+  // documentNumber is treated as distinct by SQLite, so notaless payables never collide.
+  @@unique([userId, unitId, supplierName, documentNumber])
+  @@index([userId, unitId, status])
+  @@index([userId, unitId, dueDate])
+  @@map("payables")
+}
+
+// One payment of a Payable (F2 rota (b) — child table from day one so liberating partial
+// payment later is loosening validation, not a migration + key re-sweep). MVP guard:
+// amountCents === remaining (single full payment). status ACTIVE|CANCELLED (cancel = status
+// flip + reversal of the settlement entry, never a hard delete — mirrors the append-only
+// idempotency discipline). No User FK: paidByUserId is a plain actor string (mirrors
+// JournalEntry.postedById). The settlement idempotency keys on THIS row's id (paymentId),
+// NEVER payableId (D3) — so re-paying after a reversal mints a new key instead of returning
+// the reverted entry.
+model PayablePayment {
+  id           String   @id @default(cuid())
+  userId       String // scope owner (AccountingScope.ownerUserId); plain scope key
+  unitId       String // business unit (scoped string, not a FK)
+  payableId    String
+  payable      Payable  @relation(fields: [payableId], references: [id], onDelete: Cascade)
+  amountCents  Int // integer cents; MAX_CENTS guarded at the DTO
+  method       String // Cash | Pix | TED | Boleto — closed map to the credit account (unknown rejects, D2)
+  paidAt       DateTime // date-only — EFFECTIVE bank-debit date (D9), NOT the click date; validated by isValidDateOnly
+  paidByUserId String? // actor who registered the payment; plain string
+  status       String // ACTIVE | CANCELLED
+  entryId      String? // settlement journal entry id (ap.payment) — denormalized convenience; findEntryBySource is authoritative
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId, unitId, payableId])
+  @@map("payable_payments")
+}
+
+// Contas a Receber (INCR-AR / ADR-INCR-AR). MIRROR of Payable — the receivable subledger for
+// MANUALLY-entered customer invoices (avulsas). NOT for salon sales: the salon bridge already
+// books those to 1.1.2 A Receber (SalonSaleFinalizedMapper); a Receivable is a separate, distinct
+// record. Control account = the DEDICATED 1.1.5 Clientes a Receber (F7) so Σ open receivables
+// ties out to saldo(1.1.5) — a shared 1.1.2 would mix salon + avulsas and break the tie-out.
+// status: OPEN → RECEIVING → RECEIVED | CANCELLED (RECEIVING is the transient DB race-gate of the
+// double-receipt guard, D4; CANCELLED terminal). Business key dedupes the human record only; the
+// accounting idempotency lives in JournalEntry.@@unique([userId,unitId,sourceType,sourceId]).
+model Receivable {
+  id               String              @id @default(cuid())
+  userId           String // scope owner (AccountingScope.ownerUserId); FK User — audit trail is the AuditEvent (exception to cascade), the receivable row itself cascades
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId           String // business unit (scoped string, not a FK)
+  customerName     String // snapshot of the customer display name (F1) — never resolved from customerRef at read time
+  customerRef      String? // scoped ref to a DynamicTable customer row (F1 rota (c); precedent CustomerPackageBalance.customerId) — plain string, not a FK
+  documentNumber   String? // nº da fatura/duplicata; part of the business key (SQLite treats NULL as distinct, like sourceId)
+  description      String
+  issueDate        DateTime // date-only (competência do reconhecimento) — validated by isValidDateOnly at the DTO
+  dueDate          DateTime // date-only (vencimento; aging is a later increment — F3)
+  amountCents      Int // integer cents (Contract §2.1); MAX_CENTS guarded at the DTO (ACC-014)
+  revenueAccountId String // FK Account — contrapartida do reconhecimento, folha nature='Revenue' (gate D4, re-checked in the service)
+  revenueAccount   Account             @relation("ReceivableRevenueAccount", fields: [revenueAccountId], references: [id])
+  counterpartyId   String? // FK Counterparty (INCR-COUNTERPARTY / A1) — NULLABLE (SEC-A1-5: NOT NULL deferred to a 2nd migration after backfill proves coverage). Resolved RE-SCOPED inside createReceivable (SEC-A1-1); customerName stays the snapshot.
+  counterparty     Counterparty?       @relation(fields: [counterpartyId], references: [id])
+  status           String // OPEN | RECEIVING | RECEIVED | CANCELLED (see RECEIVABLE_STATUSES)
+  createdById      String? // actor who created (AccountingScope.actorUserId); plain string
+  cancelledById    String? // actor who cancelled; plain string
+  cancelReason     String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  deletedAt        DateTime?
+  receipts         ReceivableReceipt[]
+
+  // Business key (D3): one live receivable per customer × document. rename-on-delete
+  // (documentNumber → deleted:<id>:<documentNumber>) frees the key on cancel/delete so a re-create
+  // does not trip P2002 (memória unique-de-idempotencia-x-soft-delete). NULL documentNumber is
+  // treated as distinct by SQLite, so faturaless receivables never collide.
+  @@unique([userId, unitId, customerName, documentNumber])
+  @@index([userId, unitId, status])
+  @@index([userId, unitId, dueDate])
+  @@map("receivables")
+}
+
+// One receipt of a Receivable (F2 rota (b) — child table from day one so liberating partial receipt
+// later is loosening validation, not a migration + key re-sweep). MVP guard: amountCents ===
+// remaining (single full receipt). status ACTIVE|CANCELLED (cancel = status flip + reversal of the
+// receipt entry, never a hard delete). No User FK: receivedByUserId is a plain actor string. The
+// receipt idempotency keys on THIS row's id (receiptId), NEVER receivableId (D3) — so re-receiving
+// after a reversal mints a new key instead of returning the reverted entry.
+model ReceivableReceipt {
+  id               String     @id @default(cuid())
+  userId           String // scope owner (AccountingScope.ownerUserId); plain scope key
+  unitId           String // business unit (scoped string, not a FK)
+  receivableId     String
+  receivable       Receivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  amountCents      Int // integer cents; MAX_CENTS guarded at the DTO
+  method           String // Cash | Pix | TED | Boleto — closed map to the debit account (unknown rejects, D2)
+  receivedAt       DateTime // date-only — EFFECTIVE bank-credit date (D9), NOT the click date; validated by isValidDateOnly
+  receivedByUserId String? // actor who registered the receipt; plain string
+  status           String // ACTIVE | CANCELLED
+  entryId          String? // receipt journal entry id (ar.receipt) — denormalized convenience; findEntryBySource is authoritative
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([userId, unitId, receivableId])
+  @@map("receivable_receipts")
+}
+
+// ── Dimensões (centro de custo / projeto) — INCR-DIM / ADR-INCR-DIM ─────────────
+// A dimension is a MANAGEMENT classification axis ORTHOGONAL to the chart of accounts: the same
+// leaf account, sliced by cost center / project. It is METADATA on a posting leg — NOT a ledger
+// value. It NEVER enters Σdébito=Σcrédito, the period gate, numbering, idempotency
+// (sourceType+sourceId) or the audit hash-chain (T4/T6/T7/T8 untouched; invariant ACC-024). First-
+// class Prisma (F1→a; NOT the DynamicTable-ref of AR/AP customer/supplier — the complete build needs
+// hierarchy + integrity). NOT the multi-company tower §4 rejected — this is a classification catalog.
+// Tenancy = AccountingScope (userId + unitId). Migration = CREATE TABLE ×3, ZERO ALTER on postings.
+
+// The AXIS/type (e.g. "COST_CENTER", "PROJECT"). User FK cascade like Payable/Receivable (the trail
+// is the AuditEvent). Values cascade via the definition FK (below), so on tenant teardown the whole
+// axis + its values go together.
+model DimensionDefinition {
+  id          String           @id @default(cuid())
+  userId      String // scope owner (AccountingScope.ownerUserId); FK User — cascade on tenant delete
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId      String // business unit (scoped string, not a FK)
+  code        String // stable axis key, e.g. "COST_CENTER" | "PROJECT"
+  name        String // display label, e.g. "Centro de Custo"
+  status      String           @default("ACTIVE") // ACTIVE | ARCHIVED (see DIMENSION_STATUSES)
+  createdById String? // actor (AccountingScope.actorUserId); plain string
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime? // set when ARCHIVED (soft)
+  values      DimensionValue[]
+
+  @@unique([userId, unitId, code]) // one axis per code per unit
+  @@index([userId, unitId])
+  @@index([deletedAt])
+  @@map("dimension_definitions")
+}
+
+// The VALUE list, HIERARCHICAL. parentId is a self-relation (rollup: "Marketing" sums its sub-
+// centers) — precedent JournalEntry.reversedById self-relation; no onDelete on the self-rel mirrors
+// it (bulk cascade via the definition FK removes the whole set together). `definition` cascades so a
+// teardown of the axis removes its values. Only ANALYTIC (leaf = no active children) values are
+// taggable (D3), mirroring Account.acceptsEntries; the service enforces leaf-only at post time.
+model DimensionValue {
+  id           String              @id @default(cuid())
+  userId       String // scope owner; plain scope key (cascades via definition, mirrors ReferentialMapping/child tables)
+  unitId       String // business unit (scoped string, not a FK)
+  definitionId String
+  definition   DimensionDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  code         String // stable value key within the axis, e.g. "LOJA_CENTRO"
+  name         String // display label, e.g. "Loja Centro"
+  parentId     String? // rollup parent within the SAME definition (service enforces same-axis + no cycle, ACC-026)
+  parent       DimensionValue?     @relation("DimensionValueTree", fields: [parentId], references: [id])
+  children     DimensionValue[]    @relation("DimensionValueTree")
+  status       String              @default("ACTIVE") // ACTIVE | ARCHIVED (archived value keeps historical links)
+  createdById  String? // actor; plain string
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  deletedAt    DateTime? // set when ARCHIVED (soft)
+  postingLinks PostingDimension[]
+
+  @@unique([userId, unitId, definitionId, code]) // one value per code per axis per unit
+  @@index([userId, unitId, definitionId])
+  @@index([parentId])
+  @@index([deletedAt])
+  @@map("dimension_values")
+}
+
+// The LINK (bridge) posting↔value — a leg carries AT MOST ONE value per axis (@@unique), enforcing
+// "a line can't be in two cost centers; split the line". Link table shape mirrors ReconciliationMatch
+// (userId plain string, no User FK; cascades via the posting). definitionId is DENORMALIZED from
+// value.definitionId (== the axis) so reports can filter/group by axis without a join back through the
+// value (the value FK already guarantees existence). Prisma groupBy can't cross this bridge → reports
+// join/reduce (D5). CREATE TABLE only — postings gains a virtual relation, no column, no ALTER.
+model PostingDimension {
+  id           String         @id @default(cuid())
+  userId       String // scope owner; plain scope key (cascades via posting)
+  unitId       String // business unit (scoped string, not a FK)
+  postingId    String
+  posting      Posting        @relation(fields: [postingId], references: [id], onDelete: Cascade)
+  definitionId String // denormalized axis == value.definitionId (query/group key, D5)
+  valueId      String
+  value        DimensionValue @relation(fields: [valueId], references: [id])
+  createdAt    DateTime       @default(now())
+
+  @@unique([postingId, definitionId]) // ACC-025 — at most one value per axis per leg
+  @@index([userId, unitId, definitionId, valueId])
+  @@index([postingId])
+  @@map("posting_dimensions")
+}
+
+// ── Contraparte (fornecedor/cliente) — INCR-COUNTERPARTY / ADR-INCR-COUNTERPARTY (F-CP1 → A1) ──
+// First-class Prisma catalog promoting the AP/AR counterparty from a display-name SNAPSHOT
+// (supplierName/customerName string) to a STABLE, integral identity (FK). The value: aging/posição
+// por contraparte groups by the stable counterpartyId, rename-safe and referentially intact, instead
+// of the fragile name-key it grouped by before. NOT the multi-company tower §4 (a counterparty is the
+// same class of entity `unit`/customer already are). Tenancy = AccountingScope (userId + unitId).
+//
+// - Business key (SEC-A1-2): @@unique([userId, unitId, type, name]) — dedupe is per SCOPE, never by
+//   name alone, so two tenants named "ACME" NEVER collapse into one counterparty.
+// - Soft-delete + rename-on-key (SEC-A1-4): archive rewrites name → `deleted:<id>:<name>` in the same
+//   tx so the unique key is freed and an archive+recreate of the same name does not trip P2002
+//   (memória unique-de-idempotencia-x-soft-delete). Payable/Receivable keep their own name snapshot,
+//   so the archived counterparty's mangled name never leaks into a subledger row.
+// - `ref` = OPTIONAL scoped link to a DynamicTable row (plain string, NOT a FK — precedent
+//   Payable.supplierRef); it never gets resolved at read time.
+// - User FK cascade: a counterparty is OPERATIONAL data, not the audit trail (T8 exception is the
+//   AuditEvent), so deleting a user removes their counterparties. The linked payables/receivables
+//   carry counterpartyId NULLABLE (SEC-A1-5: NOT NULL deferred to a 2nd migration).
+model Counterparty {
+  id          String       @id @default(cuid())
+  userId      String // scope owner (AccountingScope.ownerUserId); FK User — cascade (operational data; trail = AuditEvent, T8)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId      String // business unit (scoped string, not a FK)
+  type        String // SUPPLIER | CUSTOMER (see COUNTERPARTY_TYPES)
+  name        String // display name; the varying part of the business key (rename-on-delete frees it, SEC-A1-4)
+  ref         String? // OPTIONAL scoped ref to a DynamicTable row (plain string, NOT a FK — precedent Payable.supplierRef)
+  createdById String? // actor (AccountingScope.actorUserId); plain string
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime? // set when archived (soft)
+  payables    Payable[] // linked AP rows (FK counterpartyId, nullable)
+  receivables Receivable[] // linked AR rows (FK counterpartyId, nullable)
+
+  @@unique([userId, unitId, type, name]) // one live counterparty per (scope, type, name) — dedupe by SCOPE (SEC-A1-2)
+  @@index([userId, unitId, type])
+  @@index([deletedAt])
+  @@map("counterparties")
 }

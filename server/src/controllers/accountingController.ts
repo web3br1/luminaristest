@@ -12,12 +12,19 @@ import {
   ListEntriesQuerySchema,
   CreateAccountSchema,
   DeleteAccountQuerySchema,
+  SetAccountRequiresDimensionSchema,
   SeedYearSchema,
   ClosePeriodSchema,
   ReopenPeriodSchema,
   BalanceSheetQuerySchema,
   IncomeStatementQuerySchema,
 } from '../features/accounting/dtos/PostingDto';
+import { ReceiptRequestSchema } from '../features/accounting/dtos/ReceiptDto';
+import { CashFlowStatementQuerySchema } from '../features/accounting/dtos/cashFlowReport.dto';
+import { PeriodComparisonSchema } from '../features/accounting/dtos/periodComparison.dto';
+import { DailyJournalRequestSchema } from '../features/accounting/dtos/dailyJournal.dto';
+import { AgingReportQuerySchema } from '../features/accounting/dtos/aging.dto';
+import { TieOutDiagnosticQuerySchema } from '../features/accounting/dtos/tieOutDiagnostic.dto';
 
 export const postEntry = async (req: Request, res: Response) => {
   try {
@@ -122,6 +129,40 @@ export const listEntries = async (req: Request, res: Response) => {
   }
 };
 
+/** @openapi
+ * /api/accounting/journal-entries/{entryId}/receipt:
+ *   get:
+ *     summary: Comprovante de lançamento (PDF) for a single journal entry
+ *     parameters:
+ *       - { in: path, name: entryId, required: true, schema: { type: string } }
+ *       - { in: query, name: unitId, required: true, schema: { type: string } }
+ *     responses:
+ *       200: { description: PDF receipt (application/pdf) }
+ *       403: { description: Not authorized to read the ledger }
+ *       404: { description: Entry not found in scope }
+ */
+export const getEntryReceipt = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = ReceiptRequestSchema.safeParse({ unitId: req.query.unitId, entryId: req.params.entryId });
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const { buffer, fileName, mimeType } = await getFactory()
+      .getReceiptService()
+      .generateEntryReceipt(scope, parsed.data.entryId);
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Length', String(buffer.length));
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    return res.send(buffer);
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
 export const createAccount = async (req: Request, res: Response) => {
   try {
     const user = getUserContextFromRequest(req);
@@ -153,6 +194,30 @@ export const deleteAccount = async (req: Request, res: Response) => {
     const scope = resolveAccountingScope(user, parsed.data.unitId);
     await getFactory().getPostingService().deleteAccount(scope, id);
     return res.json({ success: true });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+// INCR-DIM-COMPLETENESS SEC-B1-4 — toggle an account's mandatory-dimension flag (canManage +
+// audited in the service). Body carries unitId + requiresDimension; account id from the route param.
+export const setAccountRequiresDimension = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const { id } = req.params;
+    if (typeof id !== 'string' || id.length === 0) {
+      throw new ValidationError('id é obrigatório.');
+    }
+    const parsed = SetAccountRequiresDimensionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const account = await getFactory()
+      .getPostingService()
+      .setAccountRequiresDimension(scope, id, parsed.data.requiresDimension);
+    return res.json({ success: true, data: { account } });
   } catch (error) {
     return handleApiError(error, res);
   }
@@ -224,6 +289,158 @@ export const getIncomeStatement = async (req: Request, res: Response) => {
     const scope = resolveAccountingScope(user, parsed.data.unitId);
     const asOf = new Date(parsed.data.asOf + 'T23:59:59.999Z');
     const data = await getFactory().getAccountingReportService().incomeStatement(scope, asOf);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+/** @openapi
+ * /api/accounting/reports/cash-flow:
+ *   get:
+ *     summary: DFC — Demonstração do Fluxo de Caixa (método indireto), year_to_date
+ *     parameters:
+ *       - { in: query, name: unitId, required: true, schema: { type: string } }
+ *       - { in: query, name: asOf,   required: true, schema: { type: string, format: date }, description: "YYYY-MM-DD — inclusive upper bound; window is 1 Jan of that year → asOf" }
+ *     responses:
+ *       200: { description: Cash-flow statement report }
+ *       400: { description: Validation error }
+ */
+export const getCashFlow = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = CashFlowStatementQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const asOf = new Date(parsed.data.asOf + 'T23:59:59.999Z');
+    const data = await getFactory().getCashFlowReportService().cashFlowStatement(scope, asOf);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+/** @openapi
+ * /api/accounting/reports/period-comparison:
+ *   get:
+ *     summary: Balancete comparativo / variação mensal — two as-of snapshots + delta
+ *     parameters:
+ *       - { in: query, name: unitId,       required: true, schema: { type: string } }
+ *       - { in: query, name: asOfCurrent,  required: true, schema: { type: string, format: date }, description: "YYYY-MM-DD — current period as-of date" }
+ *       - { in: query, name: asOfPrevious, required: true, schema: { type: string, format: date }, description: "YYYY-MM-DD — comparison period as-of date" }
+ *     responses:
+ *       200: { description: Comparative trial balance report }
+ *       400: { description: Validation error }
+ */
+export const getPeriodComparison = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    // unitId is scope, not part of the (strict) date DTO — read it separately.
+    const unitId = req.query.unitId;
+    if (typeof unitId !== 'string' || unitId.length === 0) {
+      throw new ValidationError('unitId é obrigatório.');
+    }
+    const parsed = PeriodComparisonSchema.safeParse({
+      asOfCurrent: req.query.asOfCurrent,
+      asOfPrevious: req.query.asOfPrevious,
+    });
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, unitId);
+    const data = await getFactory()
+      .getPeriodComparisonReportService()
+      .comparativeTrialBalance(scope, parsed.data.asOfCurrent, parsed.data.asOfPrevious);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+/** @openapi
+ * /api/accounting/reports/daily-journal:
+ *   get:
+ *     summary: Livro Diário — chronological journal entries over a date range (read-only)
+ *     parameters:
+ *       - { in: query, name: unitId, required: true, schema: { type: string } }
+ *       - { in: query, name: from,   required: true, schema: { type: string, format: date }, description: "YYYY-MM-DD — inclusive lower bound" }
+ *       - { in: query, name: to,     required: true, schema: { type: string, format: date }, description: "YYYY-MM-DD — inclusive upper bound" }
+ *     responses:
+ *       200: { description: Daily journal report }
+ *       400: { description: Validation error (includes from > to) }
+ */
+export const getDailyJournal = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = DailyJournalRequestSchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const data = await getFactory()
+      .getDailyJournalReportService()
+      .dailyJournal(scope, { from: parsed.data.from, to: parsed.data.to });
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+/** @openapi
+ * /api/accounting/reports/aging:
+ *   get:
+ *     summary: Aging — posição por contraparte × faixa de vencimento (AP ou AR), read-only
+ *     parameters:
+ *       - { in: query, name: unitId, required: true, schema: { type: string } }
+ *       - { in: query, name: kind,   required: true, schema: { type: string, enum: [payable, receivable] }, description: "Subrazão: contas a pagar ou a receber" }
+ *       - { in: query, name: asOf,   required: false, schema: { type: string, format: date }, description: "YYYY-MM-DD — data da posição (default hoje)" }
+ *     responses:
+ *       200: { description: "Aging report (grupos por contraparte com totais por faixa) + bloco tieOut — a prova subledger↔razão: total do aging vs saldo da conta de controle (2.1.2 p/ payable, 1.1.5 p/ receivable) normalizado pela natureza. tieOut é null quando não é emitível (asOf ≠ hoje, ou conta de controle ausente); nesse caso tieOutSkippedReason diz por quê." }
+ *       400: { description: Validation error }
+ */
+export const getAging = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = AgingReportQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const data = await getFactory()
+      .getAgingReportService()
+      .aging(scope, { kind: parsed.data.kind, asOf: parsed.data.asOf });
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+/** @openapi
+ * /api/accounting/reports/tie-out:
+ *   get:
+ *     summary: "Diagnóstico de tie-out subrazão-razão (AR vs 1.1.5, AP vs 2.1.2, salão+CRM vs 1.1.2), read-only"
+ *     parameters:
+ *       - { in: query, name: unitId, required: true, schema: { type: string } }
+ *     responses:
+ *       200: { description: "Tie-out report (3 checks com differenceCents inteiro exato e status OK/DIVERGENT)" }
+ *       400: { description: "Validation error" }
+ */
+export const getTieOutDiagnostic = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = TieOutDiagnosticQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const data = await getFactory().getTieOutDiagnosticService().tieOut(scope);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);

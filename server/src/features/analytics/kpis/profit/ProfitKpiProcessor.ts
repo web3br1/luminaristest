@@ -29,6 +29,7 @@
  */
 
 import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
+import { logger } from '@/lib/logger';
 import { getPeriodBoundaries, isDateWithinWindow, getStartDateForMonthsWindow, getZonedPeriodKey } from '../../utils/DateUtils';
 import { DataSanitizer } from '../../utils/DataSanitizer';
 import { addMoney } from '../../utils/CurrencyUtils';
@@ -247,7 +248,7 @@ export const profitKpiProcessor: AnalyticsProcessor = async (context): Promise<C
         }
       }
     } catch (err) {
-      console.warn('[profitKpiProcessor] Failed to integrate expenses:', err);
+      logger.warn('[profitKpiProcessor] Failed to integrate expenses', { error: err });
     }
   }
 

@@ -771,72 +771,7 @@
  *         '204': { description: All user tables deleted }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *
- *   # ─── DASHBOARD LAYOUT ───────────────────────────────────────────────────
- *
- *   /api/dashboard-layout:
- *     get:
- *       summary: List all dashboard widget layouts for the current user
- *       tags: [DashboardLayout]
- *       security: [{ bearerAuth: [] }]
- *       responses:
- *         '200': { description: Array of layout objects }
- *         '401': { $ref: '#/components/responses/UnauthorizedError' }
- *     post:
- *       summary: Save a new dashboard widget layout
- *       tags: [DashboardLayout]
- *       security: [{ bearerAuth: [] }]
- *       requestBody:
- *         required: true
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/CreateDashboardLayoutDto' }
- *       responses:
- *         '201': { description: Layout created }
- *         '401': { $ref: '#/components/responses/UnauthorizedError' }
- *
- *   /api/dashboard-layout/{id}:
- *     get:
- *       summary: Get a dashboard layout by ID
- *       tags: [DashboardLayout]
- *       security: [{ bearerAuth: [] }]
- *       parameters:
- *         - in: path
- *           name: id
- *           required: true
- *           schema: { type: string, format: cuid }
- *       responses:
- *         '200': { description: Layout }
- *         '401': { $ref: '#/components/responses/UnauthorizedError' }
- *         '404': { $ref: '#/components/responses/NotFoundError' }
- *     patch:
- *       summary: Update a dashboard layout
- *       tags: [DashboardLayout]
- *       security: [{ bearerAuth: [] }]
- *       parameters:
- *         - in: path
- *           name: id
- *           required: true
- *           schema: { type: string, format: cuid }
- *       requestBody:
- *         required: true
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/UpdateDashboardLayoutDto' }
- *       responses:
- *         '200': { description: Updated layout }
- *         '401': { $ref: '#/components/responses/UnauthorizedError' }
- *     delete:
- *       summary: Delete a dashboard layout
- *       tags: [DashboardLayout]
- *       security: [{ bearerAuth: [] }]
- *       parameters:
- *         - in: path
- *           name: id
- *           required: true
- *           schema: { type: string, format: cuid }
- *       responses:
- *         '204': { description: Deleted }
- *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *   # ─── DASHBOARD LAYOUT: documented inline in controllers/dashboardLayoutController.ts ───
  *
  *   # ─── SAVED VIEWS ────────────────────────────────────────────────────────
  *
@@ -1238,22 +1173,7 @@
  *         '201': { description: Message created }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *
- *   # ─── STRUCTURED DATA ────────────────────────────────────────────────────
- *
- *   /api/structured-data/{documentId}:
- *     get:
- *       summary: Get structured data extracted from a specific document
- *       tags: [StructuredData]
- *       security: [{ bearerAuth: [] }]
- *       parameters:
- *         - in: path
- *           name: documentId
- *           required: true
- *           schema: { type: string }
- *       responses:
- *         '200': { description: Extracted structured data }
- *         '401': { $ref: '#/components/responses/UnauthorizedError' }
- *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *   # ─── STRUCTURED DATA: documented inline in controllers/structuredDataController.ts ───
  *
  *   # ─── REPORTS ────────────────────────────────────────────────────────────
  *
@@ -1654,6 +1574,15 @@
  *             properties:
  *               success: { type: boolean, example: false }
  *               error: { type: string }
+ *     ValidationError:
+ *       description: Request failed DTO (Zod) validation — error carries the flattened field issues
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               success: { type: boolean, example: false }
+ *               error: { type: object }
  *     UnauthorizedError:
  *       description: Missing or invalid authentication token
  *       content:
@@ -2237,6 +2166,177 @@
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *         '403': { $ref: '#/components/responses/ForbiddenError' }
  *
+ *   /api/accounting/sped/ecd/generate:
+ *     post:
+ *       summary: Generate the SPED Contábil (ECD) .txt file for a year
+ *       description: >-
+ *         Composes the ECD (Livro Diário Geral, tipo G) for the given year from the ledger
+ *         (chart, referential mapping, monthly balances, journal, BP/DRE) and persists a
+ *         plain-text (ISO-8859-1) artifact as an EXPORT job. Download via
+ *         /data-exchange/jobs/{jobId}/download. Blocks with 400 + unmappedAccounts if any
+ *         leaf account is unmapped in the referential version (coverage gate).
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, mappingVersion, year, declarant, book, signers]
+ *               properties:
+ *                 unitId:         { type: string }
+ *                 mappingVersion: { type: string }
+ *                 year:           { type: integer, example: 2026 }
+ *                 declarant:
+ *                   type: object
+ *                   required: [nome, cnpj, uf, codMun, indNire, indGrandePorte]
+ *                   properties:
+ *                     nome:   { type: string }
+ *                     cnpj:   { type: string, description: '14 digits' }
+ *                     uf:     { type: string }
+ *                     codMun: { type: string, description: 'IBGE 7 digits' }
+ *                     indNire:        { type: string, enum: ['0', '1'] }
+ *                     indGrandePorte: { type: string, enum: ['0', '1'] }
+ *                 book:
+ *                   type: object
+ *                   required: [numOrd, natLivr, dtExSocial]
+ *                   properties:
+ *                     numOrd:     { type: string }
+ *                     natLivr:    { type: string }
+ *                     dtExSocial: { type: string, description: 'YYYY-MM-DD' }
+ *                 signers:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     required: [identNom, identCpfCnpj, identQualif, codAssin, indRespLegal]
+ *                     properties:
+ *                       identNom:      { type: string }
+ *                       identCpfCnpj:  { type: string }
+ *                       identQualif:   { type: string }
+ *                       codAssin:      { type: string, description: '3 digits; 900 = Contador' }
+ *                       indRespLegal:  { type: string, enum: [S, N] }
+ *       responses:
+ *         '201':
+ *           description: ECD export job created
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:    { $ref: '#/components/schemas/DataExchangeJob' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '403': { $ref: '#/components/responses/ForbiddenError' }
+ *
+ *   /api/accounting/sped/ecf/generate:
+ *     post:
+ *       summary: Generate the SPED Fiscal (ECF) .txt file for a year (Lucro Presumido)
+ *       description: >-
+ *         Composes the ECF for the given calendar year (Lucro Presumido) and persists a
+ *         plain-text (ISO-8859-1) artifact as an EXPORT job. Luminaris supplies the gross
+ *         revenue segregated by activity per quarter (3.1 services to P200/P400 32 percent,
+ *         3.3 resale to P200 8 percent / P400 12 percent); the PVA-ECF computes the tax.
+ *         Recovered blocks (C, E, J, K) are emitted as empty markers. Download via
+ *         /data-exchange/jobs/{jobId}/download. Blocks with 400 + unmappedRevenueAccounts
+ *         when a Revenue account with movement is not one of 3.1 / 3.3 (revenue exhaustiveness gate).
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, year, declarant, signers]
+ *               properties:
+ *                 unitId: { type: string }
+ *                 year:   { type: integer, example: 2025 }
+ *                 declarant:
+ *                   type: object
+ *                   required: [cnpj, nome, codNat, cnaeFiscal, endereco, bairro, uf, codMun, cep, email]
+ *                   properties:
+ *                     cnpj:       { type: string, description: '14 digits' }
+ *                     nome:       { type: string }
+ *                     codNat:     { type: string, description: 'natureza juridica (3-4 digits)' }
+ *                     cnaeFiscal: { type: string, description: '7 digits' }
+ *                     endereco:   { type: string }
+ *                     num:        { type: string }
+ *                     bairro:     { type: string }
+ *                     uf:         { type: string }
+ *                     codMun:     { type: string, description: 'IBGE 7 digits' }
+ *                     cep:        { type: string, description: '8 digits' }
+ *                     email:      { type: string }
+ *                 fiscal:
+ *                   type: object
+ *                   properties:
+ *                     indAliqCsll:    { type: string, enum: ['1', '4'], description: '1 = 9 percent' }
+ *                     indRecReceita:  { type: string, enum: ['1', '2'], description: '2 = competencia' }
+ *                 signers:
+ *                   type: array
+ *                   maxItems: 2
+ *                   items:
+ *                     type: object
+ *                     required: [identNom, identCpfCnpj, identQualif, email, fone]
+ *                     properties:
+ *                       identNom:     { type: string }
+ *                       identCpfCnpj: { type: string }
+ *                       identQualif:  { type: string, description: '3 digits; 900 = Contador' }
+ *                       indCrc:       { type: string }
+ *                       email:        { type: string }
+ *                       fone:         { type: string }
+ *       responses:
+ *         '201':
+ *           description: ECF export job created
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:    { $ref: '#/components/schemas/DataExchangeJob' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '403': { $ref: '#/components/responses/ForbiddenError' }
+ *
+ *   /api/accounting/closing/exercise:
+ *     post:
+ *       summary: Close the result of a fiscal year (encerramento do exercício)
+ *       description: >-
+ *         Posts a real balanced closing entry (sourceType closing) dated year-12-31 that
+ *         zeroes every result account against retained earnings (Lucros ou Prejuízos
+ *         Acumulados). Idempotent per exercise. Makes the ECD reconcile in value (I155 of
+ *         December equals zero, J100 balances with detail) and enables the I350/I355
+ *         registers. Blocks with 400 when there is no result balance to close; the period
+ *         gate surfaces its own error when December is not open. Reopen by reversing the
+ *         returned entry via POST /accounting/reverse (that frees the idempotency key).
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, year]
+ *               properties:
+ *                 unitId: { type: string }
+ *                 year:   { type: integer, example: 2026 }
+ *       responses:
+ *         '201':
+ *           description: Closing entry posted (or the existing one on a re-close)
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   success: { type: boolean, example: true }
+ *                   data:    { type: object, description: 'The posted closing JournalEntry with its postings' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '403': { $ref: '#/components/responses/ForbiddenError' }
+ *
  *   /api/accounting/data-exchange/jobs/{jobId}:
  *     get:
  *       summary: Get a data-exchange job summary
@@ -2361,8 +2461,8 @@
  *
  *   /api/accounting/reconciliation/statements:
  *     post:
- *       summary: Import a bank statement (CSV/XLSX) for a bank GL account
- *       description: Parses date,amountCents,description[,externalRef] (signed integer cents). ALL-OR-NOTHING — any invalid row rejects the whole file. Re-import of the same file (sha256) is idempotent (200, nothing written). No ledger value is written.
+ *       summary: Import a bank statement (CSV/XLSX/OFX/CNAB) for a bank GL account
+ *       description: 'Accepts CSV/XLSX (columns date,amountCents,description[,externalRef], signed integer cents), OFX (normalized from STMTTRN - DTPOSTED→date, TRNAMT→signed cents, NAME/MEMO→description, FITID→externalRef) or CNAB 240 (Segmento E extrato — DDMMAAAA→date, 18-digit value→signed cents by D/C indicator, histórico→description, document number→externalRef). Format is auto-detected. ALL-OR-NOTHING — any invalid row rejects the whole file; a multi-account OFX/CNAB and a CNAB 400 file are rejected. Re-import of the same file (sha256) is idempotent (200, nothing written). No ledger value is written.'
  *       tags: [Accounting]
  *       security: [{ bearerAuth: [] }]
  *       requestBody:
@@ -2380,7 +2480,7 @@
  *                 periodEnd:           { type: string, format: date, description: YYYY-MM-DD }
  *                 openingBalanceCents: { type: integer }
  *                 closingBalanceCents: { type: integer }
- *                 file:                { type: string, format: binary, description: CSV or XLSX }
+ *                 file:                { type: string, format: binary, description: CSV, XLSX, OFX or CNAB 240 }
  *       responses:
  *         '201': { description: Statement imported (created + staged lines) }
  *         '200': { description: Same file already imported (idempotent hit) }
@@ -2539,6 +2639,694 @@
  *         - { in: query, name: to, required: false, schema: { type: string, format: date } }
  *       responses:
  *         '200': { description: 'account + unmatchedLines + unmatchedPostings + totals (integer cents)' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/accounting/referential/mappings:
+ *     put:
+ *       summary: Set (upsert) a referential mapping of one leaf account in one version (BE-INCR-9)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, accountId, referentialCode, label, mappingVersion]
+ *               properties:
+ *                 unitId: { type: string }
+ *                 accountId: { type: string, description: leaf account id (accounts.id) }
+ *                 referentialCode: { type: string, description: RFB referential account code }
+ *                 label: { type: string, description: referential account name (denormalized snapshot) }
+ *                 mappingVersion: { type: string, description: calendar-year layout id, e.g. "2025" }
+ *       responses:
+ *         '200': { description: 'the created/updated ReferentialMapping' }
+ *         '400': { $ref: '#/components/responses/ValidationError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *     delete:
+ *       summary: Unset (hard-delete) the mapping of one account in one version (BE-INCR-9)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: accountId, required: true, schema: { type: string } }
+ *         - { in: query, name: mappingVersion, required: true, schema: { type: string } }
+ *       responses:
+ *         '200': { description: 'accountId + mappingVersion of the removed mapping' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *     get:
+ *       summary: List the referential mappings of a version (BE-INCR-9)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: version, required: true, schema: { type: string } }
+ *       responses:
+ *         '200': { description: 'array of ReferentialMapping for the version' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/accounting/referential/mappings/batch:
+ *     post:
+ *       summary: Batch set (upsert) many leaf-account mappings in one version, atomically (BE-INCR-9B)
+ *       description: >-
+ *         All-or-nothing (D8) — every item is upserted in a single transaction with the
+ *         per-item account-liveness + leaf gate re-checked in-tx; one bad item rolls the
+ *         whole batch back. Duplicate accountId within the batch is rejected.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, mappingVersion, items]
+ *               properties:
+ *                 unitId: { type: string }
+ *                 mappingVersion: { type: string, description: calendar-year layout id, e.g. "2025" }
+ *                 items:
+ *                   type: array
+ *                   minItems: 1
+ *                   items:
+ *                     type: object
+ *                     required: [accountId, referentialCode, label]
+ *                     properties:
+ *                       accountId: { type: string, description: leaf account id (accounts.id) }
+ *                       referentialCode: { type: string, description: RFB referential code (human-supplied) }
+ *                       label: { type: string, description: referential account name (denormalized snapshot) }
+ *       responses:
+ *         '200': { description: 'array of upserted ReferentialMapping' }
+ *         '400': { $ref: '#/components/responses/ValidationError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/accounting/referential/mappings/copy:
+ *     post:
+ *       summary: Copy every mapping of one version into another (year inheritance, BE-INCR-9B)
+ *       description: >-
+ *         Copies each mapping of fromVersion into toVersion in one transaction (D6),
+ *         re-snapshotting the label literally (D9). Existing target rows are upserted in
+ *         place (never P2002). Reuses the per-item set gate, so it is all-or-nothing.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, fromVersion, toVersion]
+ *               properties:
+ *                 unitId: { type: string }
+ *                 fromVersion: { type: string, description: source mappingVersion, e.g. "2025" }
+ *                 toVersion: { type: string, description: destination mappingVersion, e.g. "2026" }
+ *       responses:
+ *         '200': { description: 'array of upserted ReferentialMapping in the destination version' }
+ *         '400': { $ref: '#/components/responses/ValidationError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/accounting/referential/coverage:
+ *     get:
+ *       summary: Coverage diagnostic — active leaf accounts unmapped in a version (ECD-readiness gate, BE-INCR-9)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: version, required: true, schema: { type: string } }
+ *       responses:
+ *         '200': { description: 'mappingVersion + unmappedAccounts[] + totals + ready flag' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/accounting/referential/skeleton:
+ *     get:
+ *       summary: Authoring skeleton — unmapped leaf accounts of a version as a batch template (BE-INCR-9B)
+ *       description: >-
+ *         Chart-driven (D5) — reuses coverage().unmappedAccounts, shaped as a
+ *         fill-in-the-blanks template for batch authoring. Never invents an RFB code.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: version, required: true, schema: { type: string } }
+ *       responses:
+ *         '200': { description: 'unitId + mappingVersion + items[] (unmapped leaf accounts to author)' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/accounting/referential/catalog/import:
+ *     post:
+ *       summary: Import the official RFB referential CATALOG for a layout version (BE-INCR-9B Track B)
+ *       description: >-
+ *         Uploads a CSV/XLSX (multipart field `file`) of the official referential layout and upserts
+ *         it into the GLOBAL catalog, idempotent per layoutVersion. All-or-nothing; invents no code
+ *         (isAnalytic is read from the file, D1/I052). Enables analytic-only destination validation.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           multipart/form-data:
+ *             schema:
+ *               type: object
+ *               required: [unitId, layoutVersion, file]
+ *               properties:
+ *                 unitId: { type: string, description: auth scope only (catalog is global) }
+ *                 layoutVersion: { type: string, description: RFB layout/year id, e.g. "2025" }
+ *                 file: { type: string, format: binary, description: CSV/XLSX catalog file }
+ *       responses:
+ *         '201': { description: 'layoutVersion + totalRows + imported + analyticCount + syntheticCount' }
+ *         '400': { description: 'invalid header/rows or empty catalog' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/accounting/referential/catalog:
+ *     get:
+ *       summary: Lookup/picker over a version's referential catalog (BE-INCR-9B Track B)
+ *       description: >-
+ *         Lists a layout version's referential accounts for the code picker; filter by substring
+ *         (q) and restrict to analytic (leaf) destinations (analyticOnly).
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: version, required: true, schema: { type: string } }
+ *         - { in: query, name: q, required: false, schema: { type: string } }
+ *         - { in: query, name: analyticOnly, required: false, schema: { type: boolean } }
+ *       responses:
+ *         '200': { description: 'referential accounts of the version (code, name, isAnalytic, parentCode)' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/payables:
+ *     get:
+ *       summary: List payables for the unit (Contas a Pagar, INCR-AP)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: status, required: false, schema: { type: string, enum: [OPEN, PAYING, PAID, CANCELLED] } }
+ *         - { in: query, name: page, required: false, schema: { type: integer } }
+ *         - { in: query, name: limit, required: false, schema: { type: integer } }
+ *       responses:
+ *         '200': { description: 'paginated payables with their payments' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *     post:
+ *       summary: Create a payable and book its recognition entry
+ *       description: >-
+ *         Books the recognition (debit the chosen expense account, credit 2.1.2 Fornecedores a
+ *         Pagar) dated the issueDate (competência). On a synchronous posting failure the row is
+ *         compensated (soft-delete). The nota flows into the SourceDocument provenance seam.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/CreatePayableInput' }
+ *       responses:
+ *         '201': { description: 'the created payable' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '403': { $ref: '#/components/responses/ForbiddenError' }
+ *
+ *   /api/payables/reconcile:
+ *     post:
+ *       summary: Re-drive missing recognitions/settlements (D4 safety net)
+ *       description: >-
+ *         Idempotent maintenance pass that re-posts any missing recognition or settlement entry
+ *         and finalizes a payable stranded in PAYING after a crash between the ledger post and the
+ *         finalize step.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId]
+ *               properties:
+ *                 unitId: { type: string }
+ *       responses:
+ *         '200': { description: 'counts of recognitions/settlements posted and payables finalized' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/payables/{id}:
+ *     get:
+ *       summary: Read one payable with its payments
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *       responses:
+ *         '200': { description: 'the payable and its payments' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/payables/{id}/pay:
+ *     post:
+ *       summary: Register the full payment and book the settlement
+ *       description: >-
+ *         Closes the double-payment race with an atomic OPEN to PAYING transition, then books the
+ *         settlement (debit 2.1.2, credit the account for the method) dated the effective debit
+ *         date, and moves the payable to PAID. MVP is a single full payment.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/RegisterPaymentInput' }
+ *       responses:
+ *         '201': { description: 'the registered payment' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/payables/{id}/cancel:
+ *     post:
+ *       summary: Cancel an open payable (reverse the recognition)
+ *       description: >-
+ *         Reverses the recognition entry on the reversalDate (its own period gate) and flips the
+ *         payable to CANCELLED, freeing the business key. A paid payable must have its payment
+ *         cancelled first.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/CancelPayableInput' }
+ *       responses:
+ *         '200': { description: 'the cancelled payable' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/payables/{id}/payments/{paymentId}/cancel:
+ *     post:
+ *       summary: Cancel a payment (reverse the settlement and reopen the payable)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *         - { in: path, name: paymentId, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/CancelPaymentInput' }
+ *       responses:
+ *         '200': { description: 'the cancelled payment' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/receivables:
+ *     get:
+ *       summary: List receivables for the unit (Contas a Receber, INCR-AR)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: status, required: false, schema: { type: string, enum: [OPEN, RECEIVING, RECEIVED, CANCELLED] } }
+ *         - { in: query, name: page, required: false, schema: { type: integer } }
+ *         - { in: query, name: limit, required: false, schema: { type: integer } }
+ *       responses:
+ *         '200': { description: 'paginated receivables with their receipts' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *     post:
+ *       summary: Create a receivable and book its recognition entry
+ *       description: >-
+ *         Books the recognition (debit 1.1.5 Clientes a Receber, credit the chosen revenue account)
+ *         dated the issueDate (competência). On a synchronous posting failure the row is compensated
+ *         (soft-delete). The fatura flows into the SourceDocument provenance seam. AR-formal is for
+ *         manual customer invoices, not salon sales (already booked by the bridge).
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/CreateReceivableInput' }
+ *       responses:
+ *         '201': { description: 'the created receivable' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '403': { $ref: '#/components/responses/ForbiddenError' }
+ *
+ *   /api/receivables/reconcile:
+ *     post:
+ *       summary: Re-drive missing recognitions/receipts (D4 safety net)
+ *       description: >-
+ *         Idempotent maintenance pass that re-posts any missing recognition or receipt entry and
+ *         finalizes a receivable stranded in RECEIVING after a crash between the ledger post and the
+ *         finalize step.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId]
+ *               properties:
+ *                 unitId: { type: string }
+ *       responses:
+ *         '200': { description: 'counts of recognitions/receipts posted and receivables finalized' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/receivables/{id}:
+ *     get:
+ *       summary: Read one receivable with its receipts
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *       responses:
+ *         '200': { description: 'the receivable and its receipts' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/receivables/{id}/receive:
+ *     post:
+ *       summary: Register the full receipt and book the entry
+ *       description: >-
+ *         Closes the double-receipt race with an atomic OPEN to RECEIVING transition, then books the
+ *         receipt (debit the account for the method, credit 1.1.5) dated the effective credit date,
+ *         and moves the receivable to RECEIVED. MVP is a single full receipt.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/RegisterReceiptInput' }
+ *       responses:
+ *         '201': { description: 'the registered receipt' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/receivables/{id}/cancel:
+ *     post:
+ *       summary: Cancel an open receivable (reverse the recognition)
+ *       description: >-
+ *         Reverses the recognition entry on the reversalDate (its own period gate) and flips the
+ *         receivable to CANCELLED, freeing the business key. A received receivable must have its
+ *         receipt cancelled first.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/CancelReceivableInput' }
+ *       responses:
+ *         '200': { description: 'the cancelled receivable' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/receivables/{id}/receipts/{receiptId}/cancel:
+ *     post:
+ *       summary: Cancel a receipt (reverse the entry and reopen the receivable)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *         - { in: path, name: receiptId, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/CancelReceiptInput' }
+ *       responses:
+ *         '200': { description: 'the cancelled receipt' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/entry-approvals/pending:
+ *     get:
+ *       summary: List entries awaiting approval (maker-checker queue, ADR-INCR-APPROVAL)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: page, schema: { type: integer, minimum: 1 } }
+ *         - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 200 } }
+ *       responses:
+ *         '200': { description: 'paginated PendingApproval entries with their legs' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/entry-approvals/drafts:
+ *     post:
+ *       summary: Create a draft journal entry with its legs (no number, no ledger impact yet)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/CreateDraftEntryInput' }
+ *       responses:
+ *         '201': { description: 'the created Draft entry' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/entry-approvals/drafts/{id}:
+ *     put:
+ *       summary: Replace a draft entry content (edit after rejection)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/UpdateDraftEntryInput' }
+ *       responses:
+ *         '200': { description: 'the updated Draft entry' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/entry-approvals/drafts/{id}/submit:
+ *     post:
+ *       summary: Submit a draft for approval (freezes the content hash, moves to PendingApproval)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/SubmitEntryInput' }
+ *       responses:
+ *         '200': { description: 'the submitted entry (PendingApproval)' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *         '409': { description: 'version conflict (stale expectedVersion)' }
+ *
+ *   /api/entry-approvals/{id}/approve:
+ *     post:
+ *       summary: Approve and post a submitted entry (checker; segregation of duties)
+ *       description: >-
+ *         Approves and posts atomically. The approver must NOT be the creator or submitter
+ *         (dynamic SoD, server-side). Assigns the gapless entryNumber inside the tx, re-checks
+ *         the period gate and the frozen content hash. Fails 403 on a SoD violation, 409 on a
+ *         stale version.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ApproveEntryInput' }
+ *       responses:
+ *         '200': { description: 'the Posted entry' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '403': { description: 'SoD violation (approver is the creator or submitter)' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *         '409': { description: 'version conflict (stale expectedVersion)' }
+ *
+ *   /api/entry-approvals/{id}/reject:
+ *     post:
+ *       summary: Reject a submitted entry back to Draft
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/RejectEntryInput' }
+ *       responses:
+ *         '200': { description: 'the entry back in Draft' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *         '409': { description: 'version conflict (stale expectedVersion)' }
+ *
+ *   /api/dimensions:
+ *     get:
+ *       summary: List the dimension catalog — axes + their values (INCR-DIM)
+ *       description: >-
+ *         Returns each dimension definition (axis, e.g. cost center / project) with its values
+ *         (flat, carrying parentId — the rollup tree is in the data). A dimension is metadata
+ *         orthogonal to the ledger (ACC-024).
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: includeArchived, required: false, schema: { type: boolean } }
+ *       responses:
+ *         '200': { description: 'definitions each with their values' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/dimensions/definitions:
+ *     post:
+ *       summary: Create a dimension axis (cost center, project…)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, code, name]
+ *               properties:
+ *                 unitId: { type: string }
+ *                 code:   { type: string }
+ *                 name:   { type: string }
+ *       responses:
+ *         '201': { description: 'the created definition' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *
+ *   /api/dimensions/definitions/{id}/archive:
+ *     post:
+ *       summary: Archive an axis (its values must be archived first)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId]
+ *               properties:
+ *                 unitId: { type: string }
+ *       responses:
+ *         '200': { description: 'the archived definition' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/dimensions/values:
+ *     post:
+ *       summary: Create a value in an axis (optional rollup parent, same axis — ACC-026)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId, definitionId, code, name]
+ *               properties:
+ *                 unitId:       { type: string }
+ *                 definitionId: { type: string }
+ *                 code:         { type: string }
+ *                 name:         { type: string }
+ *                 parentId:     { type: string }
+ *       responses:
+ *         '201': { description: 'the created value' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/dimensions/values/{id}/archive:
+ *     post:
+ *       summary: Archive a value (its children must be archived first; historical tags preserved)
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: path, name: id, required: true, schema: { type: string } }
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [unitId]
+ *               properties:
+ *                 unitId: { type: string }
+ *       responses:
+ *         '200': { description: 'the archived value' }
+ *         '400': { $ref: '#/components/responses/BadRequestError' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/dimensions/reports/balance:
+ *     get:
+ *       summary: Balancete recortado por dimensão (per account within each value, with rollup)
+ *       description: >-
+ *         Trial-balance sliced by one axis. Each dimension value gets its own + rolled-up
+ *         (descendants via parentId) debit/credit/balance, plus a "(sem dimensão)" bucket for
+ *         untagged legs. Summing every bucket reproduces the trial balance for the window (ACC-024).
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: definitionId, required: true, schema: { type: string } }
+ *         - { in: query, name: from, required: false, schema: { type: string } }
+ *         - { in: query, name: to, required: false, schema: { type: string } }
+ *       responses:
+ *         '200': { description: 'buckets per dimension value with account rows + rollup' }
+ *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *
+ *   /api/dimensions/reports/result:
+ *     get:
+ *       summary: DRE por dimensão (Revenue/Expense net per value, with rollup)
+ *       description: >-
+ *         Income statement sliced by one axis: revenue (credit-normal) minus expense (debit-normal)
+ *         per dimension value, own + rolled-up, plus a "(sem dimensão)" bucket. Read-only.
+ *       tags: [Accounting]
+ *       security: [{ bearerAuth: [] }]
+ *       parameters:
+ *         - { in: query, name: unitId, required: true, schema: { type: string } }
+ *         - { in: query, name: definitionId, required: true, schema: { type: string } }
+ *         - { in: query, name: from, required: false, schema: { type: string } }
+ *         - { in: query, name: to, required: false, schema: { type: string } }
+ *       responses:
+ *         '200': { description: 'result buckets per dimension value with rollup' }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *         '404': { $ref: '#/components/responses/NotFoundError' }
  */

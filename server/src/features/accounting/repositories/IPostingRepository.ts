@@ -19,6 +19,18 @@ export interface AccountPostingTotals {
 }
 
 /**
+ * A per-(account × dimension value) debit/credit aggregate produced by groupByAccountAndDimension
+ * (INCR-DIM Fatia 3). `valueId === null` is the "(sem dimensão)" bucket — legs not tagged on the
+ * queried axis. Money in INTEGER CENTS.
+ */
+export interface AccountDimensionTotals {
+  accountId: string;
+  valueId: string | null;
+  debitCents: number;
+  creditCents: number;
+}
+
+/**
  * Contract for ledger-line (partida) data access. First-class Prisma. Money is
  * INTEGER CENTS — aggregates sum Int columns, never floats.
  */
@@ -33,6 +45,17 @@ export interface IPostingRepository {
     tx?: Prisma.TransactionClient,
   ): Promise<Posting[]>;
 
+  /**
+   * Deletes all legs of a given entry, scoped via AccountingScope. Used ONLY to replace a
+   * DRAFT entry's legs in `updateDraft` (ADR-INCR-APPROVAL) — Posted entries never delete legs
+   * (immutable, corrections via reversal). Hard delete: a draft leg has no ledger meaning yet.
+   */
+  deleteByEntryId(
+    scope: AccountingScope,
+    entryId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void>;
+
   /** Lists one account's legs scoped via AccountingScope, ordered by createdAt. */
   findByAccount(scope: AccountingScope, accountId: string): Promise<Posting[]>;
 
@@ -40,13 +63,29 @@ export interface IPostingRepository {
    * Sums debit/credit per account across all postings whose parent entry has one of
    * the given statuses, scoped via AccountingScope. Backs the trial balance.
    * Optional `from`/`to` filter on the entry date (inclusive bounds).
-   * Omitting both is identical to the prior behaviour (no date clause added).
+   * Optional `excludeSourceTypes` drops entries whose `sourceType` is in the list —
+   * used to compute the PRE-closing DRE (excluding `sourceType='closing'`,
+   * BE-INCR-SPED-APURACAO D3/D7). Omitting all options is identical to the prior
+   * behaviour (no extra clause added).
    */
   groupByAccount(
     scope: AccountingScope,
     statuses: string[],
-    options?: { from?: Date; to?: Date },
+    options?: { from?: Date; to?: Date; excludeSourceTypes?: string[] },
   ): Promise<AccountPostingTotals[]>;
+
+  /**
+   * Sums debit/credit per (account × dimension value) for ONE axis (definitionId), scoped and
+   * status/date-filtered exactly like groupByAccount (INCR-DIM Fatia 3). Prisma groupBy can't cross
+   * the posting_dimensions bridge, so this fetches legs with their tag for the axis and reduces
+   * in-memory. Legs with no tag on the axis fall into the `valueId: null` bucket. Reads only — never
+   * a ledger write; the aggregation is ORTHOGONAL to the trial balance (ACC-024).
+   */
+  groupByAccountAndDimension(
+    scope: AccountingScope,
+    statuses: string[],
+    options: { definitionId: string; from?: Date; to?: Date; excludeSourceTypes?: string[] },
+  ): Promise<AccountDimensionTotals[]>;
 
   /**
    * Atomically increments the JournalEntrySequence counter for (scope, fiscalYear)

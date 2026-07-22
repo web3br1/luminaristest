@@ -12,8 +12,28 @@ export interface CreateJournalEntryInput {
   sourceId?: string | null;
   createdById?: string | null;
   postedById?: string | null;
-  fiscalYear: number;
-  entryNumber: number;
+  // Nullable since ADR-INCR-APPROVAL: a Draft/PendingApproval entry has NO number — it is
+  // born at POST/approve inside the tx (ACC-015). postEntry still passes both non-null.
+  fiscalYear: number | null;
+  entryNumber: number | null;
+}
+
+/**
+ * Fields settable by the optimistic-lock CAS (ADR-INCR-APPROVAL, ACC-023). `version` is the
+ * NEW value to write; the WHERE clause matches the expected (prior) version so a concurrent
+ * writer that already bumped it makes this update affect 0 rows.
+ */
+export interface JournalEntryCasData {
+  status?: string;
+  submittedById?: string | null;
+  approvedById?: string | null;
+  postedById?: string | null;
+  contentHash?: string | null;
+  fiscalYear?: number | null;
+  entryNumber?: number | null;
+  date?: Date;
+  description?: string;
+  version: number;
 }
 
 /** A JournalEntry with its postings eagerly loaded. */
@@ -61,11 +81,49 @@ export interface IJournalEntryRepository {
     tx?: Prisma.TransactionClient,
   ): Promise<void>;
 
+  /**
+   * Optimistic-lock CAS update (ADR-INCR-APPROVAL, ACC-023). Updates the entry ONLY when its
+   * current `version` equals `expectedVersion` (and it belongs to the scope). Returns the number
+   * of rows affected: 1 = applied, 0 = version conflict / not found (the caller raises a 409).
+   * The whole approval state machine (submit/approve/reject/updateDraft) mutates through here so
+   * two concurrent transitions can never both win.
+   */
+  casUpdate(
+    scope: AccountingScope,
+    id: string,
+    expectedVersion: number,
+    data: JournalEntryCasData,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number>;
+
+  /**
+   * Lists entries for the scope whose status is in `statuses` (e.g. the PendingApproval queue),
+   * paginated, with postings + account code/name. Ordered by date descending. Read-only.
+   */
+  findManyByStatus(
+    scope: AccountingScope,
+    statuses: string[],
+    skip: number,
+    take: number,
+  ): Promise<{ entries: JournalEntryWithFullPostings[]; total: number }>;
+
   /** Links an original entry to its reversal (sets reversedById). Tenant-scoped. */
   setReversedBy(
     scope: AccountingScope,
     id: string,
     reversedById: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void>;
+
+  /**
+   * Rewrites an entry's `sourceId` (idempotency key). Used ONLY to FREE the key of a
+   * reversed closing entry so the exercise can be closed again (BE-INCR-SPED-APURACAO
+   * D5, memory `unique-de-idempotencia-x-soft-delete`). Tenant-scoped; throws if not found.
+   */
+  setSourceId(
+    scope: AccountingScope,
+    id: string,
+    sourceId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<void>;
 
@@ -78,4 +136,17 @@ export interface IJournalEntryRepository {
     skip: number,
     take: number,
   ): Promise<{ entries: JournalEntryWithFullPostings[]; total: number }>;
+
+  /**
+   * Lists ALL entries (no pagination) in a date window whose status is in `statuses`,
+   * with postings + account code/name, ordered deterministically by (date, entryNumber)
+   * ASC. Backs the SPED ECD Diário (I200/I250, ADR-INCR-SPED-ECD D9): the read
+   * "entries+legs by window, LEDGER_STATUSES" that no by-account report exposed.
+   * Read-only.
+   */
+  findManyForExport(
+    scope: AccountingScope,
+    statuses: string[],
+    window: { from: Date; to: Date },
+  ): Promise<JournalEntryWithFullPostings[]>;
 }

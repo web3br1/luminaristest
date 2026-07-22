@@ -4,7 +4,7 @@ import { handleApiError } from '../lib/apiUtils';
 import { getUserContextFromRequest } from '../lib/authUtils';
 import { resolveAccountingScope } from '../features/accounting/scope/AccountingScope';
 import { makeUploadMiddleware } from '../lib/uploadSecurity';
-import type { SpreadsheetFormat } from '../lib/spreadsheet';
+import type { StatementFormat } from '../lib/ofx';
 import {
   ImportBankStatementSchema,
   ManualMatchSchema,
@@ -17,12 +17,16 @@ import {
   AutoMatchStatementSchema,
 } from '../features/accounting/dtos/ReconciliationDto';
 
-// Statement files are CSV/XLSX only — same allowlist + cap as the data-exchange import.
+// Statement files are CSV/XLSX/OFX — same cap as the data-exchange import. OFX (SGML/XML text)
+// is usually sent as text/plain or application/octet-stream (already listed); x-ofx/ofx cover
+// browsers that label it by extension.
 const SPREADSHEET_MIME_TYPES = new Set([
   'text/csv',
   'text/plain',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/octet-stream',
+  'application/x-ofx',
+  'application/ofx',
 ]);
 const MAX_IMPORT_SIZE_BYTES = Number(process.env.MAX_IMPORT_SIZE_BYTES) || 10 * 1024 * 1024;
 
@@ -31,12 +35,29 @@ export const bankStatementUpload = makeUploadMiddleware(
   SPREADSHEET_MIME_TYPES,
   'file',
   MAX_IMPORT_SIZE_BYTES,
+  true, // enforce magic bytes for declared-binary uploads (SEC audit 2026-07-15)
 );
 
-/** XLSX files are ZIP-based (PK magic); everything else is treated as CSV/text. */
-function sniffFormat(buffer: Buffer, name: string): SpreadsheetFormat {
+/**
+ * Detect the statement format. Order matters: XLSX (binary PK magic) first, then OFX and
+ * CNAB (both must beat the CSV fallback, else they read as a headerless CSV), then CSV as
+ * default. CNAB is fixed-width positional (240 chars/line) — detected by extension (.ret/
+ * .cnab) or a 240-char first line whose position 8 is '0' (file header), so a real CSV row
+ * that happens to be 240 chars long is not misread.
+ */
+function sniffFormat(buffer: Buffer, name: string): StatementFormat {
   if (buffer[0] === 0x50 && buffer[1] === 0x4b) return 'xlsx';
-  if (name.toLowerCase().endsWith('.xlsx')) return 'xlsx';
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.xlsx')) return 'xlsx';
+  const head = buffer.toString('utf8', 0, 512).replace(/^﻿/, '');
+  const trimmedHead = head.trimStart();
+  if (/^OFXHEADER/i.test(trimmedHead) || /<OFX>/i.test(trimmedHead) || lower.endsWith('.ofx')) {
+    return 'ofx';
+  }
+  const firstLine = head.split(/\r?\n/)[0] ?? '';
+  if (lower.endsWith('.ret') || lower.endsWith('.cnab') || (firstLine.length === 240 && firstLine[7] === '0')) {
+    return 'cnab';
+  }
   return 'csv';
 }
 

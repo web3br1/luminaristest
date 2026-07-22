@@ -5,6 +5,7 @@
  */
 
 import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
+import { logger } from '@/lib/logger';
 import { getPeriodBoundaries, isDateWithinWindow, getStartDateForMonthsWindow, getZonedPeriodKey } from '../../utils/DateUtils';
 import { addMoney } from '../../utils/CurrencyUtils';
 
@@ -165,7 +166,7 @@ export const productCostKpiProcessor: AnalyticsProcessor = async (context): Prom
       }
     }
   } catch (err) {
-    console.warn('[productCostKpiProcessor] Failed to fetch sale items:', err);
+    logger.warn('[productCostKpiProcessor] Failed to fetch sale items', { error: err });
   }
 
   // Calculate average cost per product (Global across window)

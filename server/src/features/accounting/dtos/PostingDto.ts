@@ -21,6 +21,10 @@ import { isValidDateOnly } from '../models/dates';
  *         accountCode: { type: string, description: "Code of a leaf account (acceptsEntries=true)" }
  *         debitCents:  { type: integer, minimum: 0 }
  *         creditCents: { type: integer, minimum: 0 }
+ *         dimensions:
+ *           type: array
+ *           description: "Optional dimension VALUE ids tagging this leg (INCR-DIM). At most one value per axis (the axis is derived from the value; a second value of the same axis is rejected). Metadata only — does NOT affect Σdébito=Σcrédito (ACC-024)."
+ *           items: { type: string }
  *     PostEntryInput:
  *       type: object
  *       required: [date, description, lines]
@@ -29,6 +33,15 @@ import { isValidDateOnly } from '../models/dates';
  *         description: { type: string }
  *         sourceType:  { type: string, default: manual }
  *         sourceId:    { type: string }
+ *         sourceDocument:
+ *           type: object
+ *           description: "Optional origin descriptor (BE-INCR-8). When present, postEntry records a SourceDocument + JournalEntrySource in the same tx. Absent for manual/reversal. Does NOT affect idempotency (sourceId) — externalRef is the human document reference, separate from the dedup key (D6)."
+ *           properties:
+ *             externalRef:  { type: string, description: "Human document reference (NF nº X, boleto nº Y) — separate from sourceId/idempotency" }
+ *             documentDate: { type: string, description: "Date-only YYYY-MM-DD of the source document, when distinct from the posting date" }
+ *             description:  { type: string }
+ *             attachmentId: { type: string, description: "DocumentAttachment id of the raw file (INCR-5), when any" }
+ *             rawJson:      { type: string, description: "Optional JSON snapshot of the origin" }
  *         lines:
  *           type: array
  *           minItems: 2
@@ -45,6 +58,10 @@ export const PostEntryLineSchema = z
     // well under 2^53-1, so the Σdébito===Σcrédito integer sum keeps exact precision (Contract §2.1).
     debitCents: z.number().int().min(0).max(MAX_CENTS, { message: `debitCents excede o limite suportado (máx ${MAX_CENTS}).` }),
     creditCents: z.number().int().min(0).max(MAX_CENTS, { message: `creditCents excede o limite suportado (máx ${MAX_CENTS}).` }),
+    // INCR-DIM: optional dimension VALUE ids tagging this leg. Metadata only — never enters the
+    // balance sum (ACC-024). The axis is derived from each value in PostingService; at most one value
+    // per axis per leg (enforced pre-tx for a clear error + @@unique([postingId,definitionId]) in-tx).
+    dimensions: z.array(z.string().min(1)).optional(),
   })
   .superRefine((line, ctx) => {
     // Each leg moves exactly one side: a debit OR a credit, never both, never neither.
@@ -72,6 +89,21 @@ export const PostEntrySchema = z.object({
   description: z.string().min(1),
   sourceType: z.string().default('manual'),
   sourceId: z.string().optional(),
+  // BE-INCR-8: optional origin descriptor. When present, postEntry creates a SourceDocument +
+  // JournalEntrySource in the SAME tx (D5). Absent ⇒ no origin (manual/reversal). `.strict()`
+  // rejects unknown descriptor keys so a typo'd field fails loud instead of being silently
+  // dropped. externalRef is the human document reference, kept SEPARATE from sourceId (the
+  // idempotency key) — this is the whole point of the seam (D6). documentDate is date-only.
+  sourceDocument: z
+    .object({
+      externalRef: z.string().min(1).optional(),
+      documentDate: z.string().refine(isValidDateOnly, 'documentDate deve ser uma data real YYYY-MM-DD').optional(),
+      description: z.string().min(1).optional(),
+      attachmentId: z.string().min(1).optional(),
+      rawJson: z.string().optional(),
+    })
+    .strict()
+    .optional(),
   lines: z.array(PostEntryLineSchema).min(2),
 });
 
@@ -156,6 +188,28 @@ export const DeleteAccountQuerySchema = z.object({
   unitId: z.string().min(1),
 });
 
+/**
+ * DTO for toggling an account's `requiresDimension` flag (INCR-DIM-COMPLETENESS SEC-B1-4).
+ * `.strict()` so a typo'd field fails loud. unitId is the tenancy axis; the account id comes from
+ * the route param. Behind `canManage` + every flip emits an AuditEvent (enforced in the service).
+ */
+/** @openapi
+ * components:
+ *   schemas:
+ *     SetAccountRequiresDimensionInput:
+ *       type: object
+ *       required: [unitId, requiresDimension]
+ *       properties:
+ *         unitId:            { type: string }
+ *         requiresDimension: { type: boolean, description: "When true, every leg to this account must carry ≥1 dimension tag (MVP = any axis). Prospective — never retro-rejects history (SEC-B1-5)." }
+ */
+export const SetAccountRequiresDimensionSchema = z
+  .object({
+    unitId: z.string().min(1),
+    requiresDimension: z.boolean(),
+  })
+  .strict();
+
 export type PostEntryInput = z.infer<typeof PostEntrySchema>;
 export type ReverseEntryInput = z.infer<typeof ReverseEntrySchema>;
 export type ReportQueryInput = z.infer<typeof ReportQuerySchema>;
@@ -163,6 +217,7 @@ export type ListAccountsQueryInput = z.infer<typeof ListAccountsQuerySchema>;
 export type ListEntriesQueryInput = z.infer<typeof ListEntriesQuerySchema>;
 export type CreateAccountInput = z.infer<typeof CreateAccountSchema>;
 export type DeleteAccountQueryInput = z.infer<typeof DeleteAccountQuerySchema>;
+export type SetAccountRequiresDimensionInput = z.infer<typeof SetAccountRequiresDimensionSchema>;
 
 /** Type guard for PostEntryInput. */
 export function isPostEntryInput(obj: unknown): obj is PostEntryInput {
