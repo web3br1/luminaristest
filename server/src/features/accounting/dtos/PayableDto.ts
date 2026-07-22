@@ -25,19 +25,21 @@ const dateOnly = (field: string) =>
  *   schemas:
  *     CreatePayableInput:
  *       type: object
- *       required: [unitId, supplierName, description, issueDate, dueDate, amountCents, expenseAccountId]
+ *       required: [unitId, supplierName, description, issueDate, dueDate, amountCents]
  *       properties:
- *         unitId:           { type: string }
- *         supplierName:     { type: string, description: "Snapshot do nome do fornecedor (F1)" }
- *         supplierRef:      { type: string, description: "Ref escopada a uma linha de fornecedor em DynamicTable (F1 rota c) — não é FK" }
- *         counterpartyId:   { type: string, description: "FK opcional a uma Counterparty(SUPPLIER) desta unidade (INCR-COUNTERPARTY / A1); re-escopada no service (SEC-A1-1)" }
- *         documentNumber:   { type: string, description: "Nº da NF/documento; parte da chave de negócio" }
- *         description:      { type: string }
- *         issueDate:        { type: string, description: "Data-only YYYY-MM-DD — competência do reconhecimento" }
- *         dueDate:          { type: string, description: "Data-only YYYY-MM-DD — vencimento" }
- *         amountCents:      { type: integer, minimum: 1 }
- *         expenseAccountId: { type: string, description: "Id de uma conta-folha nature=Expense (contrapartida do reconhecimento)" }
- *         attachmentId:     { type: string, description: "Id de um DocumentAttachment já enviado, anexado ao lançamento de reconhecimento (F4)" }
+ *         unitId:              { type: string }
+ *         supplierName:        { type: string, description: "Snapshot do nome do fornecedor (F1)" }
+ *         supplierRef:         { type: string, description: "Ref escopada a uma linha de fornecedor em DynamicTable (F1 rota c) — não é FK" }
+ *         counterpartyId:      { type: string, description: "FK opcional a uma Counterparty(SUPPLIER) desta unidade (INCR-COUNTERPARTY / A1); re-escopada no service (SEC-A1-1)" }
+ *         documentNumber:      { type: string, description: "Nº da NF/documento; parte da chave de negócio" }
+ *         description:         { type: string }
+ *         issueDate:           { type: string, description: "Data-only YYYY-MM-DD — competência do reconhecimento" }
+ *         dueDate:             { type: string, description: "Data-only YYYY-MM-DD — vencimento" }
+ *         amountCents:         { type: integer, minimum: 1 }
+ *         expenseAccountId:    { type: string, description: "Id de uma conta-folha nature=Expense (contrapartida do reconhecimento). XOR com inventoryProductRef+inventoryQty (INCR-INVENTORY D3(b))." }
+ *         inventoryProductRef: { type: string, description: "Compra de estoque (INCR-INVENTORY D3(b)): ref DynamicTable do produto; débito vai a 1.1.6 Estoques + emite StockMovement INBOUND. Exige inventoryQty; XOR com expenseAccountId." }
+ *         inventoryQty:        { type: integer, minimum: 1, description: "Unidades recebidas nesta compra de estoque; pareado com inventoryProductRef. amountCents é o valor TOTAL (evita arredondamento por-unidade)." }
+ *         attachmentId:        { type: string, description: "Id de um DocumentAttachment já enviado, anexado ao lançamento de reconhecimento (F4)" }
  */
 export const CreatePayableSchema = z
   .object({
@@ -50,10 +52,49 @@ export const CreatePayableSchema = z
     issueDate: dateOnly('issueDate'),
     dueDate: dateOnly('dueDate'),
     amountCents: cents,
-    expenseAccountId: z.string().min(1),
+    expenseAccountId: z.string().min(1).optional(),
+    inventoryProductRef: z.string().min(1).optional(),
+    inventoryQty: z.number().int().positive().optional(),
     attachmentId: z.string().min(1).optional(),
   })
-  .strict();
+  .strict()
+  // XOR gate (INCR-INVENTORY D3(b) / param-aceito-e-ignorado-e-bug): a Payable is EITHER an ordinary
+  // expense (expenseAccountId, debit a 4.x leaf) OR an inventory PURCHASE (inventoryProductRef AND
+  // inventoryQty, debit 1.1.6 Estoques). Exactly one side must be present — both is ambiguous, neither
+  // leaves the recognition without a debit account. A half-supplied inventory pair is rejected too, so
+  // inventoryQty can never be silently dropped.
+  .superRefine((val, ctx) => {
+    const hasExpense = val.expenseAccountId != null;
+    const hasProductRef = val.inventoryProductRef != null;
+    const hasQty = val.inventoryQty != null;
+    const hasInventory = hasProductRef && hasQty;
+
+    if (hasExpense && (hasProductRef || hasQty)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'Informe OU expenseAccountId (despesa) OU inventoryProductRef + inventoryQty (compra de estoque), nunca ambos.',
+        path: ['expenseAccountId'],
+      });
+      return;
+    }
+    if (!hasExpense && !hasInventory) {
+      if (hasProductRef !== hasQty) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Compra de estoque exige inventoryProductRef E inventoryQty juntos.',
+          path: [hasProductRef ? 'inventoryQty' : 'inventoryProductRef'],
+        });
+      } else {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'Informe expenseAccountId (despesa) ou inventoryProductRef + inventoryQty (compra de estoque).',
+          path: ['expenseAccountId'],
+        });
+      }
+    }
+  });
 
 /** @openapi
  * components:

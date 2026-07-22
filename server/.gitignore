@@ -10,3 +10,7 @@ generated/
 coverage/
 logs/
 /storage/
+
+# Integration test database (created fresh per run)
+test-integration.db
+test-integration.db-journal

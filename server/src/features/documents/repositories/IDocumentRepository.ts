@@ -37,6 +37,12 @@ export interface IDocumentRepository {
   delete(id: string): Promise<void>;
 
   /**
+   * Atomically deletes a document and all of its chunks in a single SQL transaction.
+   * (Vector cleanup in Qdrant is handled separately by the service, as it is an external store.)
+   */
+  deleteWithChunks(id: string): Promise<void>;
+
+  /**
    * Atualiza os dados de processamento de um documento
    */
   update(id: string, data: DocumentUpdateInput): Promise<IDocument>;

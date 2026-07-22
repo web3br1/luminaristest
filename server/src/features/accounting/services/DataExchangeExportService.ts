@@ -97,6 +97,9 @@ export class DataExchangeExportService {
           lines.forEach((l) => rows.push([section, l.code, l.name, l.amountCents]));
         push('GROSS_REVENUE', r.grossRevenue.accounts);
         push('REVENUE_DEDUCTIONS', r.revenueDeductions.accounts);
+        // COST_OF_GOODS_SOLD (INCR-INVENTORY Body 2): 4.2 accounts moved out of EXPENSES into their
+        // own DRE section — push them so the export keeps every DRE account (no silent drop).
+        push('COST_OF_GOODS_SOLD', r.costOfGoodsSold.accounts);
         push('EXPENSES', r.expenses.accounts);
         rows.push(['NET_RESULT', '', 'Resultado líquido', r.netResult.amountCents]);
         return { headers: ['section', 'code', 'name', 'amountCents'], rows };

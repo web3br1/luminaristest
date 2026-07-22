@@ -11,6 +11,7 @@ import {
   type DataExchangeJob,
   type DataExchangeRow,
 } from '../../../lib/services/dataExchange.service';
+import { resolveError } from '../lib/resolveError';
 
 const IMPORT_KINDS: Array<{ id: ImportKind; labelKey: string; labelPt: string }> = [
   { id: 'IMPORT_CHART_OF_ACCOUNTS', labelKey: 'importExport.importKind.chartOfAccounts', labelPt: 'Plano de Contas' },
@@ -28,14 +29,6 @@ const EXPORT_KINDS: Array<{ id: ExportKind; labelKey: string; labelPt: string }>
 const inputClass =
   'rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 focus:border-emerald-500 focus:outline-none disabled:opacity-50';
 
-function resolveError(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown };
-    if (typeof o.error === 'string') return o.error;
-    if (typeof o.message === 'string') return o.message;
-  }
-  return fallback;
-}
 
 /**
  * Status → badge classes (COMMITTED green, PARTIAL amber, FAILED red, else neutral).

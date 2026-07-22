@@ -27,6 +27,7 @@ import { PayableRepository } from '../features/accounting/repositories/PayableRe
 import { ReceivableRepository } from '../features/accounting/repositories/ReceivableRepository';
 import { DimensionRepository } from '../features/accounting/repositories/DimensionRepository';
 import { CounterpartyRepository } from '../features/accounting/repositories/CounterpartyRepository';
+import { InventoryRepository } from '../features/accounting/repositories/InventoryRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 
 // Features - Policies
@@ -45,6 +46,7 @@ import { PackageBalancePolicy } from '../features/packages/policies/PackageBalan
 // Features - Services
 import { ChatInstanceService } from '../features/chatInstances/services/ChatInstanceService';
 import { ChatMessageService } from '../features/chatMessages/services/ChatMessageService';
+import { AnalyticsService, analyticsService } from '../features/analytics/services/AnalyticsService';
 import { ChatService } from '../features/chat/services/ChatService';
 import { DashboardLayoutService } from '../features/dashboardLayout/services/DashboardLayoutService';
 import { DocumentProcessingService } from '../features/documents/services/DocumentProcessingService';
@@ -80,11 +82,14 @@ import { PayableService } from '../features/accounting/services/PayableService';
 import { ReceivableService } from '../features/accounting/services/ReceivableService';
 import { DimensionService } from '../features/accounting/services/DimensionService';
 import { DimensionReportService } from '../features/accounting/services/DimensionReportService';
+import { TieOutDiagnosticService } from '../features/accounting/services/TieOutDiagnosticService';
 import { CounterpartyService } from '../features/accounting/services/CounterpartyService';
+import { InventoryService } from '../features/accounting/services/InventoryService';
 import { PackageBalanceService } from '../features/packages/services/PackageBalanceService';
 import { AccountingSyncService } from '../features/accounting/sync/AccountingSyncService';
-import { CrmOpportunityWonMapper } from '../features/accounting/sync/mappers/CrmOpportunityWonMapper';
+import { CrmReceivableBridge } from '../features/accounting/sync/bridges/CrmReceivableBridge';
 import { SalonSaleFinalizedMapper } from '../features/accounting/sync/mappers/SalonSaleFinalizedMapper';
+import { SalonSaleCogsMapper } from '../features/accounting/sync/mappers/SalonSaleCogsMapper';
 import { SalonSaleReturnedMapper } from '../features/accounting/sync/mappers/SalonSaleReturnedMapper';
 import { SalonSaleSettledMapper } from '../features/accounting/sync/mappers/SalonSaleSettledMapper';
 import { SalonPackageSoldMapper } from '../features/accounting/sync/mappers/SalonPackageSoldMapper';
@@ -96,7 +101,7 @@ import { SavedTableViewService } from '../features/savedViews/services/SavedTabl
 
 // Lib - External Services
 import { OpenAIService as ChatOpenAIService } from './openai/OpenAIService';
-import { OpenAIService as EmbeddingOpenAIService } from './vector/embedding';
+import { EmbeddingService } from './vector/embedding';
 
 // Interfaces
 import type { IChatInstanceRepository } from '../features/chatInstances/repositories/IChatInstanceRepository';
@@ -135,6 +140,7 @@ import type { IPayableRepository } from '../features/accounting/repositories/IPa
 import type { IReceivableRepository } from '../features/accounting/repositories/IReceivableRepository';
 import type { IDimensionRepository } from '../features/accounting/repositories/IDimensionRepository';
 import type { ICounterpartyRepository } from '../features/accounting/repositories/ICounterpartyRepository';
+import type { IInventoryRepository } from '../features/accounting/repositories/IInventoryRepository';
 import type { IAccountingPolicy } from '../features/accounting/policies/IAccountingPolicy';
 import type { IPackageBalanceRepository } from '../features/packages/repositories/IPackageBalanceRepository';
 import type { IPackageBalancePolicy } from '../features/packages/policies/IPackageBalancePolicy';
@@ -172,6 +178,7 @@ export class ApplicationFactory {
     receivable: IReceivableRepository;
     dimension: IDimensionRepository;
     counterparty: ICounterpartyRepository;
+    inventory: IInventoryRepository;
   };
 
   private readonly policies: {
@@ -191,6 +198,7 @@ export class ApplicationFactory {
   public readonly services: {
     user: UserService;
     chatMessage: ChatMessageService;
+    analytics: AnalyticsService;
     chatInstance: ChatInstanceService;
     dashboardLayout: DashboardLayoutService;
     document: DocumentService;
@@ -208,6 +216,7 @@ export class ApplicationFactory {
     entryApproval: EntryApprovalService;
     period: PeriodService;
     accountingSync: AccountingSyncService;
+    crmReceivableBridge: CrmReceivableBridge;
     accountingReport: AccountingReportService;
     cashFlowReport: CashFlowReportService;
     periodComparisonReport: PeriodComparisonReportService;
@@ -227,7 +236,9 @@ export class ApplicationFactory {
     receivable: ReceivableService;
     dimension: DimensionService;
     dimensionReport: DimensionReportService;
+    tieOutDiagnostic: TieOutDiagnosticService;
     counterparty: CounterpartyService;
+    inventory: InventoryService;
     packageBalance: PackageBalanceService;
     presetSync: PresetSyncService;
     attachment: AttachmentService;
@@ -237,7 +248,7 @@ export class ApplicationFactory {
   private constructor() {
     // External services (singletons)
     const chatOpenAIService = new ChatOpenAIService();
-    const embeddingOpenAIService = new EmbeddingOpenAIService({ apiKey: process.env.OPENAI_API_KEY || '' });
+    const embeddingOpenAIService = new EmbeddingService({ apiKey: process.env.OPENAI_API_KEY || '' });
 
     // Repositories
     this.repositories = {
@@ -270,6 +281,7 @@ export class ApplicationFactory {
       receivable: new ReceivableRepository(),
       dimension: new DimensionRepository(),
       counterparty: new CounterpartyRepository(),
+      inventory: new InventoryRepository(),
     };
 
     // Policies
@@ -307,6 +319,14 @@ export class ApplicationFactory {
     const luminarisAgentService = new LuminarisAgentService(
       dynamicTableService,
       this.repositories.actionProposal
+    );
+
+    // Shared instance: injected into ChatService (server-side persistence of chat turns)
+    // and exposed as the chatMessage service.
+    const chatMessageService = new ChatMessageService(
+      this.repositories.chatMessage,
+      this.repositories.chatInstance,
+      this.policies.chatMessage
     );
 
     const crmPipelineService = new CrmPipelineService(
@@ -377,9 +397,11 @@ export class ApplicationFactory {
 
     // AccountingSync — application-level integration adapter (NOT the DynamicTable
     // engine). Depends on postingService (above); first non-controller consumer.
+    // CRM Won deals no longer post directly (retired CrmOpportunityWonMapper) — they route
+    // through the AR subledger via CrmReceivableBridge (ADR-CRM-AR-SEAM).
     const accountingSyncService = new AccountingSyncService(postingService, [
-      new CrmOpportunityWonMapper(),
       new SalonSaleFinalizedMapper(),
+      new SalonSaleCogsMapper(),
       new SalonSaleReturnedMapper(),
       new SalonSaleSettledMapper(),
       new SalonPackageSoldMapper(),
@@ -410,20 +432,40 @@ export class ApplicationFactory {
       this.policies.accounting,
     );
 
+    // Built as a local const (not inline in the services literal) so it can be injected as the
+    // OPTIONAL AP→estoque dep of PayableService below (INCR-INVENTORY D3(b) / Body 3). The `inventory`
+    // service slot below reuses this same instance.
+    const inventoryService = new InventoryService(
+      this.repositories.inventory,
+      this.repositories.account,
+      postingService,
+      auditService,
+      this.policies.accounting,
+    );
+
+    // Extracted from the literal so CrmReceivableBridge (below) shares the same instance.
+    const receivableService = new ReceivableService(
+      this.repositories.receivable,
+      this.repositories.account,
+      postingService,
+      auditService,
+      this.policies.accounting,
+      this.repositories.counterparty,
+    );
+
     this.services = {
       chat: new ChatService(
         embeddingOpenAIService,
         this.repositories.vector,
         chatOpenAIService,
         luminarisAgentService,
-        knowledgeGraphService
+        knowledgeGraphService,
+        chatMessageService
       ),
       chatInstance: new ChatInstanceService(this.repositories.chatInstance, this.policies.chatInstance),
-      chatMessage: new ChatMessageService(
-        this.repositories.chatMessage,
-        this.repositories.chatInstance,
-        this.policies.chatMessage
-      ),
+      chatMessage: chatMessageService,
+      // Same instance as the exported singleton — factory consumers and singleton consumers agree.
+      analytics: analyticsService,
       dashboardLayout: new DashboardLayoutService(
         this.repositories.dashboardLayout,
         this.policies.dashboardLayout
@@ -467,6 +509,8 @@ export class ApplicationFactory {
       agingReport: new AgingReportService(
         this.repositories.payable,
         this.repositories.receivable,
+        this.repositories.account,
+        accountingReportService,
         this.policies.accounting,
       ),
       reconciliation: new ReconciliationService(
@@ -531,14 +575,19 @@ export class ApplicationFactory {
         auditService,
         this.policies.accounting,
         this.repositories.counterparty,
+        // OPTIONAL AP→estoque bridge (INCR-INVENTORY D3(b) / Body 3): an inventory purchase receives
+        // stock and its cancel reverses it, via the shared InventoryService instance built above.
+        inventoryService,
       ),
-      receivable: new ReceivableService(
+      receivable: receivableService,
+      // CRM → AR seam (ADR-CRM-AR-SEAM): post-commit integration bridge, same altitude as
+      // AccountingSync — never injected into the DynamicTable engine (§2.1).
+      crmReceivableBridge: new CrmReceivableBridge(
+        receivableService,
         this.repositories.receivable,
         this.repositories.account,
         postingService,
-        auditService,
-        this.policies.accounting,
-        this.repositories.counterparty,
+        this.repositories.accountingPeriod,
       ),
       dimension: new DimensionService(
         this.repositories.dimension,
@@ -551,11 +600,19 @@ export class ApplicationFactory {
         this.repositories.dimension,
         this.policies.accounting,
       ),
+      tieOutDiagnostic: new TieOutDiagnosticService(
+        this.repositories.account,
+        this.repositories.posting,
+        this.repositories.receivable,
+        this.repositories.payable,
+        this.policies.accounting,
+      ),
       counterparty: new CounterpartyService(
         this.repositories.counterparty,
         auditService,
         this.policies.accounting,
       ),
+      inventory: inventoryService,
       packageBalance: packageBalanceService,
       presetSync: presetSyncService,
       attachment: new AttachmentService(this.repositories.attachment, this.policies.attachment),
@@ -577,6 +634,7 @@ export class ApplicationFactory {
   public getChatService = (): IChatService => this.services.chat;
   public getChatInstanceService = (): ChatInstanceService => this.services.chatInstance;
   public getChatMessageService = (): ChatMessageService => this.services.chatMessage;
+  public getAnalyticsService = (): AnalyticsService => this.services.analytics;
   public getDashboardLayoutService = (): DashboardLayoutService => this.services.dashboardLayout;
   public getDocumentService = (): DocumentService => this.services.document;
   public getReportService = (): IReportService => this.services.report;
@@ -612,20 +670,23 @@ export class ApplicationFactory {
   public getPayableService = (): PayableService => this.services.payable;
 
   public getReceivableService = (): ReceivableService => this.services.receivable;
+  public getCrmReceivableBridge = (): CrmReceivableBridge => this.services.crmReceivableBridge;
   public getDimensionService = (): DimensionService => this.services.dimension;
   public getDimensionReportService = (): DimensionReportService => this.services.dimensionReport;
+  public getTieOutDiagnosticService = (): TieOutDiagnosticService => this.services.tieOutDiagnostic;
   public getCounterpartyService = (): CounterpartyService => this.services.counterparty;
+  public getInventoryService = (): InventoryService => this.services.inventory;
   public getPackageBalanceService = (): PackageBalanceService => this.services.packageBalance;
   public getPresetSyncService = (): PresetSyncService => this.services.presetSync;
   public getAttachmentService = (): AttachmentService => this.services.attachment;
   public getSavedTableViewService = (): SavedTableViewService => this.services.savedTableView;
 
-  // Repository Getters
+  // Repository Getters — composition-root accessors. Some have no caller yet; kept as the consistent
+  // public surface of the factory (re-add cost is annoying and dynamicTables/interview may need them).
   public getChatInstanceRepository = (): IChatInstanceRepository => this.repositories.chatInstance;
   public getChatMessageRepository = (): IChatMessageRepository => this.repositories.chatMessage;
   public getDashboardLayoutRepository = (): IDashboardLayoutRepository => this.repositories.dashboardLayout;
   public getDocumentRepository = (): IDocumentRepository => this.repositories.document;
-  public getUserRepository = (): IUserRepository => this.repositories.user;
   public getVectorRepository = (): IVectorRepository => this.repositories.vector;
   public getDynamicTableRepository = (): IDynamicTableRepository => this.repositories.dynamicTable;
   public getKnowledgeGraphRepository = (): IKnowledgeGraphRepository => this.repositories.knowledgeGraph;
@@ -635,6 +696,7 @@ export function getFactory(): ApplicationFactory {
   return ApplicationFactory.getInstance();
 }
 
+// Convenience re-exports so consumers can import the DI interfaces from a single point.
 export type {
   IUserRepository,
   IChatMessageRepository,

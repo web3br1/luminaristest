@@ -56,57 +56,22 @@ export const UpdateDocumentSchema = z.object({
 });
 
 /**
- * Schema for Document response.
+ * Query schema for the paginated document list. Caps `limit` to protect against unbounded reads.
  */
-export const DocumentResponseSchema = z.object({
-  id: z.string(),
-  userId: z.string(),
-  fileName: z.string(),
-  fileType: z.enum(['PDF', 'DOCX', 'XLSX']),
-  fileSize: z.number(),
-  textContent: z.string().optional(),
-  status: z.nativeEnum(DocumentStatus),
-  documentPurpose: z.nativeEnum(DocumentPurpose),
-  summary: z.string().nullable(),
-  contextJson: z.object({
-    processing: z.object({
-      totalChunks: z.number(),
-      processedChunks: z.number(),
-      failedChunks: z.number(),
-      duration: z.number(),
-      startTime: z.string(),
-      endTime: z.string()
-    }).nullable(),
-    statistics: z.object({
-      wordCount: z.number(),
-      charCount: z.number(),
-      avgWordLength: z.number()
-    }).nullable(),
-    errors: z.array(z.object({
-      code: z.string(),
-      message: z.string(),
-      timestamp: z.string()
-    })).optional()
-  }).nullable(),
-  uploadDate: z.date(),
-  processingDate: z.date().nullable(),
-  processingError: z.string().nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+export const ListDocumentsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
 });
+export type ListDocumentsQuery = z.infer<typeof ListDocumentsQuerySchema>;
 
 /**
- * Schema for paginated Document list response.
+ * Body schema for semantic search. Caps `limit` to protect against unbounded reads.
  */
-export const DocumentListResponseSchema = z.object({
-  documents: z.array(DocumentResponseSchema),
-  total: z.number(),
-  page: z.number(),
-  limit: z.number(),
-  totalPages: z.number(),
+export const SearchDocumentsSchema = z.object({
+  query: z.string().min(1, 'document.validation.queryRequired'),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
 });
+export type SearchDocumentsDto = z.infer<typeof SearchDocumentsSchema>;
 
 export type CreateDocumentDto = z.infer<typeof CreateDocumentSchema>;
-export type UpdateDocumentDto = z.infer<typeof UpdateDocumentSchema>;
-export type DocumentResponseDto = z.infer<typeof DocumentResponseSchema>;
-export type DocumentListResponseDto = z.infer<typeof DocumentListResponseSchema>; 
+export type UpdateDocumentDto = z.infer<typeof UpdateDocumentSchema>; 

@@ -14,7 +14,7 @@ export async function postChat(req: Request, res: Response) {
 
     const chatService = getFactory().getChatService();
     const response = await chatService.generateResponse({ ...parse.data, user: ctx });
-    return res.json(response);
+    return res.json({ success: true, data: response });
   } catch (error) {
     return handleApiError(error, res);
   }

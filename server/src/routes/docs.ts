@@ -25,7 +25,9 @@ const options: swaggerJSDoc.Options = {
     },
     security: [{ bearerAuth: [] }],
   },
-  apis: ['src/controllers/**/*.ts', 'src/routes/**/*.ts'],
+  // Keep in sync with scripts/generate-openapi.js — dtos/ carries the components/schemas
+  // that path annotations $ref; without it the fallback spec serves dangling refs.
+  apis: ['src/controllers/**/*.ts', 'src/routes/**/*.ts', 'src/features/**/dtos/*.ts'],
 };
 
 // Prefer static OpenAPI if present, otherwise fallback to JSDoc generated
@@ -43,7 +45,9 @@ try {
       break;
     }
   }
-} catch {}
+} catch {
+  /* fall through to generating specs from JSDoc below */
+}
 
 if (!specs) {
   specs = swaggerJSDoc(options);

@@ -1,21 +1,22 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import type { GetServerSideProps, GetServerSidePropsContext } from 'next';
 import withAuth from '../../lib/hoc/withAuth';
 import { CrmProvider } from '../../lib/context/CrmContext';
-import { useCrmData } from '../../features/crm/hooks/useCrmData';
+import { useCrmData, type CrmRecord } from '../../features/crm/hooks/useCrmData';
 import DashboardKpiCard from '../../features/dashboard/category-views/finance/components/analytics/dashboard/DashboardKpiCard';
 import { LeadCard } from '../../features/crm/components/LeadCard';
+import { Lead360Modal } from '../../features/crm/components/Lead360Modal';
 import { CrmLayout } from '../../features/crm/components/CrmLayout';
 import { GradientHeader } from '../../features/crm/components/ui/GradientHeader';
 
 function CrmOverviewInner() {
   const { t } = useTranslation('crm');
-  const router = useRouter();
-  const { loading, error, leads, kpis } = useCrmData();
+  const { loading, error, leads, stages, kpis, reload } = useCrmData();
+
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
 
   const hotLeads = useMemo(
     () =>
@@ -23,6 +24,13 @@ function CrmOverviewInner() {
         .sort((a, b) => Number(b.data?.score ?? 0) - Number(a.data?.score ?? 0))
         .slice(0, 6),
     [leads],
+  );
+
+  // Resolve from the full lead set so the modal stays open even if `leads`
+  // re-sorts/re-fetches while it is showing (mirror of CrmPipelineBoard).
+  const selectedLead = useMemo<CrmRecord | null>(
+    () => (selectedLeadId ? leads.find((l) => l.id === selectedLeadId) ?? null : null),
+    [selectedLeadId, leads],
   );
 
   const currency = (n: number) => `R$ ${n.toLocaleString('pt-BR')}`;
@@ -67,10 +75,18 @@ function CrmOverviewInner() {
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {hotLeads.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} onClick={(id) => router.push(`/crm/leads/${id}`)} />
+            <LeadCard key={lead.id} lead={lead} onClick={setSelectedLeadId} />
           ))}
         </div>
       )}
+
+      <Lead360Modal
+        isOpen={selectedLead !== null}
+        onClose={() => setSelectedLeadId(null)}
+        lead={selectedLead}
+        stages={stages}
+        onChanged={reload}
+      />
     </CrmLayout>
   );
 }

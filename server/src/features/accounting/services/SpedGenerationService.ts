@@ -402,6 +402,7 @@ export class SpedGenerationService {
   private buildJ150(dre: {
     grossRevenue: { accounts: { code: string; name: string; amountCents: string }[]; totalCents: string };
     revenueDeductions: { accounts: { code: string; name: string; amountCents: string }[]; totalCents: string };
+    costOfGoodsSold: { accounts: { code: string; name: string; amountCents: string }[]; totalCents: string };
     expenses: { accounts: { code: string; name: string; amountCents: string }[]; totalCents: string };
     netResult: { amountCents: string };
   }): RegJ150Line[] {
@@ -429,6 +430,11 @@ export class SpedGenerationService {
 
     pushSection('DRE_RECEITA', 'RECEITA BRUTA', dre.grossRevenue, 'R', true);
     pushSection('DRE_DEDUCOES', 'DEDUÇÕES DA RECEITA', dre.revenueDeductions, 'D', false);
+    // Custo das Mercadorias Vendidas (INCR-INVENTORY Body 2). Before B-2b, 4.2 accounts lived in
+    // `expenses` and reached J150 under DESPESAS; the DRE now segregates them into costOfGoodsSold,
+    // so J150 must push this section explicitly or the CMV would silently vanish from ECD (same 'D'
+    // group and sign handling as expenses — amountCents is already debit_negative).
+    pushSection('DRE_CMV', 'CUSTO DAS MERCADORIAS VENDIDAS', dre.costOfGoodsSold, 'D', false);
     pushSection('DRE_DESPESAS', 'DESPESAS', dre.expenses, 'D', false);
     lines.push({
       nuOrdem: ordem++, codAgl: 'DRE_RESULTADO', indCodAgl: 'T', nivelAgl: 1,

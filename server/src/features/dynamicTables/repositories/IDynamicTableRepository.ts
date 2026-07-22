@@ -30,6 +30,8 @@ export interface IDynamicTableRepository {
 
   // Métodos para validação avançada
   countByFieldValue(tableId: string, fieldName: string, value: unknown, excludeId?: string): Promise<number>;
+  /** Composite uniqueness probe (GovernanceEngine): counts live rows matching ALL given field/value pairs. */
+  countByCompositeFieldValues(tableId: string, fields: Array<{ name: string; value: unknown }>, excludeId?: string): Promise<number>;
   countOverlaps(
     tableId: string,
     startField: string,
@@ -59,7 +61,7 @@ export interface IDynamicTableRepository {
    * Lists tables whose schema contains a relation to the provided tableId.
    * Used to prevent deleting tables that are referenced by others.
    */
-  findTablesReferencingTableId(targetTableId: string): Promise<IDynamicTable[]>;
+  findTablesReferencingTableId(targetTableId: string, userId: string): Promise<IDynamicTable[]>;
 
   /**
    * Returns rows in `tableId` where the JSON field `fieldName` references `targetId`

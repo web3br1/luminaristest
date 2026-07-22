@@ -2,7 +2,7 @@ import prisma from '../../../lib/prisma'; // Changed to shared prisma instance
 import { Prisma } from 'generated/prisma'; // Keep Prisma for types
 import { MessageRole as PrismaMessageRole } from 'generated/prisma'; // Import runtime enum
 import { IChatMessageRepository } from './IChatMessageRepository';
-import { IChatMessage, IChatMessageSummary, ChatMessageRole } from '../models/ChatMessage.model';
+import { IChatMessage, ChatMessageRole } from '../models/ChatMessage.model';
 import { NotFoundError, ServiceError } from '../../../lib/errors'; // For error handling
 
 /**
@@ -76,38 +76,6 @@ export class ChatMessageRepository implements IChatMessageRepository {
   }
 
   /**
-   * Retrieves a paginated list of messages
-   * @param page - Page number (1-based)
-   * @param limit - Number of items per page
-   * @returns Object containing messages array and total count
-   */
-  async getAllMessages(page: number = 1, limit: number = 10): Promise<{ messages: IChatMessageSummary[]; totalCount: number; }> {
-    const skip = (page - 1) * limit;
-    
-    const [rawMessages, totalCount] = await prisma.$transaction([
-      prisma.chatMessage.findMany({
-        skip,
-        take: limit,
-        select: {
-          id: true,
-          content: true,
-          role: true,
-          createdAt: true
-        },
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.chatMessage.count()
-    ]);
-
-    const messages = rawMessages.map(msg => ({
-      ...msg,
-      role: this.convertPrismaRoleToDomainRole(msg.role as PrismaMessageRole),
-    }));
-
-    return { messages, totalCount };
-  }
-
-  /**
    * Retrieves a message by its ID
    * @param id - Message ID
    * @returns Message or null if not found
@@ -136,37 +104,48 @@ export class ChatMessageRepository implements IChatMessageRepository {
    * @param chatInstanceId - ID of the chat instance
    * @returns Array of messages
    */
-  async getMessagesByInstance(chatInstanceId: string, page: number = 1, limit: number = 50): Promise<{ messages: IChatMessage[]; total: number }> {
-    const safeLimit = Math.min(Math.max(1, limit), 200);
-    const safePage = Math.max(1, page);
-    const skip = (safePage - 1) * safeLimit;
-
-    const where = { chatInstanceId };
-
-    const [rows, total] = await Promise.all([
-      prisma.chatMessage.findMany({
-        where,
-        select: {
-          id: true,
-          content: true,
-          role: true,
-          chatInstanceId: true,
-          createdAt: true,
-          updatedAt: true
-        },
-        orderBy: { createdAt: 'asc' },
-        skip,
-        take: safeLimit,
-      }),
-      prisma.chatMessage.count({ where }),
-    ]);
-
-    const messages = rows.map(msg => ({
+  async getMessagesByInstance(chatInstanceId: string): Promise<IChatMessage[]> {
+    const messages = await prisma.chatMessage.findMany({
+      where: { chatInstanceId },
+      select: {
+        id: true,
+        content: true,
+        role: true,
+        chatInstanceId: true,
+        createdAt: true,
+        updatedAt: true
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+    return messages.map(msg => ({
       ...msg,
       role: this.convertPrismaRoleToDomainRole(msg.role as PrismaMessageRole)
     }));
+  }
 
-    return { messages, total };
+  async getMessagesByInstancePaged(chatInstanceId: string, skip: number, take: number): Promise<IChatMessage[]> {
+    const messages = await prisma.chatMessage.findMany({
+      where: { chatInstanceId },
+      skip,
+      take,
+      select: {
+        id: true,
+        content: true,
+        role: true,
+        chatInstanceId: true,
+        createdAt: true,
+        updatedAt: true
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+    return messages.map(msg => ({
+      ...msg,
+      role: this.convertPrismaRoleToDomainRole(msg.role as PrismaMessageRole)
+    }));
+  }
+
+  async countByInstance(chatInstanceId: string): Promise<number> {
+    return prisma.chatMessage.count({ where: { chatInstanceId } });
   }
 
   /**
@@ -232,68 +211,4 @@ export class ChatMessageRepository implements IChatMessageRepository {
     }
   }
 
-  // Methods below were public but not in IChatMessageRepository
-  // They can be made private, moved to service, or added to interface if they are core contract.
-  // For now, commenting them out to align with the guide's simpler repository structure.
-
-  // public async findById(id: string, includeChatInstance: boolean = false): Promise<(Prisma.ChatMessageGetPayload<{ include: { chatInstance: true } }> | Prisma.ChatMessageGetPayload<{}>) | null> {
-  //   const message = await prisma.chatMessage.findUnique({
-  //     where: { id },
-  //     include: { chatInstance: includeChatInstance },
-  //   });
-  //   if (!message) return null;
-  //   return {
-  //     ...message,
-  //     role: this.convertRole(message.role),
-  //     ...(message.chatInstance && { chatInstance: message.chatInstance })
-  //   };
-  // }
-
-  // public async findAllByChatInstanceId(
-  //   chatInstanceId: string, 
-  //   limit?: number, 
-  //   cursor?: string,
-  //   orderByDirection: 'asc' | 'desc' = 'asc'
-  // ): Promise<IChatMessage[]> {
-  //   const messages = await prisma.chatMessage.findMany({
-  //     where: { chatInstanceId },
-  //     select: {
-  //       id: true,
-  //       content: true,
-  //       role: true,
-  //       chatInstanceId: true,
-  //       createdAt: true,
-  //       updatedAt: true,
-  //     },
-  //     take: limit,
-  //     skip: cursor ? 1 : undefined,
-  //     cursor: cursor ? { id: cursor } : undefined,
-  //     orderBy: { createdAt: orderByDirection },
-  //   });
-  //   return messages.map(msg => ({
-  //       ...msg,
-  //       role: this.convertRole(msg.role)
-  //   }));
-  // }
-
-  // public async delete(id: string): Promise<void> { // This is a duplicate of deleteMessage with different return
-  //   try {
-  //     await prisma.chatMessage.delete({ where: { id } });
-  //   } catch (error) {
-  //     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-  //       return; // Record not found, consider it deleted
-  //     }
-  //     console.error('Error deleting chat message:', error);
-  //     throw error;
-  //   }
-  // }
-
-  // public async deleteManyByChatInstanceId(chatInstanceId: string): Promise<void> {
-  //   try {
-  //     await prisma.chatMessage.deleteMany({ where: { chatInstanceId } });
-  //   } catch (error) {
-  //     console.error('Error deleting chat messages by instance:', error);
-  //     throw error;
-  //   }
-  // }
 } 

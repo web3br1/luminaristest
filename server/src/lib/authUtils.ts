@@ -7,7 +7,7 @@ export type { UserContext } from '../types/UserContext';
 
 /**
  * Retrieves the authenticated user context from an Express Request.
- * Assumes middleware has already verified the token/headers.
+ * Assumes the middleware has already verified the token and injected the x-user-* headers.
  */
 export function getUserContextFromRequest(req: Request): UserContext | null {
   const userId = req.headers['x-user-id'] as string;
@@ -17,6 +17,7 @@ export function getUserContextFromRequest(req: Request): UserContext | null {
   const name = req.headers['x-user-name'] as string;
   const createdAt = req.headers['x-user-created-at'] as string;
   const updatedAt = req.headers['x-user-updated-at'] as string;
+  const timeZone = req.headers['x-user-timezone'] as string;
 
   if (userId && username && role) {
     return {
@@ -31,6 +32,7 @@ export function getUserContextFromRequest(req: Request): UserContext | null {
       userRole: role,
       userEmail: email ?? '',
       userName: name ?? undefined,
+      timeZone: timeZone || undefined,
     };
   }
 

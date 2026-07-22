@@ -14,8 +14,8 @@ export interface IChatInstanceRepository {
   createInstance(data: Prisma.ChatInstanceCreateInput): Promise<Prisma.ChatInstanceGetPayload<{}>>;
 
   /**
-   * Retrieves a paginated list of instances scoped to a specific user.
-   * @param userId - User ID to filter by (required — prevents cross-tenant leaks)
+   * Retrieves a paginated list of instances owned by the user.
+   * @param userId - Owner id (multi-tenant scope)
    * @param page - Page number (1-based)
    * @param limit - Number of items per page
    * @returns Object containing instances array and total count
@@ -26,14 +26,11 @@ export interface IChatInstanceRepository {
   }>;
 
   /**
-   * Retrieves an instance by its ID, scoped to the owning user.
-   * Passing userId enforces ownership at the DB level so no post-fetch check
-   * can be bypassed by a race condition.
+   * Retrieves an instance by its ID.
    * @param id - Instance ID
-   * @param userId - ID of the requesting user (ownership check)
-   * @returns Instance or null if not found / not owned by userId
+   * @returns Instance or null if not found
    */
-  getInstanceById(id: string, userId: string): Promise<IChatInstance | null>;
+  getInstanceById(id: string): Promise<IChatInstance | null>;
 
   /**
    * Retrieves all instances for a specific user, optionally filtered by type.

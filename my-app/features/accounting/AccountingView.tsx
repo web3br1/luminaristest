@@ -116,13 +116,19 @@ export function AccountingView() {
       </header>
 
       {/* ── Tab bar ────────────────────────────────────────────────────────── */}
-      <div className="mb-6 flex items-center gap-1 border-b border-neutral-800">
+      <div
+        className="mb-6 flex items-center gap-1 overflow-x-auto border-b border-neutral-800"
+        role="tablist"
+        aria-label={t('view.title', 'Contabilidade')}
+      >
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`relative shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? 'text-emerald-400'
                 : 'text-neutral-400 hover:text-neutral-200'

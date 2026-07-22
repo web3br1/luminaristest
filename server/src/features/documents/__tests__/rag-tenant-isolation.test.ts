@@ -89,6 +89,7 @@ function buildChatService(): ChatService {
     mockOpenAIService as any,
     mockAgentService as any,
     mockKnowledgeGraphService as any,
+    { createMessage: jest.fn(), appendAssistantMessage: jest.fn() } as any,
   );
 }
 

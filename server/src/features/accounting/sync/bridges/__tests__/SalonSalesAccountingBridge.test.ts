@@ -6,6 +6,7 @@ import type { AccountingEvent } from '../../AccountingSyncPort';
 const findTableByInternalName = jest.fn();
 const findRowsByFieldValue = jest.fn();
 const sync = jest.fn();
+const recordSaleCogs = jest.fn();
 const loggerWarn = jest.fn();
 const loggerError = jest.fn();
 
@@ -14,6 +15,7 @@ jest.mock('../../../../../lib/factory', () => ({
   getFactory: () => ({
     getDynamicTableRepository: () => ({ findTableByInternalName, findRowsByFieldValue }),
     getAccountingSyncService: () => ({ sync }),
+    getInventoryService: () => ({ recordSaleCogs }),
   }),
 }));
 jest.mock('../../../../../lib/logger', () => ({
@@ -22,6 +24,8 @@ jest.mock('../../../../../lib/logger', () => ({
 }));
 
 import { maybeSyncSalonSaleFinalized } from '../SalonSalesAccountingBridge';
+import { AccountingPeriodNotOpenError, MaxCentsExceededError } from '../../../../../lib/errors';
+import { MAX_CENTS } from '../../../models/money';
 
 const SALES_TABLE_ID = 'tbl-sales-1';
 const actor = { userId: 'u1' };
@@ -46,6 +50,7 @@ describe('SalonSalesAccountingBridge.maybeSyncSalonSaleFinalized', () => {
     // Default: no items → not all-Package → anti-revenue gate passes (revenue books as before).
     findRowsByFieldValue.mockResolvedValue([]);
     sync.mockResolvedValue({ entryId: 'entry-1' });
+    recordSaleCogs.mockResolvedValue({ totalCogsCents: 0 });
   });
 
   it('syncs ONLY a Finalized sale, with the correct event and scope (sale unit, not crossed)', async () => {
@@ -115,6 +120,41 @@ describe('SalonSalesAccountingBridge.maybeSyncSalonSaleFinalized', () => {
     expect(loggerError).toHaveBeenCalled();
   });
 
+  // --- Specific-code skip-list (Council 1.5). These two tests FAIL against the previous code:
+  // the old catch read `(err as {code?}).code`, but AppError carries `errorCode` — the skip
+  // branch was dead and every skip-listed error fell through to logger.error. ---
+  describe('skip-list by specific error code (skip+warn, NEVER logged as failure)', () => {
+    it('skips ACCOUNTING_PERIOD_NOT_OPEN (period-closed is not a reconciliation failure)', async () => {
+      sync.mockRejectedValueOnce(new AccountingPeriodNotOpenError(2026, 6));
+      await expect(
+        maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow()),
+      ).resolves.toBeUndefined();
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ code: 'ACCOUNTING_PERIOD_NOT_OPEN' }),
+      );
+      expect(loggerError).not.toHaveBeenCalled();
+    });
+
+    it('skips MAX_CENTS_EXCEEDED (poison event — retrying can never succeed)', async () => {
+      sync.mockRejectedValueOnce(new MaxCentsExceededError('1.1.2', MAX_CENTS + 1, MAX_CENTS));
+      await expect(
+        maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow()),
+      ).resolves.toBeUndefined();
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ code: 'MAX_CENTS_EXCEEDED' }),
+      );
+      expect(loggerError).not.toHaveBeenCalled();
+    });
+
+    it('does NOT skip an arbitrary AppError-free failure (stays a loud error for reconciliation)', async () => {
+      sync.mockRejectedValueOnce(new Error('SQLITE_BUSY forever'));
+      await maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow());
+      expect(loggerError).toHaveBeenCalled();
+    });
+  });
+
   // --- Anti-revenue gate (Incremento G P4) ---
   describe('anti-revenue gate for all-Package sales', () => {
     it('does NOT recognize revenue for an all-Package Finalized sale (no salon.sale.finalized)', async () => {
@@ -154,6 +194,97 @@ describe('SalonSalesAccountingBridge.maybeSyncSalonSaleFinalized', () => {
       await maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow());
       const event = sync.mock.calls[0][1] as AccountingEvent;
       expect(event.revenueByNature).toEqual({ serviceReais: 100, productReais: 100 });
+    });
+  });
+
+  // --- CMV / cost-of-goods (INCR-INVENTORY, Body 2): a second, distinct emission after revenue. ---
+  describe('cost-of-goods (CMV) second emission', () => {
+    /** A finalized sale carrying one product line (books both revenue AND CMV). */
+    function withProductLine() {
+      findRowsByFieldValue.mockResolvedValue([
+        { data: { productId: 'p-1', quantity: 2, unitPrice: 50, saleId: 'sale-1' } },
+      ]);
+    }
+
+    it('books CMV as a SECOND, distinct emission for a sale with a product (finalized + cogs, same saleId)', async () => {
+      withProductLine();
+      recordSaleCogs.mockResolvedValue({ totalCogsCents: 3000 });
+
+      await maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow());
+
+      expect(sync).toHaveBeenCalledTimes(2);
+      const first = sync.mock.calls[0][1] as AccountingEvent;
+      const second = sync.mock.calls[1][1] as AccountingEvent;
+      // distinct sourceType, SAME saleId
+      expect(first.sourceType).toBe('salon.sale.finalized');
+      expect(second.sourceType).toBe('salon.sale.cogs');
+      expect(first.sourceId).toBe('sale-1');
+      expect(second.sourceId).toBe('sale-1');
+      // CMV carries the integer cents from recordSaleCogs (never a float)
+      expect(second.costCents).toBe(3000);
+    });
+
+    it('drives recordSaleCogs with the sale product lines and the sale unit/date', async () => {
+      withProductLine();
+      recordSaleCogs.mockResolvedValue({ totalCogsCents: 3000 });
+
+      await maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow());
+
+      expect(recordSaleCogs).toHaveBeenCalledTimes(1);
+      const [scope, params] = recordSaleCogs.mock.calls[0] as [AccountingScope, Record<string, unknown>];
+      expect(scope).toMatchObject({ actorUserId: 'u1', unitId: 'unit-1' });
+      expect(params).toMatchObject({ saleId: 'sale-1', unitId: 'unit-1', lines: [{ productRef: 'p-1', qty: 2 }] });
+      expect(params.occurredAt).toBeInstanceOf(Date);
+    });
+
+    it('books revenue but NO CMV for a pure-service sale (no product lines)', async () => {
+      findRowsByFieldValue.mockResolvedValue([
+        { data: { serviceId: 's-1', quantity: 1, unitPrice: 100, saleId: 'sale-1' } },
+      ]);
+      await maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow());
+      expect(recordSaleCogs).not.toHaveBeenCalled();
+      expect(sync).toHaveBeenCalledTimes(1);
+      expect((sync.mock.calls[0][1] as AccountingEvent).sourceType).toBe('salon.sale.finalized');
+    });
+
+    it('books NEITHER revenue nor CMV for an all-Package sale (anti-revenue gate is first)', async () => {
+      findRowsByFieldValue.mockResolvedValue([
+        { data: { packageId: 'pkg-1', quantity: 1, saleId: 'sale-1' } },
+      ]);
+      await maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow());
+      expect(sync).not.toHaveBeenCalled();
+      expect(recordSaleCogs).not.toHaveBeenCalled();
+    });
+
+    it('does NOT emit a CMV entry when recordSaleCogs yields zero cost (replay/no cost)', async () => {
+      withProductLine();
+      recordSaleCogs.mockResolvedValue({ totalCogsCents: 0 });
+      await maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow());
+      expect(recordSaleCogs).toHaveBeenCalledTimes(1);
+      expect(sync).toHaveBeenCalledTimes(1); // revenue only
+    });
+
+    it('ISOLATES a CMV failure from the revenue: recordSaleCogs throwing does not throw and revenue stands', async () => {
+      withProductLine();
+      recordSaleCogs.mockRejectedValueOnce(new Error('estoque insuficiente'));
+      await expect(
+        maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow()),
+      ).resolves.toBeUndefined();
+      expect(sync).toHaveBeenCalledTimes(1); // revenue succeeded, was not undone
+      expect((sync.mock.calls[0][1] as AccountingEvent).sourceType).toBe('salon.sale.finalized');
+      expect(loggerError).toHaveBeenCalled();
+    });
+
+    it('ISOLATES a CMV posting failure (the salon.sale.cogs sync) from the revenue', async () => {
+      withProductLine();
+      recordSaleCogs.mockResolvedValue({ totalCogsCents: 3000 });
+      // revenue sync ok, CMV sync throws
+      sync.mockResolvedValueOnce({ entryId: 'entry-rev' }).mockRejectedValueOnce(new Error('posting down'));
+      await expect(
+        maybeSyncSalonSaleFinalized(actor, SALES_TABLE_ID, finalizedRow()),
+      ).resolves.toBeUndefined();
+      expect(sync).toHaveBeenCalledTimes(2);
+      expect(loggerError).toHaveBeenCalled();
     });
   });
 });

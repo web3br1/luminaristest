@@ -8,7 +8,6 @@ export interface IChatInstance {
   id: string;
   widgetInstanceId: string;
   title: string | null;
-  description?: string | null;
   type: ChatInstanceType;
   userId: string;
   createdAt: Date;
@@ -23,7 +22,6 @@ export interface IChatInstance {
 export interface IChatInstanceSummary {
   id: string;
   title: string | null;
-  description?: string | null;
   type: ChatInstanceType;
   widgetInstanceId: string;
   createdAt: Date;

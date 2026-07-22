@@ -49,6 +49,16 @@ export class UnauthorizedError extends AppError {
 }
 
 /**
+ * Error for resource conflicts (409) — e.g. a unique-constraint violation surfaced as a domain rule.
+ */
+export class ConflictError extends AppError {
+  constructor(message: string = 'Conflict', errorCode: string = 'CONFLICT') {
+    super(message, 409, errorCode);
+    Object.setPrototypeOf(this, ConflictError.prototype);
+  }
+}
+
+/**
  * Error for validation failures (400 - Bad Request).
  */
 export class ValidationError extends AppError {
@@ -75,6 +85,25 @@ export class ServiceError extends AppError {
   constructor(message: string = 'A service error occurred', errorCode: string = 'SERVICE_ERROR') {
     super(message, 500, errorCode);
     Object.setPrototypeOf(this, ServiceError.prototype);
+  }
+}
+
+/**
+ * Raised when a posting leg exceeds the Int32 cents ceiling (MAX_CENTS, ACC-014).
+ * Thrown by the PostingService choke-point guard (Council 1.5) with its OWN code,
+ * DISTINCT from ACCOUNTING_PERIOD_NOT_OPEN: bridges/reconcile treat both as
+ * skip+log, but period-closed is transient (reopens) while this one is a POISON
+ * event — it can never succeed until the source amount itself is fixed.
+ */
+export class MaxCentsExceededError extends AppError {
+  constructor(accountCode: string, magnitudeCents: number, maxCents: number) {
+    super(
+      `Partida da conta '${accountCode}' excede o teto de centavos suportado ` +
+        `(${magnitudeCents} > máx ${maxCents}).`,
+      422,
+      'MAX_CENTS_EXCEEDED',
+    );
+    Object.setPrototypeOf(this, MaxCentsExceededError.prototype);
   }
 }
 

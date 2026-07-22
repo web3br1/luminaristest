@@ -1,4 +1,4 @@
-export const STATEMENT_MAPPING_VERSION = 'statement-mapping.v2';
+export const STATEMENT_MAPPING_VERSION = 'statement-mapping.v3';
 
 /**
  * Declarative mapping rules for BP (Balanço Patrimonial) and DRE (Demonstração
@@ -23,6 +23,11 @@ export const STATEMENT_MAPPING_RULES = [
   // income statement underreports and J150 diverges from I355 (closing closes 3.3 by nature).
   { id: 'dre.gross_rev_resale', statement: 'DRE', match: { nature: 'Revenue', codePrefix: '3.3' }, section: 'grossRevenue', sign: 'credit_positive', order: 105 },
   { id: 'dre.deductions', statement: 'DRE', match: { nature: 'Revenue', codePrefix: '3.2' },  section: 'revenueDeductions', sign: 'credit_negative',  order: 110 },
+  // Custo das Mercadorias Vendidas (4.2, INCR-INVENTORY Body 2). MUST precede the nature-only
+  // dre.expenses rule in this array so findMappingRule (first-match) routes 4.2 to costOfGoodsSold
+  // instead of the generic expenses bucket — otherwise CMV would inflate expenses and the DRE would
+  // report no cost of goods line. Same debit_negative sign as an expense (a cost reduces net).
+  { id: 'dre.cogs',       statement: 'DRE', match: { nature: 'Expense', codePrefix: '4.2' },   section: 'costOfGoodsSold',   sign: 'debit_negative',   order: 250 },
   { id: 'dre.expenses',   statement: 'DRE', match: { nature: 'Expense' },                     section: 'expenses',          sign: 'debit_negative',   order: 300 },
 ] as const;
 

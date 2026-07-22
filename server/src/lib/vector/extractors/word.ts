@@ -1,4 +1,3 @@
-// @ts-ignore: missing type declarations for mammoth
 import mammoth from 'mammoth';
 
 /**

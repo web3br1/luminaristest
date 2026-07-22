@@ -6,6 +6,7 @@
  */
 
 import type { AnalyticsTemplate } from './models/AnalyticsTemplate';
+import { logger } from '@/lib/logger';
 
 // =============================================================================
 // REGISTRY
@@ -23,7 +24,7 @@ const templateRegistry: Record<string, AnalyticsTemplate> = {};
  */
 export function registerTemplate(template: AnalyticsTemplate): void {
   if (templateRegistry[template.key]) {
-    console.warn(`[Analytics] Template '${template.key}' already registered. Overwriting.`);
+    logger.warn('[Analytics] Template already registered. Overwriting.', { key: template.key });
   }
   templateRegistry[template.key] = template;
 }

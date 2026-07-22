@@ -6,7 +6,7 @@
  * No function calls, no property access, no unsafe constructs.
  */
 
-const TOKEN_REGEX = /\s*([A-Za-z_][A-Za-z0-9_]*|\d*\.\d+|\d+|[()*/+\-])\s*/g;
+const TOKEN_REGEX = /\s*([A-Za-z_][A-Za-z0-9_]*|\d*\.\d+|\d+|[()*/+-])\s*/g;
 
 type Token = { type: 'number' | 'var' | 'op' | 'lparen' | 'rparen'; value: string };
 

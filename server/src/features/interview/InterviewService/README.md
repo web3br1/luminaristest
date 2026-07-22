@@ -1,47 +1,46 @@
 ## InterviewService
 
-Orquestrador da entrevista guiada por IA. É um **singleton** (`InterviewService.getInstance()`) que
-avança a conversa por **estágios** até o usuário ter um preset escolhido e (opcionalmente) customizado.
+The orchestrator of the AI-guided interview. It is a **singleton** (`InterviewService.getInstance()`)
+that advances the conversation through **stages** until the user has a chosen and (optionally) customized
+preset.
 
-> Parte da feature [`interview`](../README.md). Tipos em [`../models`](../models/README.md).
+> Part of the [`interview`](../README.md) feature. Types in [`../models`](../models/README.md).
 
-## API pública
+## Public API
 
-| Método | Papel |
+| Method | Role |
 |---|---|
-| `getInstance()` | Acesso ao singleton. |
-| `processTurn(stage, messages, presetKey?, sessionId?)` | Processa **um turno** e retorna `IInterviewTurnResult` (`response`, `nextStage`, e opcionalmente `presetKey`/`sessionId`/`startCustomization`/`customizationState`). |
+| `getInstance()` | Access the singleton. |
+| `processTurn(stage, messages, presetKey?, sessionId?)` | Processes **one turn** and returns `IInterviewTurnResult` (`response`, `nextStage`, and optionally `presetKey`/`sessionId`/`startCustomization`/`customizationState`). |
 
-## Dependências (componentes do módulo)
+## Dependencies (module components)
 
-- **`PresetMatcher`** — `findMatchingPreset(messages)` casa a descrição do negócio com um preset;
-  `extractTablesInfo(...)` resume as tabelas para a mensagem ao usuário.
-- **`StageHandlers`** — `getAiResponseWithHistory(systemPrompt, messages)` e
-  `handleCreationTypeConfirmation(messages, presetKey)` (decide criar agora vs customizar).
-- **`PromptConfig` (`stageConfig`)** — prompts de sistema dos **estágios processáveis**.
-- **`CustomizationService`** (singleton) — delegado quando a conversa entra em customização.
+- **`PresetMatcher`** — `findMatchingPreset(messages)` matches the business description with a preset;
+  `extractTablesInfo(...)` summarizes the tables for the message to the user.
+- **`StageHandlers`** — `getAiResponseWithHistory(systemPrompt, messages)` and
+  `handleCreationTypeConfirmation(messages, presetKey)` (decides create now vs. customize).
+- **`PromptConfig` (`stageConfig`)** — system prompts for the **processable stages**.
+- **`CustomizationService`** (singleton) — delegated to when the conversation enters customization.
 
-> A base de conhecimento de presets (`presetKnowledgeBase`) vive em
-> `features/dynamicTables/presets/ai/`, **não** neste módulo — é consumida via `PresetMatcher` e pelo
-> `CustomizationService`.
+> The preset knowledge base (`presetKnowledgeBase`) lives in `features/dynamicTables/presets/ai/`,
+> **not** in this module — it is consumed via `PresetMatcher` and by `CustomizationService`.
 
-## Estágios (`InterviewStage`)
+## Stages (`InterviewStage`)
 
-Definidos em [`../models/InterviewTypes.ts`](../models/InterviewTypes.ts). `processTurn` trata
-explicitamente:
+Defined in [`../models/InterviewTypes.ts`](../models/InterviewTypes.ts). `processTurn` explicitly handles:
 
-- **`GREETING`** → mensagem inicial; avança para `DISCOVERING_BUSINESS`.
-- **`MATCHING_PRESET`** → casa o preset; se achar, monta mensagem amigável e vai para
-  `AWAITING_CREATION_TYPE_CONFIRMATION` (com `presetKey`); se não, vai para `IDENTIFYING_ENTITIES`.
-- **`AWAITING_CREATION_TYPE_CONFIRMATION`** → delega a `StageHandlers.handleCreationTypeConfirmation`.
-- **`CUSTOMIZATION_IN_PROGRESS`** → delega a `CustomizationService.processCustomizationStep(sessionId, ...)`.
-- **`CUSTOMIZATION_COMPLETED`** → mensagem de conclusão.
-- **Estágios processáveis** (`DISCOVERING_BUSINESS`, `CONFIRMING_BUSINESS`, `IDENTIFYING_ENTITIES`,
-  via `isProcessableStage`) → usam o `systemPrompt` do `stageConfig` + histórico para responder.
+- **`GREETING`** → initial message; advances to `DISCOVERING_BUSINESS`.
+- **`MATCHING_PRESET`** → matches the preset; if found, builds a friendly message and goes to
+  `AWAITING_CREATION_TYPE_CONFIRMATION` (with `presetKey`); if not, goes to `IDENTIFYING_ENTITIES`.
+- **`AWAITING_CREATION_TYPE_CONFIRMATION`** → delegates to `StageHandlers.handleCreationTypeConfirmation`.
+- **`CUSTOMIZATION_IN_PROGRESS`** → delegates to `CustomizationService.processCustomizationStep(sessionId, ...)`.
+- **`CUSTOMIZATION_COMPLETED`** → completion message.
+- **Processable stages** (`DISCOVERING_BUSINESS`, `CONFIRMING_BUSINESS`, `IDENTIFYING_ENTITIES`, via
+  `isProcessableStage`) → use the `systemPrompt` from `stageConfig` + history to respond.
 
-Demais estados do tipo (`CUSTOMIZATION_INTRO`, `CANNOT_PROCEED`, `COMPLETED`) são transições/terminais
-do fluxo. `ProcessableStage` restringe quais estágios têm prompt dedicado.
+The remaining states of the type (`CUSTOMIZATION_INTRO`, `CANNOT_PROCEED`, `COMPLETED`) are
+transitions/terminals of the flow. `ProcessableStage` restricts which stages have a dedicated prompt.
 
-> O serviço é **stateless por turno**: o frontend envia `stage`/`messages` (e `presetKey`/`sessionId`
-> quando aplicável) e recebe o próximo estado. O estado da **customização** vive no `StateManager`
-> (ver [`../CustomizationService`](../CustomizationService/README.md)).
+> The service is **stateless per turn**: the frontend sends `stage`/`messages` (and `presetKey`/`sessionId`
+> when applicable) and receives the next state. The **customization** state lives in `StateManager`
+> (see [`../CustomizationService`](../CustomizationService/README.md)).

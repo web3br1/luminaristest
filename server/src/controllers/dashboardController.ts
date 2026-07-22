@@ -46,7 +46,7 @@ export async function createDashboard(req: Request, res: Response) {
     const payload = validationResult.data as z.infer<typeof UnifiedCreationSchema>;
 
     const dynamicTableService = getFactory().getDynamicTableService();
-    const existingTables = await dynamicTableService.getTablesForUser(ctx.id);
+    const existingTables = await dynamicTableService.getTablesForUser(ctx.userId);
 
     if (existingTables.length > 0) {
       return res.status(403).json({
@@ -259,7 +259,7 @@ export async function getDashboardData(req: Request, res: Response) {
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const dynamicTableService = getFactory().getDynamicTableService();
-    const tables = await dynamicTableService.getTablesForUser(ctx.id);
+    const tables = await dynamicTableService.getTablesForUser(ctx.userId);
     return res.status(200).json({ success: true, data: tables });
   } catch (error) {
     return handleApiError(error, res);
@@ -303,7 +303,7 @@ export async function getDashboardSidebar(req: Request, res: Response) {
     if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const repository = getFactory().getDynamicTableRepository();
-    const tableCounts = await repository.countTablesByCategory(ctx.id);
+    const tableCounts = await repository.countTablesByCategory(ctx.userId);
 
     const countsMap = new Map<string, number>();
     for (const item of tableCounts) {
@@ -311,7 +311,7 @@ export async function getDashboardSidebar(req: Request, res: Response) {
     }
 
     // Get all tables for virtual category calculations
-    const allTables = await getFactory().getDynamicTableService().getTablesForUser(ctx.id);
+    const allTables = await getFactory().getDynamicTableService().getTablesForUser(ctx.userId);
 
     // Compute counts; include virtual categories
     const sidebarData = DYNAMIC_TABLE_CATEGORY_CONFIG

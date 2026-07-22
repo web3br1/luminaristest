@@ -443,6 +443,44 @@ describe('incomeStatement', () => {
     expect(report.diagnostics.unmappedAccounts[0].code).toBe('9.9');
   });
 
+  // ── INCR-INVENTORY Body 2 (B-2b/B-2c) — CMV (4.2) must land in its own
+  // costOfGoodsSold section, NOT in the generic expenses bucket, and must pull
+  // netResult down. Cross-nature fixture (Revenue 3.1 + CMV 4.2 + Expense 4.1)
+  // proves the first-match routing separates 4.2 from 4.1. ──────────────────
+  it('CMV — D 4.2 / C 1.1.6 lands in costOfGoodsSold, NOT expenses, and reduces netResult', async () => {
+    const accounts = [
+      makeAccount({ id: 'rev', code: '3.1', name: 'Receita de Serviços', nature: 'Revenue' }),
+      makeAccount({ id: 'cogs', code: '4.2', name: 'Custo das Mercadorias Vendidas', nature: 'Expense' }),
+      makeAccount({ id: 'exp', code: '4.1', name: 'Despesas Gerais', nature: 'Expense' }),
+      makeAccount({ id: 'stock', code: '1.1.6', name: 'Estoques', nature: 'Asset' }),
+    ];
+    // The CMV posting is D 4.2 3000 / C 1.1.6 3000; plus revenue C 3.1 10000 and expense D 4.1 2000.
+    const currentYearRaw: MockGroupByResult[] = [
+      { accountId: 'rev', debitCents: 0, creditCents: 10000 },
+      { accountId: 'cogs', debitCents: 3000, creditCents: 0 },
+      { accountId: 'exp', debitCents: 2000, creditCents: 0 },
+      { accountId: 'stock', debitCents: 0, creditCents: 3000 },
+    ];
+    const groupByFn = (opts?: { from?: Date; to?: Date }): MockGroupByResult[] => {
+      if (opts?.to && opts.to.getUTCFullYear() < 2026) return [];
+      return currentYearRaw;
+    };
+    const { svc } = buildService(accounts, groupByFn);
+    const report = await svc.incomeStatement(SCOPE, AS_OF);
+
+    // 4.2 routes to costOfGoodsSold (debit_negative): rawBalance=3000 → amountCents=-3000.
+    expect(report.costOfGoodsSold.accounts.map((a) => a.code)).toEqual(['4.2']);
+    expect(report.costOfGoodsSold.accounts[0].amountCents).toBe('-3000');
+    expect(report.costOfGoodsSold.totalCents).toBe('-3000');
+    // 4.2 must NOT leak into expenses — only 4.1 remains there.
+    expect(report.expenses.accounts.map((a) => a.code)).toEqual(['4.1']);
+    expect(report.expenses.totalCents).toBe('-2000');
+    // net = grossRevenue 10000 − CMV 3000 − expenses 2000 = 5000 (netResult dropped by the CMV).
+    expect(report.netResult.amountCents).toBe('5000');
+    // 1.1.6 is an Asset (BP account) — guarded, so the DRE stays valid (not flagged unmapped).
+    expect(report.reportStatus).not.toBe('INVALID');
+  });
+
   // T3 — symmetry preserved: same mixed Asset+Revenue scenario as T1 must keep
   // balanceSheet reportStatus OK (the pre-existing BP→DRE guard is untouched).
   it('T3 — same Caixa(Asset,D) + Receita(Revenue,C) scenario → balanceSheet stays OK', async () => {
@@ -494,6 +532,12 @@ describe('findMappingRule', () => {
   it('Expense → dre.expenses', () => {
     const r = find('Expense', '4.1', 'DRE');
     expect(r?.id).toBe('dre.expenses');
+  });
+
+  it('4.2 Expense (CMV) → dre.cogs, not dre.expenses (first-match precedence)', () => {
+    const r = find('Expense', '4.2', 'DRE');
+    expect(r?.id).toBe('dre.cogs');
+    expect(r?.section).toBe('costOfGoodsSold');
   });
 
   it('unknown nature → undefined', () => {

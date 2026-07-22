@@ -80,6 +80,11 @@ export interface LegDimensionRequirement {
  * a reversal only MIRRORS an already-accepted-or-historical entry (it copies the original's tags),
  * and hard-gating it would retro-reject the estorno of a legitimately-untagged historical leg,
  * violating SEC-B1-5 (ADR SEC-B1-2 explicitly sanctions exempting the reversal path).
+ *
+ * MACHINE-WRITER EXEMPTION (Council 1.7/N6): postEntry also SKIPS this gate for closing entries
+ * (sourceType='closing') — the encerramento composes legs from aggregated balances (no per-leg
+ * dimension fact exists) and gating it deadlocks the year-end close for any flagged result
+ * account. Same class as the reversal exemption: derived content, not original economic content.
  */
 export function assertLegDimensions(legs: LegDimensionRequirement[]): void {
   for (const leg of legs) {
