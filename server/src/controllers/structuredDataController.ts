@@ -14,6 +14,21 @@ const DocumentIdParamSchema = z.object({
   documentId: z.string().cuid({ message: 'Invalid document ID' }),
 });
 
+/** @openapi
+ * /api/structured-data/{documentId}:
+ *   get:
+ *     summary: Get structured data extracted from a specific document
+ *     description: Deprecated (R26) — feature retired, backend preserved without a UI.
+ *     deprecated: true
+ *     tags: [StructuredData]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: documentId, required: true, schema: { type: string, format: cuid } }
+ *     responses:
+ *       '200': { description: Extracted structured data }
+ *       '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *       '404': { $ref: '#/components/responses/NotFoundError' }
+ */
 export async function getStructuredDataByDocument(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
@@ -30,6 +45,26 @@ export async function getStructuredDataByDocument(req: Request, res: Response) {
   }
 }
 
+/** @openapi
+ * /api/structured-data/{documentId}:
+ *   put:
+ *     summary: Update the structured data extracted from a specific document
+ *     description: Deprecated (R26) — feature retired, backend preserved without a UI.
+ *     deprecated: true
+ *     tags: [StructuredData]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: documentId, required: true, schema: { type: string, format: cuid } }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { type: object }
+ *     responses:
+ *       '200': { description: Updated structured data }
+ *       '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *       '404': { $ref: '#/components/responses/NotFoundError' }
+ */
 export async function updateStructuredData(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
