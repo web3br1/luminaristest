@@ -400,7 +400,7 @@ export const getDailyJournal = async (req: Request, res: Response) => {
  *       - { in: query, name: kind,   required: true, schema: { type: string, enum: [payable, receivable] }, description: "Subrazão: contas a pagar ou a receber" }
  *       - { in: query, name: asOf,   required: false, schema: { type: string, format: date }, description: "YYYY-MM-DD — data da posição (default hoje)" }
  *     responses:
- *       200: { description: Aging report (grupos por contraparte com totais por faixa) }
+ *       200: { description: "Aging report (grupos por contraparte com totais por faixa) + bloco tieOut — a prova subledger↔razão: total do aging vs saldo da conta de controle (2.1.2 p/ payable, 1.1.5 p/ receivable) normalizado pela natureza. tieOut é null quando não é emitível (asOf ≠ hoje, ou conta de controle ausente); nesse caso tieOutSkippedReason diz por quê." }
  *       400: { description: Validation error }
  */
 export const getAging = async (req: Request, res: Response) => {

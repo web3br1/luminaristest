@@ -78,12 +78,42 @@ function fullPolicy(over: Record<string, unknown> = {}) {
   };
 }
 
-function buildService(over: { payableRows?: any[]; receivableRows?: any[]; policy?: any } = {}) {
+/**
+ * Conta de controle default do mock: resolve 2.1.2 (Liability) e 1.1.5 (Asset) com as naturezas REAIS
+ * do plano canônico — é o que dá sentido ao teste de normalização de sinal. `accounts: null` simula
+ * plano sem a conta de controle.
+ */
+const CONTROL_ACCOUNTS: Record<string, { id: string; code: string; nature: string }> = {
+  '2.1.2': { id: 'acc-ap', code: '2.1.2', nature: 'Liability' },
+  '1.1.5': { id: 'acc-ar', code: '1.1.5', nature: 'Asset' },
+};
+
+function buildService(
+  over: {
+    payableRows?: any[];
+    receivableRows?: any[];
+    policy?: any;
+    /** Linhas de balancete devolvidas por balancesAsOf (accountId + balanceCents CRU = débito − crédito). */
+    balanceRows?: any[];
+    /** Override do findByCode — use `() => null` para simular conta de controle ausente. */
+    findByCode?: any;
+  } = {},
+) {
   const payableRepo = { findOutstanding: jest.fn(async () => over.payableRows ?? []) };
   const receivableRepo = { findOutstanding: jest.fn(async () => over.receivableRows ?? []) };
+  const accountRepo = {
+    findByCode: over.findByCode ?? jest.fn(async (_s: any, code: string) => CONTROL_ACCOUNTS[code] ?? null),
+  };
+  const reportService = { balancesAsOf: jest.fn(async () => over.balanceRows ?? []) };
   const policy = over.policy ?? fullPolicy();
-  const svc = new AgingReportService(payableRepo as any, receivableRepo as any, policy as any);
-  return { svc, payableRepo, receivableRepo, policy };
+  const svc = new AgingReportService(
+    payableRepo as any,
+    receivableRepo as any,
+    accountRepo as any,
+    reportService as any,
+    policy as any,
+  );
+  return { svc, payableRepo, receivableRepo, accountRepo, reportService, policy };
 }
 
 /** A mixed fixture: vencidos + a-vencer, 2 contrapartes + uma linha sem contraparte. as_of = 2026-07-16. */
@@ -248,5 +278,232 @@ describe('AgingReportService.aging — AP × AR + guardas', () => {
     const { svc, receivableRepo } = buildService({ receivableRows: [], policy });
     await expect(svc.aging(scope, { kind: 'receivable', asOf: AS_OF })).rejects.toBeInstanceOf(ForbiddenError);
     expect(receivableRepo.findOutstanding).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Tie-out subledger ↔ razão (F-AG4→b, EMENDA 2026-07-15) ─────────────────────
+
+/**
+ * "Hoje" UTC — o tie-out SÓ é emitido quando `asOf == hoje`, então estas suítes usam a data corrente
+ * de verdade, nunca uma constante congelada (com data fixa elas passariam hoje e cairiam no ramo
+ * `as_of_not_today` amanhã, virando testes que não testam mais nada).
+ */
+const TODAY = new Date().toISOString().slice(0, 10);
+
+/** Uma linha do balancete como balancesAsOf a devolve: `balanceCents` é o sinal CRU débito − crédito. */
+function balanceRow(accountId: string, rawBalanceCents: number) {
+  return { accountId, balanceCents: rawBalanceCents };
+}
+
+describe('AgingReportService.aging — tie-out fecha', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('AP: subrazão == razão ⇒ tiesOut, difference 0, conta de controle 2.1.2', async () => {
+    // Aging 600,00; razão: 2.1.2 com saldo CREDOR de 600,00 ⇒ cru = 0 − 60000 = −60000.
+    const { svc, accountRepo } = buildService({
+      payableRows: [line({ id: 'p1', dueDate: '2026-01-10', amountCents: 60000, counterpartyId: 'cp-A', name: 'Alfa' })],
+      balanceRows: [balanceRow('acc-ap', -60000)],
+    });
+    const r = await svc.aging(scope, { kind: 'payable', asOf: TODAY });
+    expect(accountRepo.findByCode).toHaveBeenCalledWith(scope, '2.1.2');
+    expect(r.tieOutSkippedReason).toBeNull();
+    expect(r.tieOut).toEqual({
+      controlAccountCode: '2.1.2',
+      subledgerTotalCents: '60000',
+      controlAccountBalanceCents: '60000', // normalizado: crédito − débito
+      differenceCents: '0',
+      tiesOut: true,
+    });
+  });
+
+  it('AR: subrazão == razão ⇒ tiesOut, difference 0, conta DEDICADA 1.1.5 (não a 1.1.2 do salão)', async () => {
+    // Aging 600,00; razão: 1.1.5 com saldo DEVEDOR de 600,00 ⇒ cru = +60000.
+    const { svc, accountRepo } = buildService({
+      receivableRows: [line({ id: 'r1', dueDate: '2026-01-10', amountCents: 60000, counterpartyId: 'cp-C', name: 'Cliente Z' })],
+      balanceRows: [balanceRow('acc-ar', 60000)],
+    });
+    const r = await svc.aging(scope, { kind: 'receivable', asOf: TODAY });
+    expect(accountRepo.findByCode).toHaveBeenCalledWith(scope, '1.1.5');
+    // A conta do salão JAMAIS é consultada — é por a 1.1.5 ser dedicada que o tie-out fecha (INCR-AR F7).
+    expect(accountRepo.findByCode).not.toHaveBeenCalledWith(scope, '1.1.2');
+    expect(r.tieOut).toEqual({
+      controlAccountCode: '1.1.5',
+      subledgerTotalCents: '60000',
+      controlAccountBalanceCents: '60000',
+      differenceCents: '0',
+      tiesOut: true,
+    });
+  });
+
+  it('soma o total do aging inteiro (multi-grupo/multi-faixa), não uma linha só', async () => {
+    // MIXED soma 105000 (10000+20000+30000+40000+5000); razão credor de 105000 ⇒ fecha.
+    const { svc } = buildService({ payableRows: MIXED, balanceRows: [balanceRow('acc-ap', -105000)] });
+    const r = await svc.aging(scope, { kind: 'payable', asOf: TODAY });
+    expect(r.totalCents).toBe('105000');
+    expect(r.tieOut!.subledgerTotalCents).toBe('105000');
+    expect(r.tieOut!.tiesOut).toBe(true);
+  });
+});
+
+describe('AgingReportService.aging — tie-out NÃO fecha (divergência real)', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('AP: razão menor que o subrazão ⇒ tiesOut false com a diferença correta', async () => {
+    // Aging 60000; razão credor de apenas 50000 (cru −50000) ⇒ falta 10000 no razão.
+    const { svc } = buildService({
+      payableRows: [line({ id: 'p1', dueDate: '2026-01-10', amountCents: 60000, counterpartyId: 'cp-A', name: 'Alfa' })],
+      balanceRows: [balanceRow('acc-ap', -50000)],
+    });
+    const r = await svc.aging(scope, { kind: 'payable', asOf: TODAY });
+    expect(r.tieOut!.controlAccountBalanceCents).toBe('50000');
+    expect(r.tieOut!.differenceCents).toBe('10000');
+    expect(r.tieOut!.tiesOut).toBe(false);
+  });
+
+  it('AR: razão maior que o subrazão ⇒ diferença NEGATIVA (sobra no razão), tiesOut false', async () => {
+    const { svc } = buildService({
+      receivableRows: [line({ id: 'r1', dueDate: '2026-01-10', amountCents: 60000, counterpartyId: 'cp-C', name: 'Cliente Z' })],
+      balanceRows: [balanceRow('acc-ar', 75000)],
+    });
+    const r = await svc.aging(scope, { kind: 'receivable', asOf: TODAY });
+    expect(r.tieOut!.differenceCents).toBe('-15000');
+    expect(r.tieOut!.tiesOut).toBe(false);
+  });
+
+  it('conta de controle existe mas sem partidas ⇒ saldo 0 (≠ ausente): difference = total, tiesOut false', async () => {
+    const { svc } = buildService({
+      payableRows: [line({ id: 'p1', dueDate: '2026-01-10', amountCents: 60000, counterpartyId: 'cp-A', name: 'Alfa' })],
+      balanceRows: [], // conta no plano, nenhuma partida
+    });
+    const r = await svc.aging(scope, { kind: 'payable', asOf: TODAY });
+    expect(r.tieOutSkippedReason).toBeNull(); // saldo 0 é um NÚMERO, não uma omissão
+    expect(r.tieOut!.controlAccountBalanceCents).toBe('0');
+    expect(r.tieOut!.differenceCents).toBe('60000');
+    expect(r.tieOut!.tiesOut).toBe(false);
+  });
+});
+
+/**
+ * Os testes que falhariam se o saldo fosse comparado no SINAL CRU.
+ *
+ * O par AP+AR é o que prende a normalização POR NATUREZA — nenhum dos dois sozinho basta:
+ *  - o caso AP mata "não normalizar" (comparar o cru): passivo credor vem −60000, a diferença viraria
+ *    120000 (2× o saldo) e o tie-out do AP JAMAIS fecharia;
+ *  - o caso AR mata a "correção" preguiçosa de negar tudo (`-raw` sem olhar a natureza): o ativo devedor
+ *    vem +60000 e a negação cega o transformaria em −60000, com diferença 120000.
+ * Só a normalização dependente da natureza (Asset ⇒ débito−crédito, Liability ⇒ crédito−débito) passa
+ * nos dois ao mesmo tempo.
+ */
+describe('AgingReportService.aging — tie-out normaliza o sinal PELA NATUREZA da conta', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('AP/passivo: saldo CREDOR (cru negativo) normaliza para magnitude positiva e fecha', async () => {
+    const { svc } = buildService({
+      payableRows: [line({ id: 'p1', dueDate: '2026-01-10', amountCents: 60000, counterpartyId: 'cp-A', name: 'Alfa' })],
+      balanceRows: [balanceRow('acc-ap', -60000)], // cru débito−crédito de um passivo credor
+    });
+    const r = await svc.aging(scope, { kind: 'payable', asOf: TODAY });
+    // Comparação crua daria differenceCents = 60000 − (−60000) = '120000' e tiesOut false.
+    expect(r.tieOut!.controlAccountBalanceCents).toBe('60000');
+    expect(r.tieOut!.differenceCents).toBe('0');
+    expect(r.tieOut!.tiesOut).toBe(true);
+  });
+
+  it('AR/ativo: saldo DEVEDOR (cru positivo) NÃO é negado — segue positivo e fecha', async () => {
+    const { svc } = buildService({
+      receivableRows: [line({ id: 'r1', dueDate: '2026-01-10', amountCents: 60000, counterpartyId: 'cp-C', name: 'Cliente Z' })],
+      balanceRows: [balanceRow('acc-ar', 60000)], // cru débito−crédito de um ativo devedor
+    });
+    const r = await svc.aging(scope, { kind: 'receivable', asOf: TODAY });
+    // Uma negação cega ("normalizar" tudo) daria '-60000' e differenceCents '120000'.
+    expect(r.tieOut!.controlAccountBalanceCents).toBe('60000');
+    expect(r.tieOut!.differenceCents).toBe('0');
+    expect(r.tieOut!.tiesOut).toBe(true);
+  });
+
+  it('passivo com saldo DEVEDOR (anômalo) normaliza para magnitude NEGATIVA — o sinal segue a natureza, não o valor', async () => {
+    // Um 2.1.2 devedor é anomalia contábil real (pagou-se mais do que se devia). O tie-out deve
+    // reportá-la como −50000, não escondê-la num Math.abs.
+    const { svc } = buildService({
+      payableRows: [],
+      balanceRows: [balanceRow('acc-ap', 50000)], // cru positivo num PASSIVO
+    });
+    const r = await svc.aging(scope, { kind: 'payable', asOf: TODAY });
+    expect(r.tieOut!.controlAccountBalanceCents).toBe('-50000');
+    expect(r.tieOut!.differenceCents).toBe('50000');
+    expect(r.tieOut!.tiesOut).toBe(false);
+  });
+});
+
+describe('AgingReportService.aging — tie-out OMITIDO (null + motivo, nunca um número que mente)', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('as_of PASSADA ⇒ tieOut null + as_of_not_today, e o razão NEM é consultado', async () => {
+    const { svc, reportService, accountRepo } = buildService({
+      payableRows: [line({ id: 'p1', dueDate: '2026-01-10', amountCents: 60000, counterpartyId: 'cp-A', name: 'Alfa' })],
+      balanceRows: [balanceRow('acc-ap', -60000)], // fecharia, se fosse hoje
+    });
+    const r = await svc.aging(scope, { kind: 'payable', asOf: '2020-01-31' });
+    expect(r.tieOut).toBeNull();
+    expect(r.tieOutSkippedReason).toBe('as_of_not_today');
+    // O aging em si continua íntegro — só o tie-out é omitido.
+    expect(r.totalCents).toBe('60000');
+    // Short-circuit: nada de razão nem de plano numa as_of em que a comparação não faz sentido.
+    expect(reportService.balancesAsOf).not.toHaveBeenCalled();
+    expect(accountRepo.findByCode).not.toHaveBeenCalled();
+  });
+
+  it('as_of FUTURA ⇒ também omitido: só HOJE os dois lados falam da mesma data', async () => {
+    const { svc } = buildService({ payableRows: MIXED, balanceRows: [balanceRow('acc-ap', -105000)] });
+    const r = await svc.aging(scope, { kind: 'payable', asOf: '2099-12-31' });
+    expect(r.tieOut).toBeNull();
+    expect(r.tieOutSkippedReason).toBe('as_of_not_today');
+  });
+
+  it('as_of OMITIDA (default hoje) ⇒ tie-out É emitido — default e teste-de-hoje usam o MESMO utcToday', async () => {
+    const { svc } = buildService({
+      payableRows: [line({ id: 'p1', dueDate: '2026-01-10', amountCents: 60000, counterpartyId: 'cp-A', name: 'Alfa' })],
+      balanceRows: [balanceRow('acc-ap', -60000)],
+    });
+    const r = await svc.aging(scope, { kind: 'payable' }); // sem asOf
+    expect(r.asOf).toBe(TODAY);
+    expect(r.tieOutSkippedReason).toBeNull();
+    expect(r.tieOut!.tiesOut).toBe(true);
+  });
+
+  it('conta de controle AUSENTE no plano ⇒ tieOut null + control_account_missing (não um saldo 0 forjado)', async () => {
+    const { svc, reportService } = buildService({
+      payableRows: [line({ id: 'p1', dueDate: '2026-01-10', amountCents: 60000, counterpartyId: 'cp-A', name: 'Alfa' })],
+      findByCode: jest.fn(async () => null),
+    });
+    const r = await svc.aging(scope, { kind: 'payable', asOf: TODAY });
+    expect(r.tieOut).toBeNull();
+    expect(r.tieOutSkippedReason).toBe('control_account_missing');
+    expect(r.totalCents).toBe('60000'); // aging intacto
+    expect(reportService.balancesAsOf).not.toHaveBeenCalled();
+  });
+
+  it('conta de controle com natureza fora do BP ⇒ omitido, sem chutar um lado natural', async () => {
+    const { svc } = buildService({
+      payableRows: [line({ id: 'p1', dueDate: '2026-01-10', amountCents: 60000, counterpartyId: 'cp-A', name: 'Alfa' })],
+      findByCode: jest.fn(async () => ({ id: 'acc-ap', code: '2.1.2', nature: 'Revenue' })), // plano corrompido
+    });
+    const r = await svc.aging(scope, { kind: 'payable', asOf: TODAY });
+    expect(r.tieOut).toBeNull();
+    expect(r.tieOutSkippedReason).toBe('control_account_not_balance_sheet_nature');
+  });
+
+  it('tieOut e tieOutSkippedReason são mutuamente exclusivos (exatamente um é null)', async () => {
+    const { svc } = buildService({ payableRows: MIXED, balanceRows: [balanceRow('acc-ap', -105000)] });
+    for (const asOf of [TODAY, '2020-01-31']) {
+      const r = await svc.aging(scope, { kind: 'payable', asOf });
+      expect((r.tieOut === null) !== (r.tieOutSkippedReason === null)).toBe(true);
+    }
+  });
+
+  it('o saldo do razão é lido no fim-do-dia UTC da as_of (dia inteiro no snapshot)', async () => {
+    const { svc, reportService } = buildService({ payableRows: MIXED, balanceRows: [] });
+    await svc.aging(scope, { kind: 'payable', asOf: TODAY });
+    expect(reportService.balancesAsOf).toHaveBeenCalledWith(scope, new Date(`${TODAY}T23:59:59.999Z`));
   });
 });
