@@ -49,6 +49,16 @@ export class UnauthorizedError extends AppError {
 }
 
 /**
+ * Error for resource conflicts (409) — e.g. a unique-constraint violation surfaced as a domain rule.
+ */
+export class ConflictError extends AppError {
+  constructor(message: string = 'Conflict', errorCode: string = 'CONFLICT') {
+    super(message, 409, errorCode);
+    Object.setPrototypeOf(this, ConflictError.prototype);
+  }
+}
+
+/**
  * Error for validation failures (400 - Bad Request).
  */
 export class ValidationError extends AppError {

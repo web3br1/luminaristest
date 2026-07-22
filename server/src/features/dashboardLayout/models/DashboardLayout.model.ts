@@ -17,8 +17,10 @@ export interface IDashboardLayout {
   id: string;
   /** ID of the user who owns this layout */
   userId: string;
-  /** Display name of the layout */
+  /** Display name of the layout (tab label) */
   name: string;
+  /** Whether this is the user's currently active layout (tab) */
+  isActive: boolean;
   /** Type of layout (GRID, LIST, or CUSTOM) */
   type: LayoutType;
   /** Configuration object containing layout-specific settings */
@@ -49,26 +51,11 @@ export interface LayoutConfig {
     minW?: number;
     minH?: number;
     type: string;
+    /** Optional per-widget configuration carried opaquely in the layout JSON */
+    widgetConfig?: unknown;
   }>;
   /** Optional theme identifier for styling */
   theme?: string;
   /** Optional custom settings specific to the layout type */
   customSettings?: Record<string, unknown>;
-}
-
-/**
- * Simplified interface for DashboardLayout used in listings and summaries.
- * Contains only essential fields needed for display in lists.
- */
-export interface IDashboardLayoutSummary {
-  /** Unique identifier for the layout */
-  id: string;
-  /** ID of the user who owns this layout */
-  userId: string;
-  /** Display name of the layout */
-  name: string;
-  /** Type of layout (GRID, LIST, or CUSTOM) */
-  type: LayoutType;
-  /** Timestamp when the layout was last updated */
-  updatedAt: Date;
 } 

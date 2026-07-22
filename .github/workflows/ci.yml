@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
 
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   server:
     name: Server – typecheck & test
@@ -11,6 +16,13 @@ jobs:
     defaults:
       run:
         working-directory: server
+    # Dummy values so module-load and Prisma generate succeed in CI. Tests mock OpenAI/Qdrant and use
+    # an isolated SQLite file (set by test/jest.setupEnv.ts), so no real credentials are needed.
+    # JWT_SECRET dummy is 32+ chars: lib/jwt.ts fail-closes on shorter secrets.
+    env:
+      OPENAI_API_KEY: ci-dummy-openai-key
+      JWT_SECRET: ci-dummy-jwt-secret-0123456789abcdef
+      DATABASE_URL: file:./ci.db
 
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +45,13 @@ jobs:
 
       - name: Typecheck
         run: npx tsc --noEmit
+
+      - name: Typecheck tests (tsconfig.test.json)
+        run: npx tsc --noEmit -p tsconfig.test.json
+
+      - name: Audit (advisory)
+        continue-on-error: true
+        run: npm audit --audit-level=high
 
       - name: Lint (layer-gate)
         run: npm run lint

@@ -6,6 +6,7 @@
  */
 
 import type { AnalyticsProcessor, ChartDataPoint, TableDataRow } from '../../core';
+import { logger } from '@/lib/logger';
 import { addMoney } from '../../utils/CurrencyUtils';
 import type { ISchemaField } from '@/features/dynamicTables/models/DynamicTable.model';
 
@@ -69,7 +70,7 @@ export const profitByDimensionProcessor: AnalyticsProcessor = async (context): P
           }
         }
       } catch (err) {
-        console.warn(`[profitByDimensionProcessor] Failed to load relation lookup for ${dimensionField}:`, err);
+        logger.warn('[profitByDimensionProcessor] Failed to load relation lookup', { dimensionField, error: err });
       }
     }
   }
@@ -170,7 +171,7 @@ export const profitByDimensionProcessor: AnalyticsProcessor = async (context): P
         }
       }
     } catch (err) {
-      console.warn('[profitByDimensionProcessor] Failed to integrate expenses:', err);
+      logger.warn('[profitByDimensionProcessor] Failed to integrate expenses', { error: err });
     }
   }
 

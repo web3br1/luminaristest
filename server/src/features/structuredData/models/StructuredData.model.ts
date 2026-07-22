@@ -1,4 +1,6 @@
 import { Prisma } from 'generated/prisma';
+import { logger } from '@/lib/logger';
+import { SheetStructured } from '@/lib/vector/extractors/ExcelStructuredExtractor';
 
 // Tipo para dados estruturados do Prisma
 type PrismaStructuredData = Prisma.StructuredDataGetPayload<{}>
@@ -49,6 +51,8 @@ export interface Header {
  */
 export interface StructuredDataResponse extends Omit<IStructuredData, 'headers'> {
   columns: ColumnFormat[];
+  /** Presente apenas quando o documento tem múltiplas abas (multi-sheet). */
+  sheets?: SheetData[];
 }
 
 /**
@@ -96,7 +100,7 @@ export function toStructuredData(prismaStructuredData: PrismaStructuredData): IS
             });
           }
         } catch (e) {
-          console.error('Failed to parse headers JSON', e);
+          logger.error('Failed to parse headers JSON', { error: e });
         }
       }
     }
@@ -167,7 +171,7 @@ export function toStructuredData(prismaStructuredData: PrismaStructuredData): IS
             data = parsed;
           }
         } catch (error) {
-          console.error('Failed to parse data JSON string:', error);
+          logger.error('Failed to parse data JSON string', { error });
         }
       }
       // Se for um objeto JSON, mantemos como está
@@ -176,7 +180,7 @@ export function toStructuredData(prismaStructuredData: PrismaStructuredData): IS
       }
     }
   } catch (error) {
-    console.error('Error converting Prisma data to domain model', error);
+    logger.error('Error converting Prisma data to domain model', { error });
   }
 
   return {
@@ -186,5 +190,56 @@ export function toStructuredData(prismaStructuredData: PrismaStructuredData): IS
     data,
     createdAt: prismaStructuredData.createdAt,
     updatedAt: prismaStructuredData.updatedAt
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Conversores de header entre formatos externos e o domínio
+// ---------------------------------------------------------------------------
+
+/** Header como recebido de uma fonte externa (extração via OpenAI ou extrator de Excel). */
+export interface ExternalHeader {
+  key: string;
+  title: string;
+  type: string;
+}
+
+// Aliases nominais para o mesmo shape — mantêm a origem legível nos call sites.
+export type ApiHeader = ExternalHeader;
+export type ExcelHeader = ExternalHeader;
+
+const HEADER_TYPES = ['TEXT', 'NUMBER', 'CURRENCY', 'PERCENTAGE', 'DATE'] as const;
+
+function toHeaderType(value: string): Header['type'] {
+  return (HEADER_TYPES as readonly string[]).includes(value) ? (value as Header['type']) : 'TEXT';
+}
+
+/** Converte um header de fonte externa (API/Excel) para o formato interno. */
+export function externalHeaderToHeader(header: ExternalHeader): Header {
+  return { name: header.key, type: toHeaderType(header.type) };
+}
+
+// Aliases por origem — apontam para o mesmo conversor.
+export const apiHeaderToHeader = externalHeaderToHeader;
+export const excelHeaderToHeader = externalHeaderToHeader;
+
+/** Converte um header interno para o formato de coluna que o frontend espera. */
+export function headerToColumnFormat(header: Header): ColumnFormat {
+  return { key: header.name, title: header.name, type: header.type };
+}
+
+/** Converte um array de headers externos para o formato interno. */
+export function convertExcelHeaders(headers: ExternalHeader[]): Header[] {
+  return headers.map(externalHeaderToHeader);
+}
+
+/** Converte uma planilha extraída do Excel para o formato tabular de armazenamento. */
+export function convertSheetToTableData(sheet: SheetStructured): {
+  headers: Header[];
+  data: (string | number | null)[][];
+} {
+  return {
+    headers: convertExcelHeaders(sheet.headers),
+    data: sheet.data as (string | number | null)[][],
   };
 }

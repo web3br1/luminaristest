@@ -56,19 +56,11 @@ export async function adjustReservationForItemChange(ctx: RuleContext, before: R
     return;
   }
 
-  // Mesmo produto: aplica delta de quantidade
+  // Mesmo produto: aplica o delta na quantidade
+  // (o caso "produto mudou" já foi tratado e retornou acima).
   const pid = afterPid || beforePid;
   if (!pid) return;
 
-  // Se o produto foi alterado, trata como remoção do antigo e adição do novo
-  if (beforePid && beforePid !== afterPid) {
-    await applyReservationDelta(ctx, beforePid, unitId, -beforeQty);
-    await ensureReservationAvailability(ctx, afterPid, unitId, afterQty);
-    await applyReservationDelta(ctx, afterPid, unitId, afterQty);
-    return;
-  }
-
-  // Se for o mesmo produto, aplica o delta na quantidade
   const delta = afterQty - beforeQty;
   if (delta === 0) return;
   if (delta > 0) {

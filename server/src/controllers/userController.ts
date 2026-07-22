@@ -1,46 +1,28 @@
 import { Request, Response } from 'express';
-// eslint-disable-next-line no-restricted-imports -- DEBT: prisma.* em controller, viola contrato §2 (só Repository). Backlog: docs/architecture/lint-layer-gate.md. Remover ao migrar para repository.
-import prisma from '../lib/prisma';
+import { z } from 'zod';
 import { handleApiError } from '../lib/apiUtils';
 import { getFactory } from '@/lib/factory';
 import { getUserContextFromRequest } from '@/lib/authUtils';
-import { z } from 'zod';
-import { CreateUserSchema, UpdateUserSchema } from '@/features/users/dtos/UserDto';
+import { CreateUserSchema, UpdateUserSchema, ListUsersQuerySchema, UpdatePreferencesSchema } from '@/features/users/dtos/UserDto';
+
+const UserIdSchema = z.object({ id: z.string().cuid({ message: 'Invalid user ID format' }) });
 
 export const getUsers = async (req: Request, res: Response) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const skip = (page - 1) * limit;
+    const actor = getUserContextFromRequest(req);
+    const parsed = ListUsersQuerySchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    const { page, limit } = parsed.data;
 
-    const [users, totalCount] = await Promise.all([
-      prisma.user.findMany({
-        skip,
-        take: limit,
-        select: {
-          id: true,
-          name: true,
-          username: true,
-          email: true,
-          role: true,
-          createdAt: true,
-        },
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.user.count()
-    ]);
-
-    const totalPages = Math.ceil(totalCount / limit);
+    // Goes through the service so the ADMIN policy (canListAll) is enforced.
+    const { users, totalCount } = await getFactory().getUserService().getAllUsers(actor, page, limit);
 
     return res.json({
       success: true,
       data: users,
-      pagination: {
-        page,
-        limit,
-        totalCount,
-        totalPages
-      }
+      total: totalCount,
+      page,
+      pageSize: limit,
     });
   } catch (error) {
     return handleApiError(error, res);
@@ -49,10 +31,12 @@ export const getUsers = async (req: Request, res: Response) => {
 
 export const getUserById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const parsed = UserIdSchema.safeParse(req.params);
+    if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.flatten() });
+
     const actor = getUserContextFromRequest(req);
     const service = getFactory().getUserService();
-    const user = await service.getUserById(id, actor);
+    const user = await service.getUserById(parsed.data.id, actor);
 
     return res.json({ success: true, data: user });
   } catch (error) {
@@ -77,16 +61,18 @@ export const createUser = async (req: Request, res: Response) => {
 
 export const updateUser = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const idParsed = UserIdSchema.safeParse(req.params);
+    if (!idParsed.success) return res.status(400).json({ success: false, error: idParsed.error.flatten() });
+
     const parse = UpdateUserSchema.safeParse(req.body);
     if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });
 
     const actor = getUserContextFromRequest(req);
     const service = getFactory().getUserService();
     // Use parse.data directly - any undefined fields are omitted
-    const updated = await service.updateUser(id, parse.data, actor);
+    const updated = await service.updateUser(idParsed.data.id, parse.data, actor);
 
-    return res.json(updated);
+    return res.json({ success: true, data: updated });
   } catch (error) {
     return handleApiError(error, res);
   }
@@ -94,23 +80,19 @@ export const updateUser = async (req: Request, res: Response) => {
 
 export const deleteUser = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const parsed = UserIdSchema.safeParse(req.params);
+    if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.flatten() });
+
     const actor = getUserContextFromRequest(req);
 
     const service = getFactory().getUserService();
-    await service.deleteUser(id, actor);
+    await service.deleteUser(parsed.data.id, actor);
 
     return res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
     return handleApiError(error, res);
   }
 };
-
-/** Schema for preferences-only update */
-const PreferencesSchema = z.object({
-  locale: z.enum(['en', 'pt']).optional(),
-  currency: z.enum(['BRL', 'USD', 'EUR']).optional(),
-});
 
 /**
  * PATCH /api/users/me/preferences
@@ -121,7 +103,7 @@ export const updateMyPreferences = async (req: Request, res: Response) => {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-    const parse = PreferencesSchema.safeParse(req.body);
+    const parse = UpdatePreferencesSchema.safeParse(req.body);
     if (!parse.success) {
       return res.status(400).json({ success: false, error: parse.error.flatten() });
     }
@@ -130,13 +112,9 @@ export const updateMyPreferences = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'No preferences provided' });
     }
 
-    const updated = await prisma.user.update({
-      where: { id: ctx.id },
-      data: parse.data,
-      select: { id: true, locale: true, currency: true },
-    });
+    const updated = await getFactory().getUserService().updatePreferences(ctx.userId, parse.data);
 
-    return res.json({ success: true, data: updated });
+    return res.json({ success: true, data: { id: updated.id, locale: updated.locale, currency: updated.currency } });
   } catch (error) {
     return handleApiError(error, res);
   }

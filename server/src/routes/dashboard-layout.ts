@@ -4,6 +4,7 @@ import {
   createLayout,
   getLayoutById,
   updateLayout,
+  activateLayout,
   deleteLayout,
 } from '@/controllers/dashboardLayoutController';
 
@@ -20,6 +21,9 @@ router.get('/:id', getLayoutById);
 
 // PATCH /api/dashboard-layout/:id
 router.patch('/:id', updateLayout);
+
+// POST /api/dashboard-layout/:id/activate
+router.post('/:id/activate', activateLayout);
 
 // DELETE /api/dashboard-layout/:id
 router.delete('/:id', deleteLayout);

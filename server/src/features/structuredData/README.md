@@ -10,77 +10,89 @@
 > **Future decision required:** either build the frontend UI (SpreadsheetWidget) and reconnect,
 > or remove the backend pipeline entirely. Do not add new consumers until that decision is made.
 
-## Visão Geral
+Stores the **tables extracted from user-uploaded documents** (Excel spreadsheets or tabular PDFs/text)
+in a **1-to-1 relation with `Document`**, intended for display and editing in a `SpreadsheetWidget` on
+the frontend (never built — see deprecation note above). **It has no relation to `dynamicTables`** —
+it is a satellite of the `documents` feature, part of the upload/RAG world, not the ERP
+dynamic-tables engine.
 
-- **Categoria:** Feature de Entidade
-- **Propósito:** Gerencia os dados estruturados (tabulares) extraídos dos documentos dos usuários. Esta feature é responsável por armazenar, recuperar e atualizar os dados que são exibidos e editados no `SpreadsheetWidget`.
+## Model
 
----
+- **`StructuredData`** (Prisma): `id`, `documentId` (`@unique`, 1:1 with `Document`, `onDelete: Cascade`),
+  `headers` (JSON), `data` (JSON), `createdAt`, `updatedAt`.
+- **`IStructuredData`** (domain): `headers: Header[]` + `data: StructuredDataValue`, where `data` can be
+  simple tabular (`(string|number|null)[][]`), multi-sheet (`SheetData[]`) or an arbitrary JSON object.
+- **`toStructuredData`** (in `models/`) normalizes the raw Prisma JSON to the domain (defensive string
+  parsing, tabular vs. multi-sheet detection). Header converters (`apiHeaderToHeader`,
+  `excelHeaderToHeader`, `convertSheetToTableData`, `headerToColumnFormat`) also live in `models/`.
 
-## Arquitetura e Fluxo de Operação
+## Layering & authorization
 
-O fluxo principal desta feature é servir como um repositório para os dados tabulares. A lógica de negócio é relativamente simples:
+`Controller → Service → Repository`, with `IStructuredDataPolicy` injected into the service;
+dependencies wired in `factory.ts`. Only the repository touches Prisma.
 
-1.  **Criação:** Durante o pipeline de processamento de documentos, após a IA identificar um arquivo como tabular, ela extrai os cabeçalhos e os dados. O `StructuredDataService` é então chamado para persistir essas informações no banco de dados, vinculadas ao documento original.
-2.  **Recuperação:** Quando o frontend (ex: `SpreadsheetWidget`) precisa exibir uma tabela, ele solicita os dados pelo `documentId`. O `StructuredDataService` busca os dados e executa uma lógica de normalização para lidar com planilhas de múltiplas abas (`multi-sheet`). Ele detecta se o campo `data` é um JSON representando várias abas, e se for, retorna a estrutura completa de abas e normaliza os dados da primeira aba para exibição principal.
-3.  **Atualização:** Quando um usuário edita os dados na planilha, o frontend envia os dados atualizados para a API, e o `StructuredDataService` os atualiza no banco de dados.
+- **Tier-0:** access is scoped by **document ownership**. The policy `canAccess(ctx, documentId)`
+  fetches the `Document` and requires `document.userId === ctx.userId`.
+- **Policy variant (strict by design):** `canAccess` is **owner-only, with no admin bypass** —
+  structured data is the tenant's private document content. More restrictive than the owner-or-admin
+  default of other features; intentional.
+- Every service call receives `UserContext` (not `IUser`) and delegates authorization to the policy.
 
----
+## API
 
-## Componentes
+| Method | Path                              | Action                                              |
+|--------|-----------------------------------|-----------------------------------------------------|
+| GET    | `/api/structured-data/:documentId` | Retrieves the structured data (normalizes multi-sheet) |
+| PUT    | `/api/structured-data/:documentId` | Updates a document's structured data                |
 
-### Modelos (`types`)
-- **`StructuredData`**: Interface principal que define a estrutura dos dados, incluindo um array de `headers` e um array de `data` (linhas).
-- **`Header`**: Define o formato de um cabeçalho de coluna, com `name` e `type` (ex: 'TEXT', 'NUMBER').
+`:documentId` is validated as `cuid`. The initial write does **not** go through HTTP — it comes from the
+pipeline (see below).
 
-### DTOs (Contratos de Dados)
-- **`createStructuredDataSchema`**: Esquema Zod para validar a criação de um novo registro. Utiliza `z.union` para aceitar tanto dados tabulares simples quanto estruturas complexas de múltiplas abas (`multi-sheet`).
-- **`updateStructuredDataSchema`**: Esquema Zod para validar a atualização dos dados. Também utiliza `z.union` para permitir a atualização com diferentes formatos de dados.
+## Invariants
 
-### Serviços
-- **`StructuredDataService`**: Orquestra a lógica de negócio (todos os métodos recebem `user` e
-  aplicam a policy de acesso). Métodos públicos:
-    - `getByDocumentId(user, documentId)`: recupera e **normaliza** os dados — detecta se `data` é um
-      JSON multi-aba (string ou array) e, com aba única, simplifica a estrutura para exibição. Converte
-      `ApiHeader` (`key`/`title`/`type`) para o `Header` interno.
-    - `createFromStructured(user, documentId, { sheets })`: cria a partir de planilhas já extraídas
-      (processadores de Excel); **pode retornar `null`** quando não há dados.
-    - `createFromText(user, documentId, rawText)`: usa o `OpenAIService` para extrair tabular de texto
-      bruto e persiste (texto/PDF).
-    - `update(user, documentId, data)`: atualiza um registro existente.
+- 1:1 with `Document` (`documentId @unique`); deleting the document removes the data via cascade.
+- Every read/write authorized via `canAccess` (owner-only).
+- `data` accepts three formats (tabular, multi-sheet, arbitrary JSON); `getByDocumentId` exposes the full
+  structure in `sheets` and the first sheet as the main `data` when multi-sheet.
+- Typed errors (`ForbiddenError`, `NotFoundError`, `ServiceError`); `logger`, never `console`; no `as any`.
 
-> Exposto via `controllers/structuredDataController.ts` (ex: buscar dados estruturados por documento).
+## Tests
 
-### Políticas
-- **`StructuredDataPolicy`**: Implementa a lógica de autorização. O método `canAccess` verifica se o usuário que faz a requisição é o dono do documento ao qual os dados estruturados estão associados.
+Gold-standard 4-level suite (see [`TESTING.md`](../../../TESTING.md)):
 
-### Repositórios
-- **`StructuredDataRepository`**: Abstrai o acesso ao banco de dados (Prisma). Expõe métodos como `findByDocumentId`, `create` e `update`.
+- **Policy unit** — `policies/__tests__/StructuredDataPolicy.spec.ts`: `canAccess` owner-only, with the
+  **no-admin-bypass** case explicitly locked (an ADMIN who is not the owner is denied).
+- **DTO unit** — `dtos/__tests__/StructuredDataDto.spec.ts`: header name regex + type enum, documentId
+  as cuid, and the three accepted `data` formats (tabular / multi-sheet / arbitrary object).
+- **Service integration** — `services/__tests__/StructuredDataService.integration.test.ts` (real SQLite,
+  ownership via the real `DocumentRepository`, OpenAI faked): owner-only Tier-0 for read/update, the
+  Forbidden/NotFound/Unauthorized contract, and multi-sheet normalization (`sheets` + first sheet as `data`).
+- **HTTP contract** — `controllers/__tests__/structuredData.routes.integration.test.ts`: 401/400/403/404
+  on GET/PUT `/:documentId`; the no-admin-bypass 403; the `{ success, data }` envelope.
 
-## Estrutura de Arquivos
+> Creation (`createFromStructured`/`createFromText`) has no HTTP route — it is fed by the document
+> pipeline — so it is covered by the documents flow, not here.
+
+## Variant (justified)
+
+A **pipeline + entity** feature. Creation has no HTTP route: it is fed by the
+`DocumentProcessingPipeline` during document processing. Read and update are CRUD via HTTP.
+
+## Interaction with other features
+
+- **Consumes `documents`:** the policy uses `IDocumentRepository` to check document ownership.
+- **Consumed by `documents`:** the `DocumentProcessingPipeline` calls `createFromStructured` (Excel,
+  direct extraction) or `createFromText` (PDF/text, extraction via `OpenAIService`) after classifying
+  the document as tabular.
+
+## File structure
 
 ```
 /features/structuredData
-|-- /dtos
-|   |-- StructuredDataDto.ts  # Esquemas Zod para validação
-|-- /policies
-|   |-- StructuredDataPolicy.ts # Regras de permissão (quem pode acessar)
-|-- /repositories
-|   |-- StructuredDataRepository.ts # Interação com o Prisma (banco de dados)
-|-- /services
-|   |-- StructuredDataService.ts  # Orquestração da lógica de negócio
-|-- /types
-|   |-- StructuredData.types.ts  # Tipos de dados estruturados
-|   |-- Sheet.types.ts           # Tipos de planilha (abas/headers)
-|-- README.md                   # Esta documentação
+├── dtos/         StructuredDataDto.ts   # Zod schemas + inferred types (Create/Update/Header)
+├── models/       StructuredData.model.ts # IStructuredData, toStructuredData, header converters
+├── policies/     StructuredDataPolicy.ts (+ I…) # canAccess owner-only
+├── repositories/ StructuredDataRepository.ts (+ I…) # the only point that touches Prisma
+├── services/     StructuredDataService.ts # orchestration + multi-sheet normalization
+└── README.md
 ```
-
----
-
-## Interação com Outras Features
-
-- **Consome:**
-    - `features/documents`: Utiliza o `DocumentRepository` (através da `StructuredDataPolicy`) para verificar a propriedade do documento antes de permitir o acesso aos dados estruturados.
-
-- **Consumida por:**
-    - `features/documents` (especificamente o `DocumentProcessingPipeline`): O pipeline de processamento de documentos chamará o `StructuredDataService` para criar os registros após a extração dos dados pela IA.

@@ -1,202 +1,74 @@
-# Feature: Dashboard Layout
+# dashboardLayout
 
-## Descrição
-Gerenciamento de layouts de dashboard, permitindo personalização e persistência de configurações de interface.
+CRUD feature that owns the user's **dashboard layouts (tabs)**. Each layout stores the grid
+configuration (widget positions) of one dashboard tab. A user may have **many layouts**; at most
+**one is active** at a time (the tab currently shown on the home dashboard).
 
-## Estrutura
-```
-dashboardLayout/
-├── models/
-│   └── DashboardLayout.model.ts  # Interface e tipos do layout
-├── repositories/
-│   ├── IDashboardLayoutRepository.ts  # Interface do repositório
-│   └── DashboardLayoutRepository.ts   # Implementação do repositório
-├── services/
-│   └── DashboardLayoutService.ts      # Lógica de negócio
-├── policies/
-│   ├── IDashboardLayoutPolicy.ts      # Interface de políticas
-│   └── DashboardLayoutPolicy.ts       # Regras de acesso
-├── dtos/
-│   └── DashboardLayoutDto.ts          # DTOs e validações
-└── __tests__/                        # Testes unitários
-```
+## Model
 
-## Modelos
-- `IDashboardLayout`: Interface base do layout
-- `IDashboardLayoutSummary`: Resumo do layout (dados mínimos)
-- `LayoutConfig`: Configuração específica do layout, com propriedades:
-  - `columns`: número de colunas no grid
-  - `widgets`: lista de IDs de widgets
-  - `positions?`: array de objetos `{ id, i, x, y, w, h, minW?, minH?, type }`
-  - `theme?`: tema opcional
-  - `customSettings?`: configurações adicionais
+`DashboardLayout` (Prisma): `id`, `userId` (indexed, **not** unique), `name` (tab label), `isActive`,
+`layoutData` (JSON holding `{ type, config }`), `createdAt`, `updatedAt`.
 
-## DTOs
-- `CreateDashboardLayoutDto`: Validação de criação
-- `UpdateDashboardLayoutDto`: Validação de atualização
-- `DashboardLayoutDto`: DTO base
-- `DashboardLayoutSummaryDto`: DTO de resumo
-- **Configuração (`config`) em DTOs inclui:**
-  - `columns`: número de colunas
-  - `widgets`: IDs de widgets
-  - `positions`: detalhes de posicionamento dos widgets
-  - `theme?`: tema opcional
-  - `customSettings?`: configurações adicionais
+The domain entity (`models/DashboardLayout.model.ts`) flattens `name`/`isActive` (columns) and
+`type`/`config` (from `layoutData`) into `IDashboardLayout`.
 
-## Serviços
-### DashboardLayoutService
-- `createLayout(data, userContext)`: **comportamento de upsert** — se já existe um layout para o
-  usuário, **atualiza** o existente em vez de criar um novo (evita duplicidade de layout por usuário).
-- `getAllLayouts(page?, limit?, userContext)`: lista paginada → retorna `DashboardLayoutSummaryDto[]`
-  (defaults `page=1`, `limit=10`).
-- `getLayoutById(id, userContext)`: busca por ID (com checagem de acesso).
-- `getLayoutsByUser(userContext)`: lista os layouts do usuário; **valida e filtra** registros
-  malformados (campos obrigatórios e `type` válido) antes de retornar.
-- `updateLayout(id, data, userContext)`: atualiza um layout.
-- `deleteLayout(id, userContext)`: remove um layout.
+## Layering & authorization
 
-> A `config` é persistida como JSON no Prisma; helpers privados `mapToDto` / `mapToSummaryDto`
-> convertem a entidade para os DTOs de resposta.
+`Controller → Service → Repository`, with `Policy` injected into the service. Only the repository
+touches Prisma.
 
-## Políticas
-### DashboardLayoutPolicy
-- `canCreate`: Permissão para criar
-- `canListAll`: Permissão para listar
-- `canView`: Permissão para visualizar
-- `canUpdate`: Permissão para atualizar
-- `canDelete`: Permissão para deletar
+- **Multi-tenant:** every layout is scoped to its owner. List/active reads filter by `userId`;
+  single-record reads (`getLayoutById`) are fetched then authorized via the `Policy`.
+- **Authorization lives in `policies/DashboardLayoutPolicy.ts`** — `canCreate`/`canView`/`canUpdate`/
+  `canDelete` (owner-or-admin). The service calls the policy before every mutation.
 
-## Repositório
-### DashboardLayoutRepository
-- `createLayout`: Cria layout
-- `getAllLayouts`: Lista layouts
-- `getLayoutById`: Busca por ID
-- `getLayoutsByUser`: Lista por usuário
-- `updateLayout`: Atualiza layout
-- `deleteLayout`: Remove layout
+## API (`/api/dashboard-layout`)
 
-## Padrões
-1. **Factory Pattern**
-   - Injeção de dependências via construtor
-   - Interfaces para repositório e políticas
-   - Instanciação via factory
+| Method | Path | Action |
+|---|---|---|
+| GET | `/` | List the user's layouts (tabs), most recent first. Envelope `{ success, data: [...] }`. |
+| POST | `/` | Create a new layout (tab) → it becomes the active one. |
+| GET | `/:id` | Get one layout (owner only). |
+| PATCH | `/:id` | Update a layout. **Partial updates are merged** with the stored record (never wipes `type`/`config`). Also used to rename via `name`. |
+| POST | `/:id/activate` | Switch the active layout (tab). |
+| DELETE | `/:id` | Delete a layout; if it was active, the most recently updated remaining one becomes active. |
 
-2. **Validação**
-   - Zod para schemas
-   - Validação em DTOs
-   - Tipos inferidos
+## Invariants
 
-3. **Segurança**
-   - Controle de acesso por usuário
-   - Validação de permissões
-   - Proteção de dados
+- **One active layout per user** — enforced by `repository.setActive`, which flips the flag inside a
+  `prisma.$transaction` (unset all of the user's, then set the target). This is **application-enforced
+  only**: there is no DB-level constraint backing it, because a partial unique index (`userId` where
+  `isActive = true`) is not expressible in Prisma on SQLite. `setActive` is the single writer of
+  `isActive`, so the invariant holds as long as no code mutates the flag outside it. If the project
+  migrates to PostgreSQL, add a partial unique index to make the DB the source of truth.
+- **Merge-on-update** — `service.updateLayout` loads the current layout and overrides only the fields
+  present in the request, so a partial PATCH cannot corrupt the stored config.
+- **Fail-soft listing** — `repository.getLayoutsByUser` skips (and logs) any row whose `layoutData`
+  JSON is malformed, so one corrupt record cannot deny the user access to the rest of their tabs.
+  Single-record reads still surface the error.
 
-4. **Tratamento de Erros**
-   - Classes de erro customizadas
-   - Mensagens descritivas
-   - Códigos HTTP apropriados
+## Tests
 
-## Fluxo de Dados
-```
-Request → API Route → DashboardLayoutService → DashboardLayoutRepository → Database
-   ↑          ↓                ↓                      ↓                    ↓
-   └──────────┴────────────────┴──────────────────────┴────────────────────┘
-        Validação         Políticas              Cache              Logging
-```
+Gold-standard 4-level suite (see [`TESTING.md`](../../../TESTING.md)):
 
-## Boas Práticas
-1. **Novo Layout**
-   - Validar dados de entrada
-   - Verificar permissões
-   - Mapear para domínio
-   - Persistir configuração
+- **Policy unit** — `policies/__tests__/DashboardLayoutPolicy.spec.ts`: owner-or-admin view/update/delete;
+  `canListAll` admin-only.
+- **DTO unit** — `dtos/__tests__/DashboardLayoutDto.spec.ts`: name bounds (3–50), type enum, config
+  `columns` 1–12, partial-update shape.
+- **Service integration** — `services/__tests__/DashboardLayoutService.integration.test.ts`: the
+  integrity invariants — exactly **one active layout per user** (transactional `setActive`),
+  **merge-on-update** (a partial PATCH never wipes type/config), **fail-soft listing** (a malformed row
+  is skipped; a single-record read still surfaces the error), delete-active reassignment, the per-user
+  cap (20), and Tier-0 ownership.
+- **HTTP contract** — `controllers/__tests__/dashboardLayout.routes.integration.test.ts`:
+  401/400/403/404, the merge-on-update end-to-end, and the `{ success, data }` envelope.
 
-2. **Atualização**
-   - Validar campos
-   - Verificar propriedade
-   - Manter histórico
-   - Atualizar configuração
+> Concurrency (two simultaneous `setActive`) is not covered here — SQLite serializes it; a TOCTOU test
+> is deferred to the PostgreSQL migration (see `TESTING.md` §9).
 
-3. **Exclusão**
-   - Verificar propriedade
-   - Limpar dados
-   - Manter consistência
+## Frontend
 
-4. **Consultas**
-   - Paginação
-   - Filtros por usuário
-   - Cache de layouts
-   - Ordenação por data
-
-## Componentes
-
-### Models
-- **DashboardLayout.model.ts**
-  - Interface `IDashboardLayout`: Representa a entidade layout no domínio
-  - Tipos:
-    - `LayoutType`: Define os tipos de layout disponíveis
-    - `LayoutConfig`: Configuração específica do layout
-  - Desacoplado da infraestrutura (Prisma)
-
-### DTOs
-- **DashboardLayoutDto.ts**
-  - Schemas Zod para validação:
-    - `DashboardLayoutSchema`: Resposta de layout
-    - `UpdateDashboardLayoutSchema`: Atualização de layout
-    - `CreateDashboardLayoutSchema`: Criação de layout
-  - Type guards para validação em runtime
-  - Documentação OpenAPI
-  - Validações:
-    - Nome: 3-50 caracteres
-    - Configuração: objeto válido
-    - Tipo: enum válido
-    - Usuário: ID válido
-
-### Repositories
-- **IDashboardLayoutRepository.ts**
-  - Interface definindo operações de persistência
-  - Métodos:
-    - `createLayout`: Criação de layout
-    - `getAllLayouts`: Listagem paginada
-    - `getLayoutById`: Busca por ID
-    - `getLayoutsByUser`: Busca por usuário
-    - `updateLayout`: Atualização
-    - `deleteLayout`: Remoção
-
-- **DashboardLayoutRepository.ts**
-  - Implementação usando Prisma
-  - Seleção segura de campos
-  - Paginação implementada
-  - Relacionamentos gerenciados
-
-### Policies
-- **IDashboardLayoutPolicy.ts**
-  - Interface definindo regras de autorização
-  - Métodos:
-    - `canListAll`: Listar todos layouts
-    - `canView`: Visualizar layout
-    - `canCreate`: Criar layout
-    - `canUpdate`: Atualizar layout
-    - `canDelete`: Deletar layout
-
-- **DashboardLayoutPolicy.ts**
-  - Implementação das regras de autorização
-  - Regras:
-    - ADMIN: acesso total
-    - USER: acesso limitado aos próprios layouts
-    - Público: sem acesso
-
-### Services
-- **DashboardLayoutService.ts**
-  - Lógica de negócio centralizada
-  - Validação de DTOs
-  - Tratamento de erros
-  - Tipos de retorno:
-    - `DashboardLayout`: Dados completos
-    - `PublicDashboardLayout`: Dados públicos
-
-## Dependências
-
-- `zod`: Validação de dados
-- `prisma`: ORM
-- `jose`: JWT 
+`my-app/components/widgets/dashboard-grid/` consumes this feature:
+- `dashboard-layout.api.ts` — typed calls to the endpoints above.
+- `DashboardTabsBar.tsx` — tab bar (create / switch / rename / delete).
+- `dashboard-grid.tsx` — loads the active layout on mount and auto-saves edits via `PATCH /:activeId`.

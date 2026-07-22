@@ -10,31 +10,10 @@ export interface IDynamicTable extends Omit<DynamicTable, 'schema' | 'internalNa
 // Base interface for the DynamicTableData model, extending the Prisma generated type
 export interface IDynamicTableData extends DynamicTableData { }
 
-/**
- * Defines the structure for a single field within a dynamic table's schema.
- */
-export interface IFieldValidation {
-  minLength?: number;
-  maxLength?: number;
-  minValue?: number;
-  maxValue?: number;
-}
-
 export interface IFieldRelation {
   targetTable: string;
   allowMultiple?: boolean;
   broken?: boolean;
-}
-
-export interface IFieldSchema {
-  name: string;
-  label: string;
-  type: 'string' | 'number' | 'boolean' | 'date' | 'relation';
-  required: boolean;
-  unique: boolean;
-  defaultValue?: unknown;
-  validation?: IFieldValidation;
-  relation?: IFieldRelation;
 }
 
 /**

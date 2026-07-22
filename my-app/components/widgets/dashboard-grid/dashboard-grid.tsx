@@ -7,7 +7,6 @@ import 'react-resizable/css/styles.css';
 // Persistência de chat removida
 
 import { useAuth } from '@/lib/context/AuthContext';
-import { getCookie } from 'cookies-next';
 import DocumentChatWidget from '../chat/components/DocumentChatWidget';
 import GenericChatWidget from '../generic-chat/components/GenericChatWidget';
 import AnalyticsWidget from '../analytics/AnalyticsWidget';
@@ -15,7 +14,9 @@ import ErpViewWidget from '../erp-view/ErpViewWidget';
 import { DASHBOARD_GRID_CONFIG } from './dashboard-grid.config';
 import useDashboardGrid from './hooks/use-dashboard-grid';
 import { DocumentOption } from '../chat/components/DocumentSelector';
-import { DashboardGridItem, LayoutResponse } from './types/dashboard-grid.types';
+import { DashboardGridItem, DashboardLayout } from './types/dashboard-grid.types';
+import { DashboardLayoutApi } from './dashboard-layout.api';
+import DashboardTabsBar from './DashboardTabsBar';
 import FloatingAddWidgetButton from './FloatingAddWidgetButton';
 import { getWidgetDimensions } from './utils/dashboard-grid.utils';
 
@@ -28,6 +29,12 @@ export default function DashboardGrid() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isInitialMount = useRef(true);
+
+  // Multi-layout (tabs) state.
+  const [layouts, setLayouts] = useState<DashboardLayout[]>([]);
+  const [activeLayoutId, setActiveLayoutId] = useState<string | null>(null);
+  // Suppresses the auto-save effect when items change due to a programmatic load/switch.
+  const switchingRef = useRef(false);
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(0);
 
@@ -56,63 +63,25 @@ export default function DashboardGrid() {
   }, [containerHeight]);
   // Estados relacionados à persistência de chat foram removidos
 
-  useEffect(function loadLayoutOnMount() {
-    async function loadLayout() {
+  useEffect(function loadLayoutsOnMount() {
+    async function loadLayouts() {
       try {
         setIsLoading(true);
         setError(null);
-        const token = getCookie('auth_token');
-        if (!token) {
-          // Aguarda o token estar disponível antes de tentar carregar
-          setIsLoading(false);
-          return;
-        }
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/dashboard-layout`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (!response.ok) {
-          if (response.status === 404) {
-            console.log('Nenhum layout salvo encontrado. Criando layout padrão...');
-            const createPayload = {
-              name: 'User Dashboard',
-              type: 'GRID',
-              config: { positions: [], columns: 12, widgets: [] },
-            };
-            try {
-              const createRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/dashboard-layout`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify(createPayload),
-              });
-              if (!createRes.ok) {
-                throw new Error(`Falha ao criar layout (status ${createRes.status}).`);
-              }
-              const created = await createRes.json();
-              const positions = created?.data?.config?.positions || [];
-              setLayout(positions);
-              return;
-            } catch (createErr) {
-              console.error(createErr);
-              setLayout([]);
-              setError('Não foi possível criar o layout inicial.');
-              return;
-            }
-          }
-          throw new Error('Falha ao carregar o layout do painel.');
-        }
-        const data: LayoutResponse = await response.json();
-        if (data.success && data.data?.layouts && data.data.layouts.length > 0) {
-          const mainLayout = data.data.layouts[0];
-          const layoutItems = mainLayout.config.positions || [];
-          setLayout(layoutItems);
-        } else {
-          setLayout([]);
+
+        let list = await DashboardLayoutApi.list();
+
+        // First-time user: create a default tab.
+        if (list.length === 0) {
+          const created = await DashboardLayoutApi.create('Dashboard', { positions: [], columns: 12, widgets: [] });
+          list = [created];
         }
 
-        // A funcionalidade de carregar o último chat foi desativada
+        const active = list.find(l => l.isActive) ?? list[0];
+        setLayouts(list);
+        setActiveLayoutId(active.id);
+        switchingRef.current = true; // this is a programmatic load, not a user edit
+        setLayout(active.config.positions || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido');
         console.error(err);
@@ -122,38 +91,31 @@ export default function DashboardGrid() {
     }
 
     if (user) {
-      loadLayout();
+      loadLayouts();
     }
   }, [user, setLayout]);
 
   useEffect(function saveLayoutOnChange() {
-    // Não salva durante carregamento inicial ou se houver erro crítico
-    if (isInitialMount.current || isLoading || !!error) {
+    // Skip during initial load, on error, or with no active tab.
+    if (isInitialMount.current || isLoading || !!error || !activeLayoutId) {
       if (!isLoading) isInitialMount.current = false;
+      return;
+    }
+
+    // Skip the save triggered by a programmatic load/switch (not a user edit).
+    if (switchingRef.current) {
+      switchingRef.current = false;
       return;
     }
 
     const handler = setTimeout(async () => {
       try {
         setError(null);
-        const payload = {
-          name: 'User Dashboard',
-          type: 'GRID',
-          config: {
-            positions: items,
-            columns: 12, // Valor padrão, pode ser ajustado conforme necessário
-            widgets: items.map(item => item.type), // Extrai os tipos de widgets do layout atual
-          },
-        };
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/dashboard-layout`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getCookie('auth_token')}` },
-          body: JSON.stringify(payload),
+        await DashboardLayoutApi.saveConfig(activeLayoutId, {
+          positions: items,
+          columns: 12,
+          widgets: items.map(item => item.type),
         });
-
-        if (!response.ok) {
-          throw new Error('Falha ao salvar o layout do painel.');
-        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido ao salvar');
         console.error(err);
@@ -163,7 +125,7 @@ export default function DashboardGrid() {
     return () => {
       clearTimeout(handler);
     };
-  }, [items, isLoading]);
+  }, [items, isLoading, activeLayoutId, error]);
 
   // A funcionalidade de carregamento automático do último chat salvo foi removida
 
@@ -198,38 +160,73 @@ export default function DashboardGrid() {
   }, []);
 
   const handleClearLayout = useCallback(async () => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-    if (!apiUrl) return;
-
+    if (!activeLayoutId) return;
     try {
-      const emptyLayoutPayload = {
-        name: 'User Dashboard',
-        type: 'GRID',
-        config: {
-          columns: DASHBOARD_GRID_CONFIG.GRID.COLS.lg,
-          widgets: [],
-          positions: [],
-        },
-      };
-
-      const token = getCookie('auth_token');
-      if (!token) return;
-
-      const response = await fetch(`${apiUrl}/dashboard-layout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(emptyLayoutPayload),
+      await DashboardLayoutApi.saveConfig(activeLayoutId, {
+        positions: [],
+        columns: DASHBOARD_GRID_CONFIG.GRID.COLS.lg,
+        widgets: [],
       });
-
-      if (!response.ok) throw new Error('Falha ao limpar o layout');
-
+      switchingRef.current = true;
       setLayout([]);
     } catch (error) {
       console.error('Error clearing layout:', error);
       setError('Falha ao limpar o layout do painel.');
+    }
+  }, [activeLayoutId, setLayout]);
+
+  // --- Tab (layout) handlers ---
+  const handleSwitchLayout = useCallback(async (id: string) => {
+    if (id === activeLayoutId) return;
+    try {
+      const layout = await DashboardLayoutApi.activate(id);
+      setActiveLayoutId(id);
+      setLayouts(prev => prev.map(l => ({ ...l, isActive: l.id === id })));
+      switchingRef.current = true;
+      setLayout(layout.config.positions || []);
+    } catch (error) {
+      console.error('Error switching layout:', error);
+      setError('Falha ao trocar de aba.');
+    }
+  }, [activeLayoutId, setLayout]);
+
+  const handleCreateLayout = useCallback(async () => {
+    try {
+      const created = await DashboardLayoutApi.create(`Dashboard ${layouts.length + 1}`, {
+        positions: [], columns: 12, widgets: [],
+      });
+      setLayouts(prev => [...prev.map(l => ({ ...l, isActive: false })), created]);
+      setActiveLayoutId(created.id);
+      switchingRef.current = true;
+      setLayout([]);
+    } catch (error) {
+      console.error('Error creating layout:', error);
+      setError('Falha ao criar nova aba.');
+    }
+  }, [layouts.length, setLayout]);
+
+  const handleRenameLayout = useCallback(async (id: string, name: string) => {
+    try {
+      const updated = await DashboardLayoutApi.rename(id, name);
+      setLayouts(prev => prev.map(l => (l.id === id ? { ...l, name: updated.name } : l)));
+    } catch (error) {
+      console.error('Error renaming layout:', error);
+      setError('Falha ao renomear a aba.');
+    }
+  }, []);
+
+  const handleDeleteLayout = useCallback(async (id: string) => {
+    try {
+      await DashboardLayoutApi.remove(id);
+      const list = await DashboardLayoutApi.list();
+      const active = list.find(l => l.isActive) ?? list[0] ?? null;
+      setLayouts(list);
+      setActiveLayoutId(active?.id ?? null);
+      switchingRef.current = true;
+      setLayout(active?.config.positions || []);
+    } catch (error) {
+      console.error('Error deleting layout:', error);
+      setError('Falha ao excluir a aba.');
     }
   }, [setLayout]);
 
@@ -361,7 +358,7 @@ export default function DashboardGrid() {
             id={item.id}
             onClose={() => removeWidget(item.id)}
             initialConfig={item.widgetConfig}
-            onConfigChange={(config) => updateWidgetConfig(item.id, config as unknown as Record<string, unknown>)}
+            onConfigChange={(config) => updateWidgetConfig(item.id, { ...config })}
           />
         );
 
@@ -376,8 +373,17 @@ export default function DashboardGrid() {
   }
 
   return (
-    <div ref={gridContainerRef} className="h-full w-full overflow-y-auto overflow-x-hidden custom-scrollbar relative">
-      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">{error}</div>}
+    <div className="h-full w-full flex flex-col">
+      <DashboardTabsBar
+        layouts={layouts}
+        activeLayoutId={activeLayoutId}
+        onSwitch={handleSwitchLayout}
+        onCreate={handleCreateLayout}
+        onRename={handleRenameLayout}
+        onDelete={handleDeleteLayout}
+      />
+      <div ref={gridContainerRef} className="flex-1 w-full overflow-y-auto overflow-x-hidden custom-scrollbar relative">
+        {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">{error}</div>}
       <ResponsiveGridLayout
         className="min-h-full"
         isDroppable={true}
@@ -417,10 +423,11 @@ export default function DashboardGrid() {
         })}
       </ResponsiveGridLayout>
 
-      <FloatingAddWidgetButton
-        onAddWidget={(type) => handleAddWidget(type)}
-        onClearLayout={handleClearLayout}
-      />
+        <FloatingAddWidgetButton
+          onAddWidget={(type) => handleAddWidget(type)}
+          onClearLayout={handleClearLayout}
+        />
+      </div>
     </div>
   );
 }

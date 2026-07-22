@@ -11,7 +11,7 @@ export class UserRepository implements IUserRepository {
   /**
    * Converts Prisma Role to domain Role
    */
-  public convertRole(prismaRole: string): Role {
+  private convertRole(prismaRole: string): Role {
     return prismaRole as Role;
   }
 
@@ -196,20 +196,8 @@ export class UserRepository implements IUserRepository {
       where: { id },
     });
   }
-}
 
-// Type helper for the user object returned by auth lookups
-export type UserWithAuthData = Prisma.UserGetPayload<{
-  select: {
-    id: true,
-    name: true,
-    username: true,
-    email: true,
-    password: true,
-    role: true,
-    locale: true,
-    currency: true,
-    createdAt: true,
-    updatedAt: true,
+  public async countByRole(role: Role): Promise<number> {
+    return prisma.user.count({ where: { role } });
   }
-}>; 
+} 

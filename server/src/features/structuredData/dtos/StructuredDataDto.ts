@@ -53,3 +53,8 @@ export const updateStructuredDataSchema = z.object({
     z.record(z.string(), z.any())                        // Qualquer outro objeto JSON válido
   ])
 });
+
+// Tipos inferidos dos schemas (fonte única na camada de DTO)
+export type CreateStructuredDataInput = z.infer<typeof createStructuredDataSchema>;
+export type UpdateStructuredDataInput = z.infer<typeof updateStructuredDataSchema>;
+export type HeaderInput = z.infer<typeof headerSchema>;

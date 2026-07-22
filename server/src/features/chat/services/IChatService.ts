@@ -2,14 +2,14 @@ import { ChatRequestDto as ChatRequest, ChatResponseDto as ChatResponse } from '
 import { UserContext } from '@/lib/authUtils';
 
 /**
- * Interface para o serviço de chat.
- * Define o contrato que o ChatService deve seguir.
+ * Contract for the chat service.
  */
 export interface IChatService {
   /**
-   * Gera uma resposta para a consulta do usuário com base nos documentos fornecidos.
-   * @param request - O objeto de requisição do chat contendo a consulta e os filtros.
-   * @returns Uma promessa que resolve para a resposta do chat.
+   * Generates a response to the user's query.
+   * Routes to RAG (when documents are selected) or to the ERP agent flow otherwise.
+   * @param request - Chat request (query, filters, history) plus the authenticated user.
+   * @returns A promise resolving to the chat response.
    */
   generateResponse(request: ChatRequest & { user: UserContext }): Promise<ChatResponse>;
 }

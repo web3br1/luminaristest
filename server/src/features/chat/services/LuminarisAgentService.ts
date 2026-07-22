@@ -1,6 +1,7 @@
 import { DynamicTableService } from '../../dynamicTables/services/DynamicTableService';
 import { UserContext } from '../../../lib/authUtils';
 import logger from '../../../lib/logger';
+import { NotFoundError, ForbiddenError, ValidationError } from '../../../lib/errors';
 import { IActionProposalRepository } from '../repositories/IActionProposalRepository';
 import { ActionProposal, Prisma } from 'generated/prisma';
 import OpenAI from 'openai';
@@ -22,7 +23,8 @@ export class LuminarisAgentService {
     ) { }
 
     /**
-     * Generates a list of OpenAI Tools based on the user's available tables.
+     * Generates the list of OpenAI tools exposed to the agent. The tool set is static;
+     * per-user scoping happens when each tool is executed in handleToolCall.
      */
     async getTools(userId: string): Promise<OpenAI.Chat.Completions.ChatCompletionTool[]> {
         const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
@@ -122,7 +124,11 @@ export class LuminarisAgentService {
             }
 
             case 'query_table_data': {
-                const data = await this.dynamicTableService.getAllTableData(user, args.tableId as string);
+                // ponytail: bounded read (fork feature/back-end) — the agent tool samples the first
+                // 200 rows instead of loading the whole table; rows beyond the sample are invisible
+                // to filters. Upgrade path: push the filter down into the repository query.
+                const SAMPLE_LIMIT = 200;
+                const { data } = await this.dynamicTableService.getTableData(user, args.tableId as string, 1, SAMPLE_LIMIT);
                 let filtered = data;
                 if (args.filters) {
                     filtered = data.filter((row) => {
@@ -173,7 +179,7 @@ export class LuminarisAgentService {
             }
 
             default:
-                throw new Error(`Unknown function: ${functionName}`);
+                throw new ValidationError(`Unknown function: ${functionName}`);
         }
     }
 
@@ -182,28 +188,38 @@ export class LuminarisAgentService {
      */
     async executeProposal(user: UserContext, proposalId: string): Promise<any> {
         const proposal = await this.proposalRepository.findById(proposalId);
-        if (!proposal) throw new Error('Proposal not found or expired.');
-        if (proposal.userId !== user.userId) throw new Error('Unauthorized proposal execution.');
+        if (!proposal) throw new NotFoundError('Proposal not found or expired.');
+        if (proposal.userId !== user.userId) throw new ForbiddenError('Unauthorized proposal execution.');
 
-        logger.info(`Executing confirmed proposal: ${proposalId}`, { proposal });
+        logger.info('Executing confirmed proposal', { proposalId, action: proposal.action });
 
+        let result: unknown;
         try {
             if (proposal.action === 'CREATE') {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: JSON fields require any cast at persistence boundary
-                const result = await this.dynamicTableService.createTableData(user, proposal.tableId, { data: proposal.data as any });
-                await this.proposalRepository.delete(proposalId);
-                return { success: true, result };
+                result = await this.dynamicTableService.createTableData(user, proposal.tableId, { data: proposal.data as any });
             } else if (proposal.action === 'UPDATE') {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: JSON fields require any cast at persistence boundary
                 const { id, ...data } = proposal.data as any;
-                const result = await this.dynamicTableService.updateTableData(user, id, { data });
-                await this.proposalRepository.delete(proposalId);
-                return { success: true, result };
+                result = await this.dynamicTableService.updateTableData(user, id, { data });
+            } else {
+                throw new ValidationError(`Unsupported proposal action: ${proposal.action}`);
             }
         } catch (error: unknown) {
             logger.error(`Failed to execute proposal ${proposalId}`, { error });
             throw error;
         }
+
+        // The data write succeeded (and is itself transactional). Cleaning up the proposal is
+        // best-effort: a failure here must not turn a successful operation into an error — stale
+        // proposals are reaped by deleteOldProposals.
+        try {
+            await this.proposalRepository.delete(proposalId);
+        } catch (cleanupError) {
+            logger.warn('Failed to delete consumed proposal', { proposalId, error: cleanupError });
+        }
+
+        return { success: true, result };
     }
 
     public async getProposal(proposalId: string): Promise<ActionProposal | null> {
