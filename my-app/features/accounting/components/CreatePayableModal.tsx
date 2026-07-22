@@ -6,6 +6,9 @@ import {
   type CreatePayablePayload,
 } from '../../../lib/services/accountsPayable.service';
 import type { Account } from '../../../lib/services/accounting.service';
+import type { Counterparty } from '../../../lib/services/counterparties.service';
+import { parseBrl } from '../lib/parseBrl';
+import { resolveErrorWithCode } from '../lib/resolveError';
 
 export interface CreatePayableModalProps {
   isOpen: boolean;
@@ -13,58 +16,33 @@ export interface CreatePayableModalProps {
   unitId: string;
   /** Analytic expense accounts (nature=Expense, acceptsEntries) — option value is the account **id**. */
   expenseAccounts: Account[];
+  /** Active SUPPLIER counterparties of this unit — option value is the counterparty **id** (optional link). */
+  counterparties?: Counterparty[];
   onSuccess: () => void;
   /** Navigate to the Períodos tab (shown when the period is closed). */
   onNavigateToPeriods?: () => void;
+  /** Navigate to the Contrapartes tab (shown when none is registered). */
+  onNavigateToCounterparties?: () => void;
 }
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/**
- * Parse a money input string to integer cents. BR convention: comma is the
- * decimal separator, dots group thousands ("1.234,56" → 123456). Tolerates a
- * US-style dot-decimal ("1234.56", "19.99") only when there is no comma and the
- * dot is followed by 1–2 digits — otherwise a lone dot is a thousands separator
- * ("1.000" → 100000), so a dot typed as decimal never books a 100× entry.
- */
-export function parseBrl(s: string): number {
-  const trimmed = (s || '').trim();
-  let normalised: string;
-  if (trimmed.includes(',')) {
-    normalised = trimmed.replace(/\./g, '').replace(',', '.');
-  } else if (/\.\d{1,2}$/.test(trimmed)) {
-    normalised = trimmed; // lone dot with ≤2 trailing digits → decimal point
-  } else {
-    normalised = trimmed.replace(/\./g, ''); // dots are thousands separators
-  }
-  const parsed = parseFloat(normalised || '0');
-  return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
-}
-
-/** Extract a human message + code from apiClient's thrown error object. */
-function resolveError(e: unknown, fallback: string): { message: string; code?: string } {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown; code?: unknown };
-    const code = typeof o.code === 'string' ? o.code : undefined;
-    if (typeof o.message === 'string') return { message: o.message, code };
-    if (typeof o.error === 'string') return { message: o.error, code };
-    return { message: fallback, code };
-  }
-  return { message: fallback };
-}
 
 export function CreatePayableModal({
   isOpen,
   onClose,
   unitId,
   expenseAccounts,
+  counterparties = [],
   onSuccess,
   onNavigateToPeriods,
+  onNavigateToCounterparties,
 }: CreatePayableModalProps) {
   const { t } = useTranslation('accounting');
   const [supplierName, setSupplierName] = useState('');
+  const [counterpartyId, setCounterpartyId] = useState('');
   const [documentNumber, setDocumentNumber] = useState('');
   const [description, setDescription] = useState('');
   const [issueDate, setIssueDate] = useState<string>(today);
@@ -90,13 +68,22 @@ export function CreatePayableModal({
 
   const isDirty =
     supplierName !== '' ||
+    counterpartyId !== '' ||
     documentNumber !== '' ||
     description !== '' ||
     amountBrl !== '' ||
     expenseAccountId !== '';
 
+  /** Selecting a counterparty prefills the supplier name snapshot when it is still blank. */
+  function handleCounterpartyChange(id: string) {
+    setCounterpartyId(id);
+    const cp = counterparties.find((c) => c.id === id);
+    if (cp && supplierName.trim() === '') setSupplierName(cp.name);
+  }
+
   function reset() {
     setSupplierName('');
+    setCounterpartyId('');
     setDocumentNumber('');
     setDescription('');
     setIssueDate(today());
@@ -129,6 +116,7 @@ export function CreatePayableModal({
       dueDate,
       amountCents,
       expenseAccountId,
+      ...(counterpartyId ? { counterpartyId } : {}),
       ...(documentNumber.trim() ? { documentNumber: documentNumber.trim() } : {}),
     };
 
@@ -139,7 +127,7 @@ export function CreatePayableModal({
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      const { message, code } = resolveError(err, t('contasAPagar.createModal.error.failed', 'Erro ao registrar a conta a pagar.'));
+      const { message, code } = resolveErrorWithCode(err, t('contasAPagar.createModal.error.failed', 'Erro ao registrar a conta a pagar.'));
       if (code === 'ACCOUNTING_PERIOD_NOT_OPEN') setPeriodError(true);
       setError(message);
     } finally {
@@ -180,6 +168,43 @@ export function CreatePayableModal({
     >
       <div className="space-y-5 px-6 py-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Counterparty (optional link) */}
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+              {t('contasAPagar.createModal.field.counterparty', 'Contraparte')}
+              <span className="ml-1 normal-case text-neutral-600">{t('contasAPagar.createModal.optional', '(opcional)')}</span>
+            </label>
+            <select
+              value={counterpartyId}
+              onChange={(e) => handleCounterpartyChange(e.target.value)}
+              className="rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:border-emerald-500 focus:outline-none"
+            >
+              <option value="">{t('contasAPagar.createModal.field.noCounterparty', '— sem contraparte —')}</option>
+              {counterparties.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {counterparties.length === 0 && (
+              <p className="text-xs text-neutral-500">
+                {t('contasAPagar.createModal.noCounterparties', 'Nenhum fornecedor cadastrado.')}
+                {onNavigateToCounterparties && (
+                  <>
+                    {' '}
+                    <button
+                      type="button"
+                      onClick={() => { reset(); onClose(); onNavigateToCounterparties(); }}
+                      className="underline hover:text-neutral-300"
+                    >
+                      {t('contasAPagar.createModal.manageCounterparties', 'Cadastrar contrapartes')}
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+
           {/* Supplier */}
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400">

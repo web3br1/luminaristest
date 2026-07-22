@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import multer from 'multer';
 import { getFactory } from '@/lib/factory';
-import { CreateDocumentSchema, UpdateDocumentSchema } from '@/features/documents/dtos/DocumentDto';
+import { CreateDocumentSchema, UpdateDocumentSchema, SearchDocumentsSchema } from '@/features/documents/dtos/DocumentDto';
 import { DocumentPurpose } from '@/features/documents/models/Document.model';
 import { handleApiError } from '@/lib/apiUtils';
 import { getUserContextFromRequest } from '@/lib/authUtils';
@@ -101,6 +102,8 @@ function makeUploadMiddleware(
 
 export const uploadMiddleware = makeUploadMiddleware(DOCUMENT_MIME_TYPES, 'file');
 
+const DocumentIdSchema = z.object({ id: z.string().cuid({ message: 'Invalid document ID format' }) });
+
 
 export async function listDocuments(req: Request, res: Response) {
   try {
@@ -135,9 +138,11 @@ export async function getDocumentById(req: Request, res: Response) {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-    const { id } = req.params;
+    const parsed = DocumentIdSchema.safeParse(req.params);
+    if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.flatten() });
+
     const service = getFactory().getDocumentService();
-    const data = await service.getDocumentById(id, ctx);
+    const data = await service.getDocumentById(parsed.data.id, ctx);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
@@ -149,9 +154,11 @@ export async function deleteDocument(req: Request, res: Response) {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-    const { id } = req.params;
+    const parsed = DocumentIdSchema.safeParse(req.params);
+    if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.flatten() });
+
     const service = getFactory().getDocumentService();
-    await service.deleteDocument(id, ctx);
+    await service.deleteDocument(parsed.data.id, ctx);
     return res.json({ success: true });
   } catch (error) {
     return handleApiError(error, res);
@@ -163,10 +170,10 @@ export async function searchDocuments(req: Request, res: Response) {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-    const { query, limit } = req.body as { query: string; limit?: number };
-    if (!query || typeof query !== 'string') {
-      return res.status(400).json({ success: false, error: 'Query is required' });
-    }
+    const parsed = SearchDocumentsSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    const { query, limit } = parsed.data;
+
     const service = getFactory().getDocumentService();
     const results = await service.searchDocuments(query, ctx, limit ?? 10);
     return res.json({ success: true, data: results });
@@ -234,12 +241,14 @@ export async function updateDocument(req: Request, res: Response) {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-    const { id } = req.params;
+    const idParsed = DocumentIdSchema.safeParse(req.params);
+    if (!idParsed.success) return res.status(400).json({ success: false, error: idParsed.error.flatten() });
+
     const parse = UpdateDocumentSchema.safeParse(req.body);
     if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });
 
     const service = getFactory().getDocumentService();
-    const updated = await service.updateDocument(id, parse.data, ctx);
+    const updated = await service.updateDocument(idParsed.data.id, parse.data, ctx);
     return res.json({ success: true, data: updated });
   } catch (error) {
     return handleApiError(error, res);

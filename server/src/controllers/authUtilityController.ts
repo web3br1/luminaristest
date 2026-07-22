@@ -7,10 +7,8 @@ export async function me(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
     if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const user = await getFactory().getUserRepository().getUserById(ctx.id);
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
-    }
+    // Through the service (canView → self is allowed); throws NotFoundError → 404 if the user is gone.
+    const user = await getFactory().getUserService().getUserById(ctx.userId, ctx);
     return res.json({ success: true, data: user });
   } catch (error) {
     return handleApiError(error, res);

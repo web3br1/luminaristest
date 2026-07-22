@@ -9,6 +9,7 @@
  */
 
 import type { AnalyticsProcessor, AnalyticsProcessorContext, ChartDataPoint, TableDataRow } from '../../core';
+import { logger } from '@/lib/logger';
 import type { CompiledPipeline, Dimension, Measure, PipelineSpec, JoinRef } from '../../core/pipeline/Pipeline';
 import { compilePipeline } from '../../core/pipeline/Compiler';
 import { evaluateExpression } from '../../core/engine/ExpressionEvaluator';
@@ -209,7 +210,7 @@ export const aggregatePipelineProcessor: AnalyticsProcessor = async (
         // Store the preset key (without @@PRESET_TABLE_KEY:: prefix) for tableSource determination
         sourcePresetKey = sourceKey;
       } catch (err) {
-        console.warn(`Failed to fetch data from pipeline source ${sourceKey}, using context rows:`, err);
+        logger.warn('Failed to fetch data from pipeline source, using context rows', { sourceKey, error: err });
         // Fallback to context rows if fetch fails
       }
     }
@@ -220,7 +221,7 @@ export const aggregatePipelineProcessor: AnalyticsProcessor = async (
       sourceTable = sourceResult.table;
       sourceSchema = sourceResult.schema;
     } catch (err) {
-      console.warn(`Failed to fetch data from pipeline source table ${compiled.source.id}, using context rows:`, err);
+      logger.warn('Failed to fetch data from pipeline source table, using context rows', { sourceId: compiled.source.id, error: err });
       // Fallback to context rows if fetch fails
     }
   }
@@ -262,7 +263,7 @@ export const aggregatePipelineProcessor: AnalyticsProcessor = async (
               relationLookups[dim.field] = lookup;
             }
           } catch (err) {
-            console.warn(`Failed to load relation lookup for ${dim.field}:`, err);
+            logger.warn('Failed to load relation lookup', { field: dim.field, error: err });
           }
         }
       }

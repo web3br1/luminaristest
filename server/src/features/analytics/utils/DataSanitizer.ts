@@ -11,7 +11,7 @@ export class DataSanitizer {
     if (!str) return 0;
     
     // Remove totally non-numeric characters EXCEPT digits, dot, comma, and minus
-    str = str.replace(/[^\d.,\-]/g, '');
+    str = str.replace(/[^\d.,-]/g, '');
     
     // Determine decimal separator
     const lastCommaIndex = str.lastIndexOf(',');

@@ -105,6 +105,28 @@ describe('DimensionReportService.resultByDimension', () => {
     expect(rep.totals).toEqual({ revenueCents: 20000, expenseCents: 8500, resultCents: 11500 });
   });
 
+  it('B0 (INCR-DIM-COMPLETENESS): untagged result legs form a "(Não alocado)" bucket and Σ(recortes)+Não-alocado == DRE total', async () => {
+    const totals: AccountDimensionTotals[] = [
+      { accountId: 'a-rev', valueId: 'v1', debitCents: 0, creditCents: 20000 },   // tagged revenue
+      { accountId: 'a-exp', valueId: 'v1', debitCents: 8000, creditCents: 0 },    // tagged expense
+      { accountId: 'a-rev', valueId: null, debitCents: 0, creditCents: 5000 },    // UNTAGGED revenue
+      { accountId: 'a-exp', valueId: null, debitCents: 1500, creditCents: 0 },    // UNTAGGED expense
+    ];
+    const accounts = [acc('a-rev', '3.1', 'Revenue'), acc('a-exp', '4.1', 'Expense')];
+    const { service } = build({ totals, accounts, values: [val('v1')] });
+    const rep = await service.resultByDimension(scope, query);
+
+    const none = rep.buckets.find((b) => b.valueId === null)!;
+    expect(none.valueName).toBe('(Não alocado)');
+    expect(none.ownResultCents).toBe(5000 - 1500); // untagged net = 3500
+
+    // Σ over every bucket's OWN result == the report total (nothing lost, nothing double-counted).
+    const sumOwn = rep.buckets.reduce((acc, b) => acc + b.ownResultCents, 0);
+    expect(sumOwn).toBe(rep.totals.resultCents);
+    // and the total equals the full-window DRE: revenue 25000 - expense 9500 = 15500.
+    expect(rep.totals).toEqual({ revenueCents: 25000, expenseCents: 9500, resultCents: 15500 });
+  });
+
   it('ignores non-result (Asset/Liability) accounts', async () => {
     const totals: AccountDimensionTotals[] = [
       { accountId: 'a-asset', valueId: 'v1', debitCents: 9999, creditCents: 0 },

@@ -25,7 +25,7 @@ model User {
   currency                String                   @default("BRL") // 'BRL' | 'USD' | 'EUR'
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
-  dashboardLayout         DashboardLayout?
+  dashboardLayouts        DashboardLayout[] // multi-tab dashboards (fork feature/back-end)
   chatInstances           ChatInstance[] // Relation to ChatInstance
   documents               Document[] // Relation to Document
   dynamicTables           DynamicTable[] // Relation to DynamicTable
@@ -84,9 +84,11 @@ model CrmAttachment {
 
 model DashboardLayout {
   id         String   @id @default(cuid())
-  userId     String   @unique
+  userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  layoutData Json
+  name       String   // Tab label (promoted out of layoutData JSON)
+  isActive   Boolean  @default(false) // At most one active layout (tab) per user
+  layoutData Json     // { type, config } — the grid configuration
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -401,6 +403,12 @@ model Account {
   name                String
   nature              String // Asset | Liability | Equity | Revenue | Expense
   acceptsEntries      Boolean              @default(true)
+  // INCR-DIM-COMPLETENESS (B1, ADR-INCR-DIM-COMPLETENESS — EMENDA a ADR-INCR-DIM F5): quando true,
+  // toda partida a esta conta EXIGE ≥1 etiqueta de dimensão (qualquer eixo — MVP booleano simples,
+  // não por-eixo). Default false ⇒ contas seguem 100% opcionais (F5 permanece o default). Gate
+  // prospectivo (SEC-B1-5): re-checado in-tx nos escritores de conteúdo original (postEntry/approve);
+  // NUNCA retro-rejeita histórico. Toggle audita + canManage (SEC-B1-4). Zero mudança de dado (ADD COLUMN).
+  requiresDimension   Boolean              @default(false)
   postings            Posting[]
   bankStatements      BankStatement[]      @relation("AccountBankStatements")
   referentialMappings ReferentialMapping[] // conta-folha → conta referencial RFB, versionado (INCR-9)

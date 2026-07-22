@@ -35,8 +35,11 @@ const USER_ID = 'user-abc-123';
 
 const ACTOR = {
   id: 'admin-001',
+  userId: 'admin-001',
   username: 'admin',
   email: 'admin@example.com',
+  userEmail: 'admin@example.com',
+  userRole: Role.ADMIN,
   name: 'Admin',
   password: 'hashed',
   role: Role.ADMIN,

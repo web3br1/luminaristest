@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { IDashboardLayout, IDashboardLayoutSummary, LayoutType } from '../models/DashboardLayout.model';
+import { LayoutType } from '../models/DashboardLayout.model';
 
 /**
- * Schema base para DashboardLayout
+ * Base schema for DashboardLayout
  * @openapi
  * components:
  *   schemas:
@@ -24,6 +24,7 @@ export const DashboardLayoutSchema = z.object({
   name: z.string()
     .min(3, { message: 'dashboardLayout.validation.nameMinLength' })
     .max(50, { message: 'dashboardLayout.validation.nameMaxLength' }),
+  isActive: z.boolean(),
   type: z.nativeEnum(LayoutType, {
     message: 'dashboardLayout.validation.typeRequired',
   }),
@@ -50,7 +51,7 @@ export const DashboardLayoutSchema = z.object({
 });
 
 /**
- * Schema para criação de layout
+ * Schema for creating a layout
  * @openapi
  * components:
  *   schemas:
@@ -90,7 +91,7 @@ export const CreateDashboardLayoutSchema = z.object({
 });
 
 /**
- * Schema para atualização de layout
+ * Schema for updating a layout
  * @openapi
  * components:
  *   schemas:
@@ -103,67 +104,7 @@ export const CreateDashboardLayoutSchema = z.object({
  */
 export const UpdateDashboardLayoutSchema = CreateDashboardLayoutSchema.partial();
 
-/**
- * Schema para resumo de layout (usado em listagens)
- * @openapi
- * components:
- *   schemas:
- *     DashboardLayoutSummary:
- *       type: object
- *       required: [id, userId, name, type, updatedAt]
- *       properties:
- *         id: { type: string, format: cuid }
- *         userId: { type: string, format: cuid }
- *         name: { type: string }
- *         type: { type: string, enum: ['GRID', 'LIST', 'CUSTOM'] }
- *         updatedAt: { type: string, format: date-time }
- */
-export const DashboardLayoutSummarySchema = z.object({
-  id: z.string().cuid(),
-  userId: z.string().cuid(),
-  name: z.string(),
-  type: z.nativeEnum(LayoutType),
-  updatedAt: z.date(),
-});
-
-// Types derivados dos schemas
+// Types derived from schemas
 export type DashboardLayoutDto = z.infer<typeof DashboardLayoutSchema>;
 export type CreateDashboardLayoutDto = z.infer<typeof CreateDashboardLayoutSchema>;
-export type UpdateDashboardLayoutDto = z.infer<typeof UpdateDashboardLayoutSchema>;
-export type DashboardLayoutSummaryDto = z.infer<typeof DashboardLayoutSummarySchema>;
-
-/**
- * Type guard para DashboardLayoutDto
- * @param obj - Objeto a ser verificado
- * @returns True se o objeto é um DashboardLayoutDto válido
- */
-export function isDashboardLayoutDto(obj: unknown): obj is DashboardLayoutDto {
-  return DashboardLayoutSchema.safeParse(obj).success;
-}
-
-/**
- * Type guard para CreateDashboardLayoutDto
- * @param obj - Objeto a ser verificado
- * @returns True se o objeto é um CreateDashboardLayoutDto válido
- */
-export function isCreateDashboardLayoutDto(obj: unknown): obj is CreateDashboardLayoutDto {
-  return CreateDashboardLayoutSchema.safeParse(obj).success;
-}
-
-/**
- * Type guard para UpdateDashboardLayoutDto
- * @param obj - Objeto a ser verificado
- * @returns True se o objeto é um UpdateDashboardLayoutDto válido
- */
-export function isUpdateDashboardLayoutDto(obj: unknown): obj is UpdateDashboardLayoutDto {
-  return UpdateDashboardLayoutSchema.safeParse(obj).success;
-}
-
-/**
- * Type guard para DashboardLayoutSummaryDto
- * @param obj - Objeto a ser verificado
- * @returns True se o objeto é um DashboardLayoutSummaryDto válido
- */
-export function isDashboardLayoutSummaryDto(obj: unknown): obj is DashboardLayoutSummaryDto {
-  return DashboardLayoutSummarySchema.safeParse(obj).success;
-} 
+export type UpdateDashboardLayoutDto = z.infer<typeof UpdateDashboardLayoutSchema>; 

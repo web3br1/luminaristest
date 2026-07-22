@@ -88,13 +88,6 @@ export interface IUserRepository {
   } | null>;
 
   /**
-   * Converts Prisma Role to domain Role
-   * @param prismaRole - Role string from Prisma
-   * @returns Domain Role enum value
-   */
-  convertRole(prismaRole: string): Role;
-
-  /**
    * Updates a user's information.
    * @param id - User ID
    * @param data - Update data
@@ -118,4 +111,11 @@ export interface IUserRepository {
    * @returns The deleted user
    */
   deleteUser(id: string): Promise<Prisma.UserGetPayload<{}>>;
+
+  /**
+   * Counts users with the given role.
+   * @param role - Role to count
+   * @returns Number of users holding that role
+   */
+  countByRole(role: Role): Promise<number>;
 }

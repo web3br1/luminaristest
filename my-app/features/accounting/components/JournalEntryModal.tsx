@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import { Modal } from '../../../components/ui/Modal';
+import { parseBrl } from '../lib/parseBrl';
+import { formatCents } from '../lib/formatCents';
+import { resolveError } from '../lib/resolveError';
 import { accountingService } from '../../../lib/services/accounting.service';
 import type { DimensionCatalogEntry } from '../../../lib/services/dimensions.service';
 
@@ -60,28 +63,6 @@ function toTaggableAxes(catalog: DimensionCatalogEntry[]): TaggableAxis[] {
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-/** Extract a human message from apiClient's thrown error object (it throws a plain object, not Error). */
-function resolveError(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown };
-    if (typeof o.message === 'string') return o.message;
-    if (typeof o.error === 'string') return o.error;
-  }
-  return fallback;
-}
-
-/** Parse a BRL input string ("1.234,56" or "1234.56") to integer cents. */
-function parseBrl(s: string): number {
-  const normalised = s.replace(',', '.');
-  const parsed = parseFloat(normalised || '0');
-  return Math.round(parsed * 100);
-}
-
-/** Format integer cents to BRL display string (e.g. "R$ 1.234,56"). */
-function formatCents(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 let nextId = 3;

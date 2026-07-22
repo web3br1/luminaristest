@@ -1,32 +1,32 @@
-## models — tipos compartilhados
+## models — shared types
 
-Todos os tipos do fluxo de entrevista/customização vivem em **um único arquivo**:
-[`InterviewTypes.ts`](./InterviewTypes.ts). São compartilhados entre `InterviewService`,
-`CustomizationService` e `FieldCustomizationService`.
+All types of the interview/customization flow live in **a single file**:
+[`InterviewTypes.ts`](./InterviewTypes.ts). They are shared between `InterviewService`,
+`CustomizationService` and `FieldCustomizationService`.
 
-> Parte da feature [`interview`](../README.md).
+> Part of the [`interview`](../README.md) feature.
 
-## Tipos
+## Types
 
-### Estágios
-- **`InterviewStage`** (union de string) — todos os estágios: `GREETING`, `DISCOVERING_BUSINESS`,
+### Stages
+- **`InterviewStage`** (string union) — all stages: `GREETING`, `DISCOVERING_BUSINESS`,
   `CONFIRMING_BUSINESS`, `MATCHING_PRESET`, `AWAITING_CREATION_TYPE_CONFIRMATION`, `CUSTOMIZATION_INTRO`,
   `CUSTOMIZATION_IN_PROGRESS`, `CUSTOMIZATION_COMPLETED`, `IDENTIFYING_ENTITIES`, `CANNOT_PROCEED`,
   `COMPLETED`.
-- **`ProcessableStage`** — subconjunto com prompt dedicado: `DISCOVERING_BUSINESS`,
+- **`ProcessableStage`** — the subset with a dedicated prompt: `DISCOVERING_BUSINESS`,
   `CONFIRMING_BUSINESS`, `IDENTIFYING_ENTITIES`.
 
-### Mensagens e turno
+### Messages and turn
 - **`IMessage`** — `{ role: 'user' | 'assistant'; content: string }`.
-- **`IInterviewTurnResult`** — retorno de um turno: `response`, `nextStage`, e opcionais `presetKey`,
-  `startCustomization`, `sessionId`, `customizationState`.
+- **`IInterviewTurnResult`** — the return of a turn: `response`, `nextStage`, and the optional
+  `presetKey`, `startCustomization`, `sessionId`, `customizationState`.
 
-### Estado de customização
+### Customization state
 - **`ICustomizableTable`** — `conversationHistory: any[]`, `name`, `key`, `description`,
-  `isSelected: boolean`, `isCore: boolean`, `fields?: any[]` (os `ISchemaField` reais do preset).
+  `isSelected: boolean`, `isCore: boolean`, `fields?: any[]` (the real `ISchemaField`s of the preset).
 - **`ICustomizationState`** — `presetKey`, `presetName`, `tables: ICustomizableTable[]`,
   `customMessages: IMessage[]`, `currentAction?: 'adding' | 'removing' | null`, `isCompleted: boolean`.
 
-> ⚠️ Não existem arquivos/interfaces separados `ICustomizationState.ts`, `ICustomizableTable.ts` ou
-> `ICustomizableField.ts` (citados em doc antiga). Os campos de uma tabela são `ISchemaField` de
-> [`dynamicTables`](../../dynamicTables/README.md), não um tipo próprio.
+> ⚠️ There are no separate `ICustomizationState.ts`, `ICustomizableTable.ts` or `ICustomizableField.ts`
+> files/interfaces (mentioned in an old doc). A table's fields are `ISchemaField` from
+> [`dynamicTables`](../../dynamicTables/README.md), not a type of their own.

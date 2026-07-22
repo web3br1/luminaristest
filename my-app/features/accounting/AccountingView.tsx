@@ -18,12 +18,13 @@ import { PeriodComparisonPanel } from './components/PeriodComparisonPanel';
 import { DailyJournalPanel } from './components/DailyJournalPanel';
 import { AccountsPayablePanel } from './components/AccountsPayablePanel';
 import { AccountsReceivablePanel } from './components/AccountsReceivablePanel';
+import { CounterpartiesPanel } from './components/CounterpartiesPanel';
 import { DimensionsPanel } from './components/DimensionsPanel';
 import { JournalEntryModal, type AccountOption } from './components/JournalEntryModal';
 import { accountingService } from '../../lib/services/accounting.service';
 import { dimensionsService, type DimensionCatalogEntry } from '../../lib/services/dimensions.service';
 
-type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'contas-a-pagar' | 'contas-a-receber' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'dfc' | 'comparativo' | 'diario' | 'importacao-exportacao' | 'conciliacao' | 'compliance' | 'dimensoes';
+type Tab = 'balancete' | 'periodos' | 'lancamentos' | 'contas-a-pagar' | 'contas-a-receber' | 'contrapartes' | 'razao' | 'plano-de-contas' | 'bp' | 'dre' | 'dfc' | 'comparativo' | 'diario' | 'importacao-exportacao' | 'conciliacao' | 'compliance' | 'dimensoes';
 
 // label = i18n fallback (current pt-BR); rendered via t(`view.tabs.<id>`, label)
 const TABS: Array<{ id: Tab; labelKey: string; label: string }> = [
@@ -32,6 +33,7 @@ const TABS: Array<{ id: Tab; labelKey: string; label: string }> = [
   { id: 'lancamentos',    labelKey: 'view.tabs.lancamentos',    label: 'Lançamentos' },
   { id: 'contas-a-pagar', labelKey: 'view.tabs.contasAPagar',   label: 'Contas a Pagar' },
   { id: 'contas-a-receber', labelKey: 'view.tabs.contasAReceber', label: 'Contas a Receber' },
+  { id: 'contrapartes',   labelKey: 'view.tabs.contrapartes',   label: 'Contrapartes' },
   { id: 'razao',          labelKey: 'view.tabs.razao',          label: 'Razão' },
   { id: 'plano-de-contas',labelKey: 'view.tabs.planoDeContas',  label: 'Plano de Contas' },
   { id: 'bp',             labelKey: 'view.tabs.bp',             label: 'BP' },
@@ -114,13 +116,19 @@ export function AccountingView() {
       </header>
 
       {/* ── Tab bar ────────────────────────────────────────────────────────── */}
-      <div className="mb-6 flex items-center gap-1 border-b border-neutral-800">
+      <div
+        className="mb-6 flex items-center gap-1 overflow-x-auto border-b border-neutral-800"
+        role="tablist"
+        aria-label={t('view.title', 'Contabilidade')}
+      >
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`relative shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? 'text-emerald-400'
                 : 'text-neutral-400 hover:text-neutral-200'
@@ -193,12 +201,17 @@ export function AccountingView() {
 
       {/* ── Contas a Pagar tab ─────────────────────────────────────────────── */}
       {activeTab === 'contas-a-pagar' && unitId && (
-        <AccountsPayablePanel unitId={unitId} onLedgerChange={reload} onNavigateToPeriods={() => setActiveTab('periodos')} />
+        <AccountsPayablePanel unitId={unitId} onLedgerChange={reload} onNavigateToPeriods={() => setActiveTab('periodos')} onNavigateToCounterparties={() => setActiveTab('contrapartes')} />
       )}
 
       {/* ── Contas a Receber tab ───────────────────────────────────────────── */}
       {activeTab === 'contas-a-receber' && unitId && (
-        <AccountsReceivablePanel unitId={unitId} onLedgerChange={reload} onNavigateToPeriods={() => setActiveTab('periodos')} />
+        <AccountsReceivablePanel unitId={unitId} onLedgerChange={reload} onNavigateToPeriods={() => setActiveTab('periodos')} onNavigateToCounterparties={() => setActiveTab('contrapartes')} />
+      )}
+
+      {/* ── Contrapartes tab ───────────────────────────────────────────────── */}
+      {activeTab === 'contrapartes' && unitId && (
+        <CounterpartiesPanel unitId={unitId} />
       )}
 
       {/* ── Razão tab ──────────────────────────────────────────────────────── */}

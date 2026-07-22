@@ -30,6 +30,9 @@ export interface OutTable {
 
 const BOM = '﻿';
 
+/** Cell-count ceiling for an imported XLSX grid — zip-bomb guard (SEC audit 2026-07-15). */
+const MAX_IMPORT_CELLS = 2_000_000;
+
 /** RFC-4180-core CSV parse into a matrix of raw string cells (quotes/escapes/newlines handled). */
 function parseCsvMatrix(text: string): string[][] {
   if (text.startsWith(BOM)) text = text.slice(1);
@@ -101,6 +104,17 @@ export async function parseTable(buffer: Buffer, format: SpreadsheetFormat): Pro
     const ws = wb.worksheets[0];
     matrix = [];
     if (ws) {
+      // Zip-bomb guard: a small compressed XLSX can expand to a huge grid. Reject an
+      // absurd cell count before we build the matrix + run validation (bounds downstream
+      // memory/CPU). (SEC audit 2026-07-15)
+      // ponytail: this caps AFTER exceljs decompresses into its row model — the true
+      // decompression cap needs a streaming reader (exceljs WorkbookReader) or an unzip
+      // size check; deferred until a real bomb is observed. Upload is already ≤10 MB.
+      if (ws.rowCount * ws.columnCount > MAX_IMPORT_CELLS) {
+        throw new Error(
+          `Spreadsheet too large: ${ws.rowCount}×${ws.columnCount} cells exceeds the ${MAX_IMPORT_CELLS} limit.`,
+        );
+      }
       ws.eachRow({ includeEmpty: false }, (excelRow) => {
         const cells: string[] = [];
         // row.values is 1-indexed with a leading undefined; walk columns explicitly.
@@ -132,7 +146,11 @@ export async function parseTable(buffer: Buffer, format: SpreadsheetFormat): Pro
 export async function serializeTable(table: OutTable, format: SpreadsheetFormat): Promise<Buffer> {
   if (format === 'csv') {
     const esc = (cell: OutCell): string => {
-      const s = cell === null || cell === undefined ? '' : String(cell);
+      let s = cell === null || cell === undefined ? '' : String(cell);
+      // CSV formula injection: a leading = + - @ (tab/CR too) makes Excel/Sheets execute
+      // the cell on open. Prefix a single quote to defuse — but NOT for plain numbers, so
+      // legit negative money like "-100" stays numeric. (SEC audit 2026-07-15)
+      if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = `'${s}`;
       return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [table.headers, ...table.rows].map((r) => r.map(esc).join(','));

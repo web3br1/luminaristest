@@ -21,6 +21,7 @@
  */
 
 import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
+import { logger } from '@/lib/logger';
 import { countBusinessDaysInMonth, getPeriodBoundaries, isDateWithinWindow, getZonedPeriodKey } from '../../utils/DateUtils';
 import { DataSanitizer } from '../../utils/DataSanitizer';
 import { addMoney } from '../../utils/CurrencyUtils';
@@ -78,7 +79,7 @@ export const costKpiProcessor: AnalyticsProcessor = async (context): Promise<Cha
       });
       prevAppointmentsPeriod = prevAppointments.length;
     } catch (err) {
-      console.warn(`[CostKpiProcessor] Error fetching appointments from ${appointmentsTableKey}:`, err);
+      logger.warn('[CostKpiProcessor] Error fetching appointments', { appointmentsTableKey, error: err });
       totalAppointmentsPeriod = Number(params.totalAppointmentsPeriod ?? 0);
     }
   } else {

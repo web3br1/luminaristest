@@ -33,6 +33,25 @@
           }
         }
       },
+      "ValidationError": {
+        "description": "Request failed DTO (Zod) validation — error carries the flattened field issues",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "example": false
+                },
+                "error": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
       "UnauthorizedError": {
         "description": "Missing or invalid authentication token",
         "content": {
@@ -209,6 +228,1996 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "AgingReportQueryInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "kind"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "payable",
+              "receivable"
+            ],
+            "description": "Subrazão: contas a pagar (payable) ou a receber (receivable)"
+          },
+          "asOf": {
+            "type": "string",
+            "description": "Date-only YYYY-MM-DD — data da posição (default hoje). Vencido = dueDate < as_of"
+          }
+        }
+      },
+      "CashFlowStatementQueryInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "asOf"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string",
+            "description": "Date-only YYYY-MM-DD — inclusive upper bound; window is 1 Jan of that year → asOf"
+          }
+        }
+      },
+      "CloseExerciseInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "year"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer",
+            "minimum": 2000,
+            "maximum": 2100
+          }
+        }
+      },
+      "CreateCounterpartyInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "type",
+          "name"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "SUPPLIER",
+              "CUSTOMER"
+            ],
+            "description": "Fornecedor (AP) ou cliente (AR)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome de exibição — chave de negócio por [unidade, tipo, nome]"
+          },
+          "ref": {
+            "type": "string",
+            "description": "Ref opcional escopada a uma linha de DynamicTable (não é FK)"
+          }
+        }
+      },
+      "ArchiveCounterpartyInput": {
+        "type": "object",
+        "required": [
+          "unitId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          }
+        }
+      },
+      "ListCounterpartiesQuery": {
+        "type": "object",
+        "required": [
+          "unitId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "SUPPLIER",
+              "CUSTOMER"
+            ]
+          },
+          "includeArchived": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateDimensionDefinitionInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "code",
+          "name"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable axis key, e.g. COST_CENTER | PROJECT (unique per unit)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display label, e.g. Centro de Custo"
+          }
+        }
+      },
+      "CreateDimensionValueInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "definitionId",
+          "code",
+          "name"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "definitionId": {
+            "type": "string",
+            "description": "The axis this value belongs to"
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable value key within the axis, unique per axis"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display label, e.g. Loja Centro"
+          },
+          "parentId": {
+            "type": "string",
+            "description": "Optional rollup parent — MUST belong to the same axis (ACC-026)"
+          }
+        }
+      },
+      "ArchiveDimensionInput": {
+        "type": "object",
+        "required": [
+          "unitId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          }
+        }
+      },
+      "DimensionReportQuery": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "definitionId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "definitionId": {
+            "type": "string",
+            "description": "The dimension axis to slice by"
+          },
+          "from": {
+            "type": "string",
+            "description": "ISO date — inclusive lower bound on the entry date"
+          },
+          "to": {
+            "type": "string",
+            "description": "ISO date — inclusive upper bound on the entry date"
+          }
+        }
+      },
+      "UploadDocumentAttachment": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "targetId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "JOURNAL_ENTRY"
+            ],
+            "default": "JOURNAL_ENTRY"
+          },
+          "targetId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "journal entry id"
+          },
+          "file": {
+            "type": "string",
+            "format": "binary"
+          }
+        }
+      },
+      "CreateDraftEntryInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "date",
+          "description",
+          "lines"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date-only YYYY-MM-DD"
+          },
+          "description": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "$ref": "#/components/schemas/PostEntryLine"
+            }
+          }
+        }
+      },
+      "UpdateDraftEntryInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "expectedVersion",
+          "date",
+          "description",
+          "lines"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "date": {
+            "type": "string",
+            "description": "Date-only YYYY-MM-DD"
+          },
+          "description": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "$ref": "#/components/schemas/PostEntryLine"
+            }
+          }
+        }
+      },
+      "SubmitEntryInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "expectedVersion"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "ApproveEntryInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "expectedVersion"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "RejectEntryInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "expectedVersion"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "CreatePayableInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "supplierName",
+          "description",
+          "issueDate",
+          "dueDate",
+          "amountCents",
+          "expenseAccountId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "supplierName": {
+            "type": "string",
+            "description": "Snapshot do nome do fornecedor (F1)"
+          },
+          "supplierRef": {
+            "type": "string",
+            "description": "Ref escopada a uma linha de fornecedor em DynamicTable (F1 rota c) — não é FK"
+          },
+          "counterpartyId": {
+            "type": "string",
+            "description": "FK opcional a uma Counterparty(SUPPLIER) desta unidade (INCR-COUNTERPARTY / A1); re-escopada no service (SEC-A1-1)"
+          },
+          "documentNumber": {
+            "type": "string",
+            "description": "Nº da NF/documento; parte da chave de negócio"
+          },
+          "description": {
+            "type": "string"
+          },
+          "issueDate": {
+            "type": "string",
+            "description": "Data-only YYYY-MM-DD — competência do reconhecimento"
+          },
+          "dueDate": {
+            "type": "string",
+            "description": "Data-only YYYY-MM-DD — vencimento"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expenseAccountId": {
+            "type": "string",
+            "description": "Id de uma conta-folha nature=Expense (contrapartida do reconhecimento)"
+          },
+          "attachmentId": {
+            "type": "string",
+            "description": "Id de um DocumentAttachment já enviado, anexado ao lançamento de reconhecimento (F4)"
+          }
+        }
+      },
+      "RegisterPaymentInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "method",
+          "paidAt",
+          "amountCents"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "Cash",
+              "Pix",
+              "TED",
+              "Boleto"
+            ]
+          },
+          "paidAt": {
+            "type": "string",
+            "description": "Data-only YYYY-MM-DD — data EFETIVA do débito bancário (D9), não a data do clique"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "MVP: deve igualar o saldo do payable (pagamento integral único)"
+          }
+        }
+      },
+      "CancelPayableInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "reversalDate"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "reversalDate": {
+            "type": "string",
+            "description": "Data-only YYYY-MM-DD do estorno do reconhecimento (gate de período na data do estorno, T5)"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "CancelPaymentInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "reversalDate"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "reversalDate": {
+            "type": "string",
+            "description": "Data-only YYYY-MM-DD do estorno da liquidação"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ListPayablesQuery": {
+        "type": "object",
+        "required": [
+          "unitId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "PAYING",
+              "PAID",
+              "CANCELLED"
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        }
+      },
+      "PeriodComparisonQuery": {
+        "type": "object",
+        "required": [
+          "asOfCurrent",
+          "asOfPrevious"
+        ],
+        "properties": {
+          "asOfCurrent": {
+            "type": "string",
+            "format": "date",
+            "description": "as-of date of the current period"
+          },
+          "asOfPrevious": {
+            "type": "string",
+            "format": "date",
+            "description": "as-of date of the comparison period"
+          }
+        }
+      },
+      "PostEntryLine": {
+        "type": "object",
+        "required": [
+          "accountCode",
+          "debitCents",
+          "creditCents"
+        ],
+        "properties": {
+          "accountCode": {
+            "type": "string",
+            "description": "Code of a leaf account (acceptsEntries=true)"
+          },
+          "debitCents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "creditCents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dimensions": {
+            "type": "array",
+            "description": "Optional dimension VALUE ids tagging this leg (INCR-DIM). At most one value per axis (the axis is derived from the value; a second value of the same axis is rejected). Metadata only — does NOT affect Σdébito=Σcrédito (ACC-024).",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PostEntryInput": {
+        "type": "object",
+        "required": [
+          "date",
+          "description",
+          "lines"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "Date-only string YYYY-MM-DD (parsed as UTC midnight — no time component)"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "default": "manual"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "sourceDocument": {
+            "type": "object",
+            "description": "Optional origin descriptor (BE-INCR-8). When present, postEntry records a SourceDocument + JournalEntrySource in the same tx. Absent for manual/reversal. Does NOT affect idempotency (sourceId) — externalRef is the human document reference, separate from the dedup key (D6).",
+            "properties": {
+              "externalRef": {
+                "type": "string",
+                "description": "Human document reference (NF nº X, boleto nº Y) — separate from sourceId/idempotency"
+              },
+              "documentDate": {
+                "type": "string",
+                "description": "Date-only YYYY-MM-DD of the source document, when distinct from the posting date"
+              },
+              "description": {
+                "type": "string"
+              },
+              "attachmentId": {
+                "type": "string",
+                "description": "DocumentAttachment id of the raw file (INCR-5), when any"
+              },
+              "rawJson": {
+                "type": "string",
+                "description": "Optional JSON snapshot of the origin"
+              }
+            }
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "$ref": "#/components/schemas/PostEntryLine"
+            }
+          }
+        }
+      },
+      "ReverseEntryInput": {
+        "type": "object",
+        "required": [
+          "lancamentoId",
+          "reversalPostingDate"
+        ],
+        "properties": {
+          "lancamentoId": {
+            "type": "string"
+          },
+          "reversalPostingDate": {
+            "type": "string",
+            "description": "Date-only string YYYY-MM-DD for the reversal entry (and period gate)"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ReportQueryInput": {
+        "type": "object",
+        "required": [
+          "unitId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "description": "ISO date string — inclusive lower bound"
+          },
+          "to": {
+            "type": "string",
+            "description": "ISO date string — inclusive upper bound"
+          }
+        }
+      },
+      "CreateAccountInput": {
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "nature",
+          "unitId"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nature": {
+            "type": "string",
+            "enum": [
+              "Asset",
+              "Liability",
+              "Equity",
+              "Revenue",
+              "Expense"
+            ]
+          },
+          "acceptsEntries": {
+            "type": "boolean",
+            "default": true
+          },
+          "unitId": {
+            "type": "string"
+          }
+        }
+      },
+      "SetAccountRequiresDimensionInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "requiresDimension"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "requiresDimension": {
+            "type": "boolean",
+            "description": "When true, every leg to this account must carry ≥1 dimension tag (MVP = any axis). Prospective — never retro-rejects history (SEC-B1-5)."
+          }
+        }
+      },
+      "SeedYearInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "year"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer",
+            "minimum": 2000,
+            "maximum": 2100
+          }
+        }
+      },
+      "ClosePeriodInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "year",
+          "month"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer"
+          },
+          "month": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ReopenPeriodInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "periodId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "periodId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateReceivableInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "customerName",
+          "description",
+          "issueDate",
+          "dueDate",
+          "amountCents",
+          "revenueAccountId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "customerName": {
+            "type": "string",
+            "description": "Snapshot do nome do cliente (F1)"
+          },
+          "customerRef": {
+            "type": "string",
+            "description": "Ref escopada a uma linha de cliente em DynamicTable (F1 rota c) — não é FK"
+          },
+          "counterpartyId": {
+            "type": "string",
+            "description": "FK opcional a uma Counterparty(CUSTOMER) desta unidade (INCR-COUNTERPARTY / A1); re-escopada no service (SEC-A1-1)"
+          },
+          "documentNumber": {
+            "type": "string",
+            "description": "Nº da fatura/duplicata; parte da chave de negócio"
+          },
+          "description": {
+            "type": "string"
+          },
+          "issueDate": {
+            "type": "string",
+            "description": "Data-only YYYY-MM-DD — competência do reconhecimento"
+          },
+          "dueDate": {
+            "type": "string",
+            "description": "Data-only YYYY-MM-DD — vencimento"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "revenueAccountId": {
+            "type": "string",
+            "description": "Id de uma conta-folha nature=Revenue (contrapartida do reconhecimento)"
+          },
+          "attachmentId": {
+            "type": "string",
+            "description": "Id de um DocumentAttachment já enviado, anexado ao lançamento de reconhecimento (F4)"
+          }
+        }
+      },
+      "RegisterReceiptInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "method",
+          "receivedAt",
+          "amountCents"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "Cash",
+              "Pix",
+              "TED",
+              "Boleto"
+            ]
+          },
+          "receivedAt": {
+            "type": "string",
+            "description": "Data-only YYYY-MM-DD — data EFETIVA do crédito bancário (D9), não a data do clique"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "MVP: deve igualar o saldo do receivable (recebimento integral único)"
+          }
+        }
+      },
+      "CancelReceivableInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "reversalDate"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "reversalDate": {
+            "type": "string",
+            "description": "Data-only YYYY-MM-DD do estorno do reconhecimento (gate de período na data do estorno, T5)"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "CancelReceiptInput": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "reversalDate"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "reversalDate": {
+            "type": "string",
+            "description": "Data-only YYYY-MM-DD do estorno do recebimento"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ListReceivablesQuery": {
+        "type": "object",
+        "required": [
+          "unitId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "RECEIVING",
+              "RECEIVED",
+              "CANCELLED"
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        }
+      },
+      "ImportBankStatement": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "glAccountId",
+          "periodStart",
+          "periodEnd"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "glAccountId": {
+            "type": "string",
+            "description": "bank GL account id (accounts.id)"
+          },
+          "statementRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "openingBalanceCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "closingBalanceCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "file": {
+            "type": "string",
+            "format": "binary"
+          }
+        }
+      },
+      "AutoMatchStatement": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "statementId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "statementId": {
+            "type": "string"
+          }
+        }
+      },
+      "ManualMatch": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "statementLineId",
+          "postingIds"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "statementLineId": {
+            "type": "string"
+          },
+          "postingIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "UnmatchReconciliation": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "matchId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "matchId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SetLineIgnored": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "statementLineId",
+          "ignored"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "statementLineId": {
+            "type": "string"
+          },
+          "ignored": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ReconciliationPendingQuery": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "glAccountId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "glAccountId": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        }
+      },
+      "ImportReferentialCatalog": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "layoutVersion"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "auth scope only (catalog is global)"
+          },
+          "layoutVersion": {
+            "type": "string",
+            "description": "RFB layout/year id",
+            "e.g. \"2025\"": null
+          }
+        }
+      },
+      "ReferentialCatalogQuery": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "version"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "description": "auth scope only (catalog is global)"
+          },
+          "version": {
+            "type": "string",
+            "description": "layoutVersion",
+            "e.g. \"2025\"": null
+          },
+          "q": {
+            "type": "string",
+            "description": "substring filter on code or name"
+          },
+          "analyticOnly": {
+            "type": "boolean",
+            "description": "only analytic (leaf) destinations"
+          }
+        }
+      },
+      "SetReferentialMapping": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "accountId",
+          "referentialCode",
+          "label",
+          "mappingVersion"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "accountId": {
+            "type": "string",
+            "description": "leaf account id (accounts.id)"
+          },
+          "referentialCode": {
+            "type": "string",
+            "description": "RFB referential account code"
+          },
+          "label": {
+            "type": "string",
+            "description": "referential account name (denormalized snapshot)"
+          },
+          "mappingVersion": {
+            "type": "string",
+            "description": "calendar-year layout id",
+            "e.g. \"2025\"": null
+          }
+        }
+      },
+      "UnsetReferentialMapping": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "accountId",
+          "mappingVersion"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "mappingVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "ReferentialVersionQuery": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "version"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "description": "mappingVersion",
+            "e.g. \"2025\"": null
+          }
+        }
+      },
+      "BatchSetReferentialMapping": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "mappingVersion",
+          "items"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mappingVersion": {
+            "type": "string",
+            "description": "calendar-year layout id",
+            "e.g. \"2025\"": null
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "accountId",
+                "referentialCode",
+                "label"
+              ],
+              "properties": {
+                "accountId": {
+                  "type": "string",
+                  "description": "leaf account id (accounts.id)"
+                },
+                "referentialCode": {
+                  "type": "string",
+                  "description": "RFB referential account code (human-supplied)"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "referential account name (denormalized snapshot)"
+                }
+              }
+            }
+          }
+        }
+      },
+      "CopyReferentialMapping": {
+        "type": "object",
+        "required": [
+          "unitId",
+          "fromVersion",
+          "toVersion"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fromVersion": {
+            "type": "string",
+            "description": "source mappingVersion",
+            "e.g. \"2025\"": null
+          },
+          "toVersion": {
+            "type": "string",
+            "description": "destination mappingVersion",
+            "e.g. \"2026\"": null
+          }
+        }
+      },
+      "TieOutDiagnosticQueryInput": {
+        "type": "object",
+        "required": [
+          "unitId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateAttachment": {
+        "type": "object",
+        "required": [
+          "entityType",
+          "entityId"
+        ],
+        "properties": {
+          "entityType": {
+            "type": "string",
+            "enum": [
+              "lead",
+              "account",
+              "contact"
+            ]
+          },
+          "entityId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "Attachment": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "entityType",
+          "entityId",
+          "fileName",
+          "mimeType",
+          "fileSize",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "cuid"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string",
+            "enum": [
+              "lead",
+              "account",
+              "contact"
+            ]
+          },
+          "entityId": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "fileSize": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ChatInstance": {
+        "type": "object",
+        "required": [
+          "id",
+          "widgetInstanceId",
+          "userId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "cuid"
+          },
+          "widgetInstanceId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "userId": {
+            "type": "string",
+            "format": "cuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateChatInstance": {
+        "type": "object",
+        "required": [
+          "widgetInstanceId"
+        ],
+        "properties": {
+          "widgetInstanceId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "UpdateChatInstanceTitle": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "ChatInstanceSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "widgetInstanceId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "cuid"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "widgetInstanceId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ChatMessage": {
+        "type": "object",
+        "required": [
+          "id",
+          "content",
+          "role",
+          "chatInstanceId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "cuid"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ]
+          },
+          "chatInstanceId": {
+            "type": "string",
+            "format": "cuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateChatMessage": {
+        "type": "object",
+        "required": [
+          "content",
+          "chatInstanceId"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "chatInstanceId": {
+            "type": "string",
+            "format": "cuid"
+          },
+          "documentIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "UpdateChatMessage": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ]
+          }
+        }
+      },
+      "ChatMessageSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "content",
+          "role",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "cuid"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CrmAnalyticsQuery": {
+        "type": "object",
+        "properties": {
+          "datePreset": {
+            "type": "string",
+            "enum": [
+              "today",
+              "thisWeek",
+              "thisMonth",
+              "last30Days",
+              "lastMonth",
+              "thisYear"
+            ]
+          }
+        }
+      },
+      "AdvanceOpportunityInput": {
+        "type": "object",
+        "required": [
+          "opportunityId",
+          "stageId"
+        ],
+        "properties": {
+          "opportunityId": {
+            "type": "string"
+          },
+          "stageId": {
+            "type": "string"
+          },
+          "stageType": {
+            "type": "string",
+            "description": "init|meeting|proposal|negotiation|closed_won|closed_lost"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "BRL",
+              "USD",
+              "EUR"
+            ]
+          },
+          "winProbability": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Open",
+              "Won",
+              "Lost"
+            ]
+          }
+        }
+      },
+      "ConvertLeadToOpportunityInput": {
+        "type": "object",
+        "required": [
+          "leadId",
+          "name",
+          "pipelineId"
+        ],
+        "properties": {
+          "leadId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pipelineId": {
+            "type": "string"
+          },
+          "stageId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "BRL",
+              "USD",
+              "EUR"
+            ]
+          },
+          "accountId": {
+            "type": "string"
+          }
+        }
+      },
+      "AdvanceStageInput": {
+        "type": "object",
+        "required": [
+          "leadId",
+          "stageId"
+        ],
+        "properties": {
+          "leadId": {
+            "type": "string"
+          },
+          "stageId": {
+            "type": "string"
+          },
+          "stageType": {
+            "type": "string",
+            "description": "init|meeting|proposal|negotiation|closed_won|closed_lost"
+          },
+          "meetingAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "BRL",
+              "USD",
+              "EUR"
+            ]
+          },
+          "winProbability": {
+            "type": "number"
+          }
+        }
+      },
+      "ConvertLeadInput": {
+        "type": "object",
+        "required": [
+          "leadId",
+          "account"
+        ],
+        "properties": {
+          "leadId": {
+            "type": "string"
+          },
+          "account": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "segment": {
+                "type": "string"
+              },
+              "size": {
+                "type": "string"
+              },
+              "website": {
+                "type": "string"
+              },
+              "taxId": {
+                "type": "string"
+              },
+              "city": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              }
+            }
+          },
+          "contact": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string"
+              },
+              "jobTitle": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "DashboardLayout": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "name",
+          "type",
+          "config",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "cuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "cuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 50
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "GRID",
+              "LIST",
+              "CUSTOM"
+            ]
+          },
+          "config": {
+            "type": "object"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateDashboardLayout": {
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "config"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 50
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "GRID",
+              "LIST",
+              "CUSTOM"
+            ]
+          },
+          "config": {
+            "type": "object"
+          }
+        }
+      },
+      "UpdateDashboardLayout": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 50
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "GRID",
+              "LIST",
+              "CUSTOM"
+            ]
+          },
+          "config": {
+            "type": "object"
+          }
+        }
+      },
+      "ListPackageBalancesQuery": {
+        "type": "object",
+        "required": [
+          "unitId"
+        ],
+        "properties": {
+          "unitId": {
+            "type": "string"
+          },
+          "customerId": {
+            "type": "string"
+          }
+        }
+      },
+      "SavedTableViewConfig": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "fieldFilters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "sortConfig": {
+            "nullable": true,
+            "type": "object",
+            "required": [
+              "field",
+              "direction"
+            ],
+            "properties": {
+              "field": {
+                "type": "string"
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "asc",
+                  "desc"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "CreateSavedTableView": {
+        "type": "object",
+        "required": [
+          "tableId",
+          "name",
+          "config"
+        ],
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "config": {
+            "$ref": "#/components/schemas/SavedTableViewConfig"
+          }
+        }
+      },
+      "UpdateSavedTableView": {
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "config": {
+            "$ref": "#/components/schemas/SavedTableViewConfig"
+          }
+        }
+      },
+      "SavedTableView": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "tableId",
+          "name",
+          "config",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "cuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "cuid"
+          },
+          "tableId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "config": {
+            "$ref": "#/components/schemas/SavedTableViewConfig"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UpdateUser": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ADMIN"
+            ]
+          }
+        }
+      },
+      "CreateUser": {
+        "type": "object",
+        "required": [
+          "name",
+          "username",
+          "email",
+          "password"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 30
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ADMIN"
+            ]
           }
         }
       }
@@ -478,6 +2487,29 @@
         "responses": {
           "200": {
             "description": "Aging report (grupos por contraparte com totais por faixa) + bloco tieOut — a prova subledger↔razão: total do aging vs saldo da conta de controle (2.1.2 p/ payable, 1.1.5 p/ receivable) normalizado pela natureza. tieOut é null quando não é emitível (asOf ≠ hoje, ou conta de controle ausente); nesse caso tieOutSkippedReason diz por quê."
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/api/accounting/reports/tie-out": {
+      "get": {
+        "summary": "Diagnóstico de tie-out subrazão-razão (AR vs 1.1.5, AP vs 2.1.2, salão+CRM vs 1.1.2), read-only",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unitId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tie-out report (3 checks com differenceCents inteiro exato e status OK/DIVERGENT)"
           },
           "400": {
             "description": "Validation error"
@@ -790,6 +2822,325 @@
             "bearerAuth": []
           }
         ]
+      }
+    },
+    "/api/dashboard-layout": {
+      "get": {
+        "summary": "List all dashboard widget layouts for the current user",
+        "tags": [
+          "DashboardLayout"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of layout objects"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      },
+      "post": {
+        "summary": "Save a new dashboard widget layout",
+        "tags": [
+          "DashboardLayout"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "type",
+                  "config"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 50
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "GRID",
+                      "LIST",
+                      "CUSTOM"
+                    ]
+                  },
+                  "config": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Layout created"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/dashboard-layout/{id}": {
+      "get": {
+        "summary": "Get a dashboard layout by ID",
+        "tags": [
+          "DashboardLayout"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "cuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Layout"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update a dashboard layout",
+        "tags": [
+          "DashboardLayout"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "cuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 50
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "GRID",
+                      "LIST",
+                      "CUSTOM"
+                    ]
+                  },
+                  "config": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated layout"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a dashboard layout",
+        "tags": [
+          "DashboardLayout"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "cuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Layout deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/dashboard-layout/{id}/activate": {
+      "post": {
+        "summary": "Set a dashboard layout as the active one for the current user",
+        "tags": [
+          "DashboardLayout"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "cuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activated layout"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/structured-data/{documentId}": {
+      "get": {
+        "summary": "Get structured data extracted from a specific document",
+        "description": "Deprecated (R26) — feature retired, backend preserved without a UI.",
+        "deprecated": true,
+        "tags": [
+          "StructuredData"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "cuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Extracted structured data"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update the structured data extracted from a specific document",
+        "description": "Deprecated (R26) — feature retired, backend preserved without a UI.",
+        "deprecated": true,
+        "tags": [
+          "StructuredData"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "cuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated structured data"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        }
       }
     },
     "/api/auth/register": {
@@ -2429,161 +4780,6 @@
         }
       }
     },
-    "/api/dashboard-layout": {
-      "get": {
-        "summary": "List all dashboard widget layouts for the current user",
-        "tags": [
-          "DashboardLayout"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Array of layout objects"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
-      },
-      "post": {
-        "summary": "Save a new dashboard widget layout",
-        "tags": [
-          "DashboardLayout"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateDashboardLayoutDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Layout created"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
-      }
-    },
-    "/api/dashboard-layout/{id}": {
-      "get": {
-        "summary": "Get a dashboard layout by ID",
-        "tags": [
-          "DashboardLayout"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "cuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Layout"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFoundError"
-          }
-        }
-      },
-      "patch": {
-        "summary": "Update a dashboard layout",
-        "tags": [
-          "DashboardLayout"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "cuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateDashboardLayoutDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated layout"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete a dashboard layout",
-        "tags": [
-          "DashboardLayout"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "cuid"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Deleted"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
-      }
-    },
     "/api/saved-views": {
       "get": {
         "summary": "List the current user's saved views for a table",
@@ -3492,40 +5688,6 @@
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
-      }
-    },
-    "/api/structured-data/{documentId}": {
-      "get": {
-        "summary": "Get structured data extracted from a specific document",
-        "tags": [
-          "StructuredData"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "documentId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Extracted structured data"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFoundError"
           }
         }
       }

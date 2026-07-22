@@ -33,6 +33,7 @@ const AdvancedFieldSchema = z.object({
     .optional(),
   format: z.enum(['email', 'phone', 'cpf', 'cnpj', 'url', 'custom']).optional(),
   numberFormat: z.enum(['currency', 'percentage', 'integer', 'decimal']).optional(),
+  description: z.string().optional(),
   regex: z.string().optional(),
   hidden: z.boolean().optional(),
   // --- Field-level governance (mirrors ISchemaField) ---

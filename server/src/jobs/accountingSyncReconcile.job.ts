@@ -1,13 +1,18 @@
 /**
  * accountingSyncReconcile — durability backbone for AccountingSync (Incremento B).
  *
- * The live trigger (CRM controller, post-commit) is best-effort: if the posting
- * fails after the source fact commits, the journal entry is missing. This job
- * re-drives every `Won` opportunity that has no journal entry yet, idempotently.
- * It is a HARD requirement for the increment — without it a failed post is lost.
+ * The live triggers (CRM controller / DynamicTable controllers, post-commit) are best-effort:
+ * if the accounting effect fails after the source fact commits, it is missing. This job
+ * re-drives every pending source fact idempotently. It is a HARD requirement — without it a
+ * failed post is lost.
  *
- * The core `reconcileAccountingSync(deps)` is pure over injected collaborators
- * (unit-tested); `runAccountingSyncReconcile()` is the thin production wiring.
+ * CRM pass (ADR-CRM-AR-SEAM): a `Won` opportunity no longer posts directly to the ledger — it
+ * creates a Contas a Receber via CrmReceivableBridge (recognition D 1.1.5 / C 3.1; settlement
+ * is the human-registered receipt in the AR module). The bridge owns both idempotency guards
+ * (legacy direct entry + tombstone-aware receivable lookup).
+ *
+ * Each core `reconcile*(deps)` is pure over injected collaborators (unit-tested);
+ * `runAccountingSyncReconcile()` is the thin production wiring.
  */
 
 import prisma from '../lib/prisma';
@@ -17,13 +22,17 @@ import { resolveAccountingScope } from '../features/accounting/scope/AccountingS
 import type { AccountingScope } from '../features/accounting/scope/AccountingScope';
 import { LEDGER_STATUSES } from '../features/accounting/models/ledgerStatus';
 import {
-  buildOpportunityWonEvent,
   buildSalonSaleFinalizedEvent,
   buildSalonSaleReturnedEvent,
   buildSalonSaleSettledEvent,
   buildSalonPackageSoldEvent,
 } from '../features/accounting/sync/AccountingSyncPort';
+import type {
+  CrmBridgeOutcome,
+  WonOpportunityFact,
+} from '../features/accounting/sync/bridges/CrmReceivableBridge';
 import type { AccountingEvent, SyncResult } from '../features/accounting/sync/AccountingSyncPort';
+import { syncSkipErrorCode } from '../features/accounting/sync/AccountingSyncPort';
 import { JournalEntryRepository } from '../features/accounting/repositories/JournalEntryRepository';
 import { PackageBalanceRepository } from '../features/packages/repositories/PackageBalanceRepository';
 import { loadSalePackageInfo } from '../features/accounting/sync/bridges/salonSaleItems';
@@ -35,19 +44,16 @@ export interface WonOpportunity {
   opportunityId: string;
   unitId: string;
   amount: number;
-  currency: string;
   occurredAt: string;
   label: string;
+  /** Scoped ref to the CRM account row (relation id), when present. */
+  accountRef?: string;
 }
 
-export interface ReconcileDeps {
+export interface CrmReceivableReconcileDeps {
   listWonOpportunities: () => Promise<WonOpportunity[]>;
-  hasExistingEntry: (
-    scope: AccountingScope,
-    sourceType: string,
-    sourceId: string,
-  ) => Promise<boolean>;
-  sync: (scope: AccountingScope, event: AccountingEvent) => Promise<SyncResult>;
+  /** CrmReceivableBridge.bookWonOpportunity — owns money guards + both idempotency guards. */
+  book: (scope: AccountingScope, fact: WonOpportunityFact) => Promise<CrmBridgeOutcome>;
 }
 
 export interface ReconcileSummary {
@@ -56,18 +62,37 @@ export interface ReconcileSummary {
   idempotentHits: number;
   failed: number;
   /**
-   * Settlement pass only (Incremento D / D1): sales Finalized+Paid whose revenue entry is not yet
-   * booked, so the settlement is deliberately deferred (NOT a failure) — left for a later run once
-   * the revenue exists. Optional so the other passes keep their exact 4-field summary unchanged.
+   * Deliberately deferred items (NOT failures):
+   *  - settlement pass (Incremento D / D1): sales Finalized+Paid whose opening entry is not yet
+   *    booked — left for a later run once it exists;
+   *  - ANY sync pass (Council 1.5): events rejected by a skip-listed deterministic code —
+   *    ACCOUNTING_PERIOD_NOT_OPEN (defers until the period reopens) or MAX_CENTS_EXCEEDED
+   *    (POISON: can never succeed until the source amount is fixed; classifying it here keeps
+   *    the re-drive from looping it as a retriable failure every cycle).
+   * Optional so passes without occurrences keep their exact 4-field summary unchanged.
    */
   blocked?: number;
 }
 
 /**
- * Re-drive every Won opportunity lacking a journal entry. Idempotent and
- * fault-isolated: an isolated failure is logged and the batch continues.
+ * Shared poison/defer classifier for the sync passes (Council 1.5). Returns the skip-listed
+ * code (period-closed / MAX_CENTS) or null. On a hit the pass counts the item as BLOCKED and
+ * warns — the batch continues and the item is never spun as a retriable failure.
  */
-export async function reconcileAccountingSync(deps: ReconcileDeps): Promise<ReconcileSummary> {
+function classifyBlockedSyncError(error: unknown): string | null {
+  return syncSkipErrorCode(error);
+}
+
+/**
+ * Re-drive every Won opportunity lacking its Contas a Receber (ADR-CRM-AR-SEAM). The bridge is
+ * the idempotency authority (legacy direct entry / existing-or-tombstoned receivable both count
+ * as idempotent hits). Deterministic skip-listed codes (period-closed — incl. the bridge's R2
+ * preflight — / MAX_CENTS poison) classify as BLOCKED. Fault-isolated: an isolated failure is
+ * logged and the batch continues.
+ */
+export async function reconcileCrmReceivables(
+  deps: CrmReceivableReconcileDeps,
+): Promise<ReconcileSummary> {
   const opportunities = await deps.listWonOpportunities();
   const summary: ReconcileSummary = {
     total: opportunities.length,
@@ -84,30 +109,38 @@ export async function reconcileAccountingSync(deps: ReconcileDeps): Promise<Reco
       // Owner-as-actor: no HTTP user in a job. The scope is built from the SOURCE
       // record's tenant + unit only — never crossing tenants or units.
       const scope = resolveAccountingScope({ userId: opp.ownerUserId }, opp.unitId);
-      const event = buildOpportunityWonEvent({
+      const result = await deps.book(scope, {
         opportunityId: opp.opportunityId,
         unitId: opp.unitId,
         amount: opp.amount,
-        currency: opp.currency,
         occurredAt: opp.occurredAt,
         label: opp.label,
+        accountRef: opp.accountRef,
       });
 
-      // Classify already-booked opportunities (idempotent hit). sync() remains the
-      // authority even if a race slips past this check — postEntry dedupes.
-      const exists = await deps.hasExistingEntry(scope, event.sourceType, event.sourceId);
-      if (exists) {
+      if (result.outcome === 'created') {
+        summary.synced++;
+        logger.info('Reconcile created CRM receivable', {
+          opportunityId: opp.opportunityId,
+          receivableId: result.receivableId,
+        });
+      } else {
+        // 'already_booked' (live or user-cancelled tombstone) or 'legacy_entry'.
         summary.idempotentHits++;
+      }
+    } catch (error) {
+      // Poison/defer (Council 1.5): a skip-listed deterministic code is BLOCKED, not failed —
+      // MAX_CENTS_EXCEEDED would otherwise re-fail identically every cycle (poison loop).
+      const skipCode = classifyBlockedSyncError(error);
+      if (skipCode) {
+        summary.blocked = (summary.blocked ?? 0) + 1;
+        logger.warn('Reconcile blocked for opportunity — deterministic non-retriable code, skipping', {
+          opportunityId: opp.opportunityId,
+          code: skipCode,
+          error: error instanceof Error ? error.message : String(error),
+        });
         continue;
       }
-
-      const result = await deps.sync(scope, event);
-      summary.synced++;
-      logger.info('Reconcile booked opportunity', {
-        opportunityId: opp.opportunityId,
-        entryId: result.entryId,
-      });
-    } catch (error) {
       // Isolated failure must NOT stop the batch.
       summary.failed++;
       logger.error('Reconcile failed for opportunity — continuing', {
@@ -118,7 +151,7 @@ export async function reconcileAccountingSync(deps: ReconcileDeps): Promise<Reco
     }
   }
 
-  logger.info('Reconcile complete', { ...summary });
+  logger.info('CRM receivables reconcile complete', { ...summary });
   return summary;
 }
 
@@ -157,9 +190,9 @@ export interface SalonReconcileDeps {
 
 /**
  * Re-drive every Finalized salon sale lacking a journal entry. Idempotent and
- * fault-isolated: an isolated failure is logged and the batch continues. Mirrors
- * reconcileAccountingSync; kept as a separate core so each source stays independently
- * testable and the CRM contract is untouched.
+ * fault-isolated: an isolated failure is logged and the batch continues. Mirrors the
+ * per-source pass shape (see reconcileCrmReceivables); kept as a separate core so each
+ * source stays independently testable.
  */
 export async function reconcileSalonSales(deps: SalonReconcileDeps): Promise<ReconcileSummary> {
   const sales = await deps.listFinalizedSales();
@@ -209,6 +242,17 @@ export async function reconcileSalonSales(deps: SalonReconcileDeps): Promise<Rec
         entryId: result.entryId,
       });
     } catch (error) {
+      // Poison/defer (Council 1.5): skip-listed deterministic code → BLOCKED, not failed.
+      const skipCode = classifyBlockedSyncError(error);
+      if (skipCode) {
+        summary.blocked = (summary.blocked ?? 0) + 1;
+        logger.warn('Reconcile blocked for salon sale — deterministic non-retriable code, skipping', {
+          saleId: sale.saleId,
+          code: skipCode,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       // Isolated failure must NOT stop the batch.
       summary.failed++;
       logger.error('Reconcile failed for salon sale — continuing', {
@@ -297,6 +341,17 @@ export async function reconcileSalonCancellations(
         summary.idempotentHits++;
       }
     } catch (error) {
+      // Poison/defer (Council 1.5): the reversal path can hit the period gate too — BLOCKED.
+      const skipCode = classifyBlockedSyncError(error);
+      if (skipCode) {
+        summary.blocked = (summary.blocked ?? 0) + 1;
+        logger.warn('Reconcile blocked for cancelled sale — deterministic non-retriable code, skipping', {
+          saleId: sale.saleId,
+          code: skipCode,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       summary.failed++;
       logger.error('Reconcile failed for cancelled sale — continuing', {
         saleId: sale.saleId,
@@ -366,6 +421,17 @@ export async function reconcileSalonReturns(deps: SalonReturnReconcileDeps): Pro
       summary.synced++;
       logger.info('Reconcile booked salon return', { saleId: sale.saleId, entryId: result.entryId });
     } catch (error) {
+      // Poison/defer (Council 1.5): skip-listed deterministic code → BLOCKED, not failed.
+      const skipCode = classifyBlockedSyncError(error);
+      if (skipCode) {
+        summary.blocked = (summary.blocked ?? 0) + 1;
+        logger.warn('Reconcile blocked for salon return — deterministic non-retriable code, skipping', {
+          saleId: sale.saleId,
+          code: skipCode,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       summary.failed++;
       logger.error('Reconcile failed for salon return — continuing', {
         saleId: sale.saleId,
@@ -469,6 +535,17 @@ export async function reconcileSalonSettlements(
         entryId: result.entryId,
       });
     } catch (error) {
+      // Poison/defer (Council 1.5): skip-listed deterministic code → BLOCKED, not failed.
+      const skipCode = classifyBlockedSyncError(error);
+      if (skipCode) {
+        summary.blocked = (summary.blocked ?? 0) + 1;
+        logger.warn('Reconcile blocked for salon settlement — deterministic non-retriable code, skipping', {
+          saleId: sale.saleId,
+          code: skipCode,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       summary.failed++;
       logger.error('Reconcile failed for salon settlement — continuing', {
         saleId: sale.saleId,
@@ -567,6 +644,17 @@ export async function reconcileSalonPackageOrigin(
         });
       }
     } catch (error) {
+      // Poison/defer (Council 1.5): skip-listed deterministic code → BLOCKED, not failed.
+      const skipCode = classifyBlockedSyncError(error);
+      if (skipCode) {
+        summary.blocked = (summary.blocked ?? 0) + 1;
+        logger.warn('Reconcile blocked for package origin — deterministic non-retriable code, skipping', {
+          saleId: sale.saleId,
+          code: skipCode,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       summary.failed++;
       logger.error('Reconcile failed for package origin — continuing', {
         saleId: sale.saleId,
@@ -802,7 +890,7 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
     return out;
   })();
 
-  const crm = await reconcileAccountingSync({
+  const crm = await reconcileCrmReceivables({
     listWonOpportunities: async () => {
       // Cross-tenant discovery: every crmOpportunities table (each owned by a userId).
       const tables = await prisma.dynamicTable.findMany({
@@ -819,17 +907,16 @@ export async function runAccountingSyncReconcile(): Promise<ReconcileSummary> {
             opportunityId: row.id,
             unitId: typeof data.unitId === 'string' ? data.unitId : '',
             amount: typeof data.amount === 'number' ? data.amount : NaN,
-            currency: typeof data.currency === 'string' ? data.currency : 'BRL',
             occurredAt:
               typeof data.closedAt === 'string' ? data.closedAt : new Date().toISOString(),
             label: typeof data.name === 'string' ? data.name : `Oportunidade ${row.id}`,
+            accountRef: typeof data.accountId === 'string' ? data.accountId : undefined,
           });
         }
       }
       return out;
     },
-    hasExistingEntry,
-    sync: doSync,
+    book: (scope, fact) => factory.getCrmReceivableBridge().bookWonOpportunity(scope, fact),
   });
 
   const salon = await reconcileSalonSales({

@@ -12,6 +12,10 @@ As regras pesadas vivem nos docs abaixo — este arquivo é só a orientação s
   tuning por modelo — Opus 4.8 ativo, gatilhos explícitos + micro-autonomia + guarda de recall
   em review: `docs/operating-manual/MODEL-TUNING.md`)
 
+**Regras path-scoped (CLAUDE.md aninhado — carregam só ao editar cada subtree):**
+- `server/CLAUDE.md` — gates de camada backend (cadeia Route→…→Prisma, DTO/factory/soft-delete, gate dentro do tx).
+- `my-app/CLAUDE.md` — gates de frontend (reuse canônico, `neutral-*`/`rounded-2xl`, `withAuth`+build de produção) + regras de teste (vitest, shim de `React` global).
+
 ## STOP — reflexo obrigatório ANTES de qualquer planejamento ou código
 
 **Onde este novo módulo/feature vive?** Esta pergunta tem resposta binária e deve ser feita antes de qualquer linha:

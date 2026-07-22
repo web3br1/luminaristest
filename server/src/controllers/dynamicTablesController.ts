@@ -28,10 +28,10 @@ export const InstallTableDto = z.object({
 export async function listTables(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
-    if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const service = getFactory().getDynamicTableService();
-    const tables = await service.getTablesForUser(ctx.id);
+    const tables = await service.getTablesForUser(ctx.userId);
     return res.json({ success: true, data: tables });
   } catch (error) {
     return handleApiError(error, res);
@@ -41,10 +41,10 @@ export async function listTables(req: Request, res: Response) {
 export async function getTable(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
-    if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const parse = cuidSchema.safeParse(req.params.tableId);
-    if (!parse.success) return res.status(400).json({ success: false, error: 'Invalid table ID' });
+    if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });
 
     const service = getFactory().getDynamicTableService();
     const table = await service.getTableById(ctx, req.params.tableId);
@@ -57,22 +57,40 @@ export async function getTable(req: Request, res: Response) {
 export async function getTableData(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
-    if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const parse = cuidSchema.safeParse(req.params.tableId);
-    if (!parse.success) return res.status(400).json({ success: false, error: 'Invalid table ID' });
-
-    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
-    const limit = Math.min(Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50), 200);
+    if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });
 
     const service = getFactory().getDynamicTableService();
-    const result = await service.getTableData(ctx, req.params.tableId, page, limit);
 
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
-    return res.json({ success: true, data: result.data, total: result.total, page: result.page, limit: result.limit, totalPages: result.totalPages });
+    // Optional, additive pagination (fork contract). When no page/pageSize/limit is provided the
+    // response keeps the legacy shape ({ success, data: [...] }) so existing clients are unaffected.
+    // `pageSize` (fork clients) and `limit` (my-app loaders) are aliases; the meta is a superset of
+    // both contracts (total/page/pageSize/limit/totalPages).
+    const pageRaw = req.query.page;
+    const sizeRaw = req.query.pageSize ?? req.query.limit;
+    if (pageRaw !== undefined || sizeRaw !== undefined) {
+      const page = Math.max(1, Number(pageRaw) || 1);
+      const pageSize = Math.min(1000, Math.max(1, Number(sizeRaw) || 50));
+      const result = await service.getTableData(ctx, req.params.tableId, page, pageSize);
+      return res.json({
+        success: true,
+        data: result.data,
+        total: result.total,
+        page: result.page,
+        pageSize: result.limit,
+        limit: result.limit,
+        totalPages: result.totalPages,
+      });
+    }
+
+    const data = await service.getAllTableData(ctx, req.params.tableId);
+    return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);
   }
@@ -81,10 +99,10 @@ export async function getTableData(req: Request, res: Response) {
 export async function createTableData(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
-    if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const parse = cuidSchema.safeParse(req.params.tableId);
-    if (!parse.success) return res.status(400).json({ success: false, error: 'Invalid table ID' });
+    if (!parse.success) return res.status(400).json({ success: false, error: parse.error.flatten() });
 
     const body = CreateDynamicTableDataDto.safeParse(req.body);
     if (!body.success) return res.status(400).json({ success: false, error: body.error.flatten() });
@@ -111,10 +129,10 @@ export async function createTableData(req: Request, res: Response) {
 export async function updateTableData(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
-    if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const dataIdParse = cuidSchema.safeParse(req.params.dataId);
-    if (!dataIdParse.success) return res.status(400).json({ success: false, error: 'Invalid data ID' });
+    if (!dataIdParse.success) return res.status(400).json({ success: false, error: dataIdParse.error.flatten() });
 
     const body = UpdateDynamicTableDataDto.safeParse(req.body);
     if (!body.success) return res.status(400).json({ success: false, error: body.error.flatten() });
@@ -139,10 +157,10 @@ export async function updateTableData(req: Request, res: Response) {
 export async function deleteTableData(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
-    if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const dataIdParse = cuidSchema.safeParse(req.params.dataId);
-    if (!dataIdParse.success) return res.status(400).json({ success: false, error: 'Invalid data ID' });
+    if (!dataIdParse.success) return res.status(400).json({ success: false, error: dataIdParse.error.flatten() });
 
     const service = getFactory().getDynamicTableService();
     await service.deleteTableData(ctx, req.params.dataId);
@@ -239,7 +257,7 @@ export const ResolveRelationsDto = z.object({
 export async function resolveRelations(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
-    if (!ctx) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    if (!ctx) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const body = ResolveRelationsDto.safeParse(req.body);
     if (!body.success) return res.status(400).json({ success: false, error: body.error.flatten() });
@@ -247,7 +265,9 @@ export async function resolveRelations(req: Request, res: Response) {
     const service = getFactory().getDynamicTableService();
     const data = await service.resolveRelations(ctx, body.data.lookups);
 
-    res.setHeader('Cache-Control', 'public, max-age=30'); // short cache given lookup nature
+    // Per-user data: only a private (browser) cache may store it — never a shared/CDN cache,
+    // which could serve one tenant's resolved labels to another.
+    res.setHeader('Cache-Control', 'private, max-age=30');
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);

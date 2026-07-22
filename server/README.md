@@ -1,8 +1,8 @@
 # Luminaris Server
 
-Backend **Express + TypeScript** da plataforma Luminaris: autenticação JWT, Prisma ORM, arquitetura
-**feature-based** em camadas. Para entender **como o backend é montado** (layering, factory/DI,
-middleware, padrão de erros, como adicionar uma feature), leia **[`ARCHITECTURE.md`](./ARCHITECTURE.md)**.
+The **Express + TypeScript** backend of the Luminaris platform: JWT authentication, Prisma ORM, a
+**feature-based** layered architecture. To understand **how the backend is assembled** (layering,
+factory/DI, middleware, error pattern, how to add a feature), read **[`ARCHITECTURE.md`](./ARCHITECTURE.md)**.
 
 ---
 
@@ -11,76 +11,81 @@ middleware, padrão de erros, como adicionar uma feature), leia **[`ARCHITECTURE
 ```bash
 cd server
 npm install
-npm run dev        # desenvolvimento (hot reload)
-npm run build && npm start   # produção
+npm run dev        # development (hot reload)
+npm run build && npm start   # production
+npm test           # tests (unit + integration) — see TESTING.md
 ```
 
-### Variáveis de ambiente
-Carregadas por `src/config/env.ts` (de `server/.env` ou da raiz). Principais:
+> **Tests:** full strategy, tools and structure in [`TESTING.md`](./TESTING.md).
 
-| Variável | Uso |
+### Environment variables
+Loaded by `src/config/env.ts` (from `server/.env` or the root). Main ones:
+
+| Variable | Use |
 |---|---|
-| `DATABASE_URL` | conexão Prisma (ex: `file:./dev.db` para SQLite) |
-| `JWT_SECRET` | assinatura dos tokens (mude em produção!) |
+| `DATABASE_URL` | Prisma connection (e.g. `file:./dev.db` for SQLite) |
+| `JWT_SECRET` | token signing (change it in production — required, the app refuses to start without it in prod) |
 | `NODE_ENV` | `development` / `production` |
-| `OPENAI_API_KEY` | features de IA (chat, documentos) |
-| `QDRANT_URL` / `QDRANT_API_KEY` | vetor store (RAG de documentos) |
-| `REDIS_URL` | cache/filas (quando aplicável) |
-| `PORT` | porta do servidor (padrão 3001) |
+| `OPENAI_API_KEY` | AI features (chat, documents) |
+| `QDRANT_URL` / `QDRANT_API_KEY` | vector store (document RAG) |
+| `REDIS_URL` | cache/queues (when applicable) |
+| `PORT` | server port (default 3001) |
 
 ---
 
 ## 🛠️ Stack
 
 Express.js · TypeScript · Prisma · SQLite · JWT · bcryptjs · Zod · Helmet · CORS · Compression ·
-OpenAI · Qdrant (vetores).
+OpenAI · Qdrant (vectors). Tests: Jest · ts-jest · supertest.
 
 ---
 
-## 📁 Estrutura (resumo)
+## 📁 Structure (summary)
 
 ```
 server/
-├── ARCHITECTURE.md        # arquitetura detalhada (comece por aqui)
+├── ARCHITECTURE.md        # detailed architecture (start here)
+├── TESTING.md             # testing strategy, tools and structure
 ├── prisma/                # schema.prisma, migrations, dev.db
 └── src/
-    ├── server.ts          # bootstrap (middlewares globais + rotas)
+    ├── app.ts             # createApp(): builds the Express app (no listen)
+    ├── server.ts          # bootstrap (listen + external-infra init)
     ├── config/            # env
     ├── database/          # PrismaClient singleton
-    ├── controllers/       # adaptadores HTTP por feature
-    ├── routes/            # roteamento (index agrega os sub-routers)
-    ├── middleware/        # auth (JWT + paths protegidos)
+    ├── controllers/       # HTTP adapters per feature
+    ├── routes/            # routing (index aggregates the sub-routers)
+    ├── middleware/        # auth (JWT + protected paths, fail-closed)
     ├── lib/               # cross-cutting: factory(DI), errors, logger, jwt, apiUtils, ...
-    └── features/          # um diretório por domínio (ver índice abaixo)
+    └── features/          # one directory per domain (see the index below)
 ```
 
-> A estrutura completa e o contrato de cada camada estão em [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+> The full structure and each layer's contract are in [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 
 ---
 
 ## 🧩 Features
 
-| Feature | Papel | Doc |
+| Feature | Role | Doc |
 |---|---|---|
-| `users` | Usuários, roles, perfil | [README](./src/features/users/README.md) |
-| `dynamicTables` | Tabelas dinâmicas + governança declarativa + presets | [README + docs/](./src/features/dynamicTables/README.md) |
-| `analytics` | KPIs/charts sobre as tabelas do usuário | [README](./src/features/analytics/README.md) |
-| `chat` | Resposta de IA (modos RAG e Agent ERP) | [README](./src/features/chat/README.md) |
-| `chatInstances` | Instâncias de chat por widget | [README](./src/features/chatInstances/README.md) |
-| `chatMessages` | Persistência de mensagens (CRUD) | [README](./src/features/chatMessages/README.md) |
-| `documents` | Upload/processamento/busca de documentos (RAG) | [README](./src/features/documents/README.md) |
-| `structuredData` | Dados estruturados extraídos de documentos | [README](./src/features/structuredData/README.md) |
-| `dashboardLayout` | Layouts de dashboard (upsert por usuário) | [README](./src/features/dashboardLayout/README.md) |
-| `reports` | Dados de relatórios/charts | [README](./src/features/reports/README.md) |
-| `interview` | Customização guiada | [READMEs](./src/features/interview/) |
+| `users` | Users, roles, profile | [README](./src/features/users/README.md) |
+| `dynamicTables` | Dynamic tables + declarative governance + presets | [README + docs/](./src/features/dynamicTables/README.md) |
+| `analytics` | KPIs/charts over the user's tables | [README](./src/features/analytics/README.md) |
+| `chat` | AI response (RAG and Agent ERP modes) | [README](./src/features/chat/README.md) |
+| `chatInstances` | Chat instances per widget | [README](./src/features/chatInstances/README.md) |
+| `chatMessages` | Message persistence (CRUD) | [README](./src/features/chatMessages/README.md) |
+| `documents` | Document upload/processing/search (RAG) | [README](./src/features/documents/README.md) |
+| `structuredData` | Structured data extracted from documents | [README](./src/features/structuredData/README.md) |
+| `dashboardLayout` | Dashboard layouts (upsert per user) | [README](./src/features/dashboardLayout/README.md) |
+| `reports` | Report/chart data | [README](./src/features/reports/README.md) |
+| `interview` | Guided customization | [READMEs](./src/features/interview/) |
 
 ---
 
 ## 📡 Endpoints
 
-As rotas são montadas em `src/routes/index.ts`, uma sub-rota por feature (`/api/auth`, `/api/users`,
-`/api/documents`, `/api/chat`, `/api/dashboard`, `/api/dynamic-tables`, ...). Cada feature documenta
-seus endpoints no próprio README. Auth via `Authorization: Bearer <jwt>` (ver
+Routes are mounted in `src/routes/index.ts`, one sub-route per feature (`/api/auth`, `/api/users`,
+`/api/documents`, `/api/chat`, `/api/dashboard`, `/api/dynamic-tables`, ...). Each feature documents
+its endpoints in its own README. Auth via `Authorization: Bearer <jwt>` (see
 [`ARCHITECTURE.md` §3](./ARCHITECTURE.md)). Health check: `GET /health`.
 
 ---
@@ -88,9 +93,9 @@ seus endpoints no próprio README. Auth via `Authorization: Bearer <jwt>` (ver
 ## 🗄️ Prisma
 
 ```bash
-npx prisma generate                              # gerar cliente
-npx prisma migrate dev --name <nome_migracao>    # criar/aplicar migração
-npx prisma studio                                # explorar o banco
+npx prisma generate                              # generate the client
+npx prisma migrate dev --name <migration_name>   # create/apply a migration
+npx prisma studio                                # explore the database
 ```
-Models principais: `User`, `DashboardLayout`, `ChatInstance`, `ChatMessage`, `Document`,
+Main models: `User`, `DashboardLayout`, `ChatInstance`, `ChatMessage`, `Document`,
 `StructuredData`, `DynamicTable` / `DynamicTableData`.

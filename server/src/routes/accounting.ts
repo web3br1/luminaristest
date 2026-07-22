@@ -10,11 +10,13 @@ import {
   getPeriodComparison,
   getDailyJournal,
   getAging,
+  getTieOutDiagnostic,
   listAccounts,
   listEntries,
   getEntryReceipt,
   createAccount,
   deleteAccount,
+  setAccountRequiresDimension,
   listPeriods,
   seedYear,
   openPeriod,
@@ -83,11 +85,13 @@ router.get('/reports/cash-flow', getCashFlow);
 router.get('/reports/period-comparison', getPeriodComparison);
 router.get('/reports/daily-journal', getDailyJournal);
 router.get('/reports/aging', getAging);
+router.get('/reports/tie-out', getTieOutDiagnostic);
 
 // Chart of accounts management.
 router.get('/accounts', listAccounts);
 router.post('/accounts', createAccount);
 router.delete('/accounts/:id', deleteAccount);
+router.patch('/accounts/:id/requires-dimension', setAccountRequiresDimension);
 
 // Journal entry listing.
 router.get('/entries', listEntries);

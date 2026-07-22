@@ -12,8 +12,8 @@ const checker = resolveAccountingScope({ userId: 'checker-1' }, 'unit-1');
 function acc(over: Partial<Account> = {}): Account {
   return {
     id: 'acc-1', userId: 'maker-1', unitId: 'unit-1', code: '1.1.1', name: 'Caixa',
-    nature: 'Asset', acceptsEntries: true, createdAt: new Date(), updatedAt: new Date(),
-    deletedAt: null, ...over,
+    nature: 'Asset', acceptsEntries: true, requiresDimension: false, createdAt: new Date(),
+    updatedAt: new Date(), deletedAt: null, ...over,
   } as Account;
 }
 
@@ -45,6 +45,10 @@ interface Opts {
   canManage?: boolean;
   canApprove?: boolean;
   sod?: boolean; // whether SoD is ENFORCED (membership present); default off = single-user staging
+  // INCR-DIM-COMPLETENESS — map accountId → requiresDimension flag (for the approve gate); and the
+  // set of postingIds that carry ≥1 dimension tag (findPostingDimensions returns 1 tag for those).
+  requiresDimensionByAccount?: Record<string, boolean>;
+  taggedPostingIds?: string[];
 }
 
 function build(opts: Opts = {}) {
@@ -67,8 +71,20 @@ function build(opts: Opts = {}) {
     nextEntryNumber,
     runTransaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({})),
   };
+  const reqByAccount = opts.requiresDimensionByAccount ?? {};
+  const taggedPostingIds = new Set(opts.taggedPostingIds ?? []);
   const accountRepo = {
-    findByCode: jest.fn(async (_s: unknown, code: string) => acc({ id: `id-${code}`, code })),
+    findByCode: jest.fn(async (_s: unknown, code: string) =>
+      acc({ id: `id-${code}`, code, requiresDimension: reqByAccount[code] ?? reqByAccount[`id-${code}`] ?? false })),
+    findById: jest.fn(async (_s: unknown, id: string) =>
+      acc({ id, code: id, requiresDimension: reqByAccount[id] ?? false })),
+  };
+  const dimensionRepo = {
+    findValueById: jest.fn(async (_s: unknown, id: string) => ({ id, code: id, definitionId: 'def-1', status: 'ACTIVE' })),
+    countActiveChildren: jest.fn(async () => 0),
+    createPostingDimension: jest.fn(async () => ({ id: 'pd-1' })),
+    findPostingDimensions: jest.fn(async (_s: unknown, postingId: string) =>
+      taggedPostingIds.has(postingId) ? [{ id: 'pd-1', postingId, definitionId: 'def-1', valueId: 'v-1' }] : []),
   };
   const periodRepo = {
     findByYearMonth: jest.fn(async () => (opts.periodOpen === false ? { status: 'SOFT_CLOSED' } : { status: 'OPEN' })),
@@ -87,8 +103,9 @@ function build(opts: Opts = {}) {
     periodRepo as never,
     auditService as never,
     policy as never,
+    dimensionRepo as never,
   );
-  return { service, journalEntryRepo, postingRepo, accountRepo, periodRepo, auditService, casUpdate, nextEntryNumber };
+  return { service, journalEntryRepo, postingRepo, accountRepo, periodRepo, auditService, dimensionRepo, casUpdate, nextEntryNumber };
 }
 
 const draftDto = {
@@ -124,6 +141,23 @@ describe('EntryApprovalService.createDraft', () => {
   it('is forbidden without canManageEntryApproval', async () => {
     const { service } = build({ canManage: false });
     await expect(service.createDraft(maker, draftDto as never)).rejects.toThrow(ForbiddenError);
+  });
+
+  it('SEC-B1-3: persists dimension tags on the draft legs (so requiresDimension is satisfiable via approval)', async () => {
+    const { service, dimensionRepo } = build();
+    const withDims = {
+      ...draftDto,
+      lines: [
+        { accountCode: '1.1.1', debitCents: 10000, creditCents: 0, dimensions: ['v-1'] },
+        { accountCode: '2.1.1', debitCents: 0, creditCents: 10000 },
+      ],
+    };
+    await service.createDraft(maker, withDims as never);
+    expect(dimensionRepo.createPostingDimension).toHaveBeenCalledTimes(1);
+    expect(dimensionRepo.createPostingDimension).toHaveBeenCalledWith(
+      expect.objectContaining({ definitionId: 'def-1', valueId: 'v-1' }),
+      expect.anything(),
+    );
   });
 });
 
@@ -212,6 +246,25 @@ describe('EntryApprovalService.approveEntry — the money moment', () => {
     await expect(
       service.approveEntry(checker, 'entry-1', { unitId: 'unit-1', expectedVersion: 2 } as never),
     ).rejects.toThrow(ValidationError);
+  });
+
+  it('SEC-B1-1/B1-3: approve REJECTS when a leg to a requiresDimension account carries no tag', async () => {
+    // acc-1 (leg p-1) now requires a dimension; no posting is tagged → the approve gate fires.
+    const { service } = build({ entry: pending, requiresDimensionByAccount: { 'acc-1': true }, taggedPostingIds: [] });
+    await expect(
+      service.approveEntry(checker, 'entry-1', { unitId: 'unit-1', expectedVersion: 2 } as never),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it('SEC-B1-3: approve POSTS when the requiresDimension leg carries a tag (satisfiable via approval)', async () => {
+    const { service, casUpdate } = build({
+      entry: pending,
+      requiresDimensionByAccount: { 'acc-1': true },
+      taggedPostingIds: ['p-1'], // the required leg is tagged
+    });
+    await service.approveEntry(checker, 'entry-1', { unitId: 'unit-1', expectedVersion: 2 } as never);
+    const casData = (casUpdate.mock.calls[0] as unknown[])[3] as Record<string, unknown>;
+    expect(casData.status).toBe('Posted');
   });
 
   it('refuses to post into a non-open period (authoritative gate)', async () => {

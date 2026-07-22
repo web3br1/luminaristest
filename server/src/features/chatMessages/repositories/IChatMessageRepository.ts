@@ -1,5 +1,5 @@
 import { Prisma } from 'generated/prisma';
-import { IChatMessage, IChatMessageSummary, ChatMessageRole } from '../models/ChatMessage.model';
+import { IChatMessage } from '../models/ChatMessage.model';
 
 /**
  * Interface defining the contract for ChatMessage data access operations.
@@ -14,17 +14,6 @@ export interface IChatMessageRepository {
   createMessage(data: Prisma.ChatMessageCreateInput): Promise<Prisma.ChatMessageGetPayload<{}>>;
 
   /**
-   * Retrieves a paginated list of messages.
-   * @param page - Page number (1-based)
-   * @param limit - Number of items per page
-   * @returns Object containing messages array and total count
-   */
-  getAllMessages(page?: number, limit?: number): Promise<{
-    messages: IChatMessageSummary[];
-    totalCount: number;
-  }>;
-
-  /**
    * Retrieves a message by its ID.
    * @param id - Message ID
    * @returns Message or null if not found
@@ -32,13 +21,27 @@ export interface IChatMessageRepository {
   getMessageById(id: string): Promise<IChatMessage | null>;
 
   /**
-   * Retrieves a paginated list of messages for a specific chat instance.
+   * Retrieves all messages for a specific chat instance.
    * @param chatInstanceId - ID of the chat instance
-   * @param page - Page number (1-based, default 1)
-   * @param limit - Items per page (default 50, max 200)
-   * @returns Paginated result with messages and total count
+   * @returns Array of messages
    */
-  getMessagesByInstance(chatInstanceId: string, page?: number, limit?: number): Promise<{ messages: IChatMessage[]; total: number }>;
+  getMessagesByInstance(chatInstanceId: string): Promise<IChatMessage[]>;
+
+  /**
+   * Retrieves a page of messages for a specific chat instance.
+   * @param chatInstanceId - ID of the chat instance
+   * @param skip - Number of messages to skip
+   * @param take - Number of messages to return
+   * @returns Array of messages
+   */
+  getMessagesByInstancePaged(chatInstanceId: string, skip: number, take: number): Promise<IChatMessage[]>;
+
+  /**
+   * Counts the messages of a chat instance.
+   * @param chatInstanceId - ID of the chat instance
+   * @returns Number of messages
+   */
+  countByInstance(chatInstanceId: string): Promise<number>;
 
   /**
    * Updates a message.

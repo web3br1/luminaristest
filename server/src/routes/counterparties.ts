@@ -8,8 +8,8 @@ import {
 
 /**
  * Contraparte — fornecedor/cliente (INCR-COUNTERPARTY / A1). Mounted at `/api/counterparties`
- * (routes/index.ts). 3-touch registration: also add `/api/counterparties` to `protectedApiPaths`
- * (middleware/auth.ts) and, when documented, to the OpenAPI doc blocks. The static `:id/archive`
+ * (routes/index.ts). 2-touch registration: the mount plus the OpenAPI doc blocks in
+ * docs.paths.ts. The static `:id/archive`
  * segment precedes nothing ambiguous; `:id` only ever captures a real id.
  */
 const router = Router();

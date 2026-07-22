@@ -20,3 +20,8 @@ Thumbs.db
 # Generated build artifacts (não versionar)
 *.tsbuildinfo
 next-env.d.ts
+
+# Overrides locais do Claude Code (pessoais, não versionar)
+CLAUDE.local.md
+**/CLAUDE.local.md
+.claude/settings.local.json

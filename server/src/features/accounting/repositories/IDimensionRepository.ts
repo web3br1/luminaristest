@@ -57,5 +57,13 @@ export interface IDimensionRepository {
   // Posting↔value bridge (written by PostingService inside the post tx — Fatia 2)
   createPostingDimension(data: CreatePostingDimensionData, tx?: Prisma.TransactionClient): Promise<PostingDimension>;
 
+  /**
+   * Lists the dimension tags of ONE posting leg (INCR-DIM-COMPLETENESS SEC-B1-2). reverseEntry uses
+   * it to COPY the original leg's tags onto the mirror leg so the reversal is dimensionally identical
+   * to the original (dimensional reconciliation + it satisfies the completeness gate for the mirror
+   * without re-authoring). Scoped via AccountingScope; tx-aware so the copy commits atomically.
+   */
+  findPostingDimensions(scope: AccountingScope, postingId: string, tx?: Prisma.TransactionClient): Promise<PostingDimension[]>;
+
   runTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T>;
 }

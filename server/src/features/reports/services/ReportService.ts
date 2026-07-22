@@ -16,9 +16,12 @@ export interface GenerateReportRequest {
   userId: string;
 }
 
+/** A chart row: an X-axis label (`name`) plus one or more numeric series values. */
+export type ChartDataRow = Record<string, string | number>;
+
 export interface GenerateReportResponse {
   response: string;
-  chartData?: Array<{ [key: string]: unknown }>;
+  chartData?: ChartDataRow[];
 }
 
 // Definição da ferramenta "Function Calling" para a OpenAI

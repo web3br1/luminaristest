@@ -1,8 +1,9 @@
 import prisma from '../../../lib/prisma';
 import { Prisma } from 'generated/prisma';
-import { CreateStructuredDataInput, UpdateStructuredDataInput } from '../types/StructuredData.types';
+import { CreateStructuredDataInput, UpdateStructuredDataInput } from '../dtos/StructuredDataDto';
 import { IStructuredDataRepository } from './IStructuredDataRepository';
 import { IStructuredData, toStructuredData } from '../models/StructuredData.model';
+import { NotFoundError } from '../../../lib/errors';
 
 export class StructuredDataRepository implements IStructuredDataRepository {
   constructor() {
@@ -30,19 +31,20 @@ export class StructuredDataRepository implements IStructuredDataRepository {
   }
 
   public async update(id: string, data: UpdateStructuredDataInput): Promise<IStructuredData> {
-    const result = await prisma.structuredData.update({
-      where: { id },
-      data: {
-        data: data.data,
-      },
-    });
-    
-    return toStructuredData(result);
-  }
+    try {
+      const result = await prisma.structuredData.update({
+        where: { id },
+        data: {
+          data: data.data,
+        },
+      });
 
-  public async delete(id: string): Promise<void> {
-    await prisma.structuredData.delete({
-      where: { id }
-    });
+      return toStructuredData(result);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundError(`Structured data ${id} not found`);
+      }
+      throw error;
+    }
   }
 }

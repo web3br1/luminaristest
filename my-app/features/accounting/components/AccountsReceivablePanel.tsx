@@ -10,10 +10,12 @@ import {
   type ReceiptMethod,
 } from '../../../lib/services/accountsReceivable.service';
 import { accountingService, type Account } from '../../../lib/services/accounting.service';
+import { counterpartiesService, type Counterparty } from '../../../lib/services/counterparties.service';
 import { Modal } from '../../../components/ui/Modal';
 import { CreateReceivableModal } from './CreateReceivableModal';
 import { formatCents } from '../lib/formatCents';
 import { formatDate } from '../lib/formatDate';
+import { resolveErrorWithCode } from '../lib/resolveError';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -21,17 +23,6 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Extract a human message + code from apiClient's thrown error object. */
-function resolveError(e: unknown, fallback: string): { message: string; code?: string } {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown; code?: unknown };
-    const code = typeof o.code === 'string' ? o.code : undefined;
-    if (typeof o.message === 'string') return { message: o.message, code };
-    if (typeof o.error === 'string') return { message: o.error, code };
-    return { message: fallback, code };
-  }
-  return { message: fallback };
-}
 
 /** Sum of the ACTIVE receipts on a receivable (in cents). */
 function sumActive(receipts: ReceivableReceipt[]): number {
@@ -201,6 +192,8 @@ interface AccountsReceivablePanelProps {
   onLedgerChange?: () => void;
   /** Navigate to the Períodos tab (period-closed guidance). */
   onNavigateToPeriods?: () => void;
+  /** Navigate to the Contrapartes tab (from the create modal when none is registered). */
+  onNavigateToCounterparties?: () => void;
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
@@ -210,7 +203,7 @@ interface AccountsReceivablePanelProps {
  * the recognition posting; per-row commands (receive / cancel / undo receipt) each post
  * to the ledger via the AR command endpoints and refetch the trial balance.
  */
-export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPeriods }: AccountsReceivablePanelProps) {
+export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPeriods, onNavigateToCounterparties }: AccountsReceivablePanelProps) {
   const { t } = useTranslation('accounting');
   const [receivables, setReceivables] = useState<ReceivableWithReceipts[]>([]);
   const [loading, setLoading] = useState(false);
@@ -219,6 +212,7 @@ export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPe
   // create modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [revenueAccounts, setRevenueAccounts] = useState<Account[]>([]);
+  const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
 
   // action modal (receive / cancel receivable / cancel receipt)
   const [action, setAction] = useState<ActionState>(null);
@@ -240,7 +234,7 @@ export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPe
       const result = await accountsReceivableService.listReceivables({ unitId, limit: 200 });
       setReceivables(result.receivables);
     } catch (err: unknown) {
-      setError(resolveError(err, t('contasAReceber.error.load', 'Erro ao carregar as contas a receber.')).message);
+      setError(resolveErrorWithCode(err, t('contasAReceber.error.load', 'Erro ao carregar as contas a receber.')).message);
     } finally {
       setLoading(false);
     }
@@ -253,6 +247,11 @@ export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPe
   // ── create ─────────────────────────────────────────────────────────────────
   function openCreate() {
     if (!unitId) return;
+    // Customers are a best-effort convenience list; a failed fetch must not block the create modal.
+    counterpartiesService
+      .listCounterparties({ unitId, type: 'CUSTOMER' })
+      .then(setCounterparties)
+      .catch(() => setCounterparties([]));
     accountingService
       .getAccounts(unitId)
       .then((r) => setRevenueAccounts(r.accounts.filter((a) => a.nature === 'Revenue' && a.acceptsEntries)))
@@ -309,7 +308,7 @@ export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPe
       await fetchReceivables();
       onLedgerChange?.();
     } catch (err: unknown) {
-      const { message, code } = resolveError(err, t('contasAReceber.error.action', 'Não foi possível concluir a operação.'));
+      const { message, code } = resolveErrorWithCode(err, t('contasAReceber.error.action', 'Não foi possível concluir a operação.'));
       if (code === 'ACCOUNTING_PERIOD_NOT_OPEN') setActionPeriodError(true);
       setActionError(message);
     } finally {
@@ -413,12 +412,14 @@ export function AccountsReceivablePanel({ unitId, onLedgerChange, onNavigateToPe
         onClose={() => setIsCreateOpen(false)}
         unitId={unitId}
         revenueAccounts={revenueAccounts}
+        counterparties={counterparties}
         onSuccess={() => {
           setIsCreateOpen(false);
           void fetchReceivables();
           onLedgerChange?.();
         }}
         onNavigateToPeriods={onNavigateToPeriods}
+        onNavigateToCounterparties={onNavigateToCounterparties}
       />
 
       {/* Action modal (receive / cancel / undo) */}

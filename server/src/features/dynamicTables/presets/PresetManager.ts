@@ -1,4 +1,5 @@
-import { IPreset } from '../models/TablePreset.model';
+import type { PresetSuite } from '.';
+import { logger } from '@/lib/logger';
 
 /**
  * Converts a kebab-case or snake_case key into a PascalCase string.
@@ -21,7 +22,7 @@ function keyToPascalCase(key: string): string {
  * @returns A promise that resolves to the loaded preset object.
  * @throws An error if the preset module cannot be found.
  */
-export async function getPresetByKey(key: string): Promise<IPreset> {
+export async function getPresetByKey(key: string): Promise<PresetSuite> {
   const pascalCaseName = keyToPascalCase(key);
   const fileName = `${pascalCaseName}Preset`; // Convention: BeautySalonPreset.ts
 
@@ -30,7 +31,7 @@ export async function getPresetByKey(key: string): Promise<IPreset> {
     const presetModule = await import(`./systems/${fileName}`);
 
     // The preset object is expected to be the default export
-    const preset: IPreset = presetModule.default;
+    const preset: PresetSuite = presetModule.default;
 
     if (!preset) {
       throw new Error(`Preset object not found in module: ${fileName}`);
@@ -38,7 +39,7 @@ export async function getPresetByKey(key: string): Promise<IPreset> {
 
     return preset;
   } catch (error) {
-    console.error(`Failed to load preset for key '${key}':`, error);
-    throw new Error(`Preset with key '${key}' could not be loaded.`);
+    logger.error('Failed to load preset for key', { key, error });
+    throw new Error(`Preset with key '${key}' could not be loaded.`, { cause: error });
   }
 }

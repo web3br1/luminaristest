@@ -5,6 +5,7 @@ import { chunkText as splitText } from '@/lib/vector/chunking';
 import { embedText, embedTexts } from '@/lib/vector/embedding';
 import { logger } from '@/lib/logger';
 import { metrics } from '@/lib/monitoring';
+import { ValidationError } from '@/lib/errors';
 
 /**
  * Service responsible for processing document files:
@@ -39,7 +40,7 @@ export class DocumentProcessingService {
           text = await extractTextFromExcel(buffer);
           break;
         default:
-          throw new Error(`Unsupported file type: ${mimeType}`);
+          throw new ValidationError(`Unsupported file type: ${mimeType}`);
       }
 
       logger.info('Extração de texto concluída', { 

@@ -6,6 +6,7 @@
  */
 
 import type { AnalyticsProcessor, ChartDataPoint, TableDataRow } from '../../core';
+import { logger } from '@/lib/logger';
 import { evaluateExpression } from '../../core/engine/ExpressionEvaluator';
 
 interface MultiTableParams {
@@ -169,7 +170,7 @@ export const multiTableCalculationProcessor: AnalyticsProcessor = async (context
         tableSource: 'mixed',
       });
     } catch (error) {
-      console.error(`Error evaluating formula for group "${groupKey}":`, error);
+      logger.error('Error evaluating formula for group', { groupKey, error });
       results.push({ name: groupKey, value: 0 });
     }
   }

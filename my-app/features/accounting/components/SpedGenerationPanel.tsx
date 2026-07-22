@@ -11,6 +11,7 @@ import {
   type EcfDeclarant,
   type EcfSigner,
 } from '../../../lib/services/sped.service';
+import { resolveError } from '../lib/resolveError';
 
 /** Tabela de UF (0000 campo 07) — reference data mirrored from server SpedEcdDto.UF_CODES. */
 const UF_CODES = [
@@ -21,17 +22,6 @@ const UF_CODES = [
 const inputClass =
   'rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 focus:border-emerald-500 focus:outline-none disabled:opacity-50';
 
-function resolveError(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown; status?: unknown };
-    // A 400 from safeParse returns `error: <flatten object>` — not a string; show the field-level
-    // fallback instead of "[object Object]" (the FE-INCR6 apiClient stringify quirk).
-    if (o.status === 400) return fallback;
-    if (typeof o.error === 'string') return o.error;
-    if (typeof o.message === 'string') return o.message;
-  }
-  return fallback;
-}
 
 /**
  * Pure: mirror the ECD J930 superRefine (SpedEcdDto) so the owner gets an inline

@@ -188,6 +188,28 @@ export const DeleteAccountQuerySchema = z.object({
   unitId: z.string().min(1),
 });
 
+/**
+ * DTO for toggling an account's `requiresDimension` flag (INCR-DIM-COMPLETENESS SEC-B1-4).
+ * `.strict()` so a typo'd field fails loud. unitId is the tenancy axis; the account id comes from
+ * the route param. Behind `canManage` + every flip emits an AuditEvent (enforced in the service).
+ */
+/** @openapi
+ * components:
+ *   schemas:
+ *     SetAccountRequiresDimensionInput:
+ *       type: object
+ *       required: [unitId, requiresDimension]
+ *       properties:
+ *         unitId:            { type: string }
+ *         requiresDimension: { type: boolean, description: "When true, every leg to this account must carry ≥1 dimension tag (MVP = any axis). Prospective — never retro-rejects history (SEC-B1-5)." }
+ */
+export const SetAccountRequiresDimensionSchema = z
+  .object({
+    unitId: z.string().min(1),
+    requiresDimension: z.boolean(),
+  })
+  .strict();
+
 export type PostEntryInput = z.infer<typeof PostEntrySchema>;
 export type ReverseEntryInput = z.infer<typeof ReverseEntrySchema>;
 export type ReportQueryInput = z.infer<typeof ReportQuerySchema>;
@@ -195,6 +217,7 @@ export type ListAccountsQueryInput = z.infer<typeof ListAccountsQuerySchema>;
 export type ListEntriesQueryInput = z.infer<typeof ListEntriesQuerySchema>;
 export type CreateAccountInput = z.infer<typeof CreateAccountSchema>;
 export type DeleteAccountQueryInput = z.infer<typeof DeleteAccountQuerySchema>;
+export type SetAccountRequiresDimensionInput = z.infer<typeof SetAccountRequiresDimensionSchema>;
 
 /** Type guard for PostEntryInput. */
 export function isPostEntryInput(obj: unknown): obj is PostEntryInput {

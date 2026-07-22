@@ -26,21 +26,13 @@ import {
 import { formatCents } from '../lib/formatCents';
 import { formatDate } from '../lib/formatDate';
 import { ReconciliationMatchModal } from './ReconciliationMatchModal';
+import { resolveError } from '../lib/resolveError';
 
 const STATEMENTS_PER_PAGE = 10;
 
 const inputClass =
   'rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 focus:border-emerald-500 focus:outline-none disabled:opacity-50';
 
-/** Extract a human message from apiClient's thrown error object. */
-function resolveError(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown };
-    if (typeof o.error === 'string') return o.error;
-    if (typeof o.message === 'string') return o.message;
-  }
-  return fallback;
-}
 
 // ── Line status badge ───────────────────────────────────────────────────────────
 

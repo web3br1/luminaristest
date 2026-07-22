@@ -44,6 +44,9 @@ function buildService(over: { dts?: any; repo?: any } = {}) {
       // other tables don't have their schema inspected by convertLead.
       schema: internal === 'leads' ? leadsSchema : { fields: [] },
     })),
+    // Default lead row belongs to THIS tenant's leads table ('leads-table'), so the
+    // cross-tenant guard in advanceStage/createProposal/recordNoShow passes by default.
+    findDataById: jest.fn(async (id: string) => ({ id, dynamicTableId: 'leads-table', data: {} })),
     ...over.repo,
   };
   const svc = new CrmPipelineService(dynamicTableService as any, repository as any);
@@ -85,6 +88,20 @@ describe('CrmPipelineService', () => {
       const { svc } = buildService({ repo: { findTableByInternalName: jest.fn(async () => null) } });
       await expect(svc.advanceStage(user, { leadId: 'l1', stageId: 's2' })).rejects.toBeInstanceOf(NotFoundError);
     });
+
+    // FIX 1 — cross-tenant read: a leadId whose row belongs to another table/tenant must be
+    // treated as non-existent (NotFoundError, no ForbiddenError enumeration), and NO write.
+    it('lead de outra tabela/tenant (dynamicTableId ≠ tabela de leads) → NotFoundError, sem escritas', async () => {
+      const { svc, dynamicTableService } = buildService({
+        repo: { findDataById: jest.fn(async (id: string) => ({ id, dynamicTableId: 'someone-else-leads-table', data: {} })) },
+      });
+      await expect(
+        svc.advanceStage(user, { leadId: 'l1', stageId: 's2', stageType: 'proposal', amount: 1000 }),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      expect(dynamicTableService.createTableData).not.toHaveBeenCalled();
+      expect(dynamicTableService.updateTableData).not.toHaveBeenCalled();
+      expect(dynamicTableService.runInTransaction).not.toHaveBeenCalled();
+    });
   });
 
   describe('createProposal', () => {
@@ -95,6 +112,19 @@ describe('CrmPipelineService', () => {
       expect(dynamicTableService.runInTransaction).toHaveBeenCalledTimes(1);
       expect(dynamicTableService.createTableData).toHaveBeenCalledWith(user, 'leadProposals-table', expect.any(Object), txArg);
       expect(dynamicTableService.updateTableData).toHaveBeenCalledWith(user, 'l1', { data: expect.objectContaining({ latestProposalAmount: 2000 }) }, txArg);
+    });
+
+    // FIX 1 — cross-tenant read: foreign/other-table leadId → NotFoundError, no writes.
+    it('lead de outra tabela/tenant → NotFoundError, sem escritas', async () => {
+      const { svc, dynamicTableService } = buildService({
+        repo: { findDataById: jest.fn(async (id: string) => ({ id, dynamicTableId: 'someone-else-leads-table', data: {} })) },
+      });
+      await expect(
+        svc.createProposal(user, { leadId: 'l1', amount: 2000, currency: 'USD' }),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      expect(dynamicTableService.createTableData).not.toHaveBeenCalled();
+      expect(dynamicTableService.updateTableData).not.toHaveBeenCalled();
+      expect(dynamicTableService.runInTransaction).not.toHaveBeenCalled();
     });
   });
 
@@ -110,6 +140,19 @@ describe('CrmPipelineService', () => {
       const { svc, dynamicTableService } = buildService();
       await svc.recordNoShow(user, { leadId: 'l1', option: 'revert', previousStageId: 's1' });
       expect(dynamicTableService.updateTableData).toHaveBeenCalledWith(user, 'l1', { data: { stageId: 's1' } }, txArg);
+    });
+
+    // FIX 1 — cross-tenant read: foreign/other-table leadId → NotFoundError, no writes.
+    it('lead de outra tabela/tenant → NotFoundError, sem escritas', async () => {
+      const { svc, dynamicTableService } = buildService({
+        repo: { findDataById: jest.fn(async (id: string) => ({ id, dynamicTableId: 'someone-else-leads-table', data: {} })) },
+      });
+      await expect(
+        svc.recordNoShow(user, { leadId: 'l1', option: 'reschedule', rescheduleAt: '2026-07-01T10:00:00Z' }),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      expect(dynamicTableService.createTableData).not.toHaveBeenCalled();
+      expect(dynamicTableService.updateTableData).not.toHaveBeenCalled();
+      expect(dynamicTableService.runInTransaction).not.toHaveBeenCalled();
     });
   });
 

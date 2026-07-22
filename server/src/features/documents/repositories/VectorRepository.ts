@@ -41,18 +41,6 @@ const COLLECTION_NAME = 'documents';
 const MAX_POINTS_PER_BATCH = 100; // Limite de pontos por lote para operações em massa
 
 /**
- * Converte IDs para o formato esperado pelo Qdrant
- * Pode ser string ou número
- */
-function normalizeIds(ids: string[]): (string | number)[] {
-  return ids.map(id => {
-    // Tenta converter para número se for um número válido
-    const numId = Number(id);
-    return isNaN(numId) ? id : numId;
-  });
-}
-
-/**
  * Repository for managing vector operations in Qdrant.
  * Uses the official Qdrant JS client.
  */
@@ -79,7 +67,7 @@ export class VectorRepository implements IVectorRepository {
       try {
         VectorPointSchema.parse(point);
       } catch (error) {
-        logger.error('Ponto inválido', { 
+        logger.error('Ponto inválido', {
           error: error instanceof Error ? error.message : 'Erro desconhecido',
           pointId: point.id,
           userId: point.payload?.userId
@@ -91,7 +79,7 @@ export class VectorRepository implements IVectorRepository {
       }
     }
 
-    logger.info('Iniciando upsert de pontos vetoriais', { 
+    logger.info('Iniciando upsert de pontos vetoriais', {
       pointsCount: points.length,
       userId: points[0].payload?.userId
     });
@@ -110,12 +98,12 @@ export class VectorRepository implements IVectorRepository {
           points: batch,
         });
       }
-      
-      logger.info('Upsert de pontos vetoriais concluído', { 
+
+      logger.info('Upsert de pontos vetoriais concluído', {
         duration: Date.now() - startTime
       });
       endTimer({ success: true });
-      
+
     } catch (error) {
       const errorBody = (error instanceof Error && 'cause' in error) ? (error as { cause?: unknown }).cause : error;
       logger.error('Falha no upsert de pontos vetoriais', {
@@ -126,7 +114,7 @@ export class VectorRepository implements IVectorRepository {
         duration: Date.now() - startTime
       });
       endTimer({ success: false });
-      throw new Error(`Falha ao inserir/atualizar vetores: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      throw new Error(`Falha ao inserir/atualizar vetores: ${error instanceof Error ? error.message : 'Erro desconhecido'}`, { cause: error });
     }
   }
 
@@ -247,7 +235,7 @@ export class VectorRepository implements IVectorRepository {
     try {
       SearchVectorsSchema.parse({ vector, userId, limit });
     } catch (error) {
-      logger.error('Parâmetros de busca inválidos', { 
+      logger.error('Parâmetros de busca inválidos', {
         error: error instanceof Error ? error.message : 'Erro desconhecido',
         userId,
         vectorLength: vector.length,
@@ -259,7 +247,7 @@ export class VectorRepository implements IVectorRepository {
       );
     }
 
-    logger.debug('Iniciando busca por vetores similares', { 
+    logger.debug('Iniciando busca por vetores similares', {
       vectorLength: vector.length,
       userId,
       limit,
@@ -284,7 +272,7 @@ export class VectorRepository implements IVectorRepository {
 
       const response = await qdrant.search(COLLECTION_NAME, searchParams);
 
-      logger.debug('Busca por vetores concluída', { 
+      logger.debug('Busca por vetores concluída', {
         resultsCount: response.length,
         userId,
         collection: COLLECTION_NAME
@@ -294,18 +282,18 @@ export class VectorRepository implements IVectorRepository {
       return response.map(point => {
         // Garante que o vetor seja um array de números
         let vector: number[] = [];
-        
+
         if (Array.isArray(point.vector)) {
           // Se for um array de números, usa diretamente
           if (point.vector.every(v => typeof v === 'number')) {
             vector = point.vector as number[];
-          } 
+          }
           // Se for um array de arrays de números, pega o primeiro array
           else if (point.vector.length > 0 && Array.isArray(point.vector[0])) {
             vector = (point.vector as number[][])[0] || [];
           }
         }
-        
+
         return {
           id: point.id,
           version: (point as { version?: number }).version || 0,
@@ -314,209 +302,48 @@ export class VectorRepository implements IVectorRepository {
           vector
         };
       });
-      
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      logger.error('Falha na busca por vetores', { 
+      logger.error('Falha na busca por vetores', {
         error: errorMessage,
         userId,
         vectorLength: vector?.length,
         collection: COLLECTION_NAME
       });
-      
-      throw new Error(`Falha na busca por vetores: ${errorMessage}`);
+
+      throw new Error(`Falha na busca por vetores: ${errorMessage}`, { cause: error });
     }
   }
 
   /**
-   * Remove múltiplos pontos vetoriais do Qdrant
-   * @param ids IDs dos pontos a serem removidos
-   * @throws {ValidationError} Se a lista de IDs for inválida
-   * @throws {Error} Se a remoção falhar
+   * Removes every vector belonging to a document by filtering on the `documentId` payload.
+   * Deleting by semantic key (rather than by reconstructed point ids) is robust against id-derivation
+   * drift and also reaps any pre-existing orphans for the document.
+   * @param documentId The owning document id.
+   * @throws {ValidationError} If the document id is invalid.
+   * @throws {Error} If the deletion fails.
    */
-  async deletePoints(ids: string[]): Promise<void> {
-    if (!ids || ids.length === 0) {
-      logger.debug('Nenhum ID fornecido para remoção');
-      return;
+  async deletePointsByDocumentId(documentId: string): Promise<void> {
+    if (typeof documentId !== 'string' || documentId.trim() === '') {
+      throw new ValidationError('ID do documento inválido');
     }
-
-    // Valida os IDs
-    if (!Array.isArray(ids) || !ids.every(id => typeof id === 'string' && id.trim() !== '')) {
-      throw new ValidationError('Lista de IDs inválida');
-    }
-
-    const normalizedIds = normalizeIds(ids);
-    
-    logger.debug(`Verificando existência de ${normalizedIds.length} pontos no Qdrant`, {
-      collection: COLLECTION_NAME,
-      sampleIds: normalizedIds.slice(0, 3)
-    });
 
     try {
-      // Primeiro, verifica quais pontos existem
-      const existingPoints: (string | number)[] = [];
-      const nonExistingPoints: (string | number)[] = [];
-
-      // Verifica a existência em lotes
-      for (let i = 0; i < normalizedIds.length; i += MAX_POINTS_PER_BATCH) {
-        const batch = normalizedIds.slice(i, i + MAX_POINTS_PER_BATCH);
-        
-        try {
-          logger.debug('Chamando Qdrant retrieve', { 
-            collection: COLLECTION_NAME,
-            batchSize: batch.length,
-            sampleIds: batch.slice(0, 3)
-          });
-          
-          const pointsInfo = await qdrant.retrieve(COLLECTION_NAME, {
-            ids: batch,
-            with_vector: false,
-            with_payload: false
-          });
-
-          logger.debug('Resposta do Qdrant retrieve', { 
-            collection: COLLECTION_NAME,
-            pointsCount: pointsInfo.length,
-            sampleIds: pointsInfo.slice(0, 3).map((p: { id: string | number }) => p.id)
-          });
-
-          const existingBatchPoints = pointsInfo.map((p: { id: string | number }) => p.id);
-          const existingBatchSet = new Set(existingBatchPoints);
-
-          batch.forEach(id => {
-            if (existingBatchSet.has(id)) {
-              existingPoints.push(id);
-            } else {
-              nonExistingPoints.push(id);
-            }
-          });
-        } catch (retrieveError) {
-          const errorMessage = retrieveError instanceof Error ? retrieveError.message : 'Erro desconhecido';
-          logger.error('Erro ao verificar pontos no Qdrant', {
-            error: errorMessage,
-            collection: COLLECTION_NAME,
-            batchSize: batch.length,
-            sampleIds: batch.slice(0, 3)
-          });
-          
-          // Se houver erro na verificação, assume que os pontos não existem
-          nonExistingPoints.push(...batch);
-        }
-      }
-
-      // Log de pontos não encontrados
-      if (nonExistingPoints.length > 0) {
-        logger.warn(`${nonExistingPoints.length} pontos não encontrados no Qdrant`, {
-          collection: COLLECTION_NAME,
-          nonExistingSampleIds: nonExistingPoints.slice(0, 3)
-        });
-      }
-
-      // Se não há pontos existentes para remover, retorna
-      if (existingPoints.length === 0) {
-        logger.debug('Nenhum ponto encontrado para remoção');
-        return;
-      }
-
-      logger.info(`Iniciando remoção de ${existingPoints.length} pontos do Qdrant`, { 
-        collection: COLLECTION_NAME,
-        totalPoints: normalizedIds.length,
-        existingPoints: existingPoints.length,
-        nonExistingPoints: nonExistingPoints.length,
-        sampleIds: existingPoints.slice(0, 3)
+      await qdrant.delete(COLLECTION_NAME, {
+        wait: true,
+        filter: {
+          must: [{ key: 'documentId', match: { value: documentId } }],
+        },
       });
-      
-      // Remove apenas os pontos que existem
-      const successfullyDeleted: (string | number)[] = [];
-      const failedToDelete: Array<{id: string | number, error: string}> = [];
-      
-      for (let i = 0; i < existingPoints.length; i += MAX_POINTS_PER_BATCH) {
-        const batch = existingPoints.slice(i, i + MAX_POINTS_PER_BATCH);
-        const batchNumber = Math.floor(i / MAX_POINTS_PER_BATCH) + 1;
-        const totalBatches = Math.ceil(existingPoints.length / MAX_POINTS_PER_BATCH);
-        
-        try {
-          logger.debug(`Removendo lote ${batchNumber} de ${totalBatches} com ${batch.length} pontos`, {
-            collection: COLLECTION_NAME,
-            batch: batchNumber,
-            totalBatches,
-            sampleIds: batch.slice(0, 3)
-          });
-          
-          await qdrant.delete(COLLECTION_NAME, {
-            wait: true,
-            points: batch,
-          });
-
-          logger.debug(`Lote ${batchNumber} de ${totalBatches} removido com sucesso`, {
-            collection: COLLECTION_NAME,
-            batch: batchNumber,
-            totalBatches,
-            pointsCount: batch.length
-          });
-          
-          successfullyDeleted.push(...batch);
-        } catch (deleteError) {
-          const errorMessage = deleteError instanceof Error ? deleteError.message : 'Erro desconhecido';
-          logger.error(`Erro ao remover lote ${batchNumber} de ${totalBatches}`, {
-            error: errorMessage,
-            collection: COLLECTION_NAME,
-            batch: batchNumber,
-            totalBatches,
-            batchSize: batch.length,
-            sampleIds: batch.slice(0, 3)
-          });
-          
-          // Adiciona todos os IDs do lote à lista de falhas
-          batch.forEach(id => {
-            failedToDelete.push({
-              id,
-              error: errorMessage
-            });
-          });
-        }
-      }
-      
-      // Log do resultado da operação
-      if (successfullyDeleted.length > 0) {
-        logger.info('Remoção de pontos do Qdrant concluída parcialmente', { 
-          collection: COLLECTION_NAME,
-          totalRequested: normalizedIds.length,
-          totalDeleted: successfullyDeleted.length,
-          failedToDelete: failedToDelete.length,
-          notFound: nonExistingPoints.length,
-          sampleSuccessIds: successfullyDeleted.slice(0, 3),
-          sampleFailedIds: failedToDelete.slice(0, 3).map(f => f.id)
-        });
-      }
-      
-      // Se houve falhas, lança um erro com os detalhes
-      if (failedToDelete.length > 0) {
-        const errorMessage = `Falha ao remover ${failedToDelete.length} de ${normalizedIds.length} pontos`;
-        logger.error(errorMessage, {
-          collection: COLLECTION_NAME,
-          totalRequested: normalizedIds.length,
-          totalDeleted: successfullyDeleted.length,
-          failedToDelete: failedToDelete.length,
-          sampleErrors: failedToDelete.slice(0, 3)
-        });
-        
-        throw new Error(errorMessage);
-      }
-      
+      logger.info('Vetores do documento removidos do Qdrant', { documentId, collection: COLLECTION_NAME });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      logger.error('Falha ao remover pontos do Qdrant', { 
-        error: errorMessage,
-        collection: COLLECTION_NAME,
-        idsCount: normalizedIds.length,
-        sampleIds: normalizedIds.slice(0, 3)
-      });
-      
-      throw new Error(`Falha ao remover vetores: ${errorMessage}`);
+      logger.error('Falha ao remover vetores do documento', { error: errorMessage, documentId, collection: COLLECTION_NAME });
+      throw new Error(`Falha ao remover vetores do documento: ${errorMessage}`, { cause: error });
     }
   }
-  
+
   /**
    * Removes all vectors belonging to a user — LGPD art.18 VI (right to erasure).
    * Uses a filter-based delete so no prior point-ID lookup is needed.
@@ -626,7 +453,7 @@ export class VectorRepository implements IVectorRepository {
         collection: COLLECTION_NAME,
         fullError: fullErrorString
       });
-      throw new Error(`Falha ao buscar pontos do documento: ${errorMessage}`);
+      throw new Error(`Falha ao buscar pontos do documento: ${errorMessage}`, { cause: error });
     }
   }
 }
