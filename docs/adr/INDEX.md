@@ -38,6 +38,13 @@
 | [D01](ADR-D01-settlement-reversal.md) | Settlement & Reversal (baixa de A Receber + estorno) | Retroactively ratified | 2026-06-26 | PRISMA_FIRST_CLASS + origem DynamicTable |
 | [D0-d-settlement](D0-d-settlement-ratification.md) | Ratificação humana — fase D-settlement (gate G0) | Retroactively ratified | 2026-06-26 | (registro de ratificação) |
 | [D0-d-reversal](D0-d-reversal-ratification.md) | Ratificação humana — fase D-reversal (gate G0) | Retroactively ratified | 2026-06-26 | (registro de ratificação) |
+| [CRM-SEAM](ADR-CRM-SEAM-revenue-recognition.md) | Reconhecimento de receita do seam CRM → razão (forks F1–F4: subrazão AR × direta, binding conta-por-papel, guard terminal, `Won` imbookável) | **Draft — PRE-ADR, ratificação humana PENDENTE (§5.1)**; origem: Design Council CRM 2026-07-20 (resolução D1); nenhum código de receita CRM→razão antes da assinatura do dono + kit D6 verde | 2026-07-20 | PRISMA_FIRST_CLASS + origem DynamicTable (seam CRM) |
+
+## CRM — molde salão (modelagem de produto)
+
+| ADR | Título | Status | Data | Classe |
+|---|---|---|---|---|
+| [CRM-LEAD-OPP](ADR-CRM-lead-opportunity-model.md) | Modelo de produto Lead × Opportunity no molde salão (quantas pipelines de valor; portadora de fechamento) | **Draft — PRE-ADR, ratificação humana PENDENTE (§5.1)**; devolvido ao dono pelo board v3 (D3: 4 defer + 1 abstain); recomendação = interino reversível (ocultar 2ª pipeline sem deletar código) | 2026-07-20 | PRODUTO / MODELAGEM DE MOLDE (DynamicTable) |
 
 ## Fora-de-ADR — decisões de módulo que vivem em outro lugar
 
