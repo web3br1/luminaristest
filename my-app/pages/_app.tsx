@@ -4,7 +4,6 @@ import { AuthProvider } from '../lib/context/AuthContext';
 import { CurrencyProvider } from '../lib/context/CurrencyContext';
 import { DashboardDataProvider } from '../lib/context/DashboardDataContext';
 import { appWithTranslation } from 'next-i18next';
-// @ts-ignore
 import nextI18NextConfig from '../next-i18next.config.js';
 import type { AppProps as NextAppProps } from 'next/app';
 import ErrorBoundary from '../components/error-boundaries/ErrorBoundary';
