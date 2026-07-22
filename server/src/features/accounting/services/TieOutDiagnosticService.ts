@@ -41,6 +41,8 @@ const POS_FEEDER_SOURCE_TYPE_MAP: Record<
   'salon.sale.returned': true,
   'salon.sale.settled': true,
   'salon.package.sold': true,
+  // CMV (INCR-INVENTORY): movimenta 4.2/1.1.6, nunca a 1.1.2 — presença aqui é só exaustividade.
+  'salon.sale.cogs': true,
 };
 
 export const POS_FEEDER_SOURCE_TYPES = Object.keys(POS_FEEDER_SOURCE_TYPE_MAP) as Array<
