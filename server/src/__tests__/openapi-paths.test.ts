@@ -26,7 +26,9 @@ const { options } = require('../../scripts/generate-openapi');
 // +6 (ADR-INCR-APPROVAL maker-checker torre): /api/entry-approvals/pending (GET), /drafts (POST),
 //    /drafts/{id} (PUT), /drafts/{id}/submit, /{id}/approve, /{id}/reject.
 // +1 (INCR-AGING): GET /api/accounting/reports/aging.
-const BASELINE = 135;
+// +2 (PR #139 review residual): POST /api/dashboard-layout/{id}/activate + baseline catch-up;
+//    dashboard-layout/structured-data docs moved from docs.paths.ts into their controllers.
+const BASELINE = 137;
 
 describe('OpenAPI @openapi path coverage', () => {
   it('exposes at least BASELINE paths (guards the swagger-jsdoc `: ` drop bug)', () => {

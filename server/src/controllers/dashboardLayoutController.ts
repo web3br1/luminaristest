@@ -7,6 +7,16 @@ import { CreateDashboardLayoutSchema, UpdateDashboardLayoutSchema } from '@/feat
 
 const LayoutIdSchema = z.object({ id: z.string().cuid({ message: 'Invalid layout ID format' }) });
 
+/** @openapi
+ * /api/dashboard-layout:
+ *   get:
+ *     summary: List all dashboard widget layouts for the current user
+ *     tags: [DashboardLayout]
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       '200': { description: Array of layout objects }
+ *       '401': { $ref: '#/components/responses/UnauthorizedError' }
+ */
 export async function listLayouts(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
@@ -19,6 +29,21 @@ export async function listLayouts(req: Request, res: Response) {
   }
 }
 
+/** @openapi
+ * /api/dashboard-layout:
+ *   post:
+ *     summary: Save a new dashboard widget layout
+ *     tags: [DashboardLayout]
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/CreateDashboardLayoutDto' }
+ *     responses:
+ *       '201': { description: Layout created }
+ *       '401': { $ref: '#/components/responses/UnauthorizedError' }
+ */
 export async function createLayout(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
@@ -34,6 +59,19 @@ export async function createLayout(req: Request, res: Response) {
   }
 }
 
+/** @openapi
+ * /api/dashboard-layout/{id}:
+ *   get:
+ *     summary: Get a dashboard layout by ID
+ *     tags: [DashboardLayout]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: id, required: true, schema: { type: string, format: cuid } }
+ *     responses:
+ *       '200': { description: Layout }
+ *       '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *       '404': { $ref: '#/components/responses/NotFoundError' }
+ */
 export async function getLayoutById(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
@@ -49,6 +87,24 @@ export async function getLayoutById(req: Request, res: Response) {
   }
 }
 
+/** @openapi
+ * /api/dashboard-layout/{id}:
+ *   patch:
+ *     summary: Update a dashboard layout
+ *     tags: [DashboardLayout]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: id, required: true, schema: { type: string, format: cuid } }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/UpdateDashboardLayoutDto' }
+ *     responses:
+ *       '200': { description: Updated layout }
+ *       '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *       '404': { $ref: '#/components/responses/NotFoundError' }
+ */
 export async function updateLayout(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
@@ -67,6 +123,19 @@ export async function updateLayout(req: Request, res: Response) {
   }
 }
 
+/** @openapi
+ * /api/dashboard-layout/{id}/activate:
+ *   post:
+ *     summary: Set a dashboard layout as the active one for the current user
+ *     tags: [DashboardLayout]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: id, required: true, schema: { type: string, format: cuid } }
+ *     responses:
+ *       '200': { description: Activated layout }
+ *       '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *       '404': { $ref: '#/components/responses/NotFoundError' }
+ */
 export async function activateLayout(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
@@ -82,6 +151,19 @@ export async function activateLayout(req: Request, res: Response) {
   }
 }
 
+/** @openapi
+ * /api/dashboard-layout/{id}:
+ *   delete:
+ *     summary: Delete a dashboard layout
+ *     tags: [DashboardLayout]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: id, required: true, schema: { type: string, format: cuid } }
+ *     responses:
+ *       '200': { description: Layout deleted }
+ *       '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *       '404': { $ref: '#/components/responses/NotFoundError' }
+ */
 export async function deleteLayout(req: Request, res: Response) {
   try {
     const ctx = getUserContextFromRequest(req);
