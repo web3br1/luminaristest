@@ -104,7 +104,7 @@ All under `/api/dynamic-tables` (prefix protected by `authMiddleware`).
   rolls everything back (incl. cascades).
 - **Delete-constraint scan is complete:** the referencer scan (`findRowsReferencingId`) is **unbounded**
   so `RESTRICT_IF_AGGREGATE` sums and `CASCADE` see every referencing row.
-- **Safe system bypass:** `__isSystem` is only honored in non-production or for ADMIN.
+- **Safe system bypass:** `isSystem` is derived from the call context (`*AsSystem` paths / plugin writes) — a client-supplied `__isSystem` flag is stripped and NEVER grants privilege (R2).
 - No `as any` in the controller; typed errors; `logger`.
 
 ## Internal decomposition (orchestrator + engines)
@@ -149,9 +149,11 @@ unless you understand the trade-off you are changing.
   (`getTableById`→`canView`, `findTableForData`→`canManageData`) before any access. The one method that
   returns data resolved purely from caller-supplied ids — `resolveRelations` (`/lookup`) — additionally
   **filters rows to the authorized table** (it would otherwise leak labels across tenants).
-- **`__isSystem` bypass.** A `data.__isSystem` flag skips the update guards + no-overlap, honored **only**
-  in non-production or for an ADMIN. *Why:* trusted flows (plugins adjusting `stock`, seeds) must write
-  protected fields without tripping user-facing guards. The Zod + advanced-rule validation still applies.
+- **`isSystem` bypass.** System writes skip the update guards + no-overlap. `isSystem` comes ONLY from
+  the call context (`*AsSystem` service paths, plugins writing via `ctx.repository.*`); a `__isSystem`
+  flag arriving in a client payload is stripped and rejected (R2 — request data never grants privilege).
+  *Why:* trusted flows (plugins adjusting `stock`, seeds) must write protected fields without tripping
+  user-facing guards. The Zod + advanced-rule validation still applies.
 - **Two-pass preset install + `@@PRESET_TABLE_KEY::`.** A preset's cross-table relations are placeholders
   resolved in a second pass after all tables exist, inside one transaction. See
   `services/PresetInstallerService.ts` and `docs/architecture.md`.

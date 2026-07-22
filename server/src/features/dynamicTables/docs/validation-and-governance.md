@@ -41,8 +41,9 @@
 ### Delete (`deleteTableData`)
 `runRules('beforeDelete')` → **deleteConstraints** → soft delete → `runRules('afterDelete')`.
 
-> **`isSystem` bypass.** System writes (`(data as any).__isSystem`, or plugins writing via
-> `ctx.repository.*`) **skip** Guard 1, Guard 2, Guard 3 and `enforceNoOverlap`. The system needs to
+> **`isSystem` bypass.** System writes (the `*AsSystem` call paths, or plugins writing via
+> `ctx.repository.*`) **skip** Guard 1, Guard 2, Guard 3 and `enforceNoOverlap`. A client-supplied
+> `__isSystem` payload flag is stripped and never grants privilege (R2). The system needs to
 > adjust protected fields (e.g. `SalesPlugin` touches `stock`/`reserved`) and create records without
 > tripping the guards. `validateAdvancedRules` and the Zod step still apply.
 
