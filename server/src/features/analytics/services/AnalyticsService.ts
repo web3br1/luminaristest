@@ -50,7 +50,7 @@ interface AnalyticsDefinitionRow {
   data?: AnalyticsDefinitionData;
 }
 
-class AnalyticsService {
+export class AnalyticsService {
   /**
    * Async: merges system-level, table-level, and CORE (DB) analytics.
    * This version is dynamic and respects the user's active tables.
@@ -551,4 +551,7 @@ class AnalyticsService {
   }
 }
 
+// Canonical singleton (main pattern): AnalyticsService has no constructor dependencies —
+// callers outside the factory (resolver, controllers) consume this instance directly.
 export const analyticsService = new AnalyticsService();
+

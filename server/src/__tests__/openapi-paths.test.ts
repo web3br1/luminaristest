@@ -26,7 +26,9 @@ const { options } = require('../../scripts/generate-openapi');
 // +6 (ADR-INCR-APPROVAL maker-checker torre): /api/entry-approvals/pending (GET), /drafts (POST),
 //    /drafts/{id} (PUT), /drafts/{id}/submit, /{id}/approve, /{id}/reject.
 // +1 (INCR-AGING): GET /api/accounting/reports/aging.
-const BASELINE = 135;
+// +2 (PR #139 review residual): POST /api/dashboard-layout/{id}/activate + baseline catch-up;
+//    dashboard-layout/structured-data docs moved from docs.paths.ts into their controllers.
+const BASELINE = 137;
 
 describe('OpenAPI @openapi path coverage', () => {
   it('exposes at least BASELINE paths (guards the swagger-jsdoc `: ` drop bug)', () => {
@@ -45,5 +47,25 @@ describe('OpenAPI @openapi path coverage', () => {
     const spec = swaggerJSDoc(options) as { paths?: Record<string, unknown> };
     const junk = Object.keys(spec.paths || {}).filter((k) => !k.startsWith('/'));
     expect(junk).toEqual([]);
+  });
+
+  // Third guard: every $ref in the spec must resolve. The components live in @openapi blocks
+  // spread across routes/ + dtos/ — dropping a file from the glob (or renaming a schema) used
+  // to leave silently-dangling refs in the served spec (25 of them before the dtos/ glob).
+  it('has no dangling $refs', () => {
+    const spec = swaggerJSDoc(options) as Record<string, unknown>;
+    const refs = new Set<string>();
+    JSON.stringify(spec, (k, v) => {
+      if (k === '$ref') refs.add(v as string);
+      return v;
+    });
+    const dangling = [...refs].filter((r) => {
+      let node: unknown = spec;
+      for (const seg of r.replace('#/', '').split('/')) {
+        node = node && (node as Record<string, unknown>)[seg];
+      }
+      return !node;
+    });
+    expect(dangling).toEqual([]);
   });
 });

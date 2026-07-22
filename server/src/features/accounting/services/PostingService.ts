@@ -1,9 +1,10 @@
-import { AccountingPeriodNotOpenError, AppError, ForbiddenError, NotFoundError, ValidationError } from '../../../lib/errors';
+import { AccountingPeriodNotOpenError, AppError, ForbiddenError, MaxCentsExceededError, NotFoundError, ValidationError } from '../../../lib/errors';
 import logger from '../../../lib/logger';
 import { Prisma } from 'generated/prisma';
 import type { Account } from 'generated/prisma';
 import { CANONICAL_ACCOUNTS } from '../fixtures/ChartOfAccountsFixture';
 import { CLOSING_SOURCE_TYPE, reversedClosingSourceId } from '../models/closing';
+import { MAX_CENTS } from '../models/money';
 import type { CreateAccountInput, PostEntryInput, ReverseEntryInput } from '../dtos/PostingDto';
 import type { IAccountRepository } from '../repositories/IAccountRepository';
 import type {
@@ -172,6 +173,31 @@ export class PostingService {
 
     await this.ensureChartOfAccounts(scope);
 
+    // CENTS CHOKE-POINT GUARD (Council 1.5 / ACC-014) — the write authority validates the cents
+    // themselves, not just the balance. Border guards (DTO Zod, import validators) keep the
+    // friendly-400 UX for direct API input, but bridge/mapper callers bypass every DTO — this is
+    // the single point ALL write paths cross. Two distinct rejections:
+    //   • non-integer/negative cents → ValidationError (malformed money can NEVER enter the ledger);
+    //   • integer above the Int32 storage ceiling → MaxCentsExceededError with its OWN code
+    //     ('MAX_CENTS_EXCEEDED', distinct from period-closed) so best-effort bridges and the
+    //     reconcile re-drive can skip it as a POISON event instead of retrying forever.
+    for (const line of input.lines) {
+      if (
+        !Number.isInteger(line.debitCents) ||
+        !Number.isInteger(line.creditCents) ||
+        line.debitCents < 0 ||
+        line.creditCents < 0
+      ) {
+        throw new ValidationError(
+          `Partida da conta '${line.accountCode}' com centavos inválidos — inteiro >= 0 obrigatório.`,
+        );
+      }
+      const magnitude = Math.max(line.debitCents, line.creditCents);
+      if (magnitude > MAX_CENTS) {
+        throw new MaxCentsExceededError(line.accountCode, magnitude, MAX_CENTS);
+      }
+    }
+
     // BALANCE INVARIANT — integer cents, EXACT equality (no float/epsilon, Contract §2.1).
     const sumDebit = input.lines.reduce((acc, line) => acc + line.debitCents, 0);
     const sumCredit = input.lines.reduce((acc, line) => acc + line.creditCents, 0);
@@ -230,13 +256,25 @@ export class PostingService {
         // commit: a leg to a `requiresDimension` account with NO tag is rejected + rolls back. This
         // is the FIRST of the three write-paths covered by the shared choke-point (the other two are
         // reverseEntry — copy-only — and EntryApprovalService.approveEntry). PROSPECTIVE (SEC-B1-5).
-        assertLegDimensions(
-          resolvedLines.map((l) => ({
-            accountCode: l.accountCode,
-            requiresDimension: l.requiresDimension,
-            dimensionCount: l.dimensions.length,
-          })),
-        );
+        //
+        // MACHINE-WRITER EXEMPTION (Council 1.7/N6) — a closing entry (sourceType='closing',
+        // ExerciseClosingService) composes its legs FROM aggregated ledger balances: there is no
+        // per-leg dimension fact to tag, and gating it would DEADLOCK the year-end close the moment
+        // any result account is flagged (exercício inencerrável → no PVA-clean ECD). This mirrors
+        // the reversal exemption (SEC-B1-2): both are derived-content writers, not original economic
+        // content. The apuração I350/I355 path IS this closing entry (SPED gen is read-only, D7), so
+        // no other machine writer needs the exemption. Boundary note: sourceType is caller-supplied,
+        // but a caller forging 'closing' only skips a METADATA completeness gate (ACC-024 — no ledger
+        // value) at the cost of mislabeling its entry as DRE-excluded — audited like every post.
+        if (sourceType !== CLOSING_SOURCE_TYPE) {
+          assertLegDimensions(
+            resolvedLines.map((l) => ({
+              accountCode: l.accountCode,
+              requiresDimension: l.requiresDimension,
+              dimensionCount: l.dimensions.length,
+            })),
+          );
+        }
 
         const fiscalYear = this.fiscalYearFrom(input.date);
         const entryNumber = await this.postingRepo.nextEntryNumber(scope, fiscalYear, tx);

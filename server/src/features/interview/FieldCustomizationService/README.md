@@ -1,45 +1,45 @@
 ## FieldCustomizationService
 
-Etapa mais fina da customização: **adicionar/remover/modificar campos** de uma tabela específica, por
-conversa com IA, reusando **field presets** quando possível. É um **singleton** — a classe vive em
+The finest customization step: **add/remove/modify fields** of a specific table, via an AI conversation,
+reusing **field presets** when possible. It is a **singleton** — the class lives in
 [`index.ts`](./index.ts) (`FieldCustomizationService.getInstance()`).
 
-> Parte da feature [`interview`](../README.md). Compartilha o `StateManager` do
+> Part of the [`interview`](../README.md) feature. Shares the `StateManager` of the
 > [`CustomizationService`](../CustomizationService/README.md).
 
-## API pública
+## Public API
 
-| Método | Papel |
+| Method | Role |
 |---|---|
-| `getInstance()` | Acesso ao singleton. |
-| `processMessage(sessionId, tableKey, userMessage, conversationHistory?)` | Processa um pedido de customização de campos de uma tabela e retorna `IFieldCustomizationResult` (`updatedTable`, `aiMessage`, `modified`, `conversationHistory`). |
-| `validateFields(table)` | Sugere melhorias para os campos de uma tabela → `{ suggestions, valid }`. |
+| `getInstance()` | Access the singleton. |
+| `processMessage(sessionId, tableKey, userMessage, conversationHistory?)` | Processes a field-customization request for a table and returns `IFieldCustomizationResult` (`updatedTable`, `aiMessage`, `modified`, `conversationHistory`). |
+| `validateFields(table)` | Suggests improvements for a table's fields → `{ suggestions, valid }`. |
 
-## Fluxo de `processMessage`
+## `processMessage` flow
 
-1. Recupera o estado da sessão (`StateManager.getSessionState`) e localiza a tabela por `tableKey`.
-2. Monta o contexto (prompt de sistema com os campos atuais + histórico) e chama
+1. Retrieves the session state (`StateManager.getSessionState`) and locates the table by `tableKey`.
+2. Builds the context (a system prompt with the current fields + history) and calls
    `openaiService.getChatCompletionWithHistory(..., 'gpt-4-turbo')`.
-3. **`FieldIntentParser.parse(...)`** interpreta a resposta em modificações estruturadas
-   (`add`/`remove`/`modify`); `hasValidModifications(...)` valida. Se inválido, devolve a tabela
-   inalterada com uma mensagem amigável.
-4. **`processFieldModifications(...)`** (privado): para adições, usa **`FieldPresetMatcher`** para casar
-   o campo pedido com um **field preset** real; se achar, substitui pelo preset (preservando o label
-   pedido) e usa `FIELD_PRESET_FOUND_PROMPT`; se não, mantém o campo custom e usa
-   `FIELD_PRESET_NOT_FOUND_PROMPT`.
-5. **`FieldUpdater.update(table, modifications)`** aplica as mudanças.
-6. Se houve mudança, atualiza o `StateManager` (`updateTables`) e acrescenta as mensagens ao
-   `conversationHistory` da tabela.
+3. **`FieldIntentParser.parse(...)`** interprets the response into structured modifications
+   (`add`/`remove`/`modify`); `hasValidModifications(...)` validates. If invalid, it returns the table
+   unchanged with a friendly message.
+4. **`processFieldModifications(...)`** (private): for additions, it uses **`FieldPresetMatcher`** to
+   match the requested field with a real **field preset**; if found, it substitutes the preset
+   (preserving the requested label) and uses `FIELD_PRESET_FOUND_PROMPT`; if not, it keeps the custom
+   field and uses `FIELD_PRESET_NOT_FOUND_PROMPT`.
+5. **`FieldUpdater.update(table, modifications)`** applies the changes.
+6. If there was a change, it updates the `StateManager` (`updateTables`) and appends the messages to the
+   table's `conversationHistory`.
 
-## Componentes do módulo
+## Module components
 
-- **`FieldIntentParser`** — interpreta a intenção do usuário em modificações estruturadas.
-- **`FieldUpdater`** — aplica as modificações na `ICustomizableTable`.
-- **`FieldPresetMatcher`** — `findFieldPreset(description, existingFields)` casa um campo com um field
-  preset de `dynamicTables`.
+- **`FieldIntentParser`** — interprets the user's intent into structured modifications.
+- **`FieldUpdater`** — applies the modifications to the `ICustomizableTable`.
+- **`FieldPresetMatcher`** — `findFieldPreset(description, existingFields)` matches a field with a
+  `dynamicTables` field preset.
 - **`PromptConfig`** — templates (`FIELD_CUSTOMIZATION_PROMPT`, `FIELD_PRESET_FOUND_PROMPT`,
   `FIELD_PRESET_NOT_FOUND_PROMPT`, `FIELD_VALIDATION_PROMPT`).
-- **`StateManager`** (singleton, compartilhado) — fonte do estado da sessão.
+- **`StateManager`** (singleton, shared) — the source of session state.
 
-> ⚠️ Não existem `AIFieldInteraction` nem `FieldExtractor` (citados em docs antigas). A IA é chamada
-> diretamente via `OpenAIService` e a estruturação fica no `FieldIntentParser`.
+> ⚠️ There are no `AIFieldInteraction` nor `FieldExtractor` (mentioned in old docs). The AI is called
+> directly via `OpenAIService` and the structuring is done by `FieldIntentParser`.

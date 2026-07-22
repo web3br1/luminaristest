@@ -5,6 +5,8 @@ import { IVectorRepository } from '@/features/documents/repositories/IVectorRepo
 import { OpenAIService } from '@/lib/openai/OpenAIService';
 import { LuminarisAgentService } from './LuminarisAgentService';
 import { KnowledgeGraphService } from './KnowledgeGraphService';
+import { ChatMessageService } from '@/features/chatMessages/services/ChatMessageService';
+import { ChatMessageRole } from '@/features/chatMessages/models/ChatMessage.model';
 import logger from '@/lib/logger';
 import { UserContext } from '@/lib/authUtils';
 import { ForbiddenError } from '@/lib/errors';
@@ -13,6 +15,8 @@ import prisma from '@/lib/prisma';
 import OpenAI from 'openai';
 import { sanitizeUserInput, wrapSystemPrompt } from '@/lib/PromptSanitizer';
 
+// System prompts are intentionally written in Portuguese: the assistant's persona is
+// a Portuguese-speaking ERP/CRM agent. Technical values (IDs, enums) stay language-neutral.
 const RAG_SYSTEM_PROMPT = `
 Você é um assistente de IA especializado em analisar documentos e responder perguntas com base estritamente no conteúdo fornecido.
 Seu objetivo é fornecer respostas precisas e concisas, citando o texto exato dos documentos que suportam sua resposta.
@@ -52,12 +56,40 @@ export class ChatService implements IChatService {
     vectorRepository: IVectorRepository,
     openaiService: OpenAIService,
     agentService: LuminarisAgentService,
-    private readonly knowledgeGraphService: KnowledgeGraphService
+    private readonly knowledgeGraphService: KnowledgeGraphService,
+    private readonly chatMessageService: ChatMessageService
   ) {
     this.embeddingService = embeddingService;
     this.vectorRepository = vectorRepository;
     this.openaiService = openaiService;
     this.agentService = agentService;
+  }
+
+  /**
+   * Public entry point: persists the user message, generates the reply, and persists the
+   * assistant reply. Persistence is server-owned so message roles can't be spoofed by the client.
+   */
+  async generateResponse(request: ChatRequest & { user: UserContext }): Promise<ChatResponse> {
+    const { query = '', chatInstanceId, user } = request;
+
+    // Persist the user's message first (ownership is validated here → 403/404 if the instance isn't theirs).
+    // The DTO has no `role` field — the service always stores client-created messages as USER.
+    if (chatInstanceId && query.trim()) {
+      await this.chatMessageService.createMessage({ content: query, chatInstanceId }, user);
+    }
+
+    const response = await this.buildResponse(request);
+
+    // Persist the assistant reply. Best-effort: a write hiccup must not discard a generated answer.
+    if (chatInstanceId && response.answer) {
+      try {
+        await this.chatMessageService.appendAssistantMessage(chatInstanceId, response.answer, user);
+      } catch (error) {
+        logger.warn('Failed to persist assistant message', { error, chatInstanceId });
+      }
+    }
+
+    return response;
   }
 
   private async rewriteQueryWithHistory(query: string, history: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>): Promise<string> {
@@ -81,18 +113,18 @@ Pergunta Reformulada:
 `;
 
     const rewrittenQuery = await this.openaiService.getChatCompletion(rewritePrompt);
-    // Retorna a query reescrita ou a original em caso de falha
+    // Fall back to the original query if the rewrite fails.
     return rewrittenQuery ? rewrittenQuery.trim() : query;
   }
 
-  async generateResponse(request: ChatRequest & { user: UserContext }): Promise<ChatResponse> {
+  private async buildResponse(request: ChatRequest & { user: UserContext }): Promise<ChatResponse> {
     const { documentIds, history, confirmedProposalId, user } = request;
     const query = sanitizeUserInput(request.query ?? '');
     logger.info('Iniciando geração de resposta de chat', { queryLength: query.length, documentCount: documentIds?.length, historyLength: history?.length });
 
-    // 0. Verifica se é uma confirmação de proposta
+    // Confirmation of a previously proposed action.
     if (confirmedProposalId) {
-      logger.info('Executando proposta confirmada', { confirmedProposalId });
+      logger.info('Executing confirmed proposal', { confirmedProposalId });
       try {
         const result = await this.agentService.executeProposal(user, confirmedProposalId);
         return {
@@ -101,6 +133,7 @@ Pergunta Reformulada:
           sourceDocuments: []
         };
       } catch (error: unknown) {
+        logger.error('Failed to execute confirmed proposal', { error, confirmedProposalId });
         return {
           answer: `Houve um erro ao executar a operação: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
           type: 'TEXT',
@@ -109,15 +142,14 @@ Pergunta Reformulada:
       }
     }
 
-    // Verifica se há documentos selecionados
     const hasSelectedDocuments = Array.isArray(documentIds) && documentIds.length > 0;
 
-    // Se não houver documentos, usamos o fluxo de Agente ERP diretamente
+    // No documents selected → drive the ERP agent flow directly.
     if (!hasSelectedDocuments) {
-      logger.info('Nenhum documento selecionado. Usando modo AGENTE ERP.');
+      logger.info('No documents selected; using ERP agent mode.');
 
       const tools = await this.agentService.getTools(user.id);
-      const knowledgeGraphPrompt = await this.knowledgeGraphService.getGraphPrompt(user.id);
+      const knowledgeGraphPrompt = await this.knowledgeGraphService.getGraphPrompt(user.userId);
 
       const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
         { role: 'system', content: wrapSystemPrompt(AGENT_SYSTEM_PROMPT, user.id) },
@@ -126,7 +158,7 @@ Pergunta Reformulada:
         { role: 'user', content: query }
       ];
 
-      // Loop de chamadas de ferramenta
+      // Tool-call loop.
       let iterations = 0;
       while (iterations < 5) {
         iterations++;
@@ -179,8 +211,7 @@ Pergunta Reformulada:
               content: JSON.stringify(result)
             } as { role: 'tool'; tool_call_id: string; content: string });
           }
-          // Após processar ferramentas, o loop continua para o LLM gerar o texto final baseado nos resultados
-          // Mas precisamos enviar o histórico atualizado para o LLM
+          // After tool results are appended, ask the LLM for the final text answer.
           const nextCompletion = await this.openaiService.getChatCompletionWithHistory(messages);
           if (nextCompletion) {
             return { answer: nextCompletion, type: 'TEXT', sourceDocuments: [] };

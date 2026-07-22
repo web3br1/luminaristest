@@ -1,12 +1,12 @@
 # Rules Engine — Plugins
 
-> O mecanismo de plugins de regra (`rules/`): contrato, hooks, detecção de tabela, a fronteira
-> metadado × plugin, o catálogo atual e como estender.
-> Para validação declarativa (não-plugin), ver [validation-and-governance.md](./validation-and-governance.md).
+> The rule-plugin mechanism (`rules/`): contract, hooks, table detection, the metadata × plugin
+> boundary, the current catalog and how to extend it.
+> For declarative (non-plugin) validation, see [validation-and-governance.md](./validation-and-governance.md).
 
 ---
 
-## 1. Contrato
+## 1. Contract
 
 ```typescript
 // rules/RuleTypes.ts
@@ -23,36 +23,37 @@ interface RuleContext {
 
 interface RulePlugin {
   name: string;
-  supports(ctx: RuleContext): boolean;          // este plugin se aplica a esta tabela?
+  supports(ctx: RuleContext): boolean;          // does this plugin apply to this table?
   beforeCreate?(ctx): Promise<void> | void;
   afterCreate?(ctx):  Promise<void> | void;
-  beforeUpdate?(ctx): Promise<void> | void;     // mutar ctx.after PERSISTE
+  beforeUpdate?(ctx): Promise<void> | void;     // mutating ctx.after PERSISTS
   afterUpdate?(ctx):  Promise<void> | void;
   beforeDelete?(ctx): Promise<void> | void;
   afterDelete?(ctx):  Promise<void> | void;
 }
 ```
 
-- **`RuleRegistry`** (`rules/RuleRegistry.ts`) mantém o `globalRuleRegistry`; cada plugin é registrado
-  uma vez. `getApplicable(ctx)` retorna os plugins cujo `supports()` casa (erros em `supports` são
-  engolidos → plugin simplesmente não se aplica).
-- **`DynamicTableService.runRules(ctx, phase)`** resolve e executa os aplicáveis para cada hook.
+- **`RuleRegistry`** (`rules/RuleRegistry.ts`) holds the `globalRuleRegistry`; each plugin is registered
+  once. `getApplicable(ctx)` returns the plugins whose `supports()` matches (errors in `supports` are
+  swallowed → the plugin simply does not apply).
+- **`DynamicTableService.runRules(ctx, phase)`** resolves and runs the applicable plugins for each hook.
 
-> **Mutação em hooks:** em `beforeCreate`/`beforeUpdate`, escrever em `ctx.after` é persistido (o
-> service extrai o objeto mutado antes de gravar). Em `after*`/`*Delete`, a gravação já ocorreu.
+> **Mutation in hooks:** in `beforeCreate`/`beforeUpdate`, writing to `ctx.after` is persisted (the
+> service extracts the mutated object before writing). In `after*`/`*Delete`, the write has already
+> happened.
 
 ---
 
-## 2. Detecção de tabela — `tableMatches` e `resolveTable`
+## 2. Table detection — `tableMatches` and `resolveTable`
 
-Toda detecção vive em **`rules/shared/tableFinder.ts`** (single source of truth):
+All detection lives in **`rules/shared/tableFinder.ts`** (single source of truth):
 
 ```typescript
-// "esta tabela pertence ao plugin X?" — usado por TODO supports() e pelo fallback de resolveTable
+// "does this table belong to plugin X?" — used by EVERY supports() and the resolveTable fallback
 tableMatches(table, { internalNames, categories?, names? }): boolean
 ```
-Regra: a categoria filtra (se dada) e então casa por `internalName` (tabelas de preset) **ou** por um
-`name` conhecido (tabelas custom). Exemplo de `supports()` padronizado:
+Rule: the category filters (if given) and then it matches by `internalName` (preset tables) **or** by a
+known `name` (custom tables). Example of a standardized `supports()`:
 ```typescript
 supports: (ctx) => tableMatches(ctx.table, {
   categories: ['planning'], internalNames: ['appointments'], names: ['Appointments'],
@@ -60,88 +61,107 @@ supports: (ctx) => tableMatches(ctx.table, {
 ```
 
 ```typescript
-// resolver OUTRA tabela do workspace (ex: o SalesPlugin precisa achar a tabela de comissões)
+// resolve ANOTHER table in the workspace (e.g. SalesPlugin needs to find the commissions table)
 resolveTable(ctx, { internalName, category?, names?, schemaMatch? }): Promise<IDynamicTable | null>
 ```
-- **Caminho rápido:** `findTableByInternalName` — query indexada (preset tem `internalName = presetKey`).
-- **Fallback:** carrega as tabelas 1× e casa por `tableMatches` ou por uma heurística de shape
-  (`schemaMatch`), para tabelas custom sem `internalName`.
+- **Fast path:** `findTableByInternalName` — indexed query (a preset has `internalName = presetKey`).
+- **Fallback:** loads the tables once and matches by `tableMatches` or by a shape heuristic
+  (`schemaMatch`), for custom tables without an `internalName`.
 
-### Regra de ouro: query indexada, nunca full scan
-Plugins **não** devem usar `findDataByTableId` + filtro em JS. Use:
-- `repository.findRowsByFieldValue(tableId, field, value)` — todas as linhas onde `data.field === value`
-  (sem limite; seguro para coleções de negócio).
-- `repository.findDataById(id)` — lookup por PK.
-- `repository.countByFieldValue` / `countOverlaps` — contagens.
+### Golden rule: indexed query, never full scan
+Plugins **must not** use `findDataByTableId` + a JS filter. Use:
+- `repository.findRowsByFieldValue(tableId, field, value)` — all rows where `data.field === value`
+  (unbounded; safe for business collections).
+- `repository.findDataById(id)` — lookup by PK.
+- `repository.countByFieldValue` / `countOverlaps` — counts.
 
-`findRowsReferencingId` tem `LIMIT 100` e serve só para "existe algum referenciador?" (delete scan) —
-**não** para somar itens/comissões.
+`findRowsReferencingId` is the delete-constraint referencer scan — indexed and **unbounded** (the former
+`LIMIT 100` was removed so `RESTRICT_IF_AGGREGATE` sums and `CASCADE` are correct). It is still scoped to
+"rows referencing this id"; for general business collections prefer `findRowsByFieldValue`.
 
 ---
 
-## 3. A fronteira metadado × plugin
+## 3. The metadata × plugin boundary
 
-| É declarativo (NÃO-plugin) | Justifica plugin |
+| Declarative (NON-plugin) | Justifies a plugin |
 |---|---|
-| formato/regex, faixas (`validation`), presença (`required`/`requiredIf`) | side-effects cross-table (criar movimentos de estoque, materializar comissões) |
-| unicidade simples/composta (`unique`/`compositeUnique`) | campos computados (score BANT, `result` de metas) |
-| comparação cross-field (`compare`) | checagens contra o **relógio** (não concluir agendamento antes de `endAt`) |
-| imutabilidade por estado (`immutableAfter`) | lógica cruzada não expressável (paymentStatus↔status em Sales) |
-| transições de status (`lifecycle`) | orquestração entre múltiplas tabelas |
-| anti-sobreposição (`noOverlap`) | |
+| format/regex, ranges (`validation`), presence (`required`/`requiredIf`) | cross-table side-effects (create stock movements, materialize commissions) |
+| simple/composite uniqueness (`unique`/`compositeUnique`) | computed fields (BANT score, goal `result`) |
+| cross-field comparison (`compare`) | checks against the **clock** (don't complete an appointment before `endAt`) |
+| state immutability (`immutableAfter`) | non-expressible cross logic (paymentStatus↔status in Sales) |
+| status transitions (`lifecycle`) | orchestration across multiple tables |
+| anti-overlap (`noOverlap`) | |
 
-Como tudo da esquerda é metadado, **tabelas custom herdam essas regras sem plugin**. Plugins removidos
-porque viraram metadado: `GenericFieldValidation`, `Inventory`, `FinancialBaselines`, `Campaigns`,
-`Expenses`, `OtherRevenues` (16 → 10 plugins).
+Since everything on the left is metadata, **custom tables inherit those rules without a plugin**.
+Plugins removed because they became metadata: `GenericFieldValidation`, `Inventory`,
+`FinancialBaselines`, `Campaigns`, `Expenses`, `OtherRevenues` (16 → 10 plugins).
 
 ---
 
-## 4. Catálogo (10 plugins)
+## 4. Catalog (10 plugins)
 
-| Plugin | Responsabilidade (o que sobrou de não-declarável) |
+| Plugin | Responsibility (what is left that is not declarative) |
 |---|---|
-| `SalesPlugin` | Orquestrador de vendas: itens, estoque/reserva, agenda, comissões, métricas de cliente (ver §5). |
-| `AppointmentsPlugin` | Checagens vs `now` (passado/futuro, concluir só após `endAt`), cliente, duração, horário de trabalho. |
-| `CommissionsPlugin` | Só `autoStampPaidAt` (carimba `paidAt` ao entrar em `Paid`). |
-| `GoalsPlugin` | Só `autoComputeResult` (Reached/Partial/Not Reached). |
-| `LeadsPlugin` | Coerência de pipeline/stage, transições sequenciais, score BANT, snapshot de proposta, atividades. |
-| `LeadsSeedOnUnitPlugin` | Semeia pipeline+estágios padrão ao criar uma unidade. |
-| `ProductAutoStockPlugin` | Provisiona linhas de estoque (stock=0) por unidade ao criar um produto. |
-| `UnitAutoStockPlugin` | Provisiona estoque para todos os produtos ao criar uma unidade. |
-| `StockMovementsApplyPlugin` | Aplica movimentos manuais (In/Out) ao estoque (exclui os gerados por venda). |
-| `EmployeesPlugin` | Coerência do `workSchedule` e presença de unidade/agenda. |
+| `SalesPlugin` | Sales orchestrator: items, stock/reservation, schedule, commissions, customer metrics (see §5). |
+| `AppointmentsPlugin` | Checks vs `now` (past/future, complete only after `endAt`), customer, duration, working hours. |
+| `CommissionsPlugin` | Only `autoStampPaidAt` (stamps `paidAt` when entering `Paid`). |
+| `GoalsPlugin` | Only `autoComputeResult` (Reached/Partial/Not Reached). |
+| `LeadsPlugin` | Pipeline/stage coherence, sequential transitions, BANT score, proposal snapshot, activities. |
+| `LeadsSeedOnUnitPlugin` | Seeds a default pipeline+stages when a unit is created. |
+| `ProductAutoStockPlugin` | Provisions stock rows (stock=0) per unit when a product is created. |
+| `UnitAutoStockPlugin` | Provisions stock for all products when a unit is created. |
+| `StockMovementsApplyPlugin` | Applies manual movements (In/Out) to the stock (excludes sale-generated ones). |
+| `EmployeesPlugin` | `workSchedule` coherence and presence of unit/schedule. |
 
 ---
 
-## 5. Anatomia do SalesPlugin (orquestrador fino + módulos)
+## 5. Anatomy of SalesPlugin (thin orchestrator + modules)
 
-O `SalesPlugin.ts` (~350 linhas) só tem `supports` + os 6 hooks, delegando para módulos focados em
+`SalesPlugin.ts` (~350 lines) only has `supports` + the 6 hooks, delegating to focused modules in
 `rules/plugins/sales/`:
 
-| Módulo | Responsabilidade |
+| Module | Responsibility |
 |---|---|
-| `shared.ts` | `SALE_KEYS` + `findSaleById` (compartilhados). |
-| `saleItems.ts` | validação de item (XOR produto/serviço, no-mix), `loadSaleItems`, guard de venda finalizada. |
-| `stockSync.ts` | reservas, deltas de estoque e geração de movimentos. |
-| `appointmentSync.ts` | coerência/auto-create/cancelamento de agendamento de itens de serviço. |
-| `commissions.ts` | materialização e estorno de comissões. |
-| `customerMetrics.ts` | agregados de receita do cliente + flags new/loyal. |
+| `shared.ts` | `SALE_KEYS` + `findSaleById` (shared). |
+| `saleItems.ts` | item validation (product/service XOR, no-mix), `loadSaleItems`, finalized-sale guard. |
+| `stockSync.ts` | reservations, stock deltas and movement generation. |
+| `appointmentSync.ts` | coherence/auto-create/cancellation of the appointment for service items. |
+| `commissions.ts` | materialization and reversal of commissions. |
+| `customerMetrics.ts` | customer revenue aggregates + new/loyal flags. |
 
-É o template de como quebrar um plugin grande: hooks finos no topo, lógica em módulos coesos, finders
-internos via `resolveTable`.
+It is the template for how to break up a large plugin: thin hooks at the top, logic in cohesive modules,
+internal finders via `resolveTable`.
+
+> **Test coverage of SalesPlugin.** The header guards, sale-item XOR/no-mix and the finalized-sale guard
+> are covered in `rules/__tests__/plugins.integration.test.ts` with a minimal `sales` + `saleItems`
+> fixture (no inventory wiring). The deep finalize side-effects (stockSync, commission materialization,
+> customerMetrics, appointmentSync) need the full interlocking Sales preset ERP and are covered when that
+> preset is reviewed — their real fixture is the preset, not hand-built partial tables.
 
 ---
 
-## 6. Receitas
+## 6. Tests
 
-### Adicionar um plugin
-1. Crie `rules/plugins/MeuPlugin.ts` exportando um `RulePlugin`.
-2. `supports` com `tableMatches` (copie categorias/nomes exatos).
-3. Implemente só os hooks necessários; para ler outras tabelas, use `resolveTable` + queries indexadas.
-4. Registre em `rules/RuleRegistry.ts` (`globalRuleRegistry.register(MeuPlugin)`).
-5. Header JSDoc: responsabilidade + nota "validação declarativa fica no schema; este plugin cuida de X".
+Every plugin has integration coverage in
+[`rules/__tests__/plugins.integration.test.ts`](../rules/__tests__/plugins.integration.test.ts) — one
+describe block per plugin, driving the real service write path (`$transaction` + hooks) with the minimal
+set of tables each plugin detects. A test fails if a rule breaks. The engine/governance itself is locked
+in [`services/__tests__/DynamicTableService.integration.test.ts`](../services/__tests__/DynamicTableService.integration.test.ts).
 
-### Quando **NÃO** escrever um plugin
-Se a regra é validação pura (presença, comparação, transição, unicidade, formato, anti-overlap), ela é
-**metadado** — declare no schema do módulo (ver [`../presets/README.md`](../presets/README.md)) e toda
-tabela, inclusive custom do usuário, a herda de graça. Plugin só para side-effect/cross-table/`now`.
+---
+
+## 7. Recipes
+
+### Add a plugin
+1. Create `rules/plugins/MyPlugin.ts` exporting a `RulePlugin`.
+2. `supports` with `tableMatches` (copy the exact categories/names).
+3. Implement only the needed hooks; to read other tables, use `resolveTable` + indexed queries.
+4. Register it in `rules/RuleRegistry.ts` (`globalRuleRegistry.register(MyPlugin)`).
+5. JSDoc header: responsibility + a note "declarative validation lives in the schema; this plugin
+   handles X".
+
+### When **NOT** to write a plugin
+If the rule is pure validation (presence, comparison, transition, uniqueness, format, anti-overlap), it
+is **metadata** — declare it in the module schema (see [`../presets/README.md`](../presets/README.md))
+and every table, including a user's custom one, inherits it for free. A plugin is only for
+side-effect/cross-table/`now`.

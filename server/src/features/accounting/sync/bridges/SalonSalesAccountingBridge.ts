@@ -16,7 +16,7 @@
 import { getFactory } from '../../../../lib/factory';
 import logger from '../../../../lib/logger';
 import { resolveAccountingScope } from '../../scope/AccountingScope';
-import { buildSalonSaleCogsEvent, buildSalonSaleFinalizedEvent } from '../AccountingSyncPort';
+import { buildSalonSaleCogsEvent, buildSalonSaleFinalizedEvent, syncSkipErrorCode } from '../AccountingSyncPort';
 import { loadSalePackageInfo } from './salonSaleItems';
 import type { AccountingScope } from '../../scope/AccountingScope';
 import type { ProductLine } from './salonSaleItems';
@@ -103,10 +103,14 @@ export async function maybeSyncSalonSaleFinalized(
     // read-first + @@unique). Only product lines carry COGS; a pure-service sale has none.
     await maybeSyncSalonSaleCogs(scope, row.id, unitId, currency, occurredAt, saleInfo.productLines);
   } catch (syncError) {
-    const code = (syncError as { code?: string }).code;
-    if (code === 'ACCOUNTING_PERIOD_NOT_OPEN') {
-      logger.warn('AccountingSync skipped — período não está aberto', {
+    // Skip ONLY on the shared specific-code list (period-closed / MAX_CENTS poison) — never on a
+    // base error class. syncSkipErrorCode reads AppError.errorCode; the old inline check read a
+    // non-existent `.code`, so the skip branch was dead and every skip-listed error logged as error.
+    const skipCode = syncSkipErrorCode(syncError);
+    if (skipCode) {
+      logger.warn('AccountingSync skipped — erro determinístico não-retriável', {
         saleId: row.id,
+        code: skipCode,
         error: syncError instanceof Error ? syncError.message : String(syncError),
       });
       return;

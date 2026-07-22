@@ -24,6 +24,7 @@ import { CashFlowStatementQuerySchema } from '../features/accounting/dtos/cashFl
 import { PeriodComparisonSchema } from '../features/accounting/dtos/periodComparison.dto';
 import { DailyJournalRequestSchema } from '../features/accounting/dtos/dailyJournal.dto';
 import { AgingReportQuerySchema } from '../features/accounting/dtos/aging.dto';
+import { TieOutDiagnosticQuerySchema } from '../features/accounting/dtos/tieOutDiagnostic.dto';
 
 export const postEntry = async (req: Request, res: Response) => {
   try {
@@ -399,7 +400,7 @@ export const getDailyJournal = async (req: Request, res: Response) => {
  *       - { in: query, name: kind,   required: true, schema: { type: string, enum: [payable, receivable] }, description: "Subrazão: contas a pagar ou a receber" }
  *       - { in: query, name: asOf,   required: false, schema: { type: string, format: date }, description: "YYYY-MM-DD — data da posição (default hoje)" }
  *     responses:
- *       200: { description: Aging report (grupos por contraparte com totais por faixa) }
+ *       200: { description: "Aging report (grupos por contraparte com totais por faixa) + bloco tieOut — a prova subledger↔razão: total do aging vs saldo da conta de controle (2.1.2 p/ payable, 1.1.5 p/ receivable) normalizado pela natureza. tieOut é null quando não é emitível (asOf ≠ hoje, ou conta de controle ausente); nesse caso tieOutSkippedReason diz por quê." }
  *       400: { description: Validation error }
  */
 export const getAging = async (req: Request, res: Response) => {
@@ -414,6 +415,32 @@ export const getAging = async (req: Request, res: Response) => {
     const data = await getFactory()
       .getAgingReportService()
       .aging(scope, { kind: parsed.data.kind, asOf: parsed.data.asOf });
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleApiError(error, res);
+  }
+};
+
+/** @openapi
+ * /api/accounting/reports/tie-out:
+ *   get:
+ *     summary: "Diagnóstico de tie-out subrazão-razão (AR vs 1.1.5, AP vs 2.1.2, salão+CRM vs 1.1.2), read-only"
+ *     parameters:
+ *       - { in: query, name: unitId, required: true, schema: { type: string } }
+ *     responses:
+ *       200: { description: "Tie-out report (3 checks com differenceCents inteiro exato e status OK/DIVERGENT)" }
+ *       400: { description: "Validation error" }
+ */
+export const getTieOutDiagnostic = async (req: Request, res: Response) => {
+  try {
+    const user = getUserContextFromRequest(req);
+    if (!user) throw new UnauthorizedError();
+    const parsed = TieOutDiagnosticQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.flatten() });
+    }
+    const scope = resolveAccountingScope(user, parsed.data.unitId);
+    const data = await getFactory().getTieOutDiagnosticService().tieOut(scope);
     return res.json({ success: true, data });
   } catch (error) {
     return handleApiError(error, res);

@@ -1,11 +1,11 @@
 import { IDocument } from '../models/Document.model';
 import { IDocumentRepository } from '../repositories/IDocumentRepository';
-import { ChunkRepository } from '../repositories/ChunkRepository';
-import { VectorRepository } from '../repositories/VectorRepository';
+import { IChunkRepository } from '../repositories/IChunkRepository';
+import { IVectorRepository } from '../repositories/IVectorRepository';
 import { DocumentProcessingService } from './DocumentProcessingService';
 import { DocumentProcessingPipeline } from './DocumentProcessingPipeline';
 import { UserContext } from '../../../lib/authUtils';
-import { NotFoundError, ForbiddenError } from '../../../lib/errors';
+import { NotFoundError, ForbiddenError, ValidationError, UnauthorizedError } from '../../../lib/errors';
 import { UpdateDocumentDto } from '../dtos/DocumentDto';
 import { DocumentUpdateInput } from '../models/Document.model';
 import type { IDocumentPolicy } from '../policies/IDocumentPolicy';
@@ -13,7 +13,7 @@ import { DocumentStatus, DocumentPurpose } from '../models/Document.model';
 import { logger } from '@/lib/logger';
 import { OpenAIService } from '@/lib/openai/OpenAIService';
 import { StructuredDataService } from '../../structuredData/services/StructuredDataService';
-import { UserRepository } from '../../users/repositories/UserRepository';
+import type { IUserRepository } from '../../users/repositories/IUserRepository';
 
 /**
  * Service implementation for Document business logic.
@@ -24,13 +24,13 @@ export class DocumentService {
 
     constructor(
     private readonly repository: IDocumentRepository,
-    private readonly chunkRepository: ChunkRepository,
-    private readonly vectorRepository: VectorRepository,
+    private readonly chunkRepository: IChunkRepository,
+    private readonly vectorRepository: IVectorRepository,
     private readonly processingService: DocumentProcessingService,
     private readonly policy: IDocumentPolicy,
     private readonly openAIService: OpenAIService,
     private readonly structuredDataService: StructuredDataService,
-    private readonly userRepository: UserRepository
+    private readonly userRepository: IUserRepository
   ) {
     this.processingPipeline = new DocumentProcessingPipeline(
       chunkRepository,
@@ -47,8 +47,9 @@ export class DocumentService {
    * Retrieves all documents for a user with pagination
    */
   async getAllDocuments(userContext: UserContext, page: number, limit: number) {
-    // Add authorization if needed
-    return this.repository.findAll(userContext.id, page, limit);
+    if (!userContext.userId) throw new UnauthorizedError('Authentication required');
+    if (!this.policy.canListAll(userContext)) throw new ForbiddenError('Document listing forbidden by policy');
+    return this.repository.findAll(userContext.userId, page, limit);
   }
 
   /**
@@ -56,20 +57,23 @@ export class DocumentService {
    * Optimized for populating selection lists in the UI.
    */
   async getDocumentListForUser(userContext: UserContext): Promise<{ id: string; fileName: string }[]> {
-    // Authorization is implicit via userContext.id
-    return this.repository.findAllForUser(userContext.id);
+    if (!userContext.userId) throw new UnauthorizedError('Authentication required');
+    if (!this.policy.canListAll(userContext)) throw new ForbiddenError('Document listing forbidden by policy');
+    return this.repository.findAllForUser(userContext.userId);
   }
 
   /**
    * Retrieves a specific document by ID
    */
   async getDocumentById(id: string, userContext: UserContext): Promise<IDocument> {
+    if (!userContext.userId) throw new UnauthorizedError('Authentication required');
+
     const document = await this.repository.findById(id);
     if (!document) {
       throw new NotFoundError('Document not found');
     }
-    // Verifica permissão de visualização
-    if (!this.policy.canViewDocument(userContext, document)) {
+    // Returns 404 (not 403) for a non-owned document so existence isn't leaked.
+    if (!this.policy.canView(userContext, document)) {
       throw new NotFoundError('Document not found');
     }
     return document;
@@ -86,6 +90,9 @@ export class DocumentService {
     userContext: UserContext,
     documentPurpose: DocumentPurpose = DocumentPurpose.DATA_ANALYSIS
   ): Promise<IDocument> {
+    if (!userContext.userId) throw new UnauthorizedError('Authentication required');
+    if (!this.policy.canCreate(userContext)) throw new ForbiddenError('Document creation forbidden by policy');
+
     let mimeType: string;
     switch (fileType.toUpperCase()) {
       case 'PDF':
@@ -98,13 +105,13 @@ export class DocumentService {
         mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
         break;
       default:
-        throw new Error(`Unsupported file type: ${fileType}`);
+        throw new ValidationError(`Unsupported file type: ${fileType}`);
     }
 
     const buffer = Buffer.from(fileBuffer);
 
     const doc = await this.repository.create({
-      userId: userContext.id,
+      userId: userContext.userId,
       fileName,
       fileType: fileType.toUpperCase() as 'PDF' | 'DOCX' | 'XLSX',
       fileSize,
@@ -177,21 +184,29 @@ export class DocumentService {
    * Deletes a document and its chunks/vectors
    */
   async deleteDocument(id: string, userContext: UserContext): Promise<void> {
+    if (!userContext.userId) throw new UnauthorizedError('Authentication required');
+
     const document = await this.repository.findById(id);
     if (!document) {
       throw new NotFoundError('Document not found');
     }
-    if (!this.policy.canDeleteDocument(userContext, document)) {
+    if (!this.policy.canDelete(userContext, document)) {
       throw new ForbiddenError('Access denied to delete document');
     }
-    // 1. Retrieve chunk IDs for this document
-    const chunkIds = await this.chunkRepository.findChunkIdsByDocument(id);
-    // 2. Delete vectors in Qdrant by chunk point IDs
-    await this.vectorRepository.deletePoints(chunkIds);
-    // 3. Delete chunks in SQL
-    await this.chunkRepository.deleteByDocument(id);
-    // 4. Delete document record in SQL
-    await this.repository.delete(id);
+    // 1. Delete vectors in Qdrant FIRST (external store — cannot join a SQL transaction).
+    //    Deleting by the `documentId` payload is robust: it removes every chunk's vector
+    //    regardless of point-id derivation, and reaps any pre-existing orphans.
+    //    If this fails, nothing in SQL has been touched yet.
+    await this.vectorRepository.deletePointsByDocumentId(id);
+    // 2. Atomically delete chunks + document in SQL (single transaction).
+    //    If this fails after the Qdrant delete, vectors are already gone but SQL is intact —
+    //    log for compensation/visibility (orphaned SQL rows can be re-cleaned; no data corruption).
+    try {
+      await this.repository.deleteWithChunks(id);
+    } catch (err) {
+      logger.error('deleteDocument: SQL delete failed after Qdrant vectors were removed', { documentId: id, error: err });
+      throw err;
+    }
   }
 
   /**
@@ -202,10 +217,13 @@ export class DocumentService {
     userContext: UserContext,
     limit = 10
   ): Promise<Array<{ document: IDocument; chunkText: string; score: number }>> {
+    if (!userContext.userId) throw new UnauthorizedError('Authentication required');
+    if (!this.policy.canListAll(userContext)) throw new ForbiddenError('Document search forbidden by policy');
+
     // generate embedding for the query
     const queryVector = await this.processingService.generateEmbedding(query);
     // search in Qdrant
-    const hits = await this.vectorRepository.searchVectors(queryVector, userContext.id, limit);
+    const hits = await this.vectorRepository.searchVectors(queryVector, userContext.userId, limit);
     const results: Array<{ document: IDocument; chunkText: string; score: number }> = [];
     for (const hit of hits) {
       const payload = hit.payload as Record<string, unknown>;
@@ -224,12 +242,13 @@ export class DocumentService {
     data: UpdateDocumentDto,
     userContext: UserContext
   ): Promise<IDocument> {
+    if (!userContext.userId) throw new UnauthorizedError('Authentication required');
+
     const document = await this.repository.findById(id);
     if (!document) {
       throw new NotFoundError('Document not found');
     }
-    // Verifica permissão de atualização
-    if (!this.policy.canUpdateDocument(userContext, document)) {
+    if (!this.policy.canUpdate(userContext, document)) {
       throw new ForbiddenError('Access denied to update document');
     }
     // Mapeia dados de DTO para input do repositório

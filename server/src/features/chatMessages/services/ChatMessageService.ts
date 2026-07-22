@@ -1,30 +1,18 @@
 import { UserContext } from '../../../lib/authUtils';
-// import { TFunction } from 'next-i18next'; // Removed
-import { ChatMessage, ChatInstance, MessageRole } from 'generated/prisma';
+import { logger } from '@/lib/logger';
 import {
-  CreateChatMessageDto, 
-  UpdateChatMessageDto, 
-  ChatMessageDto, 
-  ChatMessageSummaryDto, 
-  isCreateChatMessageDto,
-  isUpdateChatMessageDto,
-  CreateChatMessageSchema, // Added for error details
-  UpdateChatMessageSchema  // Added for error details
+  CreateChatMessageDto,
+  UpdateChatMessageDto,
+  ChatMessageDto,
+  ChatMessageSummaryDto
 } from '../dtos/ChatMessageDto';
-import { ChatMessageRepository } from '../repositories/ChatMessageRepository';
-import { ChatInstanceRepository } from '../../chatInstances/repositories/ChatInstanceRepository';
-import { ChatMessagePolicy } from '../policies/ChatMessagePolicy';
 import type { IChatMessagePolicy } from '../policies/IChatMessagePolicy';
 import type { IChatMessageRepository } from '../repositories/IChatMessageRepository';
-// Standardized error imports
-import { AppError, ServiceError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../../../lib/errors';
-import { OpenAIService } from '../../../lib/openai/OpenAIService';
-import { getFactory } from '../../../lib/factory';
-import OpenAI from 'openai';
+import { AppError, ServiceError, ForbiddenError, NotFoundError, UnauthorizedError } from '../../../lib/errors';
+import { ChatMessageRole } from '../models/ChatMessage.model';
 import type { IChatMessage } from '../models/ChatMessage.model';
-import { ChatMessageRole } from '../models/ChatMessage.model'; // Import enum
 import type { IChatInstanceRepository } from '../../chatInstances/repositories/IChatInstanceRepository';
-import type { Prisma } from 'generated/prisma'; // For Prisma.ChatMessageUpdateInput
+import type { Prisma } from 'generated/prisma';
 
 /**
  * Service responsible for managing chat messages.
@@ -44,12 +32,12 @@ export class ChatMessageService {
    * @throws {ServiceError} If chat instance is missing
    * @throws {NotFoundError} If chat instance not found
    */
-  private async enrichMessageWithUserId(message: Omit<IChatMessage, 'userId' | 'updatedAt' | 'createdAt'> & { updatedAt?: Date, createdAt?: Date }, userId: string): Promise<IChatMessage> {
+  private async enrichMessageWithUserId(message: Omit<IChatMessage, 'userId' | 'updatedAt' | 'createdAt'> & { updatedAt?: Date, createdAt?: Date }): Promise<IChatMessage> {
     if (!message.chatInstanceId) {
       throw new ServiceError('Message is missing chatInstanceId');
     }
 
-    const chatInstance = await this.chatInstanceRepository.getInstanceById(message.chatInstanceId, userId);
+    const chatInstance = await this.chatInstanceRepository.getInstanceById(message.chatInstanceId);
     if (!chatInstance) {
       throw new NotFoundError('Associated ChatInstance not found for message');
     }
@@ -78,12 +66,8 @@ export class ChatMessageService {
       throw new UnauthorizedError('Authentication required');
     }
 
-    const validationResult = CreateChatMessageSchema.safeParse(data);
-    if (!validationResult.success) {
-      throw new ValidationError('Invalid message creation data', validationResult.error.flatten().fieldErrors);
-    }
-
-    const chatInstance = await this.chatInstanceRepository.getInstanceById(data.chatInstanceId, userContext.userId);
+    // Input is validated at the boundary (controller via DTO); the service trusts the typed input.
+    const chatInstance = await this.chatInstanceRepository.getInstanceById(data.chatInstanceId);
     if (!chatInstance) {
       throw new NotFoundError('Chat instance not found');
     }
@@ -96,31 +80,53 @@ export class ChatMessageService {
       throw new ForbiddenError('Message creation forbidden by policy');
     }
 
-    // Persist the user's message.
-    // Role is hardcoded to USER regardless of what the DTO carries — clients must
-    // never be able to forge ASSISTANT or SYSTEM messages in the history.
+    // REST creation always persists a USER message; AI replies are persisted server-side by ChatService.
+    // The repository expects a domain role (ChatMessageRole) and converts it to the Prisma enum.
     const messageData: Prisma.ChatMessageCreateInput = {
       content: data.content,
-      role: 'user' as unknown as MessageRole, // security: hardcode USER domain role (repo converts to Prisma enum)
+      role: ChatMessageRole.USER as unknown as Prisma.ChatMessageCreateInput['role'],
       chatInstance: { connect: { id: data.chatInstanceId } }
     };
-    
-    // Criar a mensagem no repositório
+
     const createdPrismaMessage = await this.chatMessageRepository.createMessage(messageData);
-    
-    // Recuperar a mensagem criada com todos os detalhes
-    let domainMessage = await this.chatMessageRepository.getMessageById(createdPrismaMessage.id);
-    
-    // Log para debug
-    console.log(`Mensagem ${data.role} criada com sucesso. ID: ${createdPrismaMessage.id}`);
-    
-    // Importante: Removida a geração automática de resposta da IA
-    // As respostas agora são geradas exclusivamente através do endpoint /api/chat
+    const domainMessage = await this.chatMessageRepository.getMessageById(createdPrismaMessage.id);
+
+    logger.debug('Chat message created', { id: createdPrismaMessage.id });
+
+    // AI replies are generated exclusively via the /api/chat endpoint, not here.
     if (!domainMessage) {
       throw new ServiceError('Failed to retrieve created message');
     }
-    domainMessage = await this.enrichMessageWithUserId(domainMessage, userContext.userId);
+    // Ownership was verified above and the DTO omits userId, so no instance refetch is needed.
     return this.mapToDto(domainMessage);
+  }
+
+  /**
+   * Persists an assistant (AI) reply to a chat instance. Server-only: the public createMessage
+   * path is USER-only; AI replies are written here by ChatService after generation.
+   * @throws {UnauthorizedError} If user is not authenticated
+   * @throws {NotFoundError} If chat instance not found
+   * @throws {ForbiddenError} If the instance does not belong to the user
+   */
+  async appendAssistantMessage(chatInstanceId: string, content: string, userContext: UserContext): Promise<void> {
+    if (!userContext.userId) {
+      throw new UnauthorizedError('Authentication required');
+    }
+
+    const chatInstance = await this.chatInstanceRepository.getInstanceById(chatInstanceId);
+    if (!chatInstance) {
+      throw new NotFoundError('Chat instance not found');
+    }
+    if (chatInstance.userId !== userContext.userId) {
+      throw new ForbiddenError('Access to chat instance forbidden');
+    }
+
+    const messageData: Prisma.ChatMessageCreateInput = {
+      content,
+      role: ChatMessageRole.ASSISTANT as unknown as Prisma.ChatMessageCreateInput['role'],
+      chatInstance: { connect: { id: chatInstanceId } }
+    };
+    await this.chatMessageRepository.createMessage(messageData);
   }
 
   /**
@@ -142,7 +148,7 @@ export class ChatMessageService {
       throw new NotFoundError('Message not found');
     }
 
-    message = await this.enrichMessageWithUserId(message, userContext.userId);
+    message = await this.enrichMessageWithUserId(message);
 
     if (!this.chatMessagePolicy.canView(userContext, message)) {
       throw new ForbiddenError('Message view forbidden by policy');
@@ -160,16 +166,21 @@ export class ChatMessageService {
    * @throws {NotFoundError} If chat instance not found
    * @throws {ForbiddenError} If user cannot access chat instance or list messages
    */
-  async getMessagesByInstance(chatInstanceId: string, userContext: UserContext, page: number = 1, limit: number = 50): Promise<{ data: ChatMessageSummaryDto[]; total: number; page: number; limit: number; totalPages: number }> {
+  async getMessagesByInstance(
+    chatInstanceId: string,
+    userContext: UserContext,
+    opts?: { skip: number; take: number }
+  ): Promise<{ messages: ChatMessageSummaryDto[]; total: number }> {
     if (!userContext.userId) {
       throw new UnauthorizedError('Authentication required');
     }
 
-    const chatInstance = await this.chatInstanceRepository.getInstanceById(chatInstanceId, userContext.userId);
+    const chatInstance = await this.chatInstanceRepository.getInstanceById(chatInstanceId);
     if (!chatInstance) {
       throw new NotFoundError('Chat instance not found');
     }
 
+    // Ownership is the multi-tenant scope; the instance is loaded once and reused.
     if (chatInstance.userId !== userContext.userId) {
       throw new ForbiddenError('Access to chat instance forbidden');
     }
@@ -178,18 +189,16 @@ export class ChatMessageService {
       throw new ForbiddenError('Message listing forbidden by policy');
     }
 
-    const safeLimit = Math.min(Math.max(1, limit), 200);
-    const safePage = Math.max(1, page);
+    if (opts) {
+      const [messages, total] = await Promise.all([
+        this.chatMessageRepository.getMessagesByInstancePaged(chatInstanceId, opts.skip, opts.take),
+        this.chatMessageRepository.countByInstance(chatInstanceId),
+      ]);
+      return { messages: messages.map(msg => this.mapToSummaryDto(msg)), total };
+    }
 
-    const { messages, total } = await this.chatMessageRepository.getMessagesByInstance(chatInstanceId, safePage, safeLimit);
-
-    // Bulk-enrich: all messages share the same chatInstanceId, so the single
-    // chatInstance fetched above covers all of them — no per-message queries.
-    const enriched: ChatMessageSummaryDto[] = messages.map(msg =>
-      this.mapToSummaryDto({ ...msg, userId: chatInstance.userId, createdAt: msg.createdAt || new Date(), updatedAt: msg.updatedAt || new Date() })
-    );
-
-    return { data: enriched, total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit) };
+    const messages = await this.chatMessageRepository.getMessagesByInstance(chatInstanceId);
+    return { messages: messages.map(msg => this.mapToSummaryDto(msg)), total: messages.length };
   }
 
   /**
@@ -209,17 +218,13 @@ export class ChatMessageService {
       throw new UnauthorizedError('Authentication required');
     }
 
-    const validationResult = UpdateChatMessageSchema.safeParse(data);
-    if (!validationResult.success) {
-      throw new ValidationError('Invalid message update data', validationResult.error.flatten().fieldErrors);
-    }
-
+    // Input is validated at the boundary (controller via DTO); the service trusts the typed input.
     let messageToUpdate = await this.chatMessageRepository.getMessageById(id);
     if (!messageToUpdate) {
       throw new NotFoundError('Message not found');
     }
 
-    messageToUpdate = await this.enrichMessageWithUserId(messageToUpdate, userContext.userId);
+    messageToUpdate = await this.enrichMessageWithUserId(messageToUpdate);
 
     if (!this.chatMessagePolicy.canUpdate(userContext, messageToUpdate)) {
       throw new ForbiddenError('Message update forbidden by policy');
@@ -228,14 +233,13 @@ export class ChatMessageService {
     try {
       const updatePayload: Prisma.ChatMessageUpdateInput = {};
       if (data.content !== undefined) updatePayload.content = data.content;
-      // Role is intentionally excluded from updates — clients cannot change message role.
 
       if (Object.keys(updatePayload).length === 0) {
         return this.mapToDto(messageToUpdate);
       }
 
       const updatedMessage = await this.chatMessageRepository.updateMessage(id, updatePayload);
-      const finalMessage = await this.enrichMessageWithUserId(updatedMessage, userContext.userId);
+      const finalMessage = await this.enrichMessageWithUserId(updatedMessage);
       return this.mapToDto(finalMessage);
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -262,7 +266,7 @@ export class ChatMessageService {
       throw new NotFoundError('Message not found');
     }
 
-    messageToDelete = await this.enrichMessageWithUserId(messageToDelete, userContext.userId);
+    messageToDelete = await this.enrichMessageWithUserId(messageToDelete);
 
     if (!this.chatMessagePolicy.canDelete(userContext, messageToDelete)) {
       throw new ForbiddenError('Message deletion forbidden by policy');

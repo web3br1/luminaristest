@@ -21,8 +21,9 @@
  */
 import { Prisma } from 'generated/prisma';
 import { PostingService } from '../PostingService';
-import { AccountingPeriodNotOpenError, ForbiddenError, NotFoundError, ValidationError } from '../../../../lib/errors';
+import { AccountingPeriodNotOpenError, ForbiddenError, MaxCentsExceededError, NotFoundError, ValidationError } from '../../../../lib/errors';
 import { CANONICAL_ACCOUNTS } from '../../fixtures/ChartOfAccountsFixture';
+import { MAX_CENTS } from '../../models/money';
 import type { AccountingScope } from '../../scope/AccountingScope';
 
 // prisma.$transaction runs the callback with a fake tx handle; repos are mocked so the
@@ -1184,6 +1185,33 @@ describe('PostingService', () => {
       await expect(svc.postEntry(scope, balancedInput)).resolves.toBeDefined();
     });
 
+    it('MACHINE-WRITER EXEMPTION (Council 1.7/N6): a CLOSING entry with untagged legs on a requiresDimension account posts — the year-end close cannot deadlock', async () => {
+      // Exact shape ExerciseClosingService composes: sourceType='closing', sourceId=String(year),
+      // dated 31 Dec, untagged legs — one of them zeroing the FLAGGED result account '3.1'.
+      const closingInput = {
+        unitId,
+        date: '2026-12-31',
+        description: 'Encerramento do exercício 2026 — apuração do resultado',
+        sourceType: 'closing',
+        sourceId: '2026',
+        lines: [
+          { accountCode: '3.1', debitCents: 150000, creditCents: 0 }, // requiresDimension, UNTAGGED
+          { accountCode: '2.3.1', debitCents: 0, creditCents: 150000 },
+        ],
+      };
+      const { svc, journalEntryRepo } = buildService({ accountRepo: requiresOn31 });
+      await expect(svc.postEntry(scope, closingInput)).resolves.toBeDefined();
+      expect(journalEntryRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceType: 'closing', status: 'Posted' }),
+        txHandle,
+      );
+    });
+
+    it('the exemption is CLOSING-ONLY: the same untagged legs under sourceType manual still reject', async () => {
+      const { svc } = buildService({ accountRepo: requiresOn31 });
+      await expect(svc.postEntry(scope, balancedInput)).rejects.toBeInstanceOf(ValidationError);
+    });
+
     it('reverseEntry: COPIES the original leg tags onto the mirror (SEC-B1-2) so estorno inherits them', async () => {
       const original = {
         id: 'entry-1', userId: 'u1', unitId, status: 'Posted', sourceType: 'manual', reversedById: null,
@@ -1225,6 +1253,73 @@ describe('PostingService', () => {
         expect.objectContaining({ definitionId: 'def-cc', valueId: 'val-cc-1', userId: 'u1', unitId }),
         txHandle,
       );
+    });
+  });
+
+  describe('MAX_CENTS choke-point guard (Council 1.5 / ACC-014)', () => {
+    const overCeilingInput = {
+      unitId,
+      date: '2026-06-23',
+      description: 'Venda gigante',
+      sourceType: 'salon.sale.finalized',
+      sourceId: 'sale-big',
+      lines: [
+        { accountCode: '1.1.2', debitCents: MAX_CENTS + 1, creditCents: 0 },
+        { accountCode: '3.1', debitCents: 0, creditCents: MAX_CENTS + 1 },
+      ],
+    };
+
+    it('rejects a leg above MAX_CENTS with MaxCentsExceededError (OWN code, distinct from period-closed) — no tx opened', async () => {
+      const { svc, journalEntryRepo } = buildService();
+      const err = await svc.postEntry(scope, overCeilingInput).catch((e) => e);
+      expect(err).toBeInstanceOf(MaxCentsExceededError);
+      expect(err.errorCode).toBe('MAX_CENTS_EXCEEDED');
+      expect(err.errorCode).not.toBe('ACCOUNTING_PERIOD_NOT_OPEN');
+      expect(err.message).toContain('1.1.2'); // account-coded, as actionable as the old border replicas
+      expect($transaction).not.toHaveBeenCalled();
+      expect(journalEntryRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts EXACTLY MAX_CENTS (boundary is inclusive — the Int32 column stores it)', async () => {
+      const { svc } = buildService();
+      const atCeiling = {
+        ...overCeilingInput,
+        lines: [
+          { accountCode: '1.1.2', debitCents: MAX_CENTS, creditCents: 0 },
+          { accountCode: '3.1', debitCents: 0, creditCents: MAX_CENTS },
+        ],
+      };
+      await expect(svc.postEntry(scope, atCeiling)).resolves.toBeDefined();
+    });
+
+    it('rejects NON-INTEGER cents at the choke-point (mapper/bridge callers bypass every DTO)', async () => {
+      const { svc } = buildService();
+      const floaty = {
+        ...overCeilingInput,
+        lines: [
+          { accountCode: '1.1.2', debitCents: 100.5, creditCents: 0 },
+          { accountCode: '3.1', debitCents: 0, creditCents: 100.5 },
+        ],
+      };
+      const err = await svc.postEntry(scope, floaty).catch((e) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect($transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects NEGATIVE cents at the choke-point', async () => {
+      const { svc } = buildService();
+      const negative = {
+        ...overCeilingInput,
+        lines: [
+          // Balanced sums (Σd = Σc = 100) — only the per-line guard can catch this.
+          { accountCode: '1.1.2', debitCents: -100, creditCents: 0 },
+          { accountCode: '1.1.1', debitCents: 200, creditCents: 0 },
+          { accountCode: '3.1', debitCents: 0, creditCents: 100 },
+        ],
+      };
+      const err = await svc.postEntry(scope, negative).catch((e) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect($transaction).not.toHaveBeenCalled();
     });
   });
 

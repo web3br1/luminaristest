@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { parseBrl } from '../CreatePayableModal';
+import { parseBrl } from '../../lib/parseBrl';
 
 // Money path — a wrong parse books a wrong ledger amount. Cover BR format,
 // the US dot-decimal footgun, and the lone-dot-as-thousands case.
 describe('parseBrl → integer cents', () => {
   it.each([
-    ['1.234,56', 123456], // BR: dots thousands, comma decimal
+    ['1.234,56', 123456], // BR: dots thousands, comma decimal (naive replace booked R$ 1,23)
+    ['1.234.567,89', 123456789], // multiple thousands groups
     ['1234,56', 123456],
     ['19,99', 1999],
     ['1000', 100000],

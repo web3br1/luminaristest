@@ -9,16 +9,8 @@ import {
   type DimensionResultBucket,
 } from '../../../lib/services/dimensions.service';
 import { formatCents } from '../lib/formatCents';
+import { resolveError } from '../lib/resolveError';
 
-// ── error helper (apiClient throws a PLAIN OBJECT, not an Error) ────────────────
-function resolveError(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object') {
-    const o = e as { error?: unknown; message?: unknown };
-    if (typeof o.message === 'string') return o.message;
-    if (typeof o.error === 'string') return o.error;
-  }
-  return fallback;
-}
 
 /**
  * DFS-order a bucket list by the parentId tree, tagging depth for indentation. Buckets whose parent

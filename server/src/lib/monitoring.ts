@@ -1,8 +1,9 @@
 import { logger } from './logger';
 
-interface MetricOptions {
+export interface MetricOptions {
   success: boolean;
-  [key: string]: string | number | boolean | undefined;
+  /** Extra context forwarded to the log entry (e.g. ids, counts). */
+  [key: string]: unknown;
 }
 
 export class Metrics {

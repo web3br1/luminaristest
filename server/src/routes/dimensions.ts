@@ -11,7 +11,7 @@ import {
 
 /**
  * Dimensões — centro de custo/projeto (INCR-DIM). Mounted at `/api/dimensions` (routes/index.ts).
- * 3-touch registration: also add `/api/dimensions` to `protectedApiPaths` (middleware/auth.ts) and the
+ * 2-touch registration: the mount plus the
  * OpenAPI doc blocks in docs.paths.ts (do NOT write the literal jsdoc-openapi tag in this prose — the
  * generator globs routes/ and would spread the comment string into the spec). Static segments
  * (`/definitions`, `/values`, `/reports`) precede any `:id` so they are never captured as ids.

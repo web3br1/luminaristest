@@ -771,72 +771,7 @@
  *         '204': { description: All user tables deleted }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *
- *   # ─── DASHBOARD LAYOUT ───────────────────────────────────────────────────
- *
- *   /api/dashboard-layout:
- *     get:
- *       summary: List all dashboard widget layouts for the current user
- *       tags: [DashboardLayout]
- *       security: [{ bearerAuth: [] }]
- *       responses:
- *         '200': { description: Array of layout objects }
- *         '401': { $ref: '#/components/responses/UnauthorizedError' }
- *     post:
- *       summary: Save a new dashboard widget layout
- *       tags: [DashboardLayout]
- *       security: [{ bearerAuth: [] }]
- *       requestBody:
- *         required: true
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/CreateDashboardLayoutDto' }
- *       responses:
- *         '201': { description: Layout created }
- *         '401': { $ref: '#/components/responses/UnauthorizedError' }
- *
- *   /api/dashboard-layout/{id}:
- *     get:
- *       summary: Get a dashboard layout by ID
- *       tags: [DashboardLayout]
- *       security: [{ bearerAuth: [] }]
- *       parameters:
- *         - in: path
- *           name: id
- *           required: true
- *           schema: { type: string, format: cuid }
- *       responses:
- *         '200': { description: Layout }
- *         '401': { $ref: '#/components/responses/UnauthorizedError' }
- *         '404': { $ref: '#/components/responses/NotFoundError' }
- *     patch:
- *       summary: Update a dashboard layout
- *       tags: [DashboardLayout]
- *       security: [{ bearerAuth: [] }]
- *       parameters:
- *         - in: path
- *           name: id
- *           required: true
- *           schema: { type: string, format: cuid }
- *       requestBody:
- *         required: true
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/UpdateDashboardLayoutDto' }
- *       responses:
- *         '200': { description: Updated layout }
- *         '401': { $ref: '#/components/responses/UnauthorizedError' }
- *     delete:
- *       summary: Delete a dashboard layout
- *       tags: [DashboardLayout]
- *       security: [{ bearerAuth: [] }]
- *       parameters:
- *         - in: path
- *           name: id
- *           required: true
- *           schema: { type: string, format: cuid }
- *       responses:
- *         '204': { description: Deleted }
- *         '401': { $ref: '#/components/responses/UnauthorizedError' }
+ *   # ─── DASHBOARD LAYOUT: documented inline in controllers/dashboardLayoutController.ts ───
  *
  *   # ─── SAVED VIEWS ────────────────────────────────────────────────────────
  *
@@ -1238,22 +1173,7 @@
  *         '201': { description: Message created }
  *         '401': { $ref: '#/components/responses/UnauthorizedError' }
  *
- *   # ─── STRUCTURED DATA ────────────────────────────────────────────────────
- *
- *   /api/structured-data/{documentId}:
- *     get:
- *       summary: Get structured data extracted from a specific document
- *       tags: [StructuredData]
- *       security: [{ bearerAuth: [] }]
- *       parameters:
- *         - in: path
- *           name: documentId
- *           required: true
- *           schema: { type: string }
- *       responses:
- *         '200': { description: Extracted structured data }
- *         '401': { $ref: '#/components/responses/UnauthorizedError' }
- *         '404': { $ref: '#/components/responses/NotFoundError' }
+ *   # ─── STRUCTURED DATA: documented inline in controllers/structuredDataController.ts ───
  *
  *   # ─── REPORTS ────────────────────────────────────────────────────────────
  *
@@ -1654,6 +1574,15 @@
  *             properties:
  *               success: { type: boolean, example: false }
  *               error: { type: string }
+ *     ValidationError:
+ *       description: Request failed DTO (Zod) validation — error carries the flattened field issues
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               success: { type: boolean, example: false }
+ *               error: { type: object }
  *     UnauthorizedError:
  *       description: Missing or invalid authentication token
  *       content:

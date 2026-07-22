@@ -25,6 +25,9 @@ const options = {
   apis: [
     path.resolve(process.cwd(), 'src', 'controllers', '**', '*.ts'),
     path.resolve(process.cwd(), 'src', 'routes', '**', '*.ts'),
+    // DTO @openapi blocks define the components/schemas that path annotations $ref —
+    // without this glob every one of those refs dangles in the served spec.
+    path.resolve(process.cwd(), 'src', 'features', '**', 'dtos', '*.ts'),
   ],
 };
 

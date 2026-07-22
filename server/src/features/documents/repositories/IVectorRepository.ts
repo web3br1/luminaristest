@@ -61,7 +61,6 @@ export interface IVectorRepository {
    */
   search(vector: number[], limit: number, documentIds: string[], userId: string): Promise<ScoredPoint[]>;
 
-
   /**
    * Busca vetores similares no Qdrant
    * @param vector Vetor de busca
@@ -77,11 +76,11 @@ export interface IVectorRepository {
   ): Promise<ScoredPoint[]>;
 
   /**
-   * Remove múltiplos pontos vetoriais do Qdrant
-   * @param ids IDs dos pontos a serem removidos
+   * Remove todos os vetores de um documento, filtrando pelo payload `documentId`.
+   * @param documentId ID do documento dono dos vetores
    * @throws {Error} Se a remoção falhar
    */
-  deletePoints(ids: string[]): Promise<void>;
+  deletePointsByDocumentId(documentId: string): Promise<void>;
 
   /**
    * Obtém pontos vetoriais por ID do documento

@@ -1,8 +1,7 @@
-import type { Request, Response } from 'express';
-type NextApiRequest = Request;
-type NextApiResponse = Response;
+import type { Response } from 'express';
 import { ZodError, ZodIssue } from 'zod';
-import { AppError, ValidationError, UnauthorizedError, ForbiddenError, NotFoundError } from './errors';
+import { AppError, ValidationError } from './errors';
+import { logger } from './logger';
 
 /**
  * Interface for a standardized API error response.
@@ -14,21 +13,24 @@ interface StandardApiErrorResponse {
 }
 
 /**
- * Centralized API error handler.
- * Sends a standardized JSON error response.
+ * Centralized API error handler. Maps known error shapes to a standardized JSON envelope and status.
+ * Used both by controllers (in their catch) and by the global Express error handler in `app.ts`.
  */
-export function handleApiError(error: unknown, res: NextApiResponse): void {
-  console.error('[API Error Handler]:', error);
+export function handleApiError(error: unknown, res: Response): void {
+  logger.error('[API Error Handler]', { error });
 
   let statusCode: number;
   let responseBody: StandardApiErrorResponse;
+
+  // Duck-typed Prisma error code, mapped here so it is not coupled to the ORM type.
+  const prismaCode = (error as { code?: string })?.code;
 
   if (error instanceof ZodError) {
     statusCode = 400;
     responseBody = {
       code: 'VALIDATION_ERROR',
       message: 'Validation failed. Check the details for more information.',
-      details: error.issues, // Pass the raw issues for better error handling
+      details: error.issues,
     };
   } else if (error instanceof AppError) {
     statusCode = error.statusCode;
@@ -39,13 +41,30 @@ export function handleApiError(error: unknown, res: NextApiResponse): void {
     if (error instanceof ValidationError && error.details) {
       responseBody.details = error.details;
     }
+  } else if (prismaCode === 'P2002') {
+    // Unique constraint violation.
+    statusCode = 409;
+    const target = (error as { meta?: { target?: unknown } })?.meta?.target;
+    responseBody = {
+      code: 'CONFLICT',
+      message: 'A record with this value already exists.',
+      details: target ? { fields: target } : undefined,
+    };
+  } else if (prismaCode === 'P2025') {
+    // Record required for the operation was not found (e.g. update/delete of a since-deleted row).
+    // Mapped centrally so features that don't catch it locally still return 404, not 500.
+    statusCode = 404;
+    responseBody = {
+      code: 'NOT_FOUND',
+      message: 'The requested resource was not found.',
+    };
   } else {
     statusCode = 500;
     responseBody = {
       code: 'INTERNAL_SERVER_ERROR',
       message: 'An unexpected internal server error occurred.',
     };
-    // Optionally, include error details in development
+    // Include error details only in development (never leak internals in production).
     if (process.env.NODE_ENV === 'development' && error instanceof Error) {
       responseBody.details = { rawError: error.message, stack: error.stack?.split('\n') };
     }
@@ -53,63 +72,3 @@ export function handleApiError(error: unknown, res: NextApiResponse): void {
 
   res.status(statusCode).json(responseBody);
 }
-
-/**
- * Higher-order function to wrap API route handlers with common logic,
- * including method checking and error handling.
- */
-export function createApiHandler(handlers: {
-  [method: string]: (req: NextApiRequest, res: NextApiResponse) => Promise<void> | void;
-}) {
-  return async function (req: NextApiRequest, res: NextApiResponse) {
-    const method = req.method?.toUpperCase();
-
-    if (!method || !handlers[method]) {
-      return handleApiError(new AppError(
-        `Method ${req.method || '[unknown]'} Not Allowed for this resource.`,
-        405,
-        'METHOD_NOT_ALLOWED'
-      ), res);
-    }
-
-    try {
-      await handlers[method](req, res);
-    } catch (error) {
-      handleApiError(error, res);
-    }
-  };
-}
-
-// Utility functions for specific errors, ensuring they use the AppError base with proper codes.
-
-export function sendMethodNotAllowedError(req: NextApiRequest, res: NextApiResponse, allowedMethods: string[] = []) {
-  const message = `Method ${req.method} Not Allowed.`;
-  if (allowedMethods.length > 0) {
-    res.setHeader('Allow', allowedMethods.join(', '));
-  }
-  handleApiError(new AppError(message, 405, 'METHOD_NOT_ALLOWED'), res);
-}
-
-export function sendBadRequestError(res: NextApiResponse, message: string = 'Bad Request', details?: Record<string, unknown>) {
-  const error = new ValidationError(message, details);
-  // Even though it's a ValidationError, its code is already 'VALIDATION_ERROR'. 
-  // If a more generic BAD_REQUEST is needed, a new error class or direct AppError could be used.
-  handleApiError(error, res);
-} 
-
-export function sendUnauthorizedError(res: NextApiResponse, message: string = 'Unauthorized') {
-  handleApiError(new UnauthorizedError(message), res);
-}
-
-export function sendForbiddenError(res: NextApiResponse, message: string = 'Forbidden') {
-  handleApiError(new ForbiddenError(message), res);
-}
-
-export function sendNotFoundError(res: NextApiResponse, message: string = 'Resource not found') {
-  handleApiError(new NotFoundError(message), res);
-}
-
-export function sendInternalServerError(res: NextApiResponse, error: unknown, message: string = 'Internal Server Error') {
-   console.error("Internal Server Error (explicit call):", error); // Log the original error
-   handleApiError(new AppError(message, 500, 'INTERNAL_SERVER_ERROR'), res);
-} 

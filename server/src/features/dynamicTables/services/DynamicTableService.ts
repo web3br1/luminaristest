@@ -100,9 +100,10 @@ export class DynamicTableService {
   private async _deleteTable(tableId: string): Promise<void> {
     // Resolve the owner before deletion so we can invalidate the KnowledgeGraph afterward.
     const tableToDelete = await this.repository.findTableById(tableId);
+    if (!tableToDelete) throw new NotFoundError('Table not found.');
 
-    // Impede excluir tabela que é referenciada por outras
-    const refs = await this.repository.findTablesReferencingTableId(tableId);
+    // Impede excluir tabela que é referenciada por outras (escopado ao dono da tabela)
+    const refs = await this.repository.findTablesReferencingTableId(tableId, tableToDelete.userId);
     if (refs.length > 0) {
       const refNames = refs.map(r => r.name).join(', ');
       throw new ValidationError(`Não é possível excluir a tabela. Ela é referenciada por: ${refNames}`);
@@ -605,8 +606,12 @@ export class DynamicTableService {
       
       try {
         const table = await this.getTableById(user, lookup.tableId);
-        const data = await this.repository.findDataByIds(lookup.recordIds);
-        
+        // Tier-0 (fork fix, T0.1): findDataByIds resolves rows by id globally, so we MUST restrict
+        // the result to the authorized table. Otherwise a caller could pass their own (authorized)
+        // tableId plus recordIds belonging to another tenant's table and read back display labels.
+        const data = (await this.repository.findDataByIds(lookup.recordIds))
+          .filter(row => row.dynamicTableId === lookup.tableId);
+
         let displayField = lookup.displayField;
         if (!displayField) {
           const schema = table.schema as unknown as ITableSchema;
@@ -1093,6 +1098,12 @@ export class DynamicTableService {
       if (startValue === undefined || startValue === null || endValue === undefined || endValue === null) continue;
       if (!isFinite(new Date(startValue as string | number | Date).getTime()) || !isFinite(new Date(endValue as string | number | Date).getTime())) continue;
 
+      // Normalize to ISO before binding: the validation pipeline may hand us Date objects, and
+      // String(Date) yields "Wed Jan 01 2026 ..." which SQLite's datetime() parses as NULL —
+      // silently disabling the overlap check (bug exposed by the fork's noOverlap test).
+      const startIso = new Date(startValue as string | number | Date).toISOString();
+      const endIso = new Date(endValue as string | number | Date).toISOString();
+
       const scope: Array<{ field: string; value: string }> = [];
       for (const f of rule.scopeFields ?? []) {
         const v = data[f];
@@ -1105,8 +1116,8 @@ export class DynamicTableService {
         table.id,
         rule.startField,
         rule.endField,
-        String(startValue),
-        String(endValue),
+        startIso,
+        endIso,
         scope,
         excludeId,
       );

@@ -6,9 +6,9 @@ stored in the user's `analyticsDefinitions` table) — and are resolved per user
 tables and schemas.
 
 > This README is the entry point. Deeper material lives in the sibling docs:
-> - [`ANALYTICS_DOCUMENTATION.md`](./ANALYTICS_DOCUMENTATION.md) — technical reference (architecture, directory structure, processors).
-> - [`ANALYTICS_TESTING_GUIDELINES.md`](./ANALYTICS_TESTING_GUIDELINES.md) — QA gold-standard / known pitfalls.
-> - [`ANALYTICS_CALCULATIONS_PROPOSAL.md`](./ANALYTICS_CALCULATIONS_PROPOSAL.md) — design proposal for complex calculations.
+> - [`docs/ANALYTICS_DOCUMENTATION.md`](./docs/ANALYTICS_DOCUMENTATION.md) — technical reference (architecture, directory structure, processors).
+> - [`docs/ANALYTICS_TESTING_GUIDELINES.md`](./docs/ANALYTICS_TESTING_GUIDELINES.md) — QA gold-standard / known pitfalls.
+> - [`docs/ANALYTICS_CALCULATIONS_PROPOSAL.md`](./docs/ANALYTICS_CALCULATIONS_PROPOSAL.md) — design proposal for complex calculations.
 
 ---
 
@@ -43,9 +43,7 @@ Private helpers: `convertConfigurationsToGroups`, `getGroupTitle`, dependency ch
 ```
 analytics/
 ├── README.md                  # this index
-├── ANALYTICS_DOCUMENTATION.md # technical reference
-├── ANALYTICS_TESTING_GUIDELINES.md
-├── ANALYTICS_CALCULATIONS_PROPOSAL.md
+├── docs/                      # ANALYTICS_DOCUMENTATION · ANALYTICS_TESTING_GUIDELINES · ANALYTICS_CALCULATIONS_PROPOSAL
 ├── services/                  # AnalyticsService + validators (AnalyticsValidator, AnalyticsDefinitionValidator)
 ├── core/                      # TemplateRegistry, AnalyticsConfiguration, AnalyticsTemplate, Pipeline, Compiler, ExpressionEvaluator
 ├── dynamic/                   # processors: FormulaCalculation, StatusComparison, AggregatePipeline, ...
@@ -60,3 +58,14 @@ analytics/
   `getTablesForUser(userId)` and their schemas; CORE definitions live in the `analyticsDefinitions`
   dynamic table.
 - **`reports`:** consumes computed series to render charts.
+
+## Tests
+
+Capability-feature gold set (no Policy/Repository; see [`TESTING.md`](../../../TESTING.md)):
+
+- **Computation unit** — `engine/__tests__/KpiEngine.spec.ts` + `kpis/**/__tests__/*Processor.test.ts`:
+  the KPI math per processor (revenue, profit, cost, sales, cashflow).
+- **DTO unit** — `dtos/__tests__/AnalyticsQueryDto.spec.ts`: required keys, coercions, caps (limit
+  ≤ 1000), and the sortOrder enum.
+- **HTTP contract** — `controllers/__tests__/analytics.routes.integration.test.ts`: authentication (401)
+  and query-DTO validation (400) on the route boundary, plus the drill-down empty-recordIds early return.

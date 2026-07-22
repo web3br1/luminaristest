@@ -7,6 +7,7 @@ import type { IAccountingPolicy } from '../policies/IAccountingPolicy';
 import type { AccountingScope } from '../scope/AccountingScope';
 import type { DimensionReportQueryInput } from '../dtos/DimensionDto';
 import { LEDGER_STATUSES } from '../models/ledgerStatus';
+import { CLOSING_SOURCE_TYPE } from '../models/closing';
 
 // ─── Report shapes (money in INTEGER CENTS) ─────────────────────────────────────
 
@@ -79,8 +80,10 @@ export interface DimensionResultReport {
  * DimensionReportService — the READ side of dimensions (INCR-DIM Fatia 3, F6→a). Read-only,
  * first-class. Two slices, both ORTHOGONAL to the ledger (ACC-024 — summing every bucket, including
  * "(sem dimensão)", reproduces the trial balance / DRE for the same window):
- *   - balanceByDimension: the balancete recortado por valor de dimensão (per account within each value)
- *   - resultByDimension:  the DRE por dimensão (Revenue/Expense net per value)
+ *   - balanceByDimension: the balancete recortado por valor de dimensão (per account within each
+ *     value) — closing-INCLUSIVE, like the canonical trialBalance;
+ *   - resultByDimension:  the DRE por dimensão (Revenue/Expense net per value) — closing-EXCLUSIVE
+ *     (sourceType='closing' filtered out), like the canonical incomeStatement (APURACAO D3).
  * Both roll up children into parents via the DimensionValue.parentId tree.
  */
 export class DimensionReportService {
@@ -95,6 +98,9 @@ export class DimensionReportService {
     scope: AccountingScope,
     query: DimensionReportQueryInput,
   ): Promise<DimensionBalanceReport> {
+    // Closing-INCLUSIVE on purpose: the canonical trialBalance (AccountingReportService)
+    // aggregates with NO sourceType exclusion, and ACC-024 demands Σ(buckets) reproduce the
+    // trial balance for the same window — excluding closing here would break that tie-out.
     const { definition, values, accountsById, totals } = await this.load(scope, query);
 
     // Aggregate per (valueKey) → per-account rows and own totals.
@@ -192,7 +198,13 @@ export class DimensionReportService {
     scope: AccountingScope,
     query: DimensionReportQueryInput,
   ): Promise<DimensionResultReport> {
-    const { definition, values, accountsById, totals } = await this.load(scope, query);
+    // DRE por dimensão = performance operacional ⇒ EXCLUI o lançamento de encerramento,
+    // exatamente como AccountingReportService.incomeStatement (BE-INCR-SPED-APURACAO D3):
+    // sem isso, um encerramento em 31/12 zera cada conta de resultado na janela — os totais
+    // auto-cancelam e as pernas de closing (não etiquetadas) viram um "(Não alocado)" fantasma.
+    const { definition, values, accountsById, totals } = await this.load(scope, query, [
+      CLOSING_SOURCE_TYPE,
+    ]);
 
     // Own revenue/expense magnitudes per value: Revenue is credit-normal (credit - debit),
     // Expense is debit-normal (debit - credit). Non-result accounts are ignored (DRE scope).
@@ -269,7 +281,11 @@ export class DimensionReportService {
   }
 
   // ── shared load + rollup ───────────────────────────────────────────────────
-  private async load(scope: AccountingScope, query: DimensionReportQueryInput) {
+  private async load(
+    scope: AccountingScope,
+    query: DimensionReportQueryInput,
+    excludeSourceTypes?: string[],
+  ) {
     if (!this.policy.canReadDimension(scope)) {
       throw new ForbiddenError('Você não tem permissão para ler relatórios por dimensão.');
     }
@@ -290,6 +306,7 @@ export class DimensionReportService {
         definitionId: query.definitionId,
         from: query.from ? new Date(query.from) : undefined,
         to: query.to ? new Date(query.to) : undefined,
+        ...(excludeSourceTypes && excludeSourceTypes.length > 0 ? { excludeSourceTypes } : {}),
       },
     );
     return { definition, values, accountsById, totals };

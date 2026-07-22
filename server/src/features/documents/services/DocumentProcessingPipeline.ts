@@ -1,5 +1,5 @@
-import { ChunkRepository } from '../repositories/ChunkRepository';
-import { VectorRepository } from '../repositories/VectorRepository';
+import { IChunkRepository } from '../repositories/IChunkRepository';
+import { IVectorRepository } from '../repositories/IVectorRepository';
 import { DocumentProcessingService } from './DocumentProcessingService';
 import { OpenAIService } from '@/lib/openai/OpenAIService';
 import { IDocumentRepository } from '../repositories/IDocumentRepository';
@@ -9,29 +9,30 @@ import { logger } from '@/lib/logger';
 import { v5 as uuidv5 } from 'uuid';
 import { StructuredDataService } from '../../structuredData/services/StructuredDataService';
 import { extractStructuredDataFromExcel } from '@/lib/vector/extractors/ExcelStructuredExtractor';
-import { UserRepository } from '../../users/repositories/UserRepository';
-import type { IUser } from '../../users/models/User.model';
+import type { IUserRepository } from '../../users/repositories/IUserRepository';
+import { NotFoundError } from '@/lib/errors';
+import type { UserContext } from '@/types/UserContext';
 
 // Namespace UUID para gerar UUIDs determinísticos para os chunks. Deve ser um UUID válido.
 const CHUNK_ID_NAMESPACE = 'f6db7260-569b-4559-835a-484f913119a4';
 
 export class DocumentProcessingPipeline {
-  private chunkRepository: ChunkRepository;
-  private vectorRepository: VectorRepository;
+  private chunkRepository: IChunkRepository;
+  private vectorRepository: IVectorRepository;
   private processingService: DocumentProcessingService;
   private documentRepository: IDocumentRepository;
   private openAIService: OpenAIService;
   private structuredDataService: StructuredDataService;
-  private userRepository: UserRepository;
+  private userRepository: IUserRepository;
 
   constructor(
-    chunkRepository: ChunkRepository,
-    vectorRepository: VectorRepository,
+    chunkRepository: IChunkRepository,
+    vectorRepository: IVectorRepository,
     processingService: DocumentProcessingService,
     documentRepository: IDocumentRepository,
     openAIService: OpenAIService,
     structuredDataService: StructuredDataService,
-    userRepository: UserRepository
+    userRepository: IUserRepository
   ) {
     this.chunkRepository = chunkRepository;
     this.vectorRepository = vectorRepository;
@@ -73,14 +74,18 @@ export class DocumentProcessingPipeline {
 
       const userRecord = await this.userRepository.getUserById(document.userId);
       if (!userRecord) {
-        throw new Error(`User with id ${document.userId} not found for document ${document.id}`);
+        throw new NotFoundError(`User with id ${document.userId} not found for document ${document.id}`);
       }
-      const user: IUser = {
+      const user: UserContext = {
         id: userRecord.id,
+        userId: userRecord.id,
         name: userRecord.name ?? '',
         username: userRecord.username,
         email: userRecord.email,
         role: userRecord.role,
+        userRole: userRecord.role,
+        userEmail: userRecord.email,
+        userName: userRecord.name ?? undefined,
         createdAt: userRecord.createdAt,
         updatedAt: userRecord.updatedAt,
       };

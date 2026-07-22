@@ -4,6 +4,7 @@
  * Shared date manipulation functions for KPI processors (Timezone Safe).
  */
 import { formatInTimeZone, toDate } from 'date-fns-tz';
+import { logger } from '@/lib/logger';
 
 /**
  * Returns a valid IANA timezone string. Falls back to 'UTC' if the supplied
@@ -57,9 +58,8 @@ function getZonedParts(date: Date, timeZone: string) {
         const str = formatInTimeZone(date, timeZone, 'yyyy-MM-dd-HH-mm-ss-SSS-i');
         return parseStr(str);
     } catch (e) {
-        console.error(`Invalid time value in getZonedParts. date: ${date}, type: ${typeof date}, value: ${date?.getTime?.()}`);
-        console.trace('Stack trace for Invalid Date:');
-        throw new Error(`Invalid time value in getZonedParts. date: ${date}, timeZone: ${timeZone}`);
+        logger.error('Invalid time value in getZonedParts', { date, type: typeof date, value: date?.getTime?.() });
+        throw new Error(`Invalid time value in getZonedParts. date: ${date}, timeZone: ${timeZone}`, { cause: e });
     }
 }
 
@@ -259,7 +259,7 @@ export function getPeriodBoundaries(preset: DatePreset | string, baseDate: Date 
             break;
         }
 
-        default:
+        default: {
             curStartDay = 1;
             const pd = shiftMonth(parts.year, parts.month, -1);
             prevStartYear = pd.y;
@@ -269,6 +269,7 @@ export function getPeriodBoundaries(preset: DatePreset | string, baseDate: Date 
             prevEndMonth = parts.month;
             prevEndDay = 0;
             break;
+        }
     }
 
     const currentStart = createZonedDate(curStartYear, curStartMonth, curStartDay, 0, 0, 0, 0, timeZone);

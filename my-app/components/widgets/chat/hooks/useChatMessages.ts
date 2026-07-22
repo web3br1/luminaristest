@@ -103,44 +103,7 @@ export function useChatMessages({
     setSendMessageError(null);
 
     try {
-      // 1. Primeiro salvamos a mensagem do usuário no banco de dados
-      console.log('Salvando mensagem do usuário no banco:', { content: trimmedInput, instanceId: chatInstanceId, role: 'user' });
-
-      if (chatInstanceId && !chatInstanceId.startsWith('new-chat-')) {
-        try {
-          const { getCookie } = await import('cookies-next');
-          const token = getCookie('auth_token');
-          const saveUserMsgResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/chat-messages`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              content: trimmedInput,
-              chatInstanceId: chatInstanceId, // Corrigido: instanceId -> chatInstanceId
-              role: 'user'
-            }),
-            // credentials: 'include',
-          });
-
-          if (!saveUserMsgResponse.ok) {
-            const errorText = await saveUserMsgResponse.text();
-            console.warn(`Falha ao salvar mensagem do usuário (${saveUserMsgResponse.status}):`, errorText);
-            // Continuamos mesmo com erro de salvamento, apenas logamos
-          } else {
-            const savedMessage = await saveUserMsgResponse.json();
-            console.log('Mensagem do usuário salva com sucesso:', savedMessage.data?.id);
-          }
-        } catch (saveError) {
-          console.error('Erro ao salvar mensagem do usuário:', saveError);
-          // Continuamos mesmo com erro de salvamento
-        }
-      }
-
-      // 2. Enviamos para a API de chat para processamento
-      console.log('Enviando query para API de chat:', { query: trimmedInput, documentIds: selectedDocumentIds });
-
+      // Send to the chat API. The server persists both the user message and the assistant reply.
       const { getCookie } = await import('cookies-next');
       const token = getCookie('auth_token');
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/chat`, {
@@ -150,11 +113,10 @@ export function useChatMessages({
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          query: trimmedInput,  // Alterado de 'message' para 'query' para corresponder ao schema do backend
-          chatInstanceId: chatInstanceId, // Este campo será ignorado pelo backend, mas mantemos por compatibilidade
+          query: trimmedInput,
+          chatInstanceId: chatInstanceId,
           documentIds: selectedDocumentIds,
         }),
-        // credentials: 'include',
       });
 
       if (!response.ok) {
@@ -164,11 +126,9 @@ export function useChatMessages({
 
       const responseBody = await response.json();
 
-      // Log para diagnóstico
-      console.log('Resposta da API de chat:', responseBody);
-
-      // Verificamos todos os possíveis campos onde a resposta pode estar
-      const responseContent = responseBody.response || responseBody.answer || responseBody.content || 'Não foi possível obter uma resposta';
+      // API wraps responses as { success, data }; fall back to the raw body for safety.
+      const payload = responseBody?.data ?? responseBody;
+      const responseContent = payload.response || payload.answer || payload.content || 'Não foi possível obter uma resposta';
 
       const assistantMessage: Message = {
         role: 'assistant',
@@ -176,43 +136,6 @@ export function useChatMessages({
         timestamp: Date.now(),
       };
       setMessages(prevMessages => [...prevMessages, assistantMessage]);
-
-      // Salvar a resposta do assistente no banco de dados
-      if (chatInstanceId && !chatInstanceId.startsWith('new-chat-')) {
-        try {
-          console.log('Salvando resposta do assistente no banco:', {
-            content: responseContent.length > 50 ? responseContent.substring(0, 50) + '...' : responseContent,
-            instanceId: chatInstanceId,
-            role: 'assistant'
-          });
-
-          const saveAssistantMsgResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/chat-messages`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              content: responseContent,
-              chatInstanceId: chatInstanceId, // Corrigido: instanceId -> chatInstanceId
-              role: 'assistant'
-            }),
-            // credentials: 'include',
-          });
-
-          if (!saveAssistantMsgResponse.ok) {
-            const errorText = await saveAssistantMsgResponse.text();
-            console.warn(`Falha ao salvar resposta do assistente (${saveAssistantMsgResponse.status}):`, errorText);
-            // Mesmo com falha ao salvar, mantemos a resposta exibida ao usuário
-          } else {
-            const savedMessage = await saveAssistantMsgResponse.json();
-            console.log('Resposta do assistente salva com sucesso:', savedMessage.data?.id);
-          }
-        } catch (saveError) {
-          console.error('Erro ao salvar resposta do assistente:', saveError);
-          // Continuamos exibindo a resposta mesmo com erro de salvamento
-        }
-      }
     } catch (error: unknown) {
       const errorMessageContent = `Erro: ${error instanceof Error ? error.message : error || 'Não foi possível enviar a mensagem.'}`;
       const networkErrorMessage: Message = {

@@ -30,9 +30,7 @@ export class ChatInstanceRepository implements IChatInstanceRepository {
   }
 
   /**
-   * Retrieves a paginated list of instances scoped to a specific user.
-   * The userId filter is mandatory to prevent cross-tenant data leaks.
-   * @param userId - User ID to filter by
+   * Retrieves a paginated list of instances
    * @param page - Page number (1-based)
    * @param limit - Number of items per page
    * @returns Object containing instances array and total count
@@ -40,6 +38,7 @@ export class ChatInstanceRepository implements IChatInstanceRepository {
   async getAllInstances(userId: string, page: number = 1, limit: number = 10): Promise<{ instances: IChatInstanceSummary[]; totalCount: number; }> {
     const skip = (page - 1) * limit;
 
+    // Scoped to the owner: multi-tenant isolation.
     const [instances, totalCount] = await prisma.$transaction([
       prisma.chatInstance.findMany({
         where: { userId },
@@ -62,17 +61,13 @@ export class ChatInstanceRepository implements IChatInstanceRepository {
   }
 
   /**
-   * Retrieves an instance by its ID, scoped to the owning user.
-   * The userId is included in the WHERE clause so the database enforces
-   * ownership atomically — no separate post-fetch check is required.
-   * Returns null when the record does not exist OR belongs to a different user.
+   * Retrieves an instance by its ID
    * @param id - Instance ID
-   * @param userId - ID of the requesting user (ownership check)
-   * @returns Instance or null if not found / not owned by userId
+   * @returns Instance or null if not found
    */
-  async getInstanceById(id: string, userId: string): Promise<IChatInstance | null> {
-    const instance = await prisma.chatInstance.findFirst({
-      where: { id, userId },
+  async getInstanceById(id: string): Promise<IChatInstance | null> {
+    const instance = await prisma.chatInstance.findUnique({
+      where: { id },
       select: {
         id: true,
         title: true,

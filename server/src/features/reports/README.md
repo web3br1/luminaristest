@@ -1,51 +1,86 @@
 # Feature: Reports
 
-## Visão Geral
+## Overview
 
-A feature `reports` é uma **feature de capacidade** (capability feature). Sua principal responsabilidade é orquestrar a geração de relatórios e visualizações de dados, como gráficos, a partir da análise de documentos e da interação do usuário.
+The `reports` feature is a **capability feature**. Its main responsibility is to orchestrate the
+generation of reports and data visualizations, such as charts, from document analysis and user
+interaction.
 
-Diferente de features de entidade como `users` ou `documents`, `reports` não possui uma tabela própria no banco de dados. Em vez disso, ela consome os serviços e repositórios de outras features para cumprir sua função.
+Unlike entity features such as `users` or `documents`, `reports` has no table of its own in the
+database. Instead, it consumes the services and repositories of other features to do its job.
 
-## Estrutura de Arquivos
+## File structure
 
 ```
 reports/
 ├── dtos/
-│   └── GenerateReportDto.ts  # DTO e schema de validação para a API
+│   └── GenerateReportDto.ts  # DTO and validation schema for the API
 ├── services/
-│   ├── IReportService.ts     # Interface do serviço
-│   └── ReportService.ts      # Implementação da lógica de negócio
-└── README.md                 # Este arquivo
+│   ├── IReportService.ts     # service interface
+│   └── ReportService.ts      # business-logic implementation
+└── README.md                 # this file
 ```
 
-## Arquitetura e Fluxo de Operação
+## Architecture and operation flow
 
-A feature usa **Function Calling** da OpenAI para gerar dados de gráfico de forma estruturada.
+The feature uses OpenAI **Function Calling** to generate chart data in a structured way.
 
-### API do serviço
+### Service API
 `ReportService.generateReport(request, onProgress?)` → `GenerateReportResponse`
-(`{ response: string; chartData?: any[] }` — note que `chartData` é **opcional**: só vem quando a IA
-decide gerar um gráfico). O DTO `GenerateReportDto` aceita `{ query, chatInstanceId, documentIds? }`.
+(`{ response: string; chartData?: ChartDataRow[] }` — `chartData` is **optional**: it only appears when
+the AI decides to generate a chart; `ChartDataRow = Record<string, string | number>`). The
+`GenerateReportDto` accepts `{ query, chatInstanceId, documentIds? }` — `chatInstanceId` and
+`documentIds` are validated as **cuid**.
 
-> **Streaming (SSE):** o controller (`/api/reports/generate-chart-data`) expõe a operação via
-> Server-Sent Events e repassa o callback `onProgress`, emitindo eventos de progresso
-> (`rag_started` → `rag_completed` → `generating`) ao cliente durante o processamento.
+- **`chatInstanceId`** is a **client correlation id** (the chat tab the SSE result belongs to). It is
+  **echoed back**, but the report/chart is **not persisted** as a message — the analysis is
+  **ephemeral** (rendered on the frontend). (Persisting it would be a feature, out of scope.)
 
-### Fluxo
+> **Streaming (SSE):** the controller (`/api/reports/generate-chart-data`) exposes the operation via
+> Server-Sent Events. **Authentication (401) and body validation (400) happen BEFORE** opening the
+> stream — only then is the SSE started and the `onProgress` callback emits progress events
+> (`rag_started` → `rag_completed` → `generating`). Errors during the stream emit an `error` event with
+> a **safe message** (`AppError` → its own message; unexpected → generic; the real error is logged,
+> never leaked to the client).
 
-1.  **Validação**: a requisição é validada pelo `GenerateReportDto`.
-2.  **Reescrita da consulta**: `_rewriteQueryForSearch()` refina a pergunta do usuário para otimizar a
-    busca vetorial (se falhar, usa a consulta original como fallback).
-3.  **Busca de Contexto (RAG)**: o `ReportService` usa o `IVectorRepository` (feature `documents`) para
-    recuperar os trechos mais relevantes nos documentos selecionados.
-4.  **Chamada à IA com Ferramenta**: monta o prompt (contexto + consulta) expondo a ferramenta
-    `generate_chart_data`, cujo schema cobre **tipos de gráfico `line` e `bar`** (limitação atual),
-    título e a estrutura dos dados.
-5.  **Resposta**: se a IA invocou a ferramenta → retorna texto amigável **+** `chartData`; caso
-    contrário → apenas a resposta textual.
+### Flow
 
-## Interação com Outras Features
+1.  **Validation**: the request is validated by `GenerateReportDto`.
+2.  **Query rewrite**: `_rewriteQueryForSearch()` refines the user's question to optimize the vector
+    search (if it fails, it falls back to the original query).
+3.  **Context retrieval (RAG)**: `ReportService` uses `IVectorRepository` (feature `documents`) to
+    retrieve the most relevant chunks in the selected documents.
+4.  **AI call with a tool**: builds the prompt (context + query) exposing the `generate_chart_data`
+    tool, whose schema covers **chart types `line` and `bar`** (current limitation), the title and the
+    data structure.
+5.  **Response**: if the AI invoked the tool → returns a friendly text **+** `chartData`; otherwise →
+    only the textual response.
 
-- **Feature `documents`**: A feature `reports` tem uma dependência direta e crucial da feature `documents`. Ela consome:
-  - `IVectorRepository`: Para realizar a busca por similaridade semântica (RAG) e encontrar o contexto relevante para a geração dos relatórios.
-  - `IEmbeddingService`: Para converter a consulta do usuário em um vetor para a busca.
+## Authorization and isolation (Tier-0)
+
+`reports` has no entity of its own, but data access is **tenant-scoped**: the controller injects
+`userId` from the `UserContext` (`{ ...validation.data, userId: ctx.userId }`) and `ReportService`
+passes that `userId` to the vector search — `vectorRepository.search(emb, userId, 15, documentIds)`.
+So another user's `documentIds` **return nothing** (the `userId` filter in Qdrant excludes them). There
+is no path that reads another tenant's documents.
+
+## Interaction with other features
+
+- **Feature `documents`**: `reports` has a direct, crucial dependency on the `documents` feature. It
+  consumes:
+  - `IVectorRepository`: to perform the semantic-similarity search (RAG) and find the relevant context
+    for report generation.
+  - `IEmbeddingService`: to convert the user's query into a vector for the search.
+
+## Tests
+
+Capability-feature gold set (3 levels — no Policy/Repository; see [`TESTING.md`](../../../TESTING.md)):
+
+- **DTO unit** — `dtos/__tests__/GenerateReportDto.spec.ts`: non-empty query, chatInstanceId as cuid,
+  documentIds optional array of cuids.
+- **Computation unit** — `services/__tests__/ReportService.spec.ts` (OpenAI + vector faked): Tier-0
+  RAG search hard-scoped to the caller's `userId`, the tool-call → `chartData` path, the plain-text
+  path, the no-documents path (RAG skipped), and the query-rewrite fallback resilience.
+- **HTTP contract** — `controllers/__tests__/reports.routes.integration.test.ts`: the **SSE-safety
+  boundary** — auth (401) and DTO validation (400) return a normal JSON response **before** the stream
+  opens (regression guard against errors leaking into the stream).

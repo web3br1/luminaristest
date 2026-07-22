@@ -4,7 +4,7 @@
  * Resolves chart data by executing processors with table data.
  */
 
-import type { Request } from 'express';
+import { logger } from '@/lib/logger';
 import { analyticsService } from '../services/AnalyticsService';
 import type { AnalyticsPresetGroup, ChartPreset } from '../core/models/ChartPreset';
 import { getFactory } from '@/lib/factory';
@@ -19,29 +19,11 @@ import '../kpis';
 
 export type ChartDataSeries = { name: string; value: number }[];
 
-/** Extended context used internally by the analytics resolver (adds timeZone from request headers). */
-interface AnalyticsUserContext extends UserContext {
-  timeZone: string;
-}
-
-function userContextFromHeaders(req: Request): AnalyticsUserContext {
-  const id = String(req.headers['x-user-id'] || '');
-  return {
-    id,
-    userId: id,
-    role: req.headers['x-user-role'] ? String(req.headers['x-user-role']) : undefined,
-    username: req.headers['x-user-username'] ? String(req.headers['x-user-username']) : undefined,
-    email: req.headers['x-user-email'] ? String(req.headers['x-user-email']) : undefined,
-    name: req.headers['x-user-name'] ? String(req.headers['x-user-name']) : undefined,
-    timeZone: req.headers['x-user-timezone'] ? String(req.headers['x-user-timezone']) : 'UTC',
-  } as AnalyticsUserContext;
-}
-
 /**
  * Resolves preset table keys (e.g., '@@PRESET_TABLE_KEY::sales') to actual table IDs.
  */
 async function resolveTableId(
-  user: AnalyticsUserContext,
+  user: UserContext,
   presetTableKey: string,
   allTables: IDynamicTable[]
 ): Promise<string | null> {
@@ -73,7 +55,7 @@ async function resolveRelationFields(
   records: TableDataRow[],
   schema: ITableSchema,
   service: DynamicTableService,
-  user: AnalyticsUserContext,
+  user: UserContext,
   allTables: IDynamicTable[]
 ): Promise<TableDataRow[]> {
   if (!schema || !schema.fields || records.length === 0) return records;
@@ -146,7 +128,7 @@ async function resolveRelationFields(
       
       relationMaps[field.name] = lookup;
     } catch (err) {
-      console.warn(`Failed to resolve relation field ${field.name} on table ${targetTableId}:`, err);
+      logger.warn('Failed to resolve relation field', { field: field.name, targetTableId, error: err });
     }
   }
   
@@ -200,7 +182,7 @@ async function fetchRecordsForDataPoint(
   dataPoint: ChartDataPoint,
   mainTable: IDynamicTable,
   service: DynamicTableService,
-  user: AnalyticsUserContext,
+  user: UserContext,
   allTables: IDynamicTable[]
 ): Promise<TableDataRow[]> {
   const recordIds = dataPoint.recordIds || [];
@@ -252,7 +234,7 @@ async function fetchRecordsForDataPoint(
         }
       } catch (err) {
         // Se não conseguir buscar a tabela resolvida, usar fallback para tabela principal
-        console.warn(`Failed to fetch resolved table ${resolvedTableId} for source ${tableSource}, using main table:`, err);
+        logger.warn('Failed to fetch resolved table, using main table', { resolvedTableId, tableSource, error: err });
       }
     }
   }
@@ -298,7 +280,7 @@ async function fetchRecordsForDataPoint(
           );
           allRecords.push(...resolved);
         } catch (err) {
-          console.warn(`Failed to resolve relations for table ${tableInfo.name}:`, err);
+          logger.warn('Failed to resolve relations for table', { table: tableInfo.name, error: err });
           // Continue with unresolved records
           allRecords.push(...matchingRecords);
         }
@@ -307,7 +289,7 @@ async function fetchRecordsForDataPoint(
       }
     } catch (err) {
       // Se não conseguir buscar dados da tabela, logar erro mas continuar
-      console.warn(`Failed to fetch data from table ${tableInfo.tableId} (${tableInfo.name}):`, err);
+      logger.warn('Failed to fetch data from table', { tableId: tableInfo.tableId, table: tableInfo.name, error: err });
     }
   }
   
@@ -315,12 +297,11 @@ async function fetchRecordsForDataPoint(
 }
 
 export async function resolveChartData(
-  req: Request,
+  user: UserContext,
   chartKey: string,
   params: Record<string, unknown> = {}
 ) {
-  const user = userContextFromHeaders(req);
-  const allGroups: AnalyticsPresetGroup[] = await analyticsService.getAllPresetGroupsAsync(user.id);
+  const allGroups: AnalyticsPresetGroup[] = await analyticsService.getAllPresetGroupsAsync(user.userId);
   const chart = allGroups.flatMap((g) => g.charts).find((c) => c.key === chartKey);
 
   if (!chart) {
@@ -454,7 +435,7 @@ export async function resolveChartData(
           // Se houver erro ao buscar registros, continuar sem fullRecords
           // Isso é esperado para tabelas que não existem ou não estão acessíveis
           // O modal ainda funcionará buscando dados via resolveChartDetails
-          console.warn(`Failed to fetch full records for dataPoint ${dataPoint.name}:`, err);
+          logger.warn('Failed to fetch full records for dataPoint', { dataPoint: dataPoint.name, error: err });
         }
       }
     }
@@ -470,7 +451,7 @@ export async function resolveChartData(
  * Returns paginated records with search, filter, and sort capabilities.
  */
 export async function resolveChartDetails(
-  req: Request,
+  user: UserContext,
   chartKey: string,
   dataPointName?: string,
   options: {
@@ -481,8 +462,7 @@ export async function resolveChartDetails(
     sortOrder?: 'asc' | 'desc';
   } = {}
 ) {
-  const user = userContextFromHeaders(req);
-  const allGroups: AnalyticsPresetGroup[] = await analyticsService.getAllPresetGroupsAsync(user.id);
+  const allGroups: AnalyticsPresetGroup[] = await analyticsService.getAllPresetGroupsAsync(user.userId);
   const chart = allGroups.flatMap((g) => g.charts).find((c) => c.key === chartKey);
 
   if (!chart) {
@@ -513,7 +493,7 @@ export async function resolveChartDetails(
   }
 
   const service = getFactory().getDynamicTableService();
-  const allTables = await service.getTablesForUser(user.id);
+  const allTables = await service.getTablesForUser(user.userId);
   
   // Try to get tableId from params, or infer from pipeline source if using aggregatePipeline
   let tableIdParam = chart.params?.tableId as string | undefined;

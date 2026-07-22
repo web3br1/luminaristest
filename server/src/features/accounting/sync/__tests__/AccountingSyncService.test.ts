@@ -1,8 +1,8 @@
 import { Prisma } from 'generated/prisma';
 import { AccountingSyncService } from '../AccountingSyncService';
-import { CrmOpportunityWonMapper } from '../mappers/CrmOpportunityWonMapper';
+import { SalonSaleFinalizedMapper } from '../mappers/SalonSaleFinalizedMapper';
 import { SalonSaleSettledMapper } from '../mappers/SalonSaleSettledMapper';
-import { ValidationError } from '../../../../lib/errors';
+import { MaxCentsExceededError, ValidationError } from '../../../../lib/errors';
 import type { AccountingScope } from '../../scope/AccountingScope';
 import type { AccountingEvent } from '../AccountingSyncPort';
 import type { PostEntryInput } from '../../dtos/PostingDto';
@@ -24,14 +24,16 @@ const scope: AccountingScope = {
   timeZone: 'America/Sao_Paulo',
 };
 
-const wonEvent: AccountingEvent = {
-  sourceType: 'crm.opportunity.won',
-  sourceId: 'opp-1',
+// Generic fixture event: the salon finalized sale ('crm.opportunity.won' was retired —
+// CRM Won deals route through CrmReceivableBridge, ADR-CRM-AR-SEAM).
+const finalizedEvent: AccountingEvent = {
+  sourceType: 'salon.sale.finalized',
+  sourceId: 'sale-1',
   unitId: 'unit-1',
   amount: 1000,
   currency: 'BRL',
   occurredAt: '2026-06-25T00:00:00.000Z',
-  label: 'Deal',
+  label: 'Venda sale-1',
 };
 
 function p2024(): Prisma.PrismaClientKnownRequestError {
@@ -44,7 +46,7 @@ function p2024(): Prisma.PrismaClientKnownRequestError {
 function buildService(postEntry: jest.Mock) {
   const postingService = { postEntry } as unknown as ConstructorParameters<typeof AccountingSyncService>[0];
   // retryDelayMs:0 keeps the retry tests instant.
-  const svc = new AccountingSyncService(postingService, [new CrmOpportunityWonMapper()], {
+  const svc = new AccountingSyncService(postingService, [new SalonSaleFinalizedMapper()], {
     maxAttempts: 3,
     retryDelayMs: 0,
   });
@@ -58,15 +60,15 @@ describe('AccountingSyncService', () => {
     const postEntry = jest.fn(okEntry);
     const { svc } = buildService(postEntry);
 
-    const result = await svc.sync(scope, wonEvent);
+    const result = await svc.sync(scope, finalizedEvent);
 
     expect(result).toEqual({ entryId: 'entry-1' });
     expect(postEntry).toHaveBeenCalledTimes(1);
     const [passedScope, input] = postEntry.mock.calls[0]!;
     expect(passedScope).toBe(scope); // scope passed through UNCHANGED (no unit substitution)
     expect(input).toMatchObject({
-      sourceType: 'crm.opportunity.won',
-      sourceId: 'opp-1',
+      sourceType: 'salon.sale.finalized',
+      sourceId: 'sale-1',
       unitId: 'unit-1',
     });
   });
@@ -76,8 +78,8 @@ describe('AccountingSyncService', () => {
     const postEntry = jest.fn(okEntry);
     const { svc } = buildService(postEntry);
 
-    const a = await svc.sync(scope, wonEvent);
-    const b = await svc.sync(scope, wonEvent);
+    const a = await svc.sync(scope, finalizedEvent);
+    const b = await svc.sync(scope, finalizedEvent);
 
     expect(a).toEqual(b);
     // service adds NO dedup state of its own — both calls go to postEntry with identical source keys.
@@ -91,7 +93,7 @@ describe('AccountingSyncService', () => {
     const postEntry = jest.fn(async () => ({ id: 'entry-existing' }));
     const { svc } = buildService(postEntry);
 
-    await expect(svc.sync(scope, wonEvent)).resolves.toEqual({ entryId: 'entry-existing' });
+    await expect(svc.sync(scope, finalizedEvent)).resolves.toEqual({ entryId: 'entry-existing' });
   });
 
   it('ValidationError is NOT retried (deterministic fault)', async () => {
@@ -100,8 +102,20 @@ describe('AccountingSyncService', () => {
     });
     const { svc } = buildService(postEntry);
 
-    await expect(svc.sync(scope, wonEvent)).rejects.toBeInstanceOf(ValidationError);
+    await expect(svc.sync(scope, finalizedEvent)).rejects.toBeInstanceOf(ValidationError);
     expect(postEntry).toHaveBeenCalledTimes(1); // no retry
+  });
+
+  it('MaxCentsExceededError is NOT retried (deterministic poison — Council 1.5) and surfaces its own code', async () => {
+    const postEntry = jest.fn(async () => {
+      throw new MaxCentsExceededError('1.1.2', 2_147_483_648, 2_147_483_647);
+    });
+    const { svc } = buildService(postEntry);
+
+    const err = await svc.sync(scope, finalizedEvent).catch((e) => e);
+    expect(err).toBeInstanceOf(MaxCentsExceededError);
+    expect(err.errorCode).toBe('MAX_CENTS_EXCEEDED');
+    expect(postEntry).toHaveBeenCalledTimes(1); // no retry — bridges/reconcile skip on this code
   });
 
   it('transient DB error respects the retry limit then reports without partial write', async () => {
@@ -110,7 +124,7 @@ describe('AccountingSyncService', () => {
     });
     const { svc } = buildService(postEntry);
 
-    await expect(svc.sync(scope, wonEvent)).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+    await expect(svc.sync(scope, finalizedEvent)).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
     expect(postEntry).toHaveBeenCalledTimes(3); // maxAttempts — each attempt is atomic, no partial state
   });
 
@@ -121,14 +135,14 @@ describe('AccountingSyncService', () => {
       .mockResolvedValueOnce({ id: 'entry-2' });
     const { svc } = buildService(postEntry as jest.Mock);
 
-    await expect(svc.sync(scope, wonEvent)).resolves.toEqual({ entryId: 'entry-2' });
+    await expect(svc.sync(scope, finalizedEvent)).resolves.toEqual({ entryId: 'entry-2' });
     expect(postEntry).toHaveBeenCalledTimes(2);
   });
 
-  it('evento inválido: unknown sourceType (no mapper) is rejected WITHOUT calling postEntry', async () => {
+  it('evento inválido: sourceType without a registered mapper (e.g. the retired crm.opportunity.won) is rejected WITHOUT calling postEntry', async () => {
     const postEntry = jest.fn();
     const { svc } = buildService(postEntry);
-    const unknownEvent = { ...wonEvent, sourceType: 'crm.unknown.kind' } as unknown as AccountingEvent;
+    const unknownEvent = { ...finalizedEvent, sourceType: 'crm.opportunity.won' } as unknown as AccountingEvent;
 
     await expect(svc.sync(scope, unknownEvent)).rejects.toBeInstanceOf(ValidationError);
     expect(postEntry).not.toHaveBeenCalled();
@@ -169,7 +183,7 @@ describe('AccountingSyncService', () => {
     const { svc } = buildService(postEntry);
     const otherUnitScope: AccountingScope = { ...scope, unitId: 'unit-9' };
 
-    await svc.sync(otherUnitScope, { ...wonEvent, unitId: 'unit-9' });
+    await svc.sync(otherUnitScope, { ...finalizedEvent, unitId: 'unit-9' });
 
     const [passedScope, input] = postEntry.mock.calls[0]!;
     expect(passedScope.unitId).toBe('unit-9');

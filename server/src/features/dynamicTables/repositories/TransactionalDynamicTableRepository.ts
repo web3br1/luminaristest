@@ -229,6 +229,28 @@ export class TransactionalDynamicTableRepository implements IDynamicTableReposit
     return Number(result[0].count);
   }
 
+  /** Composite uniqueness probe — tx-aware mirror of DynamicTableRepository.countByCompositeFieldValues. */
+  async countByCompositeFieldValues(tableId: string, fields: Array<{ name: string; value: unknown }>, excludeId?: string): Promise<number> {
+    const whereConditions: Prisma.Sql[] = [
+      Prisma.sql`"dynamicTableId" = ${tableId}`,
+      Prisma.sql`"deletedAt" IS NULL`,
+    ];
+    for (const f of fields) {
+      whereConditions.push(
+        Prisma.sql`CAST(json_extract(data, ${`$.${f.name}`}) AS TEXT) = ${String(f.value)}`,
+      );
+    }
+    if (excludeId) {
+      whereConditions.push(Prisma.sql`id != ${excludeId}`);
+    }
+    const whereClause = Prisma.join(whereConditions, ' AND ');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma InputJsonValue: $queryRaw not exposed on TransactionClient type
+    const result: [{ count: bigint }] = await (this.tx as any).$queryRaw(
+      Prisma.sql`SELECT COUNT(*) as count FROM "dynamic_table_data" WHERE ${whereClause}`
+    );
+    return Number(result[0].count);
+  }
+
   async countOverlaps(
     tableId: string,
     startField: string,
