@@ -1,7 +1,20 @@
 import prisma from '../../../lib/prisma';
+import { logger } from '@/lib/logger';
+import { ServiceError } from '@/lib/errors';
 import { Prisma } from 'generated/prisma';
-import { IDashboardLayout, IDashboardLayoutSummary, LayoutType } from '../models/DashboardLayout.model';
+import { IDashboardLayout, LayoutType, LayoutConfig } from '../models/DashboardLayout.model';
 import { IDashboardLayoutRepository } from './IDashboardLayoutRepository';
+
+// Columns selected for a full layout (name/isActive are columns; type/config live in layoutData).
+const FULL_SELECT = {
+  id: true,
+  userId: true,
+  name: true,
+  isActive: true,
+  layoutData: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 /**
  * Repository implementation for DashboardLayout data access operations.
@@ -10,7 +23,7 @@ import { IDashboardLayoutRepository } from './IDashboardLayoutRepository';
 export class DashboardLayoutRepository implements IDashboardLayoutRepository {
 
   /**
-   * Converts Prisma LayoutType to domain LayoutType
+   * Converts a stored layout type string to the domain LayoutType.
    */
   private convertLayoutType(prismaType: string): LayoutType {
     return prismaType as LayoutType;
@@ -18,234 +31,103 @@ export class DashboardLayoutRepository implements IDashboardLayoutRepository {
 
   /**
    * Creates a new dashboard layout in the database.
-   * @param data - Layout creation data
-   * @returns The created layout with all fields
    */
-  public async createLayout(data: Prisma.DashboardLayoutCreateInput): Promise<Prisma.DashboardLayoutGetPayload<{}>> {
-    return prisma.dashboardLayout.create({
-      data,
-      select: {
-        id: true,
-        userId: true,
-        layoutData: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-  }
-
-  /**
-   * Retrieves a paginated list of dashboard layouts.
-   * @param page - Page number (1-based)
-   * @param limit - Number of items per page
-   * @returns Object containing layouts array and total count
-   */
-  public async getAllLayouts(page: number = 1, limit: number = 10): Promise<{
-    layouts: IDashboardLayoutSummary[];
-    totalCount: number;
-  }> {
-    const skip = (page - 1) * limit;
-    const take = limit;
-
-    const [layouts, totalCount] = await prisma.$transaction([
-      prisma.dashboardLayout.findMany({
-        skip,
-        take,
-        select: {
-          id: true,
-          userId: true,
-          layoutData: true,
-          updatedAt: true,
-        },
-        orderBy: {
-          updatedAt: 'desc', // Default ordering
-        },
-      }),
-      prisma.dashboardLayout.count(),
-    ]);
-
-    return {
-      layouts: layouts.map(this.mapToSummary),
-      totalCount,
-    };
+  public async createLayout(data: Prisma.DashboardLayoutCreateInput): Promise<IDashboardLayout> {
+    const layout = await prisma.dashboardLayout.create({ data, select: FULL_SELECT });
+    return this.mapToDomain(layout);
   }
 
   /**
    * Retrieves a dashboard layout by its ID.
-   * @param id - Layout ID
-   * @returns Layout or null if not found
    */
   public async getLayoutById(id: string): Promise<IDashboardLayout | null> {
-    const layout = await prisma.dashboardLayout.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        userId: true,
-        layoutData: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
+    const layout = await prisma.dashboardLayout.findUnique({ where: { id }, select: FULL_SELECT });
     if (!layout) return null;
-
     return this.mapToDomain(layout);
   }
 
   /**
-   * Retrieves all layouts for a specific user.
-   * @param userId - User ID
-   * @returns Array of layouts
+   * Retrieves all layouts (tabs) for a specific user, most recently updated first.
    */
   public async getLayoutsByUser(userId: string): Promise<IDashboardLayout[]> {
     const layouts = await prisma.dashboardLayout.findMany({
       where: { userId },
-      select: {
-        id: true,
-        userId: true,
-        layoutData: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: {
-        updatedAt: 'desc',
-      },
+      select: FULL_SELECT,
+      orderBy: { updatedAt: 'desc' },
     });
+    // Fail-soft: a single malformed row must not deny the user access to all their tabs.
+    // (Single-record reads still surface the error via mapToDomain.)
+    return layouts.reduce<IDashboardLayout[]>((acc, row) => {
+      try {
+        acc.push(this.mapToDomain(row));
+      } catch (error) {
+        logger.warn('Skipping malformed dashboard layout row', { layoutId: row.id, error });
+      }
+      return acc;
+    }, []);
+  }
 
-    return layouts.map(this.mapToDomain);
+  /**
+   * Counts how many layouts (tabs) a user owns.
+   */
+  public async countByUser(userId: string): Promise<number> {
+    return prisma.dashboardLayout.count({ where: { userId } });
   }
 
   /**
    * Updates a dashboard layout's information.
-   * @param id - Layout ID
-   * @param data - Update data
-   * @returns Updated layout
    */
   public async updateLayout(id: string, data: Prisma.DashboardLayoutUpdateInput): Promise<IDashboardLayout> {
-    const layout = await prisma.dashboardLayout.update({
-      where: { id },
-      data,
-      select: {
-        id: true,
-        userId: true,
-        layoutData: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
+    const layout = await prisma.dashboardLayout.update({ where: { id }, data, select: FULL_SELECT });
     return this.mapToDomain(layout);
   }
 
   /**
-   * Deletes a dashboard layout from the database.
-   * @param id - Layout ID
-   * @returns The deleted layout
+   * Atomically makes `layoutId` the user's single active layout (tab).
    */
-  public async deleteLayout(id: string): Promise<Prisma.DashboardLayoutGetPayload<{}>> {
-    return prisma.dashboardLayout.delete({
-      where: { id },
-      select: {
-        id: true,
-        userId: true,
-        layoutData: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+  public async setActive(userId: string, layoutId: string): Promise<void> {
+    await prisma.$transaction([
+      prisma.dashboardLayout.updateMany({ where: { userId, isActive: true }, data: { isActive: false } }),
+      // Scoped by userId as well so the method is self-guarding against cross-tenant ids.
+      prisma.dashboardLayout.updateMany({ where: { id: layoutId, userId }, data: { isActive: true } }),
+    ]);
   }
 
   /**
-   * Maps a Prisma layout to domain layout
+   * Deletes a dashboard layout from the database.
+   */
+  public async deleteLayout(id: string): Promise<void> {
+    await prisma.dashboardLayout.delete({ where: { id } });
+  }
+
+  /**
+   * Maps a persisted row to the domain entity (name/isActive from columns, type/config from JSON).
    */
   private mapToDomain = (layout: {
     id: string;
     userId: string;
+    name: string;
+    isActive: boolean;
     layoutData: Prisma.JsonValue;
     createdAt: Date;
     updatedAt: Date;
   }): IDashboardLayout => {
-    try {
-      const data = layout.layoutData as {
-        name: string;
-        type: string;
-        config: {
-          columns: number;
-          widgets: string[];
-          positions?: Array<{
-            id: string;
-            i: string;
-            x: number;
-            y: number;
-            w: number;
-            h: number;
-            minW?: number;
-            minH?: number;
-            type: string;
-          }>;
-          theme?: string;
-          customSettings?: Record<string, unknown>;
-        };
-      };
+    const data = layout.layoutData as { type?: string; config?: LayoutConfig } | null;
 
-      // Verifica se os dados necessários estão presentes
-      if (!data || !data.type) {
-        console.error('Dados de layout inválidos:', { layoutId: layout.id, userId: layout.userId, layoutSize: JSON.stringify(layout).length });
-        throw new Error('Dados de layout inválidos: tipo não especificado');
-      }
-
-      // Converte o tipo do layout
-      const layoutType = this.convertLayoutType(data.type);
-
-      return {
-        id: layout.id,
-        userId: layout.userId,
-        name: data.name || 'Sem nome',
-        type: layoutType,
-        config: data.config || { columns: 1, widgets: [] },
-        createdAt: layout.createdAt,
-        updatedAt: layout.updatedAt,
-      };
-    } catch (error) {
-      console.error('Erro ao mapear layout:', error, { layoutId: layout.id, userId: layout.userId });
-      throw new Error(`Falha ao mapear layout: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    if (!data || !data.type) {
+      logger.error('Invalid layout data: missing type', { layoutId: layout.id });
+      throw new ServiceError('Invalid layout data: type is missing');
     }
-  }
 
-  /**
-   * Maps a Prisma layout to summary layout
-   */
-  private mapToSummary = (layout: {
-    id: string;
-    userId: string;
-    layoutData: Prisma.JsonValue;
-    updatedAt: Date;
-  }): IDashboardLayoutSummary => {
-    try {
-      const data = layout.layoutData as {
-        name: string;
-        type: string;
-      };
-
-      // Verifica se os dados necessários estão presentes
-      if (!data || !data.type) {
-        console.error('Dados de resumo de layout inválidos:', { layoutId: layout.id, userId: layout.userId, layoutSize: JSON.stringify(layout).length });
-        throw new Error('Dados de resumo de layout inválidos: tipo não especificado');
-      }
-
-      // Converte o tipo do layout
-      const layoutType = this.convertLayoutType(data.type);
-
-      return {
-        id: layout.id,
-        userId: layout.userId,
-        name: data.name || 'Sem nome',
-        type: layoutType,
-        updatedAt: layout.updatedAt,
-      };
-    } catch (error) {
-      console.error('Erro ao mapear resumo do layout:', error, { layoutId: layout.id, userId: layout.userId });
-      throw new Error(`Falha ao mapear resumo do layout: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    }
-  }
+    return {
+      id: layout.id,
+      userId: layout.userId,
+      name: layout.name,
+      isActive: layout.isActive,
+      type: this.convertLayoutType(data.type),
+      config: data.config ?? { columns: 1, widgets: [] },
+      createdAt: layout.createdAt,
+      updatedAt: layout.updatedAt,
+    };
+  };
 }

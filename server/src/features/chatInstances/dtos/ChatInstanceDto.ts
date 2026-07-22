@@ -1,7 +1,25 @@
 import { z } from 'zod';
 import { IChatInstance, IChatInstanceSummary } from '../models/ChatInstance.model';
 import { ChatInstanceType } from 'generated/prisma';
-// import { ChatMessageDtoSchema } from './ChatMessageDto'; // This import will need to be adjusted after ChatMessageDto is moved/confirmed
+
+/**
+ * Query schema for the paginated instance list. Caps `limit` to protect against unbounded reads.
+ */
+export const ListChatInstancesQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+  type: z.enum(['DOCUMENT', 'GENERIC']).optional(),
+});
+export type ListChatInstancesQuery = z.infer<typeof ListChatInstancesQuerySchema>;
+
+/**
+ * Body schema for the get-or-create endpoint (chat initialization).
+ */
+export const GetOrCreateChatInstanceSchema = z.object({
+  widgetInstanceId: z.string().min(1),
+  type: z.enum(['DOCUMENT', 'GENERIC']),
+});
+export type GetOrCreateChatInstanceDto = z.infer<typeof GetOrCreateChatInstanceSchema>;
 
 /**
  * Base schema for ChatInstance
@@ -22,7 +40,6 @@ import { ChatInstanceType } from 'generated/prisma';
 export const ChatInstanceSchema = z.object({
   id: z.string().cuid(),
   title: z.string().nullable(),
-  description: z.string().nullable().optional(),
   type: z.enum(['DOCUMENT', 'GENERIC']).default('DOCUMENT'),
   widgetInstanceId: z.string(),
   userId: z.string().cuid(),
@@ -44,7 +61,6 @@ export const ChatInstanceSchema = z.object({
  */
 export const CreateChatInstanceSchema = z.object({
   title: z.string().nullable(),
-  description: z.string().nullable().optional(),
   type: z.enum(['DOCUMENT', 'GENERIC']).default('DOCUMENT'),
   widgetInstanceId: z.string()
 });
@@ -128,12 +144,11 @@ export function isChatInstanceSummaryDto(obj: unknown): obj is ChatInstanceSumma
   return ChatInstanceSummarySchema.safeParse(obj).success;
 }
 
-// Mapeamento de domínio para DTO
+// Domain → DTO
 export function mapToDto(instance: IChatInstance): ChatInstanceDto {
   return {
     id: instance.id,
     title: instance.title,
-    description: instance.description,
     type: instance.type || 'DOCUMENT',
     widgetInstanceId: instance.widgetInstanceId,
     userId: instance.userId,
@@ -142,19 +157,14 @@ export function mapToDto(instance: IChatInstance): ChatInstanceDto {
   };
 }
 
-// Mapeamento de domínio para DTO de resumo
-export function mapToSummaryDto(instance: IChatInstanceSummary): ChatInstanceDto {
+// Domain → summary DTO
+export function mapToSummaryDto(instance: IChatInstanceSummary): ChatInstanceSummaryDto {
   return {
     id: instance.id,
     title: instance.title,
-    description: instance.description,
     type: instance.type || 'DOCUMENT',
     widgetInstanceId: instance.widgetInstanceId,
-    userId: '', // Não disponível no resumo
     createdAt: instance.createdAt,
     updatedAt: instance.updatedAt
   };
-}
-
-// UpdateChatInstanceSchema and UpdateChatInstanceDto removed as they are unused
-// and updateChatInstanceTitleStrict uses UpdateChatInstanceTitleDto directly. 
+} 

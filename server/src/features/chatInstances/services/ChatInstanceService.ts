@@ -1,21 +1,16 @@
 import { UserContext } from '../../../types/UserContext';
 import type { IChatInstanceRepository } from '../repositories/IChatInstanceRepository';
 import type { IChatInstancePolicy } from '../policies/IChatInstancePolicy';
-import type { IChatInstance, IChatInstanceSummary } from '../models/ChatInstance.model';
 import type { Prisma } from 'generated/prisma';
 import {
   CreateChatInstanceDto,
   UpdateChatInstanceDto,
   ChatInstanceDto,
   ChatInstanceSummaryDto,
-  CreateChatInstanceSchema,
-  UpdateChatInstanceSchema,
-  isCreateChatInstanceDto,
-  isUpdateChatInstanceDto,
   mapToDto,
   mapToSummaryDto
 } from '../dtos/ChatInstanceDto';
-import { ServiceError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../../../lib/errors';
+import { ServiceError, ForbiddenError, NotFoundError, UnauthorizedError } from '../../../lib/errors';
 
 /**
  * Service responsible for managing chat instances.
@@ -42,43 +37,24 @@ export class ChatInstanceService {
       throw new UnauthorizedError('Authentication required');
     }
 
-    const validationResult = CreateChatInstanceSchema.safeParse(data);
-    if (!validationResult.success) {
-      throw new ValidationError('Invalid instance creation data', validationResult.error.flatten().fieldErrors);
-    }
-
+    // Input is validated at the boundary (controller via DTO); the service trusts the typed input.
     if (!this.chatInstancePolicy.canCreate(userContext)) {
       throw new ForbiddenError('Instance creation forbidden by policy');
     }
 
-    try {
-      const instanceDataForRepo: Prisma.ChatInstanceCreateInput = {
-        ...data,
-        user: {
-          connect: {
-            id: userContext.userId
-          }
-        }
-      };
-
-      const createdInstance = await this.chatInstanceRepository.createInstance(instanceDataForRepo);
-      return mapToDto(createdInstance);
-    } catch (error: unknown) {
-      // If instance already exists for this user and widgetId (unique constraint), return the existing one
-      if (!(error instanceof ServiceError)) {
-        try {
-          const userInstances = await this.chatInstanceRepository.getInstancesByUser(userContext.userId);
-          const existing = userInstances.find(inst => inst.widgetInstanceId === data.widgetInstanceId);
-          if (existing) {
-            return mapToDto(existing);
-          }
-        } catch {
-          // ignore failures in fetching existing instance
+    const instanceDataForRepo: Prisma.ChatInstanceCreateInput = {
+      ...data,
+      user: {
+        connect: {
+          id: userContext.userId
         }
       }
-      if (error instanceof ServiceError) throw error;
-      throw new ServiceError('Failed to create instance');
-    }
+    };
+
+    // A duplicate (userId, widgetInstanceId) surfaces as Prisma P2002 → 409 via handleApiError.
+    // Idempotent "get or create" is provided separately by getOrCreateInstance.
+    const createdInstance = await this.chatInstanceRepository.createInstance(instanceDataForRepo);
+    return mapToDto(createdInstance);
   }
 
   /**
@@ -120,10 +96,8 @@ export class ChatInstanceService {
       throw new UnauthorizedError('Authentication required');
     }
 
-    const instance = await this.chatInstanceRepository.getInstanceById(id, userContext.userId);
+    const instance = await this.chatInstanceRepository.getInstanceById(id);
     if (!instance) {
-      // Return NotFoundError regardless of whether the instance exists but belongs to
-      // another user — avoids leaking the existence of foreign resources.
       throw new NotFoundError('Instance not found');
     }
 
@@ -142,7 +116,7 @@ export class ChatInstanceService {
    * @throws {UnauthorizedError} If user is not authenticated
    * @throws {ForbiddenError} If user cannot list instances
    */
-  async getInstancesByUser(userContext: UserContext, type?: 'DOCUMENT' | 'GENERIC'): Promise<ChatInstanceDto[]> {
+  async getInstancesByUser(userContext: UserContext, type?: 'DOCUMENT' | 'GENERIC'): Promise<ChatInstanceSummaryDto[]> {
     if (!userContext.userId) {
       throw new UnauthorizedError('Authentication required');
     }
@@ -151,8 +125,9 @@ export class ChatInstanceService {
       throw new ForbiddenError('Instance listing forbidden by policy');
     }
 
+    // Lists return summaries (no userId), consistent with getAllInstances.
     const instances = await this.chatInstanceRepository.getInstancesByUser(userContext.userId, type);
-    return instances.map(instance => mapToDto(instance));
+    return instances.map(instance => mapToSummaryDto(instance));
   }
 
   /**
@@ -225,12 +200,8 @@ export class ChatInstanceService {
       throw new UnauthorizedError('Authentication required');
     }
 
-    const validationResult = UpdateChatInstanceSchema.safeParse(data);
-    if (!validationResult.success) {
-      throw new ValidationError('Invalid instance update data', validationResult.error.flatten().fieldErrors);
-    }
-
-    const instance = await this.chatInstanceRepository.getInstanceById(id, userContext.userId);
+    // Input is validated at the boundary (controller via DTO); the service trusts the typed input.
+    const instance = await this.chatInstanceRepository.getInstanceById(id);
     if (!instance) {
       throw new NotFoundError('Instance not found');
     }
@@ -270,7 +241,7 @@ export class ChatInstanceService {
       throw new UnauthorizedError('Authentication required');
     }
 
-    const instance = await this.chatInstanceRepository.getInstanceById(id, userContext.userId);
+    const instance = await this.chatInstanceRepository.getInstanceById(id);
     if (!instance) {
       throw new NotFoundError('Instance not found');
     }

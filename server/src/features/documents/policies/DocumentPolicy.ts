@@ -1,6 +1,7 @@
 import { IDocument } from '../models/Document.model';
 import { UserContext } from '../../../lib/authUtils';
 import { IDocumentPolicy } from './IDocumentPolicy';
+import { Role } from '../../users/models/User.model';
 
 /**
  * Policy implementation for Document authorization rules.
@@ -8,53 +9,40 @@ import { IDocumentPolicy } from './IDocumentPolicy';
  */
 export class DocumentPolicy implements IDocumentPolicy {
   /**
-   * Checks if a user can create a new document
-   * @param userContext - Current user's context
-   * @returns True if user is authorized
+   * Checks if a user can create a new document.
    */
-  canCreateDocument(userContext: UserContext | null): boolean {
-    return !!userContext;
+  canCreate(userContext: UserContext | null): boolean {
+    return !!userContext?.userId;
   }
 
   /**
-   * Checks if a user can list all documents
-   * @param userContext - Current user's context
-   * @returns True if user is authorized
+   * Checks if a user can list documents.
    */
-  canListDocuments(userContext: UserContext | null): boolean {
-    return !!userContext;
+  canListAll(userContext: UserContext | null): boolean {
+    return !!userContext?.userId;
   }
 
   /**
-   * Checks if a user can view a specific document
-   * @param userContext - Current user's context
-   * @param document - Document to check
-   * @returns True if user is authorized
+   * Checks if a user can view a specific document (owner-or-admin).
    */
-  canViewDocument(userContext: UserContext | null, document: IDocument): boolean {
+  canView(userContext: UserContext | null, document: IDocument): boolean {
     if (!userContext) return false;
-    return userContext.id === document.userId || userContext.role === 'ADMIN';
+    return userContext.userId === document.userId || userContext.role === Role.ADMIN;
   }
 
   /**
-   * Checks if a user can update a specific document
-   * @param userContext - Current user's context
-   * @param document - Document to check
-   * @returns True if user is authorized
+   * Checks if a user can update a specific document (owner-or-admin).
    */
-  canUpdateDocument(userContext: UserContext | null, document: IDocument): boolean {
+  canUpdate(userContext: UserContext | null, document: IDocument): boolean {
     if (!userContext) return false;
-    return userContext.id === document.userId || userContext.role === 'ADMIN';
+    return userContext.userId === document.userId || userContext.role === Role.ADMIN;
   }
 
   /**
-   * Checks if a user can delete a specific document
-   * @param userContext - Current user's context
-   * @param document - Document to check
-   * @returns True if user is authorized
+   * Checks if a user can delete a specific document (owner-or-admin).
    */
-  canDeleteDocument(userContext: UserContext | null, document: IDocument): boolean {
+  canDelete(userContext: UserContext | null, document: IDocument): boolean {
     if (!userContext) return false;
-    return userContext.id === document.userId || userContext.role === 'ADMIN';
+    return userContext.userId === document.userId || userContext.role === Role.ADMIN;
   }
-} 
+}

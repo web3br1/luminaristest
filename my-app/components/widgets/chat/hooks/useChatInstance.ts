@@ -94,13 +94,13 @@ export function useChatInstance({
     let newChatInstanceId: string | null = null;
 
     try {
-      // console.debug(`useChatInstance (${widgetIdToInitialize}): Fetching/creating instance via POST /api/chat-instances.`);
+      // Idempotent init: get-or-create returns the existing instance for this widget or creates one.
       const { getCookie } = await import('cookies-next');
       const token = getCookie('auth_token');
-      const instanceResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/chat-instances`, {
+      const instanceResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/chat-instances/get-or-create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ widgetInstanceId: widgetIdToInitialize, title: null }),
+        body: JSON.stringify({ widgetInstanceId: widgetIdToInitialize, type: 'DOCUMENT' }),
         // credentials: 'include',
       });
 

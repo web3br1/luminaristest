@@ -78,8 +78,9 @@ function makeRepository(
       const instances = all.slice(start, start + limit) as IChatInstanceSummary[];
       return { instances, totalCount: all.length };
     }),
-    getInstanceById: jest.fn(async (id: string, userId: string) => {
-      const all = userId === 'user-A' ? instancesForUserA : instancesForUserB;
+    // Fork design: repository fetch is UNSCOPED (1-arg); tenancy is enforced by the policy layer.
+    getInstanceById: jest.fn(async (id: string) => {
+      const all = [...instancesForUserA, ...instancesForUserB];
       return all.find((i) => i.id === id) ?? null;
     }),
     getInstancesByUser: jest.fn(async (userId: string) => {
@@ -150,16 +151,15 @@ describe('ChatInstanceService — tenant isolation', () => {
       expect(result.id).toBe('instance-a1');
     });
 
-    it('throws NotFoundError (not ForbiddenError) when user-B requests an instance owned by user-A', async () => {
-      // The service intentionally hides existence to prevent enumeration attacks.
-      // Repository returns null because the userId filter does not match.
-      await expect(service.getInstanceById('instance-a1', ctxB)).rejects.toThrow(NotFoundError);
+    it('throws ForbiddenError when user-B requests an instance owned by user-A (policy gate)', async () => {
+      // Fork design adopted 2026-07-21: the repository fetch is unscoped and the ChatInstancePolicy
+      // is the tenancy gate (403). This trades the previous existence-masking 404 for explicit
+      // policy semantics; access is still denied.
+      await expect(service.getInstanceById('instance-a1', ctxB)).rejects.toThrow(ForbiddenError);
     });
 
-    it('does not leak the existence of foreign instances — error message is generic', async () => {
-      await expect(service.getInstanceById('instance-a1', ctxB)).rejects.toMatchObject({
-        message: 'Instance not found',
-      });
+    it('still 404s for an id that does not exist at all', async () => {
+      await expect(service.getInstanceById('missing-id', ctxB)).rejects.toThrow(NotFoundError);
     });
   });
 });

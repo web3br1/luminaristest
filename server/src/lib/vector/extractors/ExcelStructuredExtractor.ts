@@ -1,4 +1,5 @@
 import * as ExcelJS from 'exceljs';
+import { logger } from '@/lib/logger';
 
 // Defines the structure for a single sheet's extracted data.
 export interface SheetStructured {
@@ -48,7 +49,7 @@ function slugify(text: string): string {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, '_') // Replace spaces with _
-    .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+    .replace(/[^\w-]+/g, '') // Remove all non-word chars
     .replace(/__+/g, '_'); // Replace multiple _ with single _
 }
 
@@ -90,8 +91,8 @@ export async function extractStructuredDataFromExcel(
   try {
     await workbook.xlsx.load(bufferToLoad);
   } catch (error) {
-    console.error('Erro ao carregar arquivo Excel:', error);
-    throw new Error(`Falha ao processar arquivo Excel: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    logger.error('Failed to load Excel file', { error });
+    throw new Error(`Falha ao processar arquivo Excel: ${error instanceof Error ? error.message : 'Erro desconhecido'}`, { cause: error });
   }
 
   const allSheets: SheetStructured[] = [];

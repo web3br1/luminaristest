@@ -37,29 +37,52 @@ const CONFIG = {
   ENABLE_FALLBACK: true
 };
 
-// Mecanismo para prevenir chamadas simultâneas
+// Coalesces concurrent identical requests: a second call with the same key reuses the in-flight promise.
 class RequestLock {
   private static locks = new Map<string, Promise<unknown>>();
 
   static async acquire<T>(key: string, fn: () => Promise<T>): Promise<T> {
-    // Verificar se já existe um lock para esta chave
     if (this.locks.has(key)) {
-      console.log(`[RequestLock] Reutilizando lock existente para: ${key}`);
-      // Se já existe, espera a resolução do lock atual e retorna o resultado
+      logger.debug('[RequestLock] reusing in-flight request', { key });
       return this.locks.get(key) as Promise<T>;
     }
 
-    // Criar novo lock
-    console.log(`[RequestLock] Criando novo lock para: ${key}`);
+    logger.debug('[RequestLock] new request', { key });
     const promise = fn().finally(() => {
-      // Liberar o lock quando a operação for concluída
-      console.log(`[RequestLock] Liberando lock para: ${key}`);
+      logger.debug('[RequestLock] released', { key });
       this.locks.delete(key);
     });
 
-    // Armazenar o lock
     this.locks.set(key, promise);
     return promise;
+  }
+}
+
+/**
+ * Best-effort repair of malformed JSON returned by an LLM (trailing commas, unquoted keys, smart
+ * quotes). Returns the valid/repaired string, or null if it cannot be parsed. Pure — exported for tests.
+ */
+/** Loose shape of an LLM structured-data extraction (headers + data are both dynamic JSON). */
+export interface ExtractedStructuredData {
+  headers?: unknown;
+  data?: unknown;
+}
+
+export function tryFixMalformedJson(jsonString: string): string | null {
+  try {
+    JSON.parse(jsonString);
+    return jsonString; // already valid
+  } catch {
+    // fall through and attempt repairs
+  }
+  try {
+    let fixed = jsonString.replace(/,\s*]/g, ']').replace(/,\s*}/g, '}'); // trailing commas
+    fixed = fixed.replace(/(\{|,)\s*([a-zA-Z0-9_]+)\s*:/g, '$1"$2":'); // unquoted keys
+    fixed = fixed.replace(/[“”]/g, '"'); // smart double quotes → straight (old regex had straight quotes — a no-op)
+    JSON.parse(fixed);
+    return fixed;
+  } catch {
+    return null;
   }
 }
 
@@ -69,12 +92,14 @@ export class OpenAIService {
 
   constructor() {
     if (!process.env.OPENAI_API_KEY) {
-      console.error("OpenAI API key is not set. Please set OPENAI_API_KEY environment variable.");
-      // This error should ideally be caught and handled by the calling service
-      throw new Error("OpenAI API key not configured.");
+      logger.error('[OpenAIService] OPENAI_API_KEY is not set');
+      throw new Error('OpenAI API key not configured.');
     }
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
+      // SDK-level resilience: bounded timeout + retries so a slow/transient failure fails cleanly.
+      timeout: 60_000,
+      maxRetries: 2,
     });
   }
 
@@ -96,9 +121,8 @@ export class OpenAIService {
     // Usar o mecanismo de lock para garantir apenas uma chamada concorrente
     return RequestLock.acquire(requestId, async function () {
       try {
-        console.log(`[OpenAIService] Executando chamada para OpenAI com requestId: ${requestId.substring(0, 8)}...`);
+        logger.debug('[OpenAIService] calling OpenAI', { requestId: requestId.substring(0, 8) });
 
-        // Aqui usamos uma função declarada em vez de arrow function conforme regra [003]
         const instance = OpenAIService.getInstance();
         const completion = await instance.openai.chat.completions.create({
           messages: [
@@ -110,8 +134,8 @@ export class OpenAIService {
         });
         return completion.choices[0]?.message?.content;
       } catch (error) {
-        console.error("Error getting chat completion from OpenAI:", error);
-        throw new Error("Failed to get response from AI service.");
+        logger.error('Error getting chat completion from OpenAI', { error });
+        throw new Error('Failed to get response from AI service.', { cause: error });
       }
     });
   }
@@ -143,9 +167,8 @@ export class OpenAIService {
       });
       return completion.choices[0]?.message?.content;
     } catch (error) {
-      console.error("Error getting chat completion from OpenAI with history:", error);
-      // Consider more specific error handling or re-throwing a custom error class
-      throw new Error("Failed to get response from AI service with history.");
+      logger.error('Error getting chat completion from OpenAI with history', { error });
+      throw new Error('Failed to get response from AI service with history.', { cause: error });
     }
   }
 
@@ -180,8 +203,8 @@ export class OpenAIService {
       });
       return completion.choices[0]?.message;
     } catch (error) {
-      console.error("Error getting chat completion from OpenAI with tools and history:", error);
-      throw new Error("Failed to get response from AI service with tools and history.");
+      logger.error('Error getting chat completion from OpenAI with tools and history', { error });
+      throw new Error('Failed to get response from AI service with tools and history.', { cause: error });
     }
   }
 
@@ -211,7 +234,7 @@ export class OpenAIService {
       return response === 'true';
 
     } catch (error) {
-      console.error("Error validating tabular content with OpenAI:", error);
+      logger.error('Error validating tabular content with OpenAI', { error });
       // To be safe, if the validation fails, we assume the document is not tabular.
       return false;
     }
@@ -240,32 +263,6 @@ export class OpenAIService {
     if (totalTokens > CONFIG.MAX_TOKENS_PER_REQUEST) {
       throw new Error(`Document exceeds maximum token limit of ${CONFIG.MAX_TOKENS_PER_REQUEST}. ` +
         `Estimated tokens: ${totalTokens}. Please upload a smaller document.`);
-    }
-  }
-
-  /**
-   * Attempts to fix malformed JSON strings returned by the LLM.
-   * Tries common repairs (vírgulas sobrando, aspas faltantes, etc.).
-   * Retorna a string corrigida ou null se não for possível reparar.
-   */
-  private tryFixMalformedJson(jsonString: string): string | null {
-    try {
-      JSON.parse(jsonString);
-      return jsonString; // já é válido
-    } catch (_) {
-      // continua
-    }
-    try {
-      // remove vírgulas sobrando antes de ] ou }
-      let fixed = jsonString.replace(/,\s*]/g, "]").replace(/,\s*}/g, "}");
-      // adiciona aspas faltantes em chaves
-      fixed = fixed.replace(/(\{|,)\s*([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
-      // substitui aspas "smart" por aspas simples
-      fixed = fixed.replace(/[""]/g, '"');
-      JSON.parse(fixed);
-      return fixed;
-    } catch (_) {
-      return null;
     }
   }
 
@@ -349,12 +346,12 @@ export class OpenAIService {
         return JSON.parse(responseContent);
       } catch (e) {
         logger.warn('Failed to parse original JSON, attempting to fix.', { error: e, rawJson: responseContent });
-        const repaired = this.tryFixMalformedJson(responseContent);
+        const repaired = tryFixMalformedJson(responseContent);
         if (repaired) {
           logger.info('Successfully repaired and parsed malformed JSON.');
           return JSON.parse(repaired);
         }
-        throw new Error('Failed to parse and repair JSON response.');
+        throw new Error('Failed to parse and repair JSON response.', { cause: e });
       }
     } catch (error) {
       logger.error(`Error extracting data with model ${model}:`, { error });

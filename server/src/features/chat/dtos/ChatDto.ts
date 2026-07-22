@@ -1,30 +1,32 @@
 import { z } from 'zod';
 
-// Schema para um único item do histórico
+// Schema for a single history item.
 const HistoryItemSchema = z.object({
   role: z.enum(['user', 'assistant', 'system']),
   content: z.string(),
 });
 
 /**
- * Schema para validar a requisição de chat.
+ * Schema validating the chat request.
  */
 export const ChatRequestSchema = z.object({
   query: z.string().max(4000).optional(),
   documentIds: z.array(z.string()).optional(),
   history: z.array(HistoryItemSchema).optional(),
-  // Permite que o frontend envie o ID de uma proposta confirmada
+  // Target chat instance: when present, the server persists the user message and the assistant reply.
+  chatInstanceId: z.string().optional(),
+  // Id of a confirmed action proposal sent back by the frontend.
   confirmedProposalId: z.string().optional(),
 });
 
 /**
- * Schema para a resposta do chat.
+ * Schema for the chat response.
  */
 export const ChatResponseSchema = z.object({
   answer: z.string(),
-  // Tipo da resposta para o frontend saber se deve mostrar um modal
+  // Response type so the frontend knows whether to show a confirmation modal.
   type: z.enum(['TEXT', 'ACTION_PROPOSAL']).default('TEXT'),
-  // Metadados da proposta, se houver
+  // Proposal metadata, when present.
   proposal: z.object({
     id: z.string(),
     action: z.enum(['CREATE', 'UPDATE', 'DELETE']),
@@ -48,6 +50,6 @@ export const ChatResponseSchema = z.object({
   ).optional(),
 });
 
-// Exporta os tipos inferidos para uso no código
+// Inferred types for use across the codebase.
 export type ChatRequestDto = z.infer<typeof ChatRequestSchema>;
 export type ChatResponseDto = z.infer<typeof ChatResponseSchema>;

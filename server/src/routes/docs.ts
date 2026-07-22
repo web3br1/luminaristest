@@ -43,7 +43,9 @@ try {
       break;
     }
   }
-} catch {}
+} catch {
+  /* fall through to generating specs from JSDoc below */
+}
 
 if (!specs) {
   specs = swaggerJSDoc(options);

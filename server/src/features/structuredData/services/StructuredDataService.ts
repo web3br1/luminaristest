@@ -1,24 +1,29 @@
-import type { IUser } from '../../users/models/User.model';
-import type { UpdateStructuredDataInput, ApiHeader } from '../types/StructuredData.types';
-import { apiHeaderToHeader, headerToColumnFormat } from '../types/StructuredData.types';
-import { NotFoundError, ForbiddenError } from '../../../lib/errors';
+import type { UserContext } from '@/types/UserContext';
+import type { UpdateStructuredDataInput } from '../dtos/StructuredDataDto';
+import { NotFoundError, ForbiddenError, ServiceError, UnauthorizedError } from '../../../lib/errors';
 import { IStructuredDataRepository } from '../repositories/IStructuredDataRepository';
-import { Prisma } from 'generated/prisma';
-import { IStructuredData, StructuredDataResponse } from '../models/StructuredData.model';
-import { convertExcelHeaders, convertSheetToTableData } from '../types/Sheet.types';
+import {
+  IStructuredData,
+  StructuredDataResponse,
+  SheetData,
+  ApiHeader,
+  apiHeaderToHeader,
+  headerToColumnFormat,
+  convertSheetToTableData,
+} from '../models/StructuredData.model';
 import { SheetStructured } from '@/lib/vector/extractors/ExcelStructuredExtractor';
-import { StructuredDataPolicy } from '../policies/StructuredDataPolicy';
+import { IStructuredDataPolicy } from '../policies/IStructuredDataPolicy';
 import { OpenAIService } from '../../../lib/openai/OpenAIService';
 import { logger } from '../../../lib/logger';
 
 export class StructuredDataService {
   private repository: IStructuredDataRepository;
-  private policy: StructuredDataPolicy;
+  private policy: IStructuredDataPolicy;
   private openAIService: OpenAIService;
 
   constructor(
     repository: IStructuredDataRepository,
-    policy: StructuredDataPolicy,
+    policy: IStructuredDataPolicy,
     openAIService: OpenAIService,
   ) {
     this.repository = repository;
@@ -26,76 +31,31 @@ export class StructuredDataService {
     this.openAIService = openAIService;
   }
 
-  public async getByDocumentId(user: IUser, documentId: string): Promise<StructuredDataResponse> {
-    // Verificar permissão
-    const canAccess = await this.policy.canAccess(user, documentId);
-    if (!canAccess) {
+  public async getByDocumentId(ctx: UserContext, documentId: string): Promise<StructuredDataResponse> {
+    if (!ctx.userId) {
+      throw new UnauthorizedError('Authentication required to access structured data');
+    }
+    if (!(await this.policy.canAccess(ctx, documentId))) {
       throw new ForbiddenError('User has no permission to access this document');
     }
 
-    // Buscar dados estruturados
     const structuredData = await this.repository.findByDocumentId(documentId);
     if (!structuredData) {
       throw new NotFoundError(`Structured data not found for document ${documentId}`);
     }
 
-    // Converter headers para o formato de colunas que o frontend espera
-    const { headers, data, ...rest } = structuredData;
-    const columns = headers.map(header => headerToColumnFormat(header));
-
-    // Verificar se os dados são multi-sheet (JSON string ou array de sheets)
-    let normalizedData = data;
-    let sheets = undefined;
-    
-    try {
-      // Se é uma string, tentar fazer parse
-      if (typeof data === 'string') {
-        try {
-          const parsedData = JSON.parse(data);
-          
-          // Verificar se é um formato multi-sheet (array de objetos com name, headers, data)
-          if (Array.isArray(parsedData) && parsedData.length > 0 && parsedData[0]?.name) {
-            logger.info('Multi-sheet data detected in string format', { sheetsCount: parsedData.length });
-            sheets = parsedData;
-            // Usar os dados da primeira planilha como dados principais
-            normalizedData = parsedData[0].data || [];
-          }
-        } catch (e) {
-          logger.warn('Failed to parse data string as JSON', { error: e, documentId });
-        }
-      }
-      // Se já é um array e parece ser um formato multi-sheet
-      else if (Array.isArray(data) && data.length > 0) {
-        // Verificamos se parece ser uma estrutura multi-sheet verificando a primeira entrada
-        const firstItem = data[0];
-        
-        // Verificar se tem a estrutura esperada de um sheet (name e data)
-        if (typeof firstItem === 'object' && firstItem !== null && 
-            'name' in firstItem && 'data' in firstItem && Array.isArray(firstItem.data)) {
-          
-          logger.info('Multi-sheet data detected in array format', { sheetsCount: data.length });
-          
-          // Tratamos como multi-sheet
-          sheets = data;
-          // Usar os dados da primeira planilha como dados principais
-          normalizedData = firstItem.data || [];
-        }
-      }
-    } catch (error) {
-      logger.warn('Failed to process structured data format', { error, documentId });
-    }
-
-    // Retornar os dados estruturados
-    return { ...rest, columns, data: normalizedData, ...(sheets && { sheets }) };
+    return this.toResponse(structuredData, documentId);
   }
 
   public async createFromStructured(
-    user: IUser,
+    ctx: UserContext,
     documentId: string,
     data: { sheets: SheetStructured[] }
   ): Promise<IStructuredData | null> {
-    const canAccess = await this.policy.canAccess(user, documentId);
-    if (!canAccess) {
+    if (!ctx.userId) {
+      throw new UnauthorizedError('Authentication required to create structured data');
+    }
+    if (!(await this.policy.canAccess(ctx, documentId))) {
       throw new ForbiddenError('User does not have access to this document.');
     }
 
@@ -112,34 +72,33 @@ export class StructuredDataService {
 
     if (isMultiSheet) {
       // Para multi-planilha, convertemos os headers da primeira planilha
-      // e armazenamos todas as planilhas em formato serializado
+      // e armazenamos todas as planilhas em formato serializado (JSON direto no Prisma).
       const firstSheet = data.sheets[0] || { headers: [], data: [] };
       const tableData = convertSheetToTableData(firstSheet);
-      
-      // Armazenamos todas as planilhas em formato adequado para o banco
-      // Os dados já estão no formato correto para serem armazenados como JSON
+
       return this.repository.create({
         documentId,
         headers: tableData.headers,
-        // Não precisamos converter para string, o Prisma aceita objetos diretos
-        data: data.sheets
-      });
-    } else {
-      // Para planilha única, convertemos diretamente para o formato tabular
-      const singleSheet = data.sheets[0] || { headers: [], data: [] };
-      const tableData = convertSheetToTableData(singleSheet);
-      
-      return this.repository.create({
-        documentId,
-        headers: tableData.headers,
-        data: tableData.data
+        data: data.sheets,
       });
     }
+
+    // Para planilha única, convertemos diretamente para o formato tabular.
+    const singleSheet = data.sheets[0] || { headers: [], data: [] };
+    const tableData = convertSheetToTableData(singleSheet);
+
+    return this.repository.create({
+      documentId,
+      headers: tableData.headers,
+      data: tableData.data,
+    });
   }
 
-  public async createFromText(user: IUser, documentId: string, rawText: string): Promise<IStructuredData> {
-    const canAccess = await this.policy.canAccess(user, documentId);
-    if (!canAccess) {
+  public async createFromText(ctx: UserContext, documentId: string, rawText: string): Promise<IStructuredData> {
+    if (!ctx.userId) {
+      throw new UnauthorizedError('Authentication required to create structured data');
+    }
+    if (!(await this.policy.canAccess(ctx, documentId))) {
       throw new ForbiddenError('User does not have access to this document.');
     }
 
@@ -149,7 +108,7 @@ export class StructuredDataService {
 
     if (!structuredContent || !structuredContent.data) {
       logger.error('Invalid or incomplete data from OpenAI', { documentId });
-      throw new Error('Failed to get valid structured data from AI.');
+      throw new ServiceError('Failed to get valid structured data from AI.');
     }
 
     // Validar os headers recebidos da API
@@ -157,14 +116,14 @@ export class StructuredDataService {
       (structuredContent.headers as ApiHeader[]).forEach((header) => {
         if (!header.key || !header.title || !header.type) {
           logger.error('Header is missing required properties (key, title, or type)', { header, documentId });
-          throw new Error('Invalid header structure received from AI.');
+          throw new ServiceError('Invalid header structure received from AI.');
         }
       });
     }
 
     // Converter os headers para o formato padrão
-    const convertedHeaders = structuredContent.headers 
-      ? (structuredContent.headers as ApiHeader[]).map(header => apiHeaderToHeader(header))
+    const convertedHeaders = structuredContent.headers
+      ? (structuredContent.headers as ApiHeader[]).map(apiHeaderToHeader)
       : [];
 
     logger.info('Structured data extraction successful, saving to database.', { documentId });
@@ -181,13 +140,59 @@ export class StructuredDataService {
     return this.repository.create({
       documentId,
       headers: convertedHeaders,
-      data: safeData
+      data: safeData,
     });
   }
 
-  public async update(user: IUser, documentId: string, data: UpdateStructuredDataInput) {
-    const existingData = await this.getByDocumentId(user, documentId); // A própria getByDocumentId já faz a checagem de política
+  public async update(
+    ctx: UserContext,
+    documentId: string,
+    data: UpdateStructuredDataInput
+  ): Promise<StructuredDataResponse> {
+    if (!ctx.userId) {
+      throw new UnauthorizedError('Authentication required to update structured data');
+    }
+    if (!(await this.policy.canAccess(ctx, documentId))) {
+      throw new ForbiddenError('User has no permission to access this document');
+    }
 
-    return this.repository.update(existingData.id, data);
+    const existing = await this.repository.findByDocumentId(documentId);
+    if (!existing) {
+      throw new NotFoundError(`Structured data not found for document ${documentId}`);
+    }
+
+    const updated = await this.repository.update(existing.id, data);
+    // Devolve o mesmo shape do GET (columns + data normalizado + sheets?) para um contrato consistente.
+    return this.toResponse(updated, documentId);
+  }
+
+  /**
+   * Mapeia o modelo de domínio para a resposta do frontend: converte headers em `columns` e,
+   * quando multi-sheet, expõe a estrutura completa em `sheets` e usa a primeira aba como `data`.
+   * `data` já chega parseado pelo repositório (toStructuredData), nunca como string.
+   */
+  private toResponse(structuredData: IStructuredData, documentId: string): StructuredDataResponse {
+    const { headers, data, ...rest } = structuredData;
+    const columns = headers.map(headerToColumnFormat);
+
+    let normalizedData = data;
+    let sheets: SheetData[] | undefined;
+
+    if (Array.isArray(data) && data.length > 0) {
+      const firstItem = data[0];
+      if (
+        typeof firstItem === 'object' &&
+        firstItem !== null &&
+        'name' in firstItem &&
+        'data' in firstItem &&
+        Array.isArray((firstItem as { data: unknown }).data)
+      ) {
+        logger.info('Multi-sheet data detected', { sheetsCount: data.length, documentId });
+        sheets = data as SheetData[];
+        normalizedData = (firstItem as SheetData).data ?? [];
+      }
+    }
+
+    return { ...rest, columns, data: normalizedData, ...(sheets ? { sheets } : {}) };
   }
 }

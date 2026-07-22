@@ -1,80 +1,76 @@
-# Ecossistema de Presets — Tabelas Dinâmicas
+# Preset Ecosystem — Dynamic Tables
 
-> 📍 Parte do conjunto de docs da feature — ver o [mapa de documentação](../README.md#-mapa-de-documentação).
-> Este arquivo é a referência de **autoria** (o que declarar). Para **como/onde** cada metadado é
-> executado, ver [`../docs/validation-and-governance.md`](../docs/validation-and-governance.md);
-> para **plugins**, ver [`../docs/rules-engine.md`](../docs/rules-engine.md).
+> 📍 Part of the feature's doc set — see the [documentation map](../README.md#️-documentation-map).
+> This file is the **authoring** reference (what to declare). For **how/where** each metadata executes,
+> see [`../docs/validation-and-governance.md`](../docs/validation-and-governance.md);
+> for **plugins**, see [`../docs/rules-engine.md`](../docs/rules-engine.md).
 
-Este documento é a referência completa do sistema de presets. Ele explica como
-as tabelas dinâmicas são definidas, como os presets se compõem em camadas, e
-**todos os metadados disponíveis** com exemplos reais.
+This document is the complete reference for the preset system. It explains how dynamic tables are
+defined, how presets compose in layers, and **every available metadata** with real examples.
 
-> **Convenção de idioma:** descrições, comentários e este documento ficam em PT.
-> Todos os `label` e `description` de campos ficam em **EN** — o frontend traduz
-> via i18n (`database:fields.<name>`) com fallback para o label EN.
-
----
-
-## 1. Como os dados funcionam (visão geral)
-
-O sistema **não cria uma tabela física por entidade**. Em vez disso:
-
-- Existe uma tabela física `DynamicTable` — guarda a **definição** (o schema) como JSON.
-- Existe uma tabela física `DynamicTableData` — guarda os **registros**, com a coluna `data` em JSON.
-
-Cada "tabela" que o usuário vê (Produtos, Vendas, Clientes…) é uma linha em
-`DynamicTable` com seu schema, e seus registros são linhas em `DynamicTableData`
-apontando para ela. Isso permite que cada usuário tenha tabelas totalmente
-diferentes sem migração de banco.
-
-**Isolamento:** cada `DynamicTable` pertence a um `userId`. Unicidade, busca e
-relações são todas escopadas àquela tabela específica — o sistema do "Salão da
-Maria" e o da "Barbearia do João" nunca se cruzam.
+> **Language convention:** prose, comments and this document are in **English**. Field `label` and
+> `description` values are also in **English** — the frontend translates via i18n
+> (`database:fields.<name>`) with a fallback to the English label.
 
 ---
 
-## 2. Arquitetura de 3 camadas
+## 1. How the data works (overview)
+
+The system **does not create a physical table per entity**. Instead:
+
+- There is a physical `DynamicTable` table — holds the **definition** (the schema) as JSON.
+- There is a physical `DynamicTableData` table — holds the **records**, with the `data` column in JSON.
+
+Each "table" the user sees (Products, Sales, Customers…) is a row in `DynamicTable` with its schema, and
+its records are rows in `DynamicTableData` pointing to it. This lets each user have completely different
+tables without a database migration.
+
+**Isolation:** each `DynamicTable` belongs to a `userId`. Uniqueness, search and relations are all
+scoped to that specific table — "Maria's Salon" and "João's Barbershop" never cross.
+
+---
+
+## 2. The 3-layer architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  SYSTEMS  (presets/systems/)                                 │
-│  Um ERP completo. Ex: BeautySalonPreset = 16 tabelas.       │
-│  Compõe MODULES via createTableFromModule().                │
+│  A complete ERP. E.g. BeautySalonPreset = 16 tables.         │
+│  Composes MODULES via createTableFromModule().               │
 └────────────────────────────┬────────────────────────────────┘
-                             │ usa
+                             │ uses
 ┌────────────────────────────▼────────────────────────────────┐
-│  MODULES  (presets/modules/)                                │
-│  Uma tabela. Ex: productModule, salesModule.                │
-│  Compõe FIELDS (presets + overrides + campos inline).       │
+│  MODULES  (presets/modules/)                                 │
+│  One table. E.g. productModule, salesModule.                 │
+│  Composes FIELDS (presets + overrides + inline fields).      │
 └────────────────────────────┬────────────────────────────────┘
-                             │ usa
+                             │ uses
 ┌────────────────────────────▼────────────────────────────────┐
-│  FIELDS  (presets/fields/)                                  │
-│  Um campo reutilizável. Ex: salePrice, customerId, date.    │
-│  Objetos ISchemaField puros, agrupados por tipo.            │
+│  FIELDS  (presets/fields/)                                   │
+│  One reusable field. E.g. salePrice, customerId, date.       │
+│  Pure ISchemaField objects, grouped by type.                 │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-**Regra de ouro:** quanto mais baixo na pilha, mais reutilizável. Sempre que um
-campo for genérico (preço, data, FK para clientes), use o **field preset**. Só
-declare inline o que for específico daquela tabela.
+**Golden rule:** the lower in the stack, the more reusable. Whenever a field is generic (price, date, a
+customers FK), use the **field preset**. Only declare inline what is specific to that table.
 
 ---
 
-## 3. FIELDS — presets de campo
+## 3. FIELDS — field presets
 
-Vivem em `presets/fields/`, agrupados por tipo:
+They live in `presets/fields/`, grouped by type:
 
-| Arquivo | Contém |
+| File | Contains |
 |---|---|
-| `text/TextPresets.ts` | `name`, `description`, `notes`, `email`, `phone`, `sku`, `brand`, endereço, etc. |
+| `text/TextPresets.ts` | `name`, `description`, `notes`, `email`, `phone`, `sku`, `brand`, address, etc. |
 | `number/NumberPresets.ts` | `amount`, `price`, `salePrice`, `costPrice`, `quantity`, `stock`, `commission`, etc. |
 | `date/DatePresets.ts` | `date`, `dueDate`, `paymentDate`, `startAtDateTime`, `dateRange`, etc. |
 | `boolean/BooleanPresets.ts` | `isActive`, `isPlanned`, `simpleCustomerFlag` |
 | `select/SelectPresets.ts` | `saleStatus`, `paymentStatus`, `paymentMethod`, `appointmentStatus`, etc. |
 | `relation/RelationPresets.ts` | `unitId`, `customerId`, `productId`, `serviceId`, `saleId`, etc. |
 
-Cada preset é um objeto `ISchemaField`:
+Each preset is an `ISchemaField` object:
 
 ```typescript
 export const salePrice: ISchemaField = {
@@ -88,8 +84,7 @@ export const salePrice: ISchemaField = {
 };
 ```
 
-Todos são reexportados pelo barrel `presets/fields/index.ts`, então um módulo
-importa de um lugar só:
+They are all re-exported by the barrel `presets/fields/index.ts`, so a module imports from one place:
 
 ```typescript
 import { salePrice, customerId, date } from '../../fields';
@@ -97,45 +92,44 @@ import { salePrice, customerId, date } from '../../fields';
 
 ### Override via spread
 
-Field presets são imutáveis por convenção. Para ajustar um campo num módulo,
-use spread e sobrescreva só o que muda:
+Field presets are immutable by convention. To tweak a field in a module, use spread and override only
+what changes:
 
 ```typescript
-{ ...customerId, required: false }          // torna a FK opcional
-{ ...unitId, label: 'Business Unit' }       // muda só o label
-{ ...date, label: 'Sale Date' }             // reutiliza o campo 'date' com outro label
+{ ...customerId, required: false }          // makes the FK optional
+{ ...unitId, label: 'Business Unit' }       // changes only the label
+{ ...date, label: 'Sale Date' }             // reuses the 'date' field with a different label
 ```
 
-> O `createTableFromModule` faz deep-clone (`JSON.parse(JSON.stringify())`),
-> então nem o spread nem a instalação mutam o preset original.
+> `createTableFromModule` deep-clones (`JSON.parse(JSON.stringify())`), so neither the spread nor the
+> installation mutates the original preset.
 
-### `dateRange` — preset que é um array
+### `dateRange` — a preset that is an array
 
-`dateRange` exporta **dois campos** (`startDate` + `endDate`). Espalhe direto no
-array de fields:
+`dateRange` exports **two fields** (`startDate` + `endDate`). Spread it directly into the fields array:
 
 ```typescript
 import { dateRange } from '../../fields';
 fields: [
-  ...dateRange,   // injeta startDate e endDate
+  ...dateRange,   // injects startDate and endDate
 ]
 ```
 
 ---
 
-## 4. MODULES — presets de tabela
+## 4. MODULES — table presets
 
-Vivem em `presets/modules/<categoria>/`. Cada módulo descreve **uma tabela**:
+They live in `presets/modules/<category>/`. Each module describes **one table**:
 
 ```typescript
 import type { ITableSchema } from '../../../models/DynamicTable.model';
 import { name, brand, sku, usageType } from '../../fields';
 
 export const productModule = {
-  name: 'Products',                       // nome de exibição
+  name: 'Products',                       // display name
   description: 'Master catalog of all products offered.',
-  category: 'products',                   // categoria (ver TableCategories.ts)
-  meta: {                                 // injeção de dependências (opcional)
+  category: 'products',                   // category (see TableCategories.ts)
+  meta: {                                 // dependency injection (optional)
     providesCapabilities: ['catalog.products'],
   },
   schema: {
@@ -152,21 +146,21 @@ export const productModule = {
 };
 ```
 
-| Propriedade | Obrigatório | Descrição |
+| Property | Required | Description |
 |---|---|---|
-| `name` | ✅ | Nome de exibição da tabela. |
-| `description` | ✅ | Descrição curta (usada em UI de instalação e na IA). |
-| `category` | ✅ | Agrupa tabelas. Valores válidos em `models/TableCategories.ts`. |
-| `meta` | ➖ | Capabilities e dependências (ver §6). |
-| `schema` | ✅ | Estrutura: `defaultDisplayField`, `fields`, e metadados de governança. |
-| `analytics` | ➖ | Configurações de KPIs/charts pré-construídos para a tabela. |
+| `name` | ✅ | The table's display name. |
+| `description` | ✅ | Short description (used in the install UI and by the AI). |
+| `category` | ✅ | Groups tables. Valid values in `models/TableCategories.ts`. |
+| `meta` | ➖ | Capabilities and dependencies (see §6). |
+| `schema` | ✅ | Structure: `defaultDisplayField`, `fields`, and governance metadata. |
+| `analytics` | ➖ | Pre-built KPI/chart configuration for the table. |
 
 ---
 
-## 5. SYSTEMS — presets de sistema
+## 5. SYSTEMS — system presets
 
-Vivem em `presets/systems/`. Um system é um ERP completo, composto de módulos
-via `createTableFromModule()`:
+They live in `presets/systems/`. A system is a complete ERP, composed of modules via
+`createTableFromModule()`:
 
 ```typescript
 import { createTableFromModule } from '../../utils/TableFactory';
@@ -176,174 +170,168 @@ import { productModule, productUnitModule } from '../modules/product/ProductModu
 
 const BeautySalonPreset = {
   key: 'beautySalon',
-  name: 'ERP Avançado para Salão de Beleza',
-  description: 'Solução completa para gestão de salões...',
+  name: 'Advanced ERP for Beauty Salons',
+  description: 'Complete solution for salon management...',
   tables: {
     customers:    createTableFromModule(customerModule),
     products:     createTableFromModule(productModule),
     productUnits: createTableFromModule(productUnitModule),
-    // ... a chave (ex: 'customers') é o identificador da tabela no preset
+    // ... the key (e.g. 'customers') is the table identifier within the preset
   },
 };
 
 export default BeautySalonPreset;
 ```
 
-A **chave** de cada entrada em `tables` (ex: `customers`, `products`) é o que
-o marcador `@@PRESET_TABLE_KEY::` referencia (ver §8).
+The **key** of each entry in `tables` (e.g. `customers`, `products`) is what the `@@PRESET_TABLE_KEY::`
+marker references (see §8).
 
 ### `createTableFromModule(module, config?)`
 
-Transforma um módulo numa definição de tabela instalável. O segundo argumento
-opcional permite customizar:
+Turns a module into an installable table definition. The optional second argument allows customization:
 
 ```typescript
 createTableFromModule(productModule, {
-  omit: ['brand'],                                  // remove campos
+  omit: ['brand'],                                  // removes fields
   add: [{ name: 'warranty', label: 'Warranty', type: 'string', required: false }],
 })
 ```
 
-### Tipos de system
+### System types
 
-| System | Papel |
+| System | Role |
 |---|---|
-| `CoreSystemPreset` | **Base obrigatória.** Instalado para todo usuário. Contém `units`, `employees`, `tasks`, `leads`, etc. Todo outro preset depende dele. |
-| `BeautySalonPreset` | Preset de exemplo completo (salão de beleza). Usa os 16 módulos de negócio. |
+| `CoreSystemPreset` | **Mandatory base.** Installed for every user. Contains `units`, `employees`, `tasks`, `leads`, etc. Every other preset depends on it. |
+| `BeautySalonPreset` | A complete example preset (beauty salon). Uses the 16 business modules. |
 
 ---
 
-## 6. Metadados de MÓDULO — `meta` (capabilities)
+## 6. MODULE metadata — `meta` (capabilities)
 
-O `meta` declara o contrato de dependências entre tabelas. Resolvido na
-instalação do preset (`DynamicTableService.installPresetAsSystem`).
+`meta` declares the dependency contract between tables. Resolved at preset installation
+(`DynamicTableService.installPresetAsSystem`).
 
 ```typescript
 meta: {
-  providesCapabilities: ['inventory.stock'],   // "eu ofereço isto"
-  requiresCapabilities: ['inventory.stock'],   // "preciso que alguém ofereça isto"
-  requiresTables: ['saleItems'],               // "preciso desta tabela pelo nome"
-  excludesTables: ['saleItemsServicesOnly'],   // "sou incompatível com esta"
+  providesCapabilities: ['inventory.stock'],   // "I provide this"
+  requiresCapabilities: ['inventory.stock'],   // "I need someone to provide this"
+  requiresTables: ['saleItems'],               // "I need this table by name"
+  excludesTables: ['saleItemsServicesOnly'],   // "I am incompatible with this one"
 }
 ```
 
-| Campo | Descrição |
+| Field | Description |
 |---|---|
-| `providesCapabilities` | Capacidades que a tabela fornece. Uma string livre tipo `'inventory.stock'`. |
-| `requiresCapabilities` | Exige que **alguma** tabela do preset forneça estas capacidades. Se faltar, a instalação falha. |
-| `requiresTables` | Exige a presença de tabelas específicas pelo nome-chave. Dependência rígida. |
-| `excludesTables` | Declara incompatibilidade com outras tabelas. |
+| `providesCapabilities` | Capabilities the table provides. A free string like `'inventory.stock'`. |
+| `requiresCapabilities` | Requires that **some** table in the preset provides these capabilities. If missing, installation fails. |
+| `requiresTables` | Requires the presence of specific tables by their key-name. A hard dependency. |
+| `excludesTables` | Declares incompatibility with other tables. |
 
-**Por que capabilities > requiresTables:** capabilities permitem substituição.
-Se amanhã você criar `warehouseStock` que também declara
-`providesCapabilities: ['inventory.stock']`, qualquer módulo que exija essa
-capacidade aceita o novo módulo sem mudar nada. `requiresTables` engessa ao nome.
+**Why capabilities > requiresTables:** capabilities allow substitution. If tomorrow you create
+`warehouseStock` that also declares `providesCapabilities: ['inventory.stock']`, any module that requires
+that capability accepts the new module without any change. `requiresTables` locks you to the name.
 
-**Exemplo real:** `stockMovementsModule` declara
-`requiresCapabilities: ['inventory.stock']`. Se você instalar um preset com
-movimentações de estoque mas sem nenhuma tabela que forneça `inventory.stock`
-(ex: sem `productUnits`), a instalação é rejeitada.
+**Real example:** `stockMovementsModule` declares `requiresCapabilities: ['inventory.stock']`. If you
+install a preset with stock movements but no table that provides `inventory.stock` (e.g. without
+`productUnits`), the installation is rejected.
 
 ---
 
-## 7. Metadados de CAMPO (`ISchemaField`)
+## 7. FIELD metadata (`ISchemaField`)
 
-Referência completa de todos os atributos de um campo. Definição canônica em
-`models/DynamicTable.model.ts`.
+Full reference of every attribute of a field. Canonical definition in `models/DynamicTable.model.ts`.
 
-### 7.1 Identificação e tipo
+### 7.1 Identification and type
 
-| Atributo | Tipo | Descrição |
+| Attribute | Type | Description |
 |---|---|---|
-| `name` | `string` ✅ | Chave do campo no JSON do registro. Único na tabela. camelCase. **Nunca mude depois de em produção** — é a chave dos dados gravados. |
-| `label` | `string` ✅ | Rótulo de exibição (EN; i18n no front). |
+| `name` | `string` ✅ | The field key in the record JSON. Unique within the table. camelCase. **Never change it once in production** — it is the key of the stored data. |
+| `label` | `string` ✅ | Display label (EN; i18n on the frontend). |
 | `type` | `string` ✅ | `string` \| `number` \| `boolean` \| `date` \| `datetime` \| `relation` \| `select` \| `textarea` \| `json` |
-| `description` | `string` ➖ | Texto de ajuda/tooltip no formulário. |
+| `description` | `string` ➖ | Help/tooltip text in the form. |
 
-### 7.2 Formatação
+### 7.2 Formatting
 
-| Atributo | Aplica a | Descrição |
+| Attribute | Applies to | Description |
 |---|---|---|
-| `format` | `type: 'string'` | Máscara/validação: `email`, `phone`, `cpf`, `cnpj`, `url`, `custom`. Validado declarativamente no `buildZodSchema` (`DynamicTableService`), para qualquer tabela. |
-| `numberFormat` | `type: 'number'` | Renderização: `currency`, `percentage`, `integer`, `decimal`. Afeta como o front formata (R$, %, etc.). |
-| `options` | `type: 'select'` | Lista de opções. Ex: `['Paid', 'Pending']`. |
+| `format` | `type: 'string'` | Mask/validation: `email`, `phone`, `cpf`, `cnpj`, `url`, `custom`. Validated declaratively in `buildZodSchema` (`DynamicTableService`), for any table. |
+| `numberFormat` | `type: 'number'` | Rendering: `currency`, `percentage`, `integer`, `decimal`. Affects how the frontend formats it ($, %, etc.). |
+| `options` | `type: 'select'` | List of options. E.g. `['Paid', 'Pending']`. |
 
-### 7.3 Comportamento de entrada
+### 7.3 Input behavior
 
-| Atributo | Tipo | Descrição |
+| Attribute | Type | Description |
 |---|---|---|
-| `required` | `boolean` ✅ | Se `true`, não aceita nulo/vazio. |
-| `unique` | `boolean` ➖ | Valor único na tabela. Verificado no backend (create e update). |
-| `defaultValue` | `any` ➖ | Valor inicial. Pode ser literal ou `'CURRENT_TIMESTAMP'`. |
-| `hidden` | `boolean` ➖ | Se `true`, **não aparece no formulário** (`DynamicForm` filtra). Útil para campos internos como `detailKey`, `order`. |
-| `validation` | `object` ➖ | Regras: `{ minLength, maxLength, minValue, maxValue }`. |
+| `required` | `boolean` ✅ | If `true`, does not accept null/empty. |
+| `unique` | `boolean` ➖ | Unique value in the table. Checked on the backend (create and update). |
+| `defaultValue` | `any` ➖ | Initial value. Can be a literal or `'CURRENT_TIMESTAMP'`. |
+| `hidden` | `boolean` ➖ | If `true`, **does not appear in the form** (`DynamicForm` filters it out). Useful for internal fields like `detailKey`, `order`. |
+| `validation` | `object` ➖ | Rules: `{ minLength, maxLength, minValue, maxValue }`. |
 
-### 7.4 Governança de campo (NOVOS)
+### 7.4 Field governance
 
-| Atributo | Tipo | Descrição |
+| Attribute | Type | Description |
 |---|---|---|
-| `readOnly` | `boolean` ➖ | Se `true`, o backend **rejeita** qualquer update que tente mudar este campo (exceto processos de sistema). O front mostra o campo desabilitado com label "(Read only)". |
-| `searchable` | `boolean` ➖ | Se `false`, o campo é **excluído da busca textual global**. Default: `true`. |
-| `requiredIf` | `object` ➖ | Torna o campo **condicionalmente obrigatório** com base no valor de outro campo. Validado no backend (create e update) sobre o registro completo. |
+| `readOnly` | `boolean` ➖ | If `true`, the backend **rejects** any update that tries to change this field (except system processes). The frontend shows the field disabled with a "(Read only)" label. |
+| `searchable` | `boolean` ➖ | If `false`, the field is **excluded from the global text search**. Default: `true`. |
+| `requiredIf` | `object` ➖ | Makes the field **conditionally required** based on another field's value. Validated on the backend (create and update) over the full record. |
 
-#### Sobre `readOnly`
+#### About `readOnly`
 
-Use em campos que só podem ser alterados por lógica de sistema, nunca pelo
-usuário direto. Exemplo real (`productUnitModule`):
+Use it on fields that can only be changed by system logic, never by the direct user. Real example
+(`productUnitModule`):
 
 ```typescript
-{ ...stock, readOnly: true },    // estoque só muda via StockMovements
-{ name: 'reserved', ..., readOnly: true },  // reserva só muda pelo SalesPlugin
+{ ...stock, readOnly: true },    // stock only changes via StockMovements
+{ name: 'reserved', ..., readOnly: true },  // reserved only changes via SalesPlugin
 ```
 
-O enforcement é no `updateTableData` (Guard 1). Tentar editar via API direta,
-mobile ou qualquer cliente é bloqueado — não é só "esconder no front".
+Enforcement is in `updateTableData` (Guard 1). Trying to edit via the direct API, mobile or any client
+is blocked — it is not just "hide it on the frontend".
 
-#### Sobre `searchable`
+#### About `searchable`
 
-A busca textual global do front filtra por `searchable !== false`. Marque
-`false` em campos cujo conteúdo polui a busca:
+The frontend's global text search filters by `searchable !== false`. Mark `false` on fields whose
+content pollutes the search:
 
-- **Sempre `false`:** relations (são CUIDs), números (preços viram ruído),
-  datas (datas geram falsos positivos), booleans.
-- **Decisão por caso para `select`:** estados que o usuário busca naturalmente
-  (`paymentStatus`, `paymentMethod`) idealmente ficam `searchable: true` para
-  permitir digitar "paid" ou "pix". Selects internos/analíticos ficam `false`.
-- **Mantenha pesquisável (sem a flag):** `name`, `sku`, `email`, `brand`,
-  `description`, `notes`.
+- **Always `false`:** relations (they are CUIDs), numbers (prices become noise), dates (dates produce
+  false positives), booleans.
+- **Case-by-case for `select`:** states the user naturally searches for (`paymentStatus`,
+  `paymentMethod`) ideally stay `searchable: true` to allow typing "paid" or "pix". Internal/analytical
+  selects stay `false`.
+- **Keep searchable (no flag):** `name`, `sku`, `email`, `brand`, `description`, `notes`.
 
-> ⚠️ **Busca por data ≠ busca textual.** Buscar registros por intervalo de data
-> não é feito pela busca textual — exige um filtro de datepicker dedicado na
-> filter bar. Marcar a data como `searchable: false` é o correto; a busca por
-> período é um recurso separado a ser implementado nas filter bars.
+> ⚠️ **Date search ≠ text search.** Searching records by date range is not done by the text search — it
+> requires a dedicated datepicker filter in the filter bar. Marking the date as `searchable: false` is
+> correct; period search is a separate feature to be implemented in the filter bars.
 
-#### Sobre `requiredIf`
+#### About `requiredIf`
 
-Torna um campo obrigatório **apenas quando** outro campo satisfaz uma condição. A
-presença é avaliada sobre o **registro completo** (merge do existente + payload),
-então funciona em updates parciais. Validado no `validateAdvancedRules`.
+Makes a field required **only when** another field meets a condition. Presence is evaluated over the
+**full record** (existing + payload merge), so it works on partial updates. Validated in
+`validateAdvancedRules`.
 
 ```typescript
-// ExpensesModule: a data de pagamento só é obrigatória quando a despesa está paga
+// ExpensesModule: the payment date is only required when the expense is paid
 { ...paymentDate, required: false,
   requiredIf: { field: 'paymentStatus', op: 'eq', value: 'Paid' } }
 
-// OtherRevenuesModule: a fonte só é obrigatória para certos tipos de receita
+// OtherRevenuesModule: the source is only required for certain revenue types
 { name: 'source', required: false,
   requiredIf: { field: 'type', op: 'in', value: ['Interest', 'Rent', 'Resale'] } }
 ```
 
-| Campo de `requiredIf` | Descrição |
+| `requiredIf` field | Description |
 |---|---|
-| `field` | Nome do campo cujo valor é avaliado. |
-| `op` | `eq` (igual), `neq` (diferente) ou `in` (está na lista). |
-| `value` | Valor único (`'Paid'`, `true`) ou array (para `in`). |
+| `field` | Name of the field whose value is evaluated. |
+| `op` | `eq` (equal), `neq` (not equal) or `in` (is in the list). |
+| `value` | A single value (`'Paid'`, `true`) or an array (for `in`). |
 
-> **Padrão:** declare o campo como `required: false` e deixe o `requiredIf`
-> assumir a obrigatoriedade condicional. Isso corrige o caso clássico de um campo
-> que herda `required: true` do preset mas só deveria ser exigido em certos estados.
+> **Pattern:** declare the field as `required: false` and let `requiredIf` handle the conditional
+> requirement. This fixes the classic case of a field that inherits `required: true` from the preset but
+> should only be required in certain states.
 
-### 7.5 Relação (`type: 'relation'`)
+### 7.5 Relation (`type: 'relation'`)
 
 ```typescript
 {
@@ -358,37 +346,34 @@ então funciona em updates parciais. Validado no `validateAdvancedRules`.
 }
 ```
 
-| Campo de `relation` | Descrição |
+| `relation` field | Description |
 |---|---|
-| `targetTable` | ✅ Tabela alvo. Use o marcador `@@PRESET_TABLE_KEY::<chave>` (ver §8). |
-| `allowMultiple` | ➖ Se `true`, vira relação N:N (o campo guarda um array de IDs). Default: `false`. |
+| `targetTable` | ✅ Target table. Use the `@@PRESET_TABLE_KEY::<key>` marker (see §8). |
+| `allowMultiple` | ➖ If `true`, becomes an N:N relation (the field holds an array of IDs). Default: `false`. |
 
-> **Display da relação:** o texto exibido para uma FK vem do
-> `defaultDisplayField` da **tabela alvo** (ver §9), não de um campo declarado na
-> relação. Ex: ao mostrar a FK `customerId`, o sistema lê o
-> `defaultDisplayField` da tabela `customers` (que é `'name'`) e exibe o nome.
+> **Relation display:** the text shown for an FK comes from the **target table's** `defaultDisplayField`
+> (see §9), not from a field declared in the relation. E.g. when showing the `customerId` FK, the system
+> reads the `customers` table's `defaultDisplayField` (which is `'name'`) and displays the name.
 
 ---
 
-## 8. O marcador `@@PRESET_TABLE_KEY::`
+## 8. The `@@PRESET_TABLE_KEY::` marker
 
-Relations declaram a tabela alvo por **chave de preset**, não por ID (que só
-existe após a instalação):
+Relations declare the target table by **preset key**, not by ID (which only exists after installation):
 
 ```typescript
 relation: { targetTable: '@@PRESET_TABLE_KEY::customers' }
 ```
 
-Na instalação, `resolvePresetRelations` (no service) substitui
-`@@PRESET_TABLE_KEY::customers` pelo ID real da tabela `customers` criada
-naquela instalação específica. A chave (`customers`) deve corresponder à chave
-usada no objeto `tables` do system (§5).
+At installation, `resolvePresetRelations` (in the service) replaces `@@PRESET_TABLE_KEY::customers` with
+the real ID of the `customers` table created in that specific installation. The key (`customers`) must
+match the key used in the system's `tables` object (§5).
 
 ---
 
-## 9. Metadados de SCHEMA (`ITableSchema`)
+## 9. SCHEMA metadata (`ITableSchema`)
 
-Além de `fields`, o schema carrega metadados que valem para a tabela inteira.
+Beyond `fields`, the schema carries metadata that applies to the whole table.
 
 ```typescript
 schema: {
@@ -397,23 +382,23 @@ schema: {
   deleteConstraints: [ /* ... */ ],
   compositeUnique: [ /* ... */ ],
   immutableAfter: [ /* ... */ ],
-  compare: [ /* ... */ ],      // comparação cross-field (endDate > startDate)
-  lifecycle: [ /* ... */ ],    // máquina de estados de status
-  noOverlap: [ /* ... */ ],    // anti-sobreposição de períodos (agenda)
-  ui: { presentation: 'standalone' }, // dica de apresentação no front
+  compare: [ /* ... */ ],      // cross-field comparison (endDate > startDate)
+  lifecycle: [ /* ... */ ],    // status state machine
+  noOverlap: [ /* ... */ ],    // anti-overlap of periods (schedule)
+  ui: { presentation: 'standalone' }, // presentation hint for the frontend
 }
 ```
 
 ### 9.1 `defaultDisplayField`
 
-O `name` do campo usado para representar um registro quando ele é referenciado
-por outra tabela (FK). Ex: `customers` tem `defaultDisplayField: 'name'`, então
-toda FK para clientes mostra o nome do cliente em vez do ID.
+The `name` of the field used to represent a record when it is referenced by another table (FK). E.g.
+`customers` has `defaultDisplayField: 'name'`, so every FK to customers shows the customer name instead
+of the ID.
 
-### 9.2 `deleteConstraints` — regras de exclusão
+### 9.2 `deleteConstraints` — deletion rules
 
-Controlam o que acontece ao deletar (soft delete) um registro referenciado por
-outras tabelas. Avaliadas no `deleteTableData`.
+Control what happens when deleting (soft delete) a record referenced by other tables. Evaluated in
+`deleteTableData`.
 
 ```typescript
 deleteConstraints: [
@@ -440,23 +425,23 @@ deleteConstraints: [
 ]
 ```
 
-| `type` | Comportamento |
+| `type` | Behavior |
 |---|---|
-| `RESTRICT` | Bloqueia a exclusão se **qualquer** registro da tabela alvo referenciar este. |
-| `RESTRICT_IF_AGGREGATE` | Bloqueia só se a soma de um campo (`aggregate.field`) dos referenciadores satisfizer a condição (`operator` + `value`). Ex: bloqueia se soma de `stock` > 0. |
-| `CASCADE` | Soft-deleta os registros referenciadores junto (recursivamente, respeitando as constraints deles). |
-| `IGNORE` | Não bloqueia nem cascateia. Deixa os referenciadores intactos (ex: logs de auditoria). |
+| `RESTRICT` | Blocks the deletion if **any** record of the target table references this one. |
+| `RESTRICT_IF_AGGREGATE` | Blocks only if the sum of a field (`aggregate.field`) of the referencers meets the condition (`operator` + `value`). E.g. blocks if sum of `stock` > 0. |
+| `CASCADE` | Soft-deletes the referencing records too (recursively, respecting their own constraints). |
+| `IGNORE` | Neither blocks nor cascades. Leaves the referencers intact (e.g. audit logs). |
 
-**Comportamento padrão:** se uma tabela referencia este registro e **não há
-constraint declarada** para ela, o sistema aplica `RESTRICT` por padrão. Isso
-protege contra exclusões acidentais sem precisar declarar tudo.
+**Default behavior:** if a table references this record and **there is no declared constraint** for it,
+the system applies `RESTRICT` by default. This protects against accidental deletions without having to
+declare everything.
 
 `aggregate.operator`: `gt` | `lt` | `eq` | `neq`.
 
-### 9.3 `compositeUnique` — unicidade composta
+### 9.3 `compositeUnique` — composite uniqueness
 
-Garante que uma **combinação** de campos seja única. O `unique` de campo cobre
-um campo só; isto cobre N campos juntos.
+Ensures a **combination** of fields is unique. Field-level `unique` covers a single field; this covers N
+fields together.
 
 ```typescript
 compositeUnique: [
@@ -467,15 +452,13 @@ compositeUnique: [
 ]
 ```
 
-Verificado em create e update (`validateAdvancedRules`). Exemplo real:
-`productUnits` não pode ter dois registros para o mesmo `(productId, unitId)` —
-isso duplicaria o saldo de estoque.
+Checked on create and update (`validateAdvancedRules`). Real example: `productUnits` cannot have two
+records for the same `(productId, unitId)` — that would duplicate the stock balance.
 
-### 9.4 `immutableAfter` — imutabilidade por estado
+### 9.4 `immutableAfter` — state immutability
 
-Bloqueia edição de campos (ou do registro inteiro) depois que uma condição é
-satisfeita. É o "deleteConstraints do update". Avaliado no `updateTableData`
-(Guard 2).
+Blocks editing of fields (or the whole record) once a condition is met. It is the "deleteConstraints of
+update". Evaluated in `updateTableData` (Guard 2).
 
 ```typescript
 immutableAfter: [
@@ -492,52 +475,50 @@ immutableAfter: [
 ]
 ```
 
-| Campo | Descrição |
+| Field | Description |
 |---|---|
-| `condition.field` | O campo cujo valor dispara a imutabilidade. |
-| `condition.op` | `eq` (igual a um valor) ou `in` (está numa lista). |
-| `condition.value` | Valor único (`'Paid'`) ou lista (`['Finalized', 'Cancelled']`). |
-| `scope` | `'all'` = bloqueia qualquer mudança no registro. `string[]` = bloqueia só esses campos. |
-| `errorMessage` | Mensagem retornada quando a regra dispara. |
+| `condition.field` | The field whose value triggers immutability. |
+| `condition.op` | `eq` (equal to a value) or `in` (is in a list). |
+| `condition.value` | A single value (`'Paid'`) or a list (`['Finalized', 'Cancelled']`). |
+| `scope` | `'all'` = blocks any change to the record. `string[]` = blocks only those fields. |
+| `errorMessage` | Message returned when the rule triggers. |
 
-**Por que importa:** sem isso, uma venda paga pode ter o `totalAmount` alterado,
-corrompendo relatórios financeiros. Com isso, a única forma de "corrigir" uma
-venda paga é cancelar e refazer — integridade contábil garantida.
+**Why it matters:** without it, a paid sale could have its `totalAmount` changed, corrupting financial
+reports. With it, the only way to "fix" a paid sale is to cancel and redo it — accounting integrity
+guaranteed.
 
-> Processos de sistema (`isSystem: true`) e plugins fazem bypass de `readOnly` e
-> `immutableAfter` — eles precisam atualizar campos protegidos (ex: o
-> `SalesPlugin` ajusta `stock`/`reserved`).
+> System processes (`isSystem: true`) and plugins bypass `readOnly` and `immutableAfter` — they need to
+> update protected fields (e.g. `SalesPlugin` adjusts `stock`/`reserved`).
 
-### 9.5 `compare` — comparação cross-field
+### 9.5 `compare` — cross-field comparison
 
-Compara dois campos do **mesmo registro** (ex: data fim > data início, gasto ≤
-orçamento). Avaliado em create e update (`validateAdvancedRules`). Se **qualquer**
-um dos campos estiver ausente, a regra é **pulada** (presença é papel de
-`required`/`requiredIf`).
+Compares two fields of the **same record** (e.g. end date > start date, spent ≤ budget). Evaluated on
+create and update (`validateAdvancedRules`). If **either** field is missing, the rule is **skipped**
+(presence is the job of `required`/`requiredIf`).
 
 ```typescript
 compare: [
-  { left: 'endAt', op: 'gt',  right: 'startAt', errorMessage: 'Fim deve ser após o início.' },
-  { left: 'spent', op: 'lte', right: 'budget',  errorMessage: 'Gasto não pode exceder o orçamento.' },
+  { left: 'endAt', op: 'gt',  right: 'startAt', errorMessage: 'End must be after the start.' },
+  { left: 'spent', op: 'lte', right: 'budget',  errorMessage: 'Spent cannot exceed the budget.' },
 ]
 ```
 
-| Campo | Descrição |
+| Field | Description |
 |---|---|
-| `left` | Nome do campo à esquerda. |
-| `op` | `gt` \| `gte` \| `lt` \| `lte` \| `eq` \| `neq`. Aplicado como `left op right`. |
-| `right` | Nome do campo à direita. |
-| `errorMessage` | Mensagem quando a comparação falha. |
+| `left` | Name of the left field. |
+| `op` | `gt` \| `gte` \| `lt` \| `lte` \| `eq` \| `neq`. Applied as `left op right`. |
+| `right` | Name of the right field. |
+| `errorMessage` | Message when the comparison fails. |
 
-A tipagem da comparação segue o `type` dos campos: `date`/`datetime` comparam como
-timestamp, `number` como número, o resto como string.
+The comparison typing follows the fields' `type`: `date`/`datetime` compare as a timestamp, `number` as
+a number, the rest as a string.
 
-### 9.6 `lifecycle` — máquina de estados de status
+### 9.6 `lifecycle` — status state machine
 
-Restringe as transições de um campo de estado (ex: `status`). Avaliado **só no
-update** (no create o estado inicial é validado pelo `options` do campo) e **só
-para usuário** (`isSystem` faz bypass). Estados **ausentes** do mapa `transitions`
-são **terminais** (não podem mudar). Escrita sem mudança de estado é sempre OK.
+Restricts the transitions of a state field (e.g. `status`). Evaluated **only on update** (on create the
+initial state is validated by the field's `options`) and **only for the user** (`isSystem` bypasses
+it). States **missing** from the `transitions` map are **terminal** (cannot change). A write without a
+state change is always OK.
 
 ```typescript
 lifecycle: [
@@ -545,32 +526,32 @@ lifecycle: [
     field: 'status',
     transitions: {
       Pending: ['Paid', 'Cancelled'],
-      // Paid e Cancelled ausentes ⇒ terminais
+      // Paid and Cancelled absent ⇒ terminal
     },
-    errorMessage: 'Transição de status inválida.',
+    errorMessage: 'Invalid status transition.',
   },
 ]
 ```
 
-| Campo | Descrição |
+| Field | Description |
 |---|---|
-| `field` | O campo que guarda o estado. |
-| `transitions` | `{ estadoOrigem: [estadosDestinoPermitidos] }`. |
-| `errorMessage` | Mensagem quando a transição é proibida. |
+| `field` | The field that holds the state. |
+| `transitions` | `{ fromState: [allowedTargetStates] }`. |
+| `errorMessage` | Message when the transition is forbidden. |
 
-**Combina com `immutableAfter`:** o `lifecycle` controla _para onde_ o status pode
-ir; o `immutableAfter` (scope `'all'`) congela o registro inteiro quando já está
-num estado terminal (ex: `Paid`). Os dois juntos formam o ciclo de vida completo.
+**Combines with `immutableAfter`:** `lifecycle` controls _where_ the status can go; `immutableAfter`
+(scope `'all'`) freezes the whole record once it is in a terminal state (e.g. `Paid`). Together they form
+the complete lifecycle.
 
-> **Side-effects continuam em plugin.** O `lifecycle` só **valida** a transição.
-> Efeitos colaterais da mudança (ex: carimbar `paidAt` ao entrar em `Paid`)
-> permanecem em plugins enxutos (ex: `CommissionsPlugin.autoStampPaidAt`).
+> **Side-effects stay in a plugin.** `lifecycle` only **validates** the transition. Side-effects of the
+> change (e.g. stamping `paidAt` when entering `Paid`) remain in lean plugins (e.g.
+> `CommissionsPlugin.autoStampPaidAt`).
 
-### 9.7 `noOverlap` — anti-sobreposição de períodos
+### 9.7 `noOverlap` — anti-overlap of periods
 
-Rejeita registros cujo intervalo `[startField, endField]` se sobrepõe ao de outro
-registro existente que compartilhe o mesmo escopo. Avaliado em create e update;
-`isSystem` faz bypass. Usa query SQL (`countOverlaps`), **não** full scan.
+Rejects records whose `[startField, endField]` interval overlaps that of another existing record sharing
+the same scope. Evaluated on create and update; `isSystem` bypasses it. Uses a SQL query
+(`countOverlaps`), **not** a full scan.
 
 ```typescript
 noOverlap: [
@@ -578,45 +559,45 @@ noOverlap: [
     startField: 'startAt',
     endField: 'endAt',
     scopeFields: ['unitId', 'responsibleEmployeeId'],
-    errorMessage: 'Conflito de agenda: já existe outro compromisso nesse período.',
+    errorMessage: 'Schedule conflict: there is already another appointment in this period.',
   },
 ]
 ```
 
-| Campo | Descrição |
+| Field | Description |
 |---|---|
-| `startField` / `endField` | Campos de início/fim do intervalo (date/datetime). |
-| `scopeFields` | Conflito só vale dentro do mesmo escopo (ex: mesma unidade **e** mesmo profissional). Um campo de escopo **ausente/vazio** no registro é ignorado. |
-| `errorMessage` | Mensagem quando há conflito. |
+| `startField` / `endField` | The interval's start/end fields (date/datetime). |
+| `scopeFields` | A conflict only applies within the same scope (e.g. same unit **and** same professional). A scope field **missing/empty** in the record is ignored. |
+| `errorMessage` | Message when there is a conflict. |
 
-Teste de sobreposição **half-open**: `existente.start < novo.end AND existente.end >
-novo.start`. Logo, intervalos adjacentes (11:00-12:00 após 10:00-11:00) **não**
-conflitam. A comparação usa `datetime()` no SQL para normalizar fusos/formatos ISO.
+**Half-open** overlap test: `existing.start < new.end AND existing.end > new.start`. So adjacent
+intervals (11:00-12:00 after 10:00-11:00) do **not** conflict. The comparison uses `datetime()` in SQL to
+normalize timezones/ISO formats.
 
-### 9.8 `ui.presentation` — dica de apresentação
+### 9.8 `ui.presentation` — presentation hint
 
-Sinaliza ao front (e ao roteador de views) como a tabela deve ser apresentada.
-Lido pelo helper `isNavigable(table)`.
+Signals to the frontend (and the view router) how the table should be presented. Read by the helper
+`isNavigable(table)`.
 
 ```typescript
 ui: { presentation: 'embedded' }
 ```
 
-| Valor | Significado |
+| Value | Meaning |
 |---|---|
-| `'standalone'` | **Default.** Tabela navegável; aparece nas views de categoria. |
-| `'embedded'` | Filha/detalhe de outra tabela (ex: `saleItems`); não aparece sozinha. |
-| `'system'` | Infraestrutura interna (ex: `analyticsDefinitions`); nunca editável pelo usuário — o `canManageData` bloqueia escrita. |
+| `'standalone'` | **Default.** A navigable table; appears in the category views. |
+| `'embedded'` | A child/detail of another table (e.g. `saleItems`); does not appear on its own. |
+| `'system'` | Internal infrastructure (e.g. `analyticsDefinitions`); never editable by the user — `canManageData` blocks writes. |
 
 ---
 
-## 10. Onde cada metadado é executado (backend)
+## 10. Where each metadata executes (backend)
 
-| Metadado | Onde roda | Operação |
+| Metadata | Where it runs | Operation |
 |---|---|---|
 | `required`, `format`, `validation` | `validateDataAgainstSchema` (`buildZodSchema`) | create, update |
 | `unique` | `validateAdvancedRules` | create, update |
-| `relation` (existência do alvo) | `validateAdvancedRules` | create, update |
+| `relation` (target existence) | `validateAdvancedRules` | create, update |
 | `compositeUnique` | `validateAdvancedRules` | create, update |
 | `requiredIf` | `validateAdvancedRules` | create, update |
 | `compare` | `validateAdvancedRules` | create, update |
@@ -625,68 +606,64 @@ ui: { presentation: 'embedded' }
 | `readOnly` | `updateTableData` (Guard 1) | update¹ |
 | `immutableAfter` | `updateTableData` (Guard 2) | update¹ |
 | `deleteConstraints` | `deleteTableData` | delete |
-| `meta` (capabilities) | `installPresetAsSystem` | instalação |
-| `searchable` | **frontend** (`getSearchableFields`) | busca textual |
-| `ui.presentation` | roteador de views (`isNavigable`) + `canManageData` | navegação/escrita |
-| `hidden`, `readOnly` (UI) | **frontend** (`DynamicForm`) | renderização do form |
+| `meta` (capabilities) | `installPresetAsSystem` | installation |
+| `searchable` | **frontend** (`getSearchableFields`) | text search |
+| `ui.presentation` | view router (`isNavigable`) + `canManageData` | navigation/write |
+| `hidden`, `readOnly` (UI) | **frontend** (`DynamicForm`) | form rendering |
 
-> ¹ **Bypass de sistema:** `readOnly`, `immutableAfter`, `lifecycle` e `noOverlap`
-> são pulados para escritas de sistema (`isSystem: true`) — plugins precisam ajustar
-> campos protegidos e o sistema cria registros sem passar pelos guards.
+> ¹ **System bypass:** `readOnly`, `immutableAfter`, `lifecycle` and `noOverlap` are skipped for system
+> writes (`isSystem: true`) — plugins need to adjust protected fields and the system creates records
+> without going through the guards.
 
-> Além desses, há **plugins de regra** (`rules/plugins/`) que cuidam **apenas** de
-> lógica de domínio não-declarável: side-effects cross-table (ex: `SalesPlugin`
-> reserva estoque e materializa comissões), campos computados (ex: `GoalsPlugin`
-> calcula `result`) e checagens contra `now` (ex: `AppointmentsPlugin` impede
-> concluir antes do horário). Validação pura é sempre metadado, nunca plugin.
-
----
-
-## 11. Checklist para criar um novo módulo
-
-1. **Reutilize field presets.** Importe de `../../fields`. Só declare inline o
-   que for específico da tabela.
-2. **`name`, `description`, `category`** no topo. Categoria válida em
-   `TableCategories.ts`.
-3. **`defaultDisplayField`** — escolha o campo que melhor representa um registro.
-4. **`meta`** se a tabela depende de / fornece capacidades.
-5. **Relations** com `@@PRESET_TABLE_KEY::<chave>`.
-6. **Governança onde fizer sentido:**
-   - Campos só-sistema → `readOnly: true`.
-   - Campos obrigatórios condicionais → `requiredIf`.
-   - Combinações únicas → `compositeUnique`.
-   - Comparações entre campos (fim > início) → `compare`.
-   - Estados que travam edição → `immutableAfter`.
-   - Transições de status permitidas → `lifecycle`.
-   - Tabelas com período/agenda → `noOverlap`.
-   - Referências que bloqueiam/cascateiam delete → `deleteConstraints`.
-   - Tabela embedded/system → `ui.presentation`.
-7. **`searchable: false`** já vem dos field presets de número/data/relation/bool.
-   Para selects, decida caso a caso.
-8. **Registre no system** via `createTableFromModule` no preset apropriado.
-9. **Valide:** `cd server && npx tsc --noEmit` e `npm run build`.
-
-> **Regra de ouro da governança:** se a regra é validação pura (presença,
-> comparação, transição, unicidade, formato), ela é **metadado** e qualquer tabela
-> custom do usuário a herda de graça. Só vá ao plugin para side-effects cross-table,
-> campos computados ou checagens contra o relógio (`now`).
+> Beyond these, there are **rule plugins** (`rules/plugins/`) that handle **only** non-declarative domain
+> logic: cross-table side-effects (e.g. `SalesPlugin` reserves stock and materializes commissions),
+> computed fields (e.g. `GoalsPlugin` computes `result`) and checks against `now` (e.g.
+> `AppointmentsPlugin` prevents completing before the scheduled time). Pure validation is always
+> metadata, never a plugin.
 
 ---
 
-## 12. Erros comuns
+## 11. Checklist for creating a new module
 
-| Erro | Causa |
+1. **Reuse field presets.** Import from `../../fields`. Only declare inline what is specific to the table.
+2. **`name`, `description`, `category`** at the top. A valid category in `TableCategories.ts`.
+3. **`defaultDisplayField`** — choose the field that best represents a record.
+4. **`meta`** if the table depends on / provides capabilities.
+5. **Relations** with `@@PRESET_TABLE_KEY::<key>`.
+6. **Governance where it makes sense:**
+   - System-only fields → `readOnly: true`.
+   - Conditionally required fields → `requiredIf`.
+   - Unique combinations → `compositeUnique`.
+   - Comparisons between fields (end > start) → `compare`.
+   - States that lock editing → `immutableAfter`.
+   - Allowed status transitions → `lifecycle`.
+   - Tables with a period/schedule → `noOverlap`.
+   - References that block/cascade a delete → `deleteConstraints`.
+   - Embedded/system table → `ui.presentation`.
+7. **`searchable: false`** already comes from the number/date/relation/bool field presets. For selects,
+   decide case by case.
+8. **Register it in the system** via `createTableFromModule` in the appropriate preset.
+9. **Validate:** `cd server && npx tsc --noEmit` and `npm run build`.
+
+> **Governance golden rule:** if the rule is pure validation (presence, comparison, transition,
+> uniqueness, format), it is **metadata** and any user custom table inherits it for free. Only reach for
+> a plugin for cross-table side-effects, computed fields or checks against the clock (`now`).
+
+---
+
+## 12. Common mistakes
+
+| Error | Cause |
 |---|---|
-| Relação não resolve na instalação | Chave do `@@PRESET_TABLE_KEY::` não bate com a chave em `tables`. |
-| Instalação rejeitada por capability | `requiresCapabilities` sem nenhum módulo que forneça. |
-| Campo "some" do formulário | `hidden: true` (intencional) ou erro de digitação no `name`. |
-| Update rejeitado inesperadamente | Campo marcado `readOnly` ou regra `immutableAfter` disparando. |
-| Busca não encontra um campo | Campo com `searchable: false`. |
-| Label aparece em EN para usuário PT | Falta a entrada `database:fields.<name>` no `common.json` PT. |
+| Relation does not resolve at installation | The `@@PRESET_TABLE_KEY::` key does not match the key in `tables`. |
+| Installation rejected by capability | `requiresCapabilities` with no module providing it. |
+| A field "disappears" from the form | `hidden: true` (intentional) or a typo in `name`. |
+| Update rejected unexpectedly | Field marked `readOnly` or an `immutableAfter` rule triggering. |
+| Search does not find a field | Field with `searchable: false`. |
+| Label shows in EN for a PT user | Missing the `database:fields.<name>` entry in the PT `common.json`. |
 
 ---
 
-_Última atualização: alinhada com `models/DynamicTable.model.ts` — governança de
-campo (`readOnly`, `searchable`, `requiredIf`) e de schema (`compositeUnique`,
-`immutableAfter`, `compare`, `lifecycle`, `noOverlap`, `ui.presentation`) — e a
-arquitetura de 3 camadas fields → modules → systems._
+_Last update: aligned with `models/DynamicTable.model.ts` — field governance (`readOnly`, `searchable`,
+`requiredIf`) and schema governance (`compositeUnique`, `immutableAfter`, `compare`, `lifecycle`,
+`noOverlap`, `ui.presentation`) — and the 3-layer architecture fields → modules → systems._

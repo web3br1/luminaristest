@@ -1,141 +1,81 @@
-# Feature: Users
+# users
 
-## Descrição
-Gerenciamento de usuários do sistema, incluindo autenticação, autorização e perfis.
+Owns the system's **user accounts**: creation (public signup + admin-created), profile reads,
+updates, deletion, and the authenticated user's own preferences. Each user is an isolated tenant.
 
-## Estrutura
-```
-users/
-├── models/
-│   └── User.model.ts         # Interface e tipos do usuário
-├── repositories/
-│   ├── IUserRepository.ts    # Interface do repositório
-│   └── UserRepository.ts     # Implementação do repositório
-├── services/
-│   └── UserService.ts        # Lógica de negócio
-├── policies/
-│   ├── IUserPolicy.ts        # Interface de políticas
-│   └── UserPolicy.ts         # Regras de acesso
-├── dtos/
-│   └── UserDto.ts            # DTOs e validações
-└── __tests__/               # Testes unitários
-```
+## Model
 
-## Modelos
-- `IUser`: Interface base do usuário
-- `PublicUserProfile`: Perfil público (dados mínimos)
-- `SafeUserProfile`: Perfil seguro (sem dados sensíveis)
+`User` (Prisma): `id`, `name` (nullable), `username` (unique), `email` (unique), `password` (bcrypt
+hash), `role` (`USER` | `ADMIN`), `locale`, `currency`, `createdAt`, `updatedAt`.
 
-## DTOs
-- `CreateUserDto`: Validação de criação
-- `UpdateUserDto`: Validação de atualização
-- `UserDto`: DTO base
+- `models/User.model.ts` — `IUser` domain entity (`locale`/`currency` optional: not every context
+  loads them) and the `Role` enum (source of truth).
+- `SafeUserProfile = Omit<IUser, 'password'>` — what the service returns; the password hash never
+  leaves the repository except on the auth lookups (`getUserByUsername`/`getUserByEmail`).
 
-## Serviços
-### UserService
-- `createUser(data, actor?)`: cria usuário (hash de senha via bcrypt; retorna `SafeUserProfile` sem
-  senha). **Regra de role:** só um `actor` ADMIN pode definir `role: ADMIN` — caso contrário a role é
-  rebaixada para `USER`.
-- `getAllUsers(actor, page?, limit?)`: lista paginada (apenas ADMIN; defaults `page=1`, `limit=10`).
-- `getUserById(id, actor)`: busca por ID (com checagem de acesso).
-- `updateUser(id, data, actor)`: atualiza (usuário comum só pode atualizar a si mesmo).
-- `deleteUser(id, actor)`: remove (ADMIN).
+## Layering & authorization
 
-## Políticas
-### UserPolicy
-- `canCreate`: Permissão para criar
-- `canListAll`: Permissão para listar
-- `canView`: Permissão para visualizar
-- `canUpdate`: Permissão para atualizar
-- `canDelete`: Permissão para deletar
-- `canChangeRole`: Permissão para alterar roles
+`Controller → Service → Repository`, with `Policy` injected into the service. Only the repository
+touches Prisma. The two authorization layers have **distinct jobs** (no overlap):
 
-## Repositório
-### UserRepository
-- `createUser`: Cria usuário
-- `getAllUsers`: Lista usuários
-- `getUserById`: Busca por ID
-- `getUserByUsername`: Busca por username
-- `getUserByEmail`: Busca por email
-- `updateUser`: Atualiza usuário
-- `deleteUser`: Remove usuário
+1. **`middleware/auth.ts`** — **authentication only, fail-closed**: every `/api` route requires a
+   valid JWT except a small public allowlist (`POST /api/users` signup, `/api/auth/login|register`,
+   `/api/docs`). It injects the `x-user-*` context headers and makes **no** per-record decisions.
+2. **`policies/UserPolicy.ts`** — **the authorization authority** (fine, per-action). The service
+   calls it before every action:
+   - `canCreate` — public signup (anonymous) or admin.
+   - `canListAll` — **admin-only**.
+   - `canView` / `canUpdate` — **owner-or-admin**.
+   - `canChangeRole` — **admin-only**.
+   - `canDelete` — **admin-only** (see below).
 
-## Padrões
-1. **Injeção de Dependência**
-   - Usa Factory Pattern
-   - Interfaces para repositório e políticas
-   - Dependências injetadas via construtor
+> **Self-service vs admin surface.** A user reads/edits their **own** profile via `GET /api/users/:id`
+> / `PUT /api/users/:id` (owner-or-admin) or via `GET /api/auth/me`. Listing all users is admin-only.
+> There is intentionally **no** cross-tenant "public profile" view.
+>
+> **Delete is admin-only — and self-delete is disallowed by design.** A `User` row cascade-deletes
+> its business data (`Document`, `DynamicTable`, `DashboardLayout`, chat — schema `onDelete: Cascade`),
+> so a user must not be able to hard-delete their own account; offboarding goes through an admin.
 
-2. **Validação**
-   - Zod para schemas
-   - Validação em DTOs
-   - Tipos inferidos
+## API (`/api/users`)
 
-3. **Segurança**
-   - Hash de senha com bcrypt
-   - Controle de roles
-   - Validação de permissões
+| Method | Path | Who | Action |
+|---|---|---|---|
+| POST | `/` | Public | Sign up. Non-admin (or anonymous) callers cannot self-assign `ADMIN`. |
+| GET | `/` | Admin | Paginated list. Query `page`/`limit` (`limit` capped at 100). |
+| GET | `/:id` | Self or Admin | Get one user (full `SafeUserProfile`). |
+| PUT | `/:id` | Self or Admin | Update. Only admins may change `role`. |
+| DELETE | `/:id` | Admin | Delete a user (self-delete disallowed). |
+| PATCH | `/me/preferences` | Self | Update own `locale`/`currency`. |
 
-4. **Tratamento de Erros**
-   - Classes de erro customizadas
-   - Mensagens descritivas
-   - Códigos HTTP apropriados
+All `:id` params are validated as CUID at the controller. Bodies are validated with Zod
+(`CreateUserSchema` / `UpdateUserSchema` / `UpdatePreferencesSchema` / `LoginSchema`).
 
-## Fluxo de Dados
-```
-Request → API Route → UserService → UserRepository → Database
-   ↑          ↓           ↓             ↓             ↓
-   └──────────┴───────────┴─────────────┴─────────────┘
-        Validação    Políticas    Cache    Logging
-```
+**Auth endpoints** (`/api/auth`, in `authController`) operate on users and delegate to `UserService`:
+`POST /register` → `createUser` (public), `POST /login` → `authenticate`, `GET /me` → `getUserById`
+(self). They issue/consume the JWT; response contract `{ success, data: { user, token } }`.
 
-## Boas Práticas
-1. **Novo Usuário**
-   - Validar dados de entrada
-   - Verificar unicidade
-   - Hash de senha
-   - Definir role apropriada
+## Invariants & rules
 
-2. **Atualização**
-   - Validar campos
-   - Verificar permissões
-   - Manter dados sensíveis
+- **Passwords are bcrypt-hashed** (cost 10) on create and on password update; never returned.
+- **No privilege escalation** — a non-admin updating a profile cannot set `role: ADMIN`
+  (`canChangeRole` is admin-only; a role change by a non-admin throws `ForbiddenError`).
+- **Last-admin protection** — the system cannot be locked out of admin access:
+  - `deleteUser` refuses to delete the last `ADMIN` (`countByRole(ADMIN) <= 1`).
+  - `updateUser` refuses to **demote** the last `ADMIN` (ADMIN → non-ADMIN) under the same condition.
+- **Uniqueness** — `username`/`email` are unique. `createUser` pre-checks and returns
+  `USERNAME_EXISTS`/`EMAIL_EXISTS` (409); on update the DB unique constraint surfaces as `P2002` → 409.
+- **Empty update rejected** — `updateUser` throws `ValidationError` if no valid field is provided.
 
-3. **Exclusão**
-   - Verificar dependências
-   - Manter histórico
-   - Limpar dados sensíveis
+## Service surface (`UserService`)
 
-4. **Consultas**
-   - Paginação
-   - Filtros
-   - Ordenação
-   - Cache quando apropriado
-
-## Uso
-
-```typescript
-// Exemplo de criação de usuário
-const factory = getFactory();
-const userService = factory.getUserService();
-const newUser = await userService.createUser({
-  name: "John Doe",
-  username: "johndoe",
-  email: "john@example.com",
-  password: "SecurePass123"
-});
-
-// Exemplo de atualização
-const updatedUser = await userService.updateUser(
-  userId,
-  { name: "John Updated" },
-  currentUser
-);
-```
-
-## Dependências
-
-- `zod`: Validação de dados
-- `bcryptjs`: Hash de senhas
-- `prisma`: ORM
-- `jose`: JWT 
+- `createUser(data, actor?)` — `actor` null = public signup. Hashes password, enforces role rule,
+  checks uniqueness. Returns `SafeUserProfile`.
+- `authenticate(identifier, password)` — verifies login credentials (username **or** email + password);
+  returns `SafeUserProfile` or throws `UnauthorizedError('Invalid credentials')` (no user enumeration).
+  Used by `POST /api/auth/login`.
+- `getAllUsers(actor, page?, limit?)` — admin-only (`canListAll`); returns `{ users, totalCount }`.
+- `getUserById(id, actor)` — admin-or-self (`canView`); returns `SafeUserProfile`.
+- `updateUser(id, data, actor)` — admin-or-self; admin-only role change with last-admin guard.
+- `updatePreferences(userId, prefs)` — self-scoped by the caller (`ctx.userId`); no role check.
+- `deleteUser(id, actor)` — **admin-only** (`canDelete`); last-admin guard prevents removing the final admin.

@@ -25,7 +25,7 @@ model User {
   currency                String                   @default("BRL") // 'BRL' | 'USD' | 'EUR'
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
-  dashboardLayout         DashboardLayout?
+  dashboardLayouts        DashboardLayout[] // multi-tab dashboards (fork feature/back-end)
   chatInstances           ChatInstance[] // Relation to ChatInstance
   documents               Document[] // Relation to Document
   dynamicTables           DynamicTable[] // Relation to DynamicTable
@@ -84,9 +84,11 @@ model CrmAttachment {
 
 model DashboardLayout {
   id         String   @id @default(cuid())
-  userId     String   @unique
+  userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  layoutData Json
+  name       String   // Tab label (promoted out of layoutData JSON)
+  isActive   Boolean  @default(false) // At most one active layout (tab) per user
+  layoutData Json     // { type, config } — the grid configuration
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

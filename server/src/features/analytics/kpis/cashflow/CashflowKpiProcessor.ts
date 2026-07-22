@@ -25,6 +25,7 @@
  */
 
 import type { AnalyticsProcessor, ChartDataPoint } from '../../core';
+import { logger } from '@/lib/logger';
 import {
   daysBetween,
   getPeriodBoundaries,
@@ -310,7 +311,7 @@ export const cashflowKpiProcessor: AnalyticsProcessor = async (context): Promise
         }
       }
     } catch (err) {
-      console.warn('[cashflowKpiProcessor] Failed to fetch expenses:', err);
+      logger.warn('[cashflowKpiProcessor] Failed to fetch expenses', { error: err });
     }
   }
 

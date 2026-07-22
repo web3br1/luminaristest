@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import { ChatMessageRole } from '../models/ChatMessage.model';
-import { IChatMessage, IChatMessageSummary } from '../models/ChatMessage.model';
+
+/**
+ * Query schema for listing an instance's messages. Pagination is optional and additive
+ * (no page/pageSize → the full conversation); `pageSize` is capped to protect huge threads.
+ */
+export const ListChatMessagesQuerySchema = z.object({
+  instanceId: z.string().cuid({ message: 'Invalid instance ID format' }),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+export type ListChatMessagesQuery = z.infer<typeof ListChatMessagesQuerySchema>;
 
 /**
  * Schema for chat message response
@@ -32,35 +42,30 @@ export const ChatMessageSchema = z.object({
 });
 
 /**
- * Schema for creating a new chat message (user-facing endpoint).
- * Only the USER role is accepted — clients cannot forge ASSISTANT or SYSTEM messages.
+ * Schema for creating a new chat message
  * @openapi
  * components:
  *   schemas:
  *     CreateChatMessage:
  *       type: object
- *       required: [content, role, chatInstanceId]
+ *       required: [content, chatInstanceId]
  *       properties:
  *         content: { type: string, minLength: 1, maxLength: 4000 }
- *         role: { type: string, enum: [USER] }
  *         chatInstanceId: { type: string, format: cuid }
  *         documentIds: { type: array, items: { type: string } }
  */
+// role is intentionally absent: REST creation always persists a USER message.
+// AI (assistant) replies are produced exclusively through the /api/chat endpoint.
 export const CreateChatMessageSchema = z.object({
   content: z.string()
     .min(1, 'chatMessage.validation.contentRequired')
-    .max(4000, 'chatMessage.validation.contentTooLong')
-    .regex(/^[\s\S]*$/, 'chatMessage.validation.contentInvalidCharacters'),
-  role: z.literal(ChatMessageRole.USER, {
-    error: 'chatMessage.validation.roleInvalid',
-  }),
+    .max(4000, 'chatMessage.validation.contentTooLong'),
   chatInstanceId: z.string().cuid({ message: 'chatMessage.validation.chatInstanceIdInvalidCuid' }),
   documentIds: z.array(z.string()).optional(),
 });
 
 /**
- * Schema for updating a chat message (user-facing endpoint).
- * The role field is intentionally excluded — clients cannot alter message roles.
+ * Schema for updating a chat message
  * @openapi
  * components:
  *   schemas:
@@ -68,8 +73,9 @@ export const CreateChatMessageSchema = z.object({
  *       type: object
  *       properties:
  *         content: { type: string, minLength: 1, maxLength: 4000 }
+ *         role: { type: string, enum: [user, assistant, system] }
  */
-export const UpdateChatMessageSchema = CreateChatMessageSchema.omit({ role: true, chatInstanceId: true, documentIds: true }).partial();
+export const UpdateChatMessageSchema = CreateChatMessageSchema.partial();
 
 /**
  * Schema for chat message summary (used in lists)
@@ -134,10 +140,4 @@ export function isUpdateChatMessageDto(obj: unknown): obj is UpdateChatMessageDt
  */
 export function isChatMessageSummaryDto(obj: unknown): obj is ChatMessageSummaryDto {
   return ChatMessageSummarySchema.safeParse(obj).success;
-}
-
-// Geralmente não atualizamos mensagens de chat individuais, mas se necessário:
-// export const UpdateChatMessageSchema = z.object({
-//   content: z.string().min(1, { message: 'chatMessage.validation.contentRequired' }).optional(),
-// });
-// export type UpdateChatMessageDto = z.infer<typeof UpdateChatMessageSchema>; 
+} 

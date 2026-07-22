@@ -2,7 +2,7 @@ import { qdrant } from './qdrant';
 import logger from '@/lib/logger';
 
 const COLLECTION_NAME = 'documents';
-const VECTOR_SIZE = 1536; // Tamanho do vetor para text-embedding-ada-002
+const VECTOR_SIZE = 1536; // Vector size for text-embedding-3-small
 const DISTANCE_METRIC = 'Cosine';
 
 /**

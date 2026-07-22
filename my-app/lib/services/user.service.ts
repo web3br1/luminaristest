@@ -9,9 +9,23 @@ interface PaginationMetadata { page: number; limit: number; total: number; hasMo
 export const UserService = {
   /**
    * Fetches a paginated list of users.
+   * Backend returns the flat shape { data, total, page, pageSize }; this adapter rebuilds the
+   * `pagination` object the pages consume so callers stay unchanged.
    */
   async getUsers(page: number, limit: number): Promise<{ data: IUser[], pagination: PaginationMetadata }> {
-    return apiClient.get<{ data: IUser[], pagination: PaginationMetadata }>(`/users?page=${page}&limit=${limit}`);
+    const res = await apiClient.get<{ data: IUser[], total: number, page: number, pageSize: number }>(
+      `/users?page=${page}&limit=${limit}`
+    );
+    return {
+      data: res.data,
+      pagination: {
+        page: res.page,
+        limit: res.pageSize,
+        total: res.total,
+        totalCount: res.total,
+        totalPages: Math.ceil(res.total / (res.pageSize || limit)),
+      },
+    };
   },
 
   /**
