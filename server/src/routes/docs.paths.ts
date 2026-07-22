@@ -1574,6 +1574,15 @@
  *             properties:
  *               success: { type: boolean, example: false }
  *               error: { type: string }
+ *     ValidationError:
+ *       description: Request failed DTO (Zod) validation — error carries the flattened field issues
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               success: { type: boolean, example: false }
+ *               error: { type: object }
  *     UnauthorizedError:
  *       description: Missing or invalid authentication token
  *       content:

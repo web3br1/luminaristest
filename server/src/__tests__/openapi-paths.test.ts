@@ -48,4 +48,24 @@ describe('OpenAPI @openapi path coverage', () => {
     const junk = Object.keys(spec.paths || {}).filter((k) => !k.startsWith('/'));
     expect(junk).toEqual([]);
   });
+
+  // Third guard: every $ref in the spec must resolve. The components live in @openapi blocks
+  // spread across routes/ + dtos/ — dropping a file from the glob (or renaming a schema) used
+  // to leave silently-dangling refs in the served spec (25 of them before the dtos/ glob).
+  it('has no dangling $refs', () => {
+    const spec = swaggerJSDoc(options) as Record<string, unknown>;
+    const refs = new Set<string>();
+    JSON.stringify(spec, (k, v) => {
+      if (k === '$ref') refs.add(v as string);
+      return v;
+    });
+    const dangling = [...refs].filter((r) => {
+      let node: unknown = spec;
+      for (const seg of r.replace('#/', '').split('/')) {
+        node = node && (node as Record<string, unknown>)[seg];
+      }
+      return !node;
+    });
+    expect(dangling).toEqual([]);
+  });
 });

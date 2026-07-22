@@ -39,7 +39,13 @@ export async function listLayouts(req: Request, res: Response) {
  *       required: true
  *       content:
  *         application/json:
- *           schema: { $ref: '#/components/schemas/CreateDashboardLayoutDto' }
+ *           schema:
+ *             type: object
+ *             required: [name, type, config]
+ *             properties:
+ *               name: { type: string, minLength: 3, maxLength: 50 }
+ *               type: { type: string, enum: [GRID, LIST, CUSTOM] }
+ *               config: { type: object }
  *     responses:
  *       '201': { description: Layout created }
  *       '401': { $ref: '#/components/responses/UnauthorizedError' }
@@ -99,7 +105,12 @@ export async function getLayoutById(req: Request, res: Response) {
  *       required: true
  *       content:
  *         application/json:
- *           schema: { $ref: '#/components/schemas/UpdateDashboardLayoutDto' }
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string, minLength: 3, maxLength: 50 }
+ *               type: { type: string, enum: [GRID, LIST, CUSTOM] }
+ *               config: { type: object }
  *     responses:
  *       '200': { description: Updated layout }
  *       '401': { $ref: '#/components/responses/UnauthorizedError' }
