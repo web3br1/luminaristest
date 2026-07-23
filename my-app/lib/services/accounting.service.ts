@@ -221,6 +221,9 @@ export interface IncomeStatementReport {
   mappingVersion: string;
   grossRevenue: StatementSection;
   revenueDeductions: StatementSection;
+  // INCR-INVENTORY — CMV (conta 4.2), between deductions and operating expenses in the DRE.
+  // Backend always returns it (empty section when there is no cost booked yet).
+  costOfGoodsSold: StatementSection;
   expenses: StatementSection;
   netResult: { amountCents: string; isComputed: true; computation: string };
   reportStatus: 'OK' | 'WARNING' | 'INVALID';

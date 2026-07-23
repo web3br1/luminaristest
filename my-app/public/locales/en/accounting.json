@@ -605,6 +605,7 @@
     "section": {
       "grossRevenue": "Gross Revenue",
       "revenueDeductions": "(−) Revenue Deductions",
+      "costOfGoodsSold": "(−) Cost of Goods Sold",
       "expenses": "(−) Expenses"
     },
     "netResult": "Net Result for the Period",

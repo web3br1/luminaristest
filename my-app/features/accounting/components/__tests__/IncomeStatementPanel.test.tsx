@@ -26,6 +26,7 @@ const report: IncomeStatementReport = {
   unitId: 'u1', periodSemantics: 'year_to_date', fromDate: '2026-01-01', toDate: '2026-06-30', mappingVersion: 'v1',
   grossRevenue: { accounts: [{ accountId: 'r1', code: '3.1', name: 'Serviços', amountCents: '100000' }], totalCents: '100000' },
   revenueDeductions: { accounts: [], totalCents: '0' },
+  costOfGoodsSold: { accounts: [], totalCents: '0' },
   expenses: { accounts: [{ accountId: 'x1', code: '4.1', name: 'Salários', amountCents: '-40000' }], totalCents: '-40000' },
   netResult: { amountCents: '60000', isComputed: true, computation: 'sum' },
   reportStatus: 'OK', diagnostics,
@@ -54,5 +55,23 @@ describe('IncomeStatementPanel (render)', () => {
     // 60000 cents net → "600,00"; string-cents parsed, never "NaN".
     expect(container.textContent).toContain('600,00');
     expect(container.textContent).not.toContain('NaN');
+  });
+
+  it('renders the Custo das Mercadorias Vendidas section when the backend returns it', async () => {
+    // Regression: the panel used to omit costOfGoodsSold entirely, so a booked CMV would leave
+    // net result not tying out to the visible sections. The section must render with its value.
+    const withCogs: IncomeStatementReport = {
+      ...report,
+      costOfGoodsSold: { accounts: [{ accountId: 'c1', code: '4.2', name: 'CMV', amountCents: '-25000' }], totalCents: '-25000' },
+      netResult: { amountCents: '35000', isComputed: true, computation: 'sum' },
+    };
+    vi.mocked(accountingService.getIncomeStatement).mockResolvedValue(withCogs);
+
+    const { container } = render(<IncomeStatementPanel unitId="u1" />);
+    fireEvent.click(screen.getByRole('button', { name: /Gerar DRE/ }));
+
+    await waitFor(() => expect(screen.getByText(/Custo das Mercadorias Vendidas/)).toBeInTheDocument());
+    // -25000 cents → "250,00" visible in the CMV section.
+    expect(container.textContent).toContain('250,00');
   });
 });
