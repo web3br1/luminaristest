@@ -9,7 +9,7 @@ export const CANONICAL_VERSION = 1;
  * Only these keys survive sanitization — everything else (tokens, PII, request body) is dropped.
  * Money values must be strings (never numbers) before calling this.
  */
-const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
+export const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   'entry.posted':    ['sourceType', 'sourceId', 'description', 'sumDebitCents', 'lineCount'],
   'entry.reversed':  ['originalId', 'reversalId', 'reason'],
   // BE-INCR-8 — formal provenance. Recorded in the same tx as the entry when an origin
@@ -69,6 +69,29 @@ const PAYLOAD_ALLOWLIST: Record<string, readonly string[]> = {
   // the mapper's `entry.posted`; only inbound receipts and stock reversals are audited here.
   'inventory.received': ['inventoryItemId', 'productRef', 'qty', 'valueCents', 'sourceType', 'sourceId'],
   'inventory.reversed': ['saleId', 'reversalEventId', 'valueCents'],
+  // INCR-COUNTERPARTY (A1) — supplier/customer catalog. Id + type + ref only; the counterparty
+  // `name` is third-party PII and is dropped exactly like `supplierName`/`customerName` in the
+  // AP/AR events (the row keeps the name; the immutable audit trail does not).
+  'counterparty.created':  ['counterpartyId', 'type', 'ref'],
+  'counterparty.archived': ['counterpartyId', 'type'],
+  // INCR-DIM-COMPLETENESS (B1) — the per-account `requiresDimension` flag toggle. Code + old/new
+  // flag as string (ACC config change; no PII).
+  'account.requires_dimension_changed': ['code', 'from', 'to'],
+  // BE-INCR-7 — bank reconciliation. Ids/hashes/counts + ISO dates; never statement line amounts,
+  // descriptions, or counterparty text (PII-safe). Two derived flips (entry_reconciled/unreconciled)
+  // carry only their derivation reason.
+  'reconciliation.statement_imported':  ['glAccountId', 'sha256', 'lineCount', 'periodStart', 'periodEnd'],
+  'reconciliation.statement_deleted':   ['sha256'],
+  'reconciliation.matched':             ['statementLineId', 'postingId', 'entryId', 'matchType'],
+  'reconciliation.unmatched':           ['statementLineId', 'postingId', 'reason'],
+  'reconciliation.entry_reconciled':    ['derivedFrom'],
+  'reconciliation.entry_unreconciled':  ['derivedFrom'],
+  'reconciliation.line_ignored':        ['statementId'],
+  'reconciliation.line_unignored':      ['statementId'],
+  // BE-INCR-SPED — ECD/ECF file generation jobs. Job id + kind + year + file hash + line count;
+  // never the file bytes or account balances (PII-safe).
+  'sped.ecd_generated': ['jobId', 'kind', 'year', 'mappingVersion', 'sha256', 'lineCount'],
+  'sped.ecf_generated': ['jobId', 'kind', 'year', 'sha256', 'lineCount'],
 };
 
 /**
